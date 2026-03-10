@@ -1,0 +1,13 @@
+{
+  "recommendations": [
+    "svelte.svelte-vscode",
+    "bradlc.vscode-tailwindcss",
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "usernamehw.errorlens",
+    "christian-kohler.path-intellisense",
+    "vitest.explorer",
+    "eamodio.gitlens",
+    "yoavbls.pretty-ts-errors"
+  ]
+}

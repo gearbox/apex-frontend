@@ -1,0 +1,86 @@
+@import 'tailwindcss';
+
+/* ─── Google Fonts ─── */
+@font-face {
+  font-family: 'DM Sans';
+  font-style: normal;
+  font-weight: 100 1000;
+  font-display: swap;
+  src: url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap');
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+  src: url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@100..800&display=swap');
+}
+
+/* ─── Tailwind Theme Extension via CSS Variables ─── */
+@theme {
+  --font-sans: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  --color-bg: var(--apex-bg);
+  --color-surface: var(--apex-surface);
+  --color-surface-hover: var(--apex-surface-hover);
+  --color-border: var(--apex-border);
+  --color-border-active: var(--apex-border-active);
+  --color-text: var(--apex-text);
+  --color-text-muted: var(--apex-text-muted);
+  --color-text-dim: var(--apex-text-dim);
+  --color-accent: var(--apex-accent);
+  --color-accent-dim: var(--apex-accent-dim);
+  --color-accent-glow: var(--apex-accent-glow);
+  --color-success: var(--apex-success);
+  --color-warning: var(--apex-warning);
+  --color-danger: var(--apex-danger);
+}
+
+/* ─── Base Styles ─── */
+html {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background-color: var(--apex-bg);
+  color: var(--apex-text);
+  transition:
+    background-color 0.35s ease,
+    color 0.35s ease;
+  min-height: 100dvh;
+}
+
+/* ─── Safe Area Insets ─── */
+:root {
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-top: env(safe-area-inset-top, 0px);
+}
+
+/* ─── Scrollbar Styling ─── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--apex-border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--apex-border-active);
+}
+
+/* ─── Focus Ring ─── */
+*:focus-visible {
+  outline: 2px solid var(--apex-accent);
+  outline-offset: 2px;
+}
