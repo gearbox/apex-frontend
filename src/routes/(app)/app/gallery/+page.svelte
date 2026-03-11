@@ -7,8 +7,6 @@
 </svelte:head>
 
 <div class="p-4 md:p-0">
-  <h1 class="mb-4 text-xl font-semibold text-text">Gallery</h1>
-
   <!-- Filter bar -->
   <div class="mb-4 flex items-center gap-2">
     {#each ['All', 'Images', 'Videos'] as filter, i (filter)}

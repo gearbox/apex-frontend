@@ -18,6 +18,9 @@
 }
 
 /* ─── Tailwind Theme Extension via CSS Variables ─── */
+/* @theme maps Tailwind utility names to runtime CSS vars set by the theme store.
+   No fallback values here — Tailwind 4 would bake them in at build time, breaking
+   dynamic theming. Defaults live on :root below instead. */
 @theme {
   --font-sans: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
@@ -38,6 +41,29 @@
   --color-danger: var(--apex-danger);
 }
 
+/* ─── Default Theme Tokens ─── */
+/* Slate dark (= DEFAULT_PREFS) so colours are valid before JS hydrates.
+   applyThemeColors() overrides these on <body> via inline style once mounted. */
+:root {
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-top: env(safe-area-inset-top, 0px);
+
+  --apex-bg: #110f0b;
+  --apex-surface: #1a1710;
+  --apex-surface-hover: #22201a;
+  --apex-border: #2e2a1e;
+  --apex-border-active: #4a4230;
+  --apex-text: #ede8dc;
+  --apex-text-muted: #9a9080;
+  --apex-text-dim: #665e4e;
+  --apex-accent: #d97706;
+  --apex-accent-dim: #92400e;
+  --apex-accent-glow: rgba(217, 119, 6, 0.14);
+  --apex-success: #34d399;
+  --apex-warning: #fbbf24;
+  --apex-danger: #f87171;
+}
+
 /* ─── Base Styles ─── */
 html {
   font-family: var(--font-sans);
@@ -52,12 +78,6 @@ body {
     background-color 0.35s ease,
     color 0.35s ease;
   min-height: 100dvh;
-}
-
-/* ─── Safe Area Insets ─── */
-:root {
-  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
-  --safe-area-top: env(safe-area-inset-top, 0px);
 }
 
 /* ─── Scrollbar Styling ─── */

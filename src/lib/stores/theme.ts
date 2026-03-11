@@ -90,7 +90,7 @@ export function initTheme(): () => void {
   mql.addEventListener('change', onMediaChange);
 
   const unsubColors = currentColors.subscribe((colors: ThemeColors) => {
-    applyThemeColors(document.body, colors);
+    applyThemeColors(document.documentElement, colors);
   });
 
   return () => {
