@@ -42,7 +42,7 @@
 
   <!-- Main nav -->
   <nav class="sidebar-nav">
-    {#each mainItems as item}
+    {#each mainItems as item (item.href)}
       {@const Icon = iconMap[item.icon]}
       {@const isActive = $page.url.pathname.startsWith(item.href)}
       <a

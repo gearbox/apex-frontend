@@ -6,12 +6,12 @@
   <title>Gallery — Apex</title>
 </svelte:head>
 
-<div class="mx-auto max-w-6xl p-4 md:p-6">
+<div class="p-4 md:p-0">
   <h1 class="mb-4 text-xl font-semibold text-text">Gallery</h1>
 
   <!-- Filter bar -->
   <div class="mb-4 flex items-center gap-2">
-    {#each ['All', 'Images', 'Videos'] as filter, i}
+    {#each ['All', 'Images', 'Videos'] as filter, i (filter)}
       <button
         class="rounded-full px-3 py-1 text-xs font-medium transition-colors {i === 0
           ? 'bg-accent/15 text-accent'

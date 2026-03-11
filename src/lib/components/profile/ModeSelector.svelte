@@ -13,7 +13,7 @@
 <div class="section">
   <p class="label">Mode</p>
   <div class="mode-group">
-    {#each modes as m, i}
+    {#each modes as m, i (m.value)}
       {@const Icon = m.icon}
       {@const active = $themePrefs.mode === m.value}
       <button

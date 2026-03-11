@@ -11,7 +11,7 @@
 <div class="section">
   <p class="label">Theme</p>
   <div class="theme-grid">
-    {#each themeOpts as t}
+    {#each themeOpts as t (t.id)}
       {@const active = $themePrefs.theme === t.id}
       {@const def = themes[t.id]}
       <button

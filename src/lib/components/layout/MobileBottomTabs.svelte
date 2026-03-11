@@ -11,7 +11,7 @@
 </script>
 
 <nav class="btm-tabs">
-  {#each TAB_ITEMS as item}
+  {#each TAB_ITEMS as item (item.href)}
     {@const Icon = iconMap[item.icon]}
     {@const isActive = $page.url.pathname.startsWith(item.href)}
     <a href={item.href} class="btm-tab" class:active={isActive}>

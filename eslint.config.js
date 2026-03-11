@@ -26,6 +26,8 @@ export default ts.config(
   {
     rules: {
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+      'svelte/require-each-key': 'error',
+      'svelte/no-navigation-without-resolve': 'off',
     },
   },
   {

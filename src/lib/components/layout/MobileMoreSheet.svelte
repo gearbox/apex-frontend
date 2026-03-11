@@ -17,16 +17,14 @@
 <svelte:window onkeydown={handleKeydown} />
 
 {#if $moreSheetOpen}
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div class="sheet-backdrop" onclick={closeMoreSheet} role="presentation">
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <div class="sheet-panel" onclick={(e) => e.stopPropagation()} role="dialog" aria-label="More navigation" tabindex="-1">
       <!-- Handle bar -->
       <div class="sheet-handle"></div>
 
       <nav>
-        {#each MORE_ITEMS as item}
+        {#each MORE_ITEMS as item (item.href)}
           {@const Icon = iconMap[item.icon]}
           <a href={item.href} onclick={closeMoreSheet} class="sheet-item">
             <span class="sheet-item-icon">

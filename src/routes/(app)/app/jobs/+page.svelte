@@ -6,7 +6,7 @@
   <title>Jobs — Apex</title>
 </svelte:head>
 
-<div class="mx-auto max-w-4xl p-4 md:p-6">
+<div class="p-4 md:p-0">
   <h1 class="mb-4 text-xl font-semibold text-text">Job History</h1>
 
   <div class="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface/50 py-20">
