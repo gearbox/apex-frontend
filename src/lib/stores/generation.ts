@@ -5,7 +5,7 @@ export type GenerationMode = 't2i' | 'i2i' | 't2v' | 'i2v';
 type ModelType = components['schemas']['ModelType'];
 type AspectRatio = components['schemas']['AspectRatio'];
 type JobStatus = components['schemas']['JobStatus'];
-type GrokJobStatusResponse = components['schemas']['GrokJobStatusResponse'];
+type UnifiedJobResponse = components['schemas']['UnifiedJobResponse'];
 
 export interface GenerationState {
   // Model
@@ -30,7 +30,7 @@ export interface GenerationState {
   // Session job tracking
   activeJobId: string | null;
   jobStatus: JobStatus | null;
-  completedJob: GrokJobStatusResponse | null;
+  completedJob: UnifiedJobResponse | null;
 }
 
 const DEFAULT_NEGATIVE_PROMPT =
@@ -107,7 +107,7 @@ function createGenerationStore() {
       update((s) => ({ ...s, jobStatus: status }));
     },
 
-    setComplete(job: GrokJobStatusResponse) {
+    setComplete(job: UnifiedJobResponse) {
       update((s) => ({
         ...s,
         jobStatus: 'completed',

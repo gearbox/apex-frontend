@@ -1,14 +1,144 @@
 <script lang="ts">
-  // Phase 2+: Job list with status badges, filters, pagination
+  import { createQuery, createMutation, useQueryClient } from '@tanstack/svelte-query';
+  import { Inbox, RefreshCw } from 'lucide-svelte';
+  import { jobsListQueryOptions, deleteJobMutationOptions, jobKeys } from '$lib/queries/jobs';
+  import JobCard from '$lib/components/jobs/JobCard.svelte';
+  import JobFilters from '$lib/components/jobs/JobFilters.svelte';
+  import type { components } from '$lib/api/types';
+  import type { JobListFilters } from '$lib/queries/jobs';
+
+  type UnifiedJobResponse = components['schemas']['UnifiedJobResponse'];
+
+  const NON_TERMINAL: components['schemas']['JobStatus'][] = ['pending', 'queued', 'running'];
+
+  const queryClient = useQueryClient();
+
+  // ── Filter + pagination state
+  let filters = $state<JobListFilters>({ limit: 20, offset: 0 });
+  let accumulatedItems = $state<UnifiedJobResponse[]>([]);
+  let total = $state(0);
+  let loadingMore = $state(false);
+
+  // ── Query — auto-refresh while any non-terminal job exists
+  const hasActiveJobs = $derived(accumulatedItems.some((j) => NON_TERMINAL.includes(j.status)));
+
+  const query = createQuery(() => ({
+    ...jobsListQueryOptions(filters),
+    refetchInterval: hasActiveJobs ? 5000 : false,
+  }));
+
+  // Append or replace on new data
+  $effect(() => {
+    const data = query.data;
+    if (!data) return;
+    if (filters.offset === 0) {
+      accumulatedItems = data.items;
+    } else {
+      accumulatedItems = [...accumulatedItems, ...data.items];
+    }
+    total = data.total;
+    loadingMore = false;
+  });
+
+  // ── Delete mutation
+  const deleteMutation = createMutation(() => deleteJobMutationOptions(queryClient));
+
+  function handleDelete(jobId: string) {
+    // Optimistic removal
+    accumulatedItems = accumulatedItems.filter((j) => j.id !== jobId);
+    total = Math.max(0, total - 1);
+    deleteMutation.mutate(jobId);
+  }
+
+  function handleFilterChange(newFilters: JobListFilters) {
+    filters = { ...newFilters, offset: 0 };
+  }
+
+  function handleLoadMore() {
+    loadingMore = true;
+    filters = { ...filters, offset: (filters.offset ?? 0) + (filters.limit ?? 20) };
+  }
 </script>
 
 <svelte:head>
   <title>Jobs — Apex</title>
 </svelte:head>
 
-<div class="p-4 md:p-0">
-  <div class="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface/50 py-20">
-    <p class="text-sm text-text-dim">Your generation jobs will appear here</p>
-    <p class="mt-1 text-xs text-text-dim">Coming in Phase 2</p>
+<div class="space-y-4 p-4 md:p-0">
+  <!-- Header -->
+  <div class="flex items-center justify-between">
+    <h1 class="text-lg font-semibold text-text">Jobs</h1>
+    <button
+      onclick={() => queryClient.invalidateQueries({ queryKey: jobKeys.all })}
+      class="flex h-8 w-8 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-surface-hover hover:text-text"
+      aria-label="Refresh jobs"
+    >
+      <RefreshCw size={15} />
+    </button>
   </div>
+
+  <!-- Filters -->
+  <JobFilters {filters} onChange={handleFilterChange} />
+
+  <!-- States -->
+  {#if query.isLoading && accumulatedItems.length === 0}
+    <!-- Loading skeletons -->
+    <div class="flex flex-col gap-2">
+      {#each Array(5) as _, i (i)}
+        <div class="h-18 animate-pulse rounded-xl bg-surface"></div>
+      {/each}
+    </div>
+
+  {:else if query.isError}
+    <!-- Error -->
+    <div class="rounded-xl border border-danger/20 bg-danger/5 p-4 text-center">
+      <p class="mb-3 text-sm text-danger">{query.error?.message ?? 'Failed to load jobs'}</p>
+      <button
+        onclick={() => query.refetch()}
+        class="rounded-lg bg-surface px-3 py-1.5 text-xs font-medium text-text hover:bg-surface-hover"
+      >
+        Retry
+      </button>
+    </div>
+
+  {:else if accumulatedItems.length === 0}
+    <!-- Empty state -->
+    <div class="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-20 text-center">
+      <Inbox size={40} class="mb-3 text-text-dim opacity-40" />
+      <p class="text-sm font-medium text-text">No jobs yet</p>
+      <p class="mt-1 text-xs text-text-muted">Your generation jobs will appear here</p>
+      <a
+        href="/app/create"
+        class="mt-4 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-bg transition-opacity hover:opacity-90"
+      >
+        Start generating →
+      </a>
+    </div>
+
+  {:else}
+    <!-- Job list -->
+    <div class="flex flex-col gap-2">
+      {#each accumulatedItems as job (job.id)}
+        <JobCard {job} onDelete={handleDelete} />
+      {/each}
+    </div>
+
+    <!-- Load more -->
+    {#if accumulatedItems.length < total}
+      <div class="flex justify-center pt-2">
+        <button
+          onclick={handleLoadMore}
+          disabled={loadingMore || query.isFetching}
+          class="flex items-center gap-2 rounded-lg border border-border bg-surface px-4 py-2 text-sm text-text-muted transition-colors hover:bg-surface-hover disabled:opacity-50"
+        >
+          {#if loadingMore || query.isFetching}
+            <div class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-accent border-t-transparent"></div>
+            Loading…
+          {:else}
+            Load more
+          {/if}
+        </button>
+      </div>
+    {/if}
+  {/if}
 </div>

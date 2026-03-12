@@ -4,21 +4,20 @@
   import { Download, RefreshCw, Play } from 'lucide-svelte';
   import type { components } from '$lib/api/types';
 
-  type GrokJobStatusResponse = components['schemas']['GrokJobStatusResponse'];
+  type UnifiedJobResponse = components['schemas']['UnifiedJobResponse'];
+  type ModelType = components['schemas']['ModelType'];
 
   let { showSkeleton = false }: { showSkeleton?: boolean } = $props();
 
   const job = $derived($generationStore.completedJob);
-  const isVideo = $derived(
-    job?.generation_type === 't2v' || job?.generation_type === 'i2v',
-  );
+  const nonThumbnailOutputs = $derived((job?.outputs ?? []).filter((o) => !o.is_thumbnail));
 
   let videoModalUrl = $state<string | null>(null);
 
-  function handleRegenerate(completedJob: GrokJobStatusResponse) {
+  function handleRegenerate(completedJob: UnifiedJobResponse) {
     generationStore.prefill({
       prompt: completedJob.prompt,
-      model: completedJob.model ?? 'grok-imagine-image',
+      model: (completedJob.model ?? 'grok-imagine-image') as ModelType,
     });
   }
 </script>
@@ -30,16 +29,16 @@
       <div class="aspect-square animate-pulse rounded-xl bg-surface"></div>
     {/each}
   </div>
-{:else if job && job.outputs && job.outputs.length > 0}
+{:else if job && nonThumbnailOutputs.length > 0}
   <div class="flex flex-col gap-4">
     <!-- Job metadata -->
     <div class="flex flex-wrap items-center gap-3 text-[11px] text-text-dim">
       <span class="capitalize">{job.model ?? 'Unknown model'}</span>
       <span>·</span>
       <span>{job.generation_type?.toUpperCase()}</span>
-      {#if job.tokens_charged}
+      {#if job.token_cost}
         <span>·</span>
-        <span class="font-mono text-accent">◈ {job.tokens_charged}</span>
+        <span class="font-mono text-accent">◈ {job.token_cost}</span>
       {/if}
       {#if job.created_at}
         <span>·</span>
@@ -48,15 +47,15 @@
     </div>
 
     <!-- Outputs grid -->
-    <div class="grid grid-cols-2 gap-2 md:grid-cols-{Math.min(job.outputs.length, 2)}">
-      {#each job.outputs as url, i (i)}
+    <div class="grid grid-cols-2 gap-2">
+      {#each nonThumbnailOutputs as output (output.id)}
         <div class="group relative overflow-hidden rounded-xl border border-border">
-          {#if isVideo}
+          {#if output.content_type.startsWith('video/')}
             <!-- Video thumbnail with play overlay -->
             <div class="relative aspect-video bg-surface">
               <div class="absolute inset-0 flex items-center justify-center">
                 <button
-                  onclick={() => (videoModalUrl = url)}
+                  onclick={() => (videoModalUrl = output.url)}
                   class="flex h-12 w-12 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-sm hover:bg-black/70 transition-colors"
                 >
                   <Play size={20} fill="white" />
@@ -65,8 +64,8 @@
             </div>
           {:else}
             <img
-              src={url}
-              alt="Generated image {i + 1}"
+              src={output.url}
+              alt="Generated output"
               class="w-full object-cover"
               loading="lazy"
             />
@@ -75,7 +74,7 @@
           <!-- Hover actions -->
           <div class="absolute inset-x-0 bottom-0 flex justify-end gap-1.5 bg-gradient-to-t from-black/60 to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
             <a
-              href={url}
+              href={output.url}
               download
               class="flex h-7 w-7 items-center justify-center rounded-lg bg-white/20 text-white backdrop-blur-sm hover:bg-white/30 transition-colors"
               aria-label="Download"

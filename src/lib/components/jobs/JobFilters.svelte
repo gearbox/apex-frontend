@@ -1,0 +1,49 @@
+<script lang="ts">
+  import type { JobListFilters } from '$lib/queries/jobs';
+
+  let { filters, onChange }: {
+    filters: JobListFilters;
+    onChange: (f: JobListFilters) => void;
+  } = $props();
+
+  const statusOptions = [
+    { label: 'All',       value: null },
+    { label: 'Running',   value: 'running' },
+    { label: 'Completed', value: 'completed' },
+    { label: 'Failed',    value: 'failed' },
+  ] as const;
+
+  const typeOptions = [
+    { label: 'All types', value: null },
+    { label: 'Images',    value: 't2i' },
+    { label: 'Video',     value: 't2v' },
+  ] as const;
+
+  function chipClass(active: boolean) {
+    return active
+      ? 'bg-accent text-bg font-medium'
+      : 'bg-surface text-text-muted hover:bg-surface-hover';
+  }
+</script>
+
+<div class="flex gap-2 overflow-x-auto pb-0.5 scrollbar-none">
+  {#each statusOptions as opt (opt.label)}
+    <button
+      class="shrink-0 cursor-pointer rounded-full px-3 py-1 text-sm transition-colors {chipClass(filters.status === opt.value)}"
+      onclick={() => onChange({ ...filters, status: opt.value, offset: 0 })}
+    >
+      {opt.label}
+    </button>
+  {/each}
+
+  <div class="w-px shrink-0 self-stretch bg-border"></div>
+
+  {#each typeOptions as opt (opt.label)}
+    <button
+      class="shrink-0 cursor-pointer rounded-full px-3 py-1 text-sm transition-colors {chipClass(filters.generation_type === opt.value)}"
+      onclick={() => onChange({ ...filters, generation_type: opt.value, offset: 0 })}
+    >
+      {opt.label}
+    </button>
+  {/each}
+</div>

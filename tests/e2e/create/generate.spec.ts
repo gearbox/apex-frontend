@@ -51,13 +51,16 @@ test.describe('Generate page', () => {
 
   test('3. Job submission shows loading state', async ({ authenticatedPage: page }) => {
     await page.route('**/v1/grok/image', jsonRoute(mockGrokJobResponse));
-    await page.route('**/v1/grok/jobs/**', jsonRoute({
-      job_id: 'job_e2e_001',
+    await page.route('**/v1/jobs/**', jsonRoute({
+      id: 'job_e2e_001',
       status: 'running',
       name: 'E2E generation',
+      provider: 'grok',
+      model: 'grok-imagine-image',
       generation_type: 't2i',
       prompt: 'A beautiful test image',
       created_at: '2025-01-01T00:00:00Z',
+      outputs: [],
     }));
 
     // Navigate with ?prompt= pre-populated — avoids synthetic input event issues

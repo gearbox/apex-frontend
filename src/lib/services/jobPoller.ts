@@ -3,13 +3,13 @@ import apiClient from '$lib/api/client';
 import { POLL_INTERVAL_MS, TERMINAL_JOB_STATUSES } from '$lib/utils/constants';
 import type { components } from '$lib/api/types';
 
-type GrokJobStatusResponse = components['schemas']['GrokJobStatusResponse'];
+type UnifiedJobResponse = components['schemas']['UnifiedJobResponse'];
 
 export interface PollOptions {
   jobId: string;
   intervalMs?: number;
-  onUpdate: (job: GrokJobStatusResponse) => void;
-  onComplete: (job: GrokJobStatusResponse) => void;
+  onUpdate: (job: UnifiedJobResponse) => void;
+  onComplete: (job: UnifiedJobResponse) => void;
   onError: (error: Error) => void;
 }
 
@@ -25,7 +25,7 @@ export function createJobPoller(options: PollOptions): { stop: () => void } {
     if (stopped) return;
 
     try {
-      const { data, error } = await apiClient.GET('/v1/grok/jobs/{job_id}', {
+      const { data, error } = await apiClient.GET('/v1/jobs/{job_id}', {
         params: { path: { job_id: jobId } },
       });
 
