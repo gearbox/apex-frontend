@@ -624,6 +624,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListModels */
+        get: operations["V1AdminModelsListModels"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/payments": {
         parameters: {
             query?: never;
@@ -639,6 +656,23 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/models/{model_key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** ToggleModel */
+        patch: operations["V1AdminModelsModelKeyToggleModel"];
         trace?: never;
     };
     "/v1/generate": {
@@ -669,40 +703,6 @@ export interface paths {
         put?: never;
         /** CreateGenerationWithImages */
         post: operations["V1GenerateWithImagesCreateGenerationWithImages"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/jobs/{job_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** GetJobStatus */
-        get: operations["V1JobsJobIdGetJobStatus"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/jobs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** ListJobs */
-        get: operations["V1JobsListJobs"];
-        put?: never;
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -982,15 +982,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/grok/jobs/{job_id}": {
+    "/v1/jobs/{job_id}": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** GetJobStatus */
-        get: operations["V1GrokJobsJobIdGetJobStatus"];
+        /** GetJob */
+        get: operations["V1JobsJobIdGetJob"];
+        put?: never;
+        post?: never;
+        /** DeleteJob */
+        delete: operations["V1JobsJobIdDeleteJob"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListJobs */
+        get: operations["V1JobsListJobs"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1093,6 +1111,18 @@ export interface components {
         ForgotPasswordRequest: {
             email: string;
         };
+        /** GenerationModelResponse */
+        GenerationModelResponse: {
+            model_key: string;
+            provider: string;
+            name: string;
+            description: string;
+            is_enabled: boolean;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
         /** GenerationRequest */
         GenerationRequest: {
             prompt: string;
@@ -1133,39 +1163,6 @@ export interface components {
             n: number;
             aspect_ratio?: components["schemas"]["AspectRatio"];
             name?: string | null;
-        };
-        /** GrokJobResponse */
-        GrokJobResponse: {
-            /** Format: uuid */
-            job_id: string;
-            status: components["schemas"]["JobStatus"];
-            name: string;
-            model: components["schemas"]["ModelType"];
-            generation_type: components["schemas"]["GenerationType"];
-            /** Format: date-time */
-            created_at: string;
-            message?: string | null;
-            tokens_charged?: number | null;
-            balance_remaining?: number | null;
-        };
-        /** GrokJobStatusResponse */
-        GrokJobStatusResponse: {
-            /** Format: uuid */
-            job_id: string;
-            status: components["schemas"]["JobStatus"];
-            name: string;
-            model?: components["schemas"]["ModelType"] | null;
-            generation_type: components["schemas"]["GenerationType"];
-            prompt: string;
-            enhanced_prompt?: string | null;
-            /** Format: date-time */
-            created_at: string;
-            started_at?: string | null;
-            completed_at?: string | null;
-            outputs?: string[];
-            error?: string | null;
-            tokens_charged?: number | null;
-            balance_remaining?: number | null;
         };
         /** GrokModelInfo */
         GrokModelInfo: {
@@ -1267,6 +1264,32 @@ export interface components {
              */
             type: "input" | "temp";
         };
+        /** JobCreatedResponse */
+        JobCreatedResponse: {
+            /** Format: uuid */
+            job_id: string;
+            status: components["schemas"]["JobStatus"];
+            name: string;
+            model: string;
+            generation_type: components["schemas"]["GenerationType"];
+            /** Format: date-time */
+            created_at: string;
+            message?: string | null;
+            tokens_charged?: number | null;
+            balance_remaining?: number | null;
+        };
+        /** JobOutputItem */
+        JobOutputItem: {
+            /** Format: uuid */
+            id: string;
+            url: string;
+            content_type: string;
+            format: string;
+            size_bytes: number;
+            output_index: number;
+            /** @default false */
+            is_thumbnail: boolean;
+        };
         /** JobResponse */
         JobResponse: {
             job_id: string;
@@ -1282,20 +1305,6 @@ export interface components {
          * @enum {string}
          */
         JobStatus: "pending" | "queued" | "running" | "completed" | "failed" | "cancelled" | "moderated";
-        /** JobStatusResponse */
-        JobStatusResponse: {
-            job_id: string;
-            status: components["schemas"]["JobStatus"];
-            name: string;
-            /** Format: date-time */
-            created_at: string;
-            started_at?: string | null;
-            completed_at?: string | null;
-            /** @default 0 */
-            progress: number;
-            images?: string[];
-            error?: string | null;
-        };
         /** JobSummaryResponse */
         JobSummaryResponse: {
             id: string;
@@ -1326,6 +1335,11 @@ export interface components {
         /** MessageResponse */
         MessageResponse: {
             message: string;
+        };
+        /** ModelListResponse */
+        ModelListResponse: {
+            items: components["schemas"]["GenerationModelResponse"][];
+            total: number;
         };
         /**
          * ModelType
@@ -1439,6 +1453,10 @@ export interface components {
         SetBillingAccountRequest: {
             account: components["schemas"]["AccountType"];
         };
+        /** SetModelEnabledRequest */
+        SetModelEnabledRequest: {
+            is_enabled: boolean;
+        };
         /** StorageStatsResponse */
         StorageStatsResponse: {
             upload_count: number;
@@ -1500,6 +1518,34 @@ export interface components {
             /** Format: date-time */
             created_at: string;
             created_by?: string | null;
+        };
+        /** UnifiedJobListResponse */
+        UnifiedJobListResponse: {
+            items: components["schemas"]["UnifiedJobResponse"][];
+            total: number;
+            limit: number;
+            offset: number;
+        };
+        /** UnifiedJobResponse */
+        UnifiedJobResponse: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            status: components["schemas"]["JobStatus"];
+            provider: string;
+            model?: string | null;
+            generation_type: components["schemas"]["GenerationType"];
+            prompt: string;
+            negative_prompt?: string | null;
+            aspect_ratio?: string | null;
+            token_cost?: number | null;
+            /** Format: date-time */
+            created_at: string;
+            started_at?: string | null;
+            completed_at?: string | null;
+            outputs?: components["schemas"]["JobOutputItem"][];
+            thumbnail_url?: string | null;
+            error?: string | null;
         };
         /** UpdateProfileRequest */
         UpdateProfileRequest: {
@@ -3026,6 +3072,43 @@ export interface operations {
             };
         };
     };
+    V1AdminModelsListModels: {
+        parameters: {
+            query?: {
+                enabled_only?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelListResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
     V1AdminPaymentsListPayments: {
         parameters: {
             query?: {
@@ -3047,6 +3130,47 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PaymentListResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1AdminModelsModelKeyToggleModel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                model_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetModelEnabledRequest"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GenerationModelResponse"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -3128,81 +3252,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JobResponse"];
-                };
-            };
-            /** @description Bad request syntax or unsupported method */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        status_code: number;
-                        detail: string;
-                        extra?: null | {
-                            [key: string]: unknown;
-                        } | unknown[];
-                    };
-                };
-            };
-        };
-    };
-    V1JobsJobIdGetJobStatus: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                job_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Request fulfilled, document follows */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["JobStatusResponse"];
-                };
-            };
-            /** @description Bad request syntax or unsupported method */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        status_code: number;
-                        detail: string;
-                        extra?: null | {
-                            [key: string]: unknown;
-                        } | unknown[];
-                    };
-                };
-            };
-        };
-    };
-    V1JobsListJobs: {
-        parameters: {
-            query?: {
-                status?: components["schemas"]["JobStatus"] | null;
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Request fulfilled, document follows */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["JobStatusResponse"][];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -3667,7 +3716,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GrokJobResponse"];
+                    "application/json": components["schemas"]["JobCreatedResponse"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -3706,7 +3755,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GrokJobResponse"];
+                    "application/json": components["schemas"]["JobCreatedResponse"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -3745,7 +3794,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GrokJobResponse"];
+                    "application/json": components["schemas"]["JobCreatedResponse"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -3784,7 +3833,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GrokJobResponse"];
+                    "application/json": components["schemas"]["JobCreatedResponse"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -3823,7 +3872,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GrokJobResponse"];
+                    "application/json": components["schemas"]["JobCreatedResponse"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -3843,7 +3892,7 @@ export interface operations {
             };
         };
     };
-    V1GrokJobsJobIdGetJobStatus: {
+    V1JobsJobIdGetJob: {
         parameters: {
             query?: never;
             header?: never;
@@ -3860,7 +3909,83 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GrokJobStatusResponse"];
+                    "application/json": components["schemas"]["UnifiedJobResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1JobsJobIdDeleteJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, nothing follows */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1JobsListJobs: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["JobStatus"] | null;
+                provider?: string | null;
+                generation_type?: components["schemas"]["GenerationType"] | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnifiedJobListResponse"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
