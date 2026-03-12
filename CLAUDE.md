@@ -293,13 +293,65 @@ VITE_API_BASE_URL=https://api.apex.example.com
 
 ## Testing
 
-**Framework:** Vitest + `@testing-library/svelte`
+### Frameworks
 
-Test coverage targets:
-- **Stores:** theme persistence, auth flow (login/refresh/logout), UI state
-- **API client:** interceptor behavior (401 retry, token rotation)
-- **Components:** key components render without errors, responsive behavior
-- **Utils:** formatting functions, breakpoint detection
+| Layer | Tool | Command |
+|-------|------|---------|
+| Unit + component | Vitest + `@testing-library/svelte` | `pnpm test:unit` |
+| API mocking | MSW (Mock Service Worker) | (used inside Vitest & E2E) |
+| E2E | Playwright | `pnpm test:e2e` |
+
+### Rules — Non-Negotiable
+
+> **Every new feature or bug fix must ship with tests. PRs that reduce coverage or break existing tests must not be merged.**
+
+1. **New route/page** → add at minimum one Playwright E2E spec covering: renders without crash, authentication guard (if protected), and the primary happy-path interaction.
+2. **New API interaction** → add or update MSW handlers in `src/mocks/handlers/` and a Vitest unit test covering success and the most likely failure case.
+3. **New store** → unit test all exported functions: initial state, transitions, persistence (if any).
+4. **New utility function** → unit test all branches.
+5. **Bug fix** → add a regression test that would have caught the bug before fixing.
+
+### MSW Usage Pattern
+
+```ts
+// Per-test override (failure scenario example)
+import { server } from '../mocks/server';
+import { failedRefreshHandler } from '../mocks/handlers/auth';
+
+it('redirects to /login when refresh is revoked', async () => {
+  server.use(failedRefreshHandler);
+  // ... test body
+});
+```
+
+- Default handlers in `src/mocks/handlers/index.ts` represent the happy path.
+- Export named override handlers (e.g. `failedRefreshHandler`) from each handler file for use in negative-path tests.
+- Never call the real API in unit tests.
+
+### Playwright Usage Pattern
+
+- Use the `authenticatedPage` fixture from `tests/e2e/fixtures/auth.fixture.ts` for all tests that require a logged-in user.
+- Use `page.route(...)` for per-test API intercepts in E2E. Do not rely on a running backend.
+- All E2E tests run against `pnpm preview` (production build), never `pnpm dev`.
+
+### Running Tests
+
+```bash
+pnpm test:unit          # Vitest (fast, no browser)
+pnpm test:unit:watch    # Watch mode for TDD
+pnpm test:e2e           # Playwright (requires build)
+pnpm test:e2e:ui        # Playwright interactive UI
+pnpm test:all           # Unit + E2E (use before pushing)
+```
+
+### Coverage Targets
+
+| Area | Target |
+|------|--------|
+| Auth store (`src/lib/stores/auth.ts`) | 100% |
+| API auth functions (`src/lib/api/auth.ts`) | 100% |
+| API client middleware (`src/lib/api/client.ts`) | 100% |
+| Critical E2E journeys | login, auth guard, token refresh, generate, gallery |
 
 ---
 

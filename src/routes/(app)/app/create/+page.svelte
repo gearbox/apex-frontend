@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import { createQuery, useQueryClient } from '@tanstack/svelte-query';
   import apiClient from '$lib/api/client';
   import { generationStore, isGenerating } from '$lib/stores/generation';
@@ -17,6 +17,12 @@
   import ResultsPanel from '$lib/components/create/ResultsPanel.svelte';
 
   const queryClient = useQueryClient();
+
+  // Pre-populate prompt from ?prompt= URL parameter (supports deep-linking)
+  onMount(() => {
+    const prompt = new URLSearchParams(window.location.search).get('prompt');
+    if (prompt) generationStore.setPrompt(prompt);
+  });
 
   // ── Provider info (model capabilities)
   const providerQuery = createQuery(() => ({

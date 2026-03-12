@@ -1,0 +1,1 @@
+- [Testing infrastructure setup](project_testing_setup.md): MSW + Vitest + Playwright stack implemented March 2026
