@@ -1,13 +1,70 @@
 <script lang="ts">
-  import { formatUsd } from '$lib/utils/format';
+  import { createQuery } from '@tanstack/svelte-query';
+  import apiClient from '$lib/api/client';
+  import { formatUsd, formatNumber } from '$lib/utils/format';
 
   let activeTab = $state<'overview' | 'buy' | 'history'>('overview');
 
-  const packages = [
-    { name: 'Starter', tokens: 500, price: '4.99', popular: false, bonus: 0 },
-    { name: 'Creator', tokens: 1200, price: '9.99', popular: true, bonus: 10 },
-    { name: 'Pro', tokens: 3000, price: '19.99', popular: false, bonus: 20 },
-    { name: 'Studio', tokens: 8000, price: '49.99', popular: false, bonus: 30 },
+  const balanceQuery = createQuery(() => ({
+    queryKey: ['balance'],
+    queryFn: async () => {
+      const { data } = await apiClient.GET('/v1/billing/balance');
+      return data ?? null;
+    },
+    staleTime: 30_000,
+    refetchOnWindowFocus: true,
+  }));
+
+  const pricingQuery = createQuery(() => ({
+    queryKey: ['pricing'],
+    queryFn: async () => {
+      const { data } = await apiClient.GET('/v1/billing/pricing');
+      return data ?? [];
+    },
+    staleTime: 60 * 60 * 1000,
+  }));
+
+  const packagesQuery = createQuery(() => ({
+    queryKey: ['packages'],
+    queryFn: async () => {
+      const { data } = await apiClient.GET('/v1/billing/packages');
+      return data ?? [];
+    },
+    staleTime: 60 * 60 * 1000,
+  }));
+
+  const transactionsQuery = createQuery(() => ({
+    queryKey: ['transactions'],
+    queryFn: async () => {
+      const { data } = await apiClient.GET('/v1/billing/transactions', {
+        params: { query: { limit: 20, offset: 0 } },
+      });
+      return data ?? { items: [], total: 0 };
+    },
+    staleTime: 60_000,
+  }));
+
+  // Cost reference rows derived from pricing rules
+  const costRows = $derived(
+    (pricingQuery.data ?? [])
+      .filter((r) => r.is_active && r.provider === 'grok')
+      .slice(0, 6),
+  );
+
+  const MODEL_META: Record<string, { icon: string; label: string }> = {
+    'grok-imagine-image': { icon: '✦', label: 'Grok Imagine' },
+    'grok-2-image-1212': { icon: '◈', label: 'Grok 2' },
+    'grok-imagine-video': { icon: '▶', label: 'Grok Video' },
+    't2i': { icon: '✦', label: 'Text → Image' },
+    't2v': { icon: '▶', label: 'Text → Video' },
+    'i2i': { icon: '◈', label: 'Image → Image' },
+    'i2v': { icon: '▶', label: 'Image → Video' },
+  };
+
+  const FALLBACK_COSTS = [
+    { label: 'Imagine', icon: '✦', cost: 5 },
+    { label: 'Grok 2', icon: '◈', cost: 8 },
+    { label: 'Video', icon: '▶', cost: 25 },
   ];
 </script>
 
@@ -43,24 +100,26 @@
         Token Balance
       </p>
       <div class="flex items-baseline gap-2">
-        <span class="font-mono text-[32px] font-extrabold leading-none text-text md:text-[42px]">
-          0
-        </span>
-        <span class="text-sm text-text-muted">tokens</span>
+        {#if balanceQuery.isLoading}
+          <div class="h-10 w-28 animate-pulse rounded-lg bg-surface-hover"></div>
+        {:else}
+          <span class="font-mono text-[32px] font-extrabold leading-none text-text md:text-[42px]">
+            {balanceQuery.data?.balance !== undefined ? formatNumber(balanceQuery.data.balance) : '0'}
+          </span>
+          <span class="text-sm text-text-muted">tokens</span>
+        {/if}
       </div>
       <div class="mt-3.5 flex flex-wrap gap-4">
         <div>
           <p class="mb-0.5 text-[10px] text-text-dim">Account</p>
-          <p class="text-xs font-semibold text-text">Personal</p>
+          <p class="text-xs font-semibold capitalize text-text">{balanceQuery.data?.account_type ?? 'Personal'}</p>
         </div>
-        <div>
-          <p class="mb-0.5 text-[10px] text-text-dim">This Month</p>
-          <p class="font-mono text-xs font-semibold text-danger">-0</p>
-        </div>
-        <div>
-          <p class="mb-0.5 text-[10px] text-text-dim">Generations</p>
-          <p class="font-mono text-xs font-semibold text-text">0</p>
-        </div>
+        {#if balanceQuery.data?.organization_name}
+          <div>
+            <p class="mb-0.5 text-[10px] text-text-dim">Organization</p>
+            <p class="text-xs font-semibold text-text">{balanceQuery.data.organization_name}</p>
+          </div>
+        {/if}
       </div>
     </div>
 
@@ -69,68 +128,93 @@
       Cost per Generation
     </p>
     <div class="grid grid-cols-3 gap-2">
-      {#each [
-        { label: 'Imagine', icon: '✦', cost: 5 },
-        { label: 'Grok 2', icon: '◈', cost: 8 },
-        { label: 'Video', icon: '▶', cost: 25 },
-      ] as item (item.label)}
-        <div class="rounded-[10px] border border-border bg-surface p-3 md:p-4">
-          <span class="text-lg">{item.icon}</span>
-          <p class="mt-1.5 text-[11px] font-semibold text-text">{item.label}</p>
-          <p class="font-mono text-base font-extrabold text-accent">◈{item.cost}</p>
-        </div>
-      {/each}
+      {#if costRows.length > 0}
+        {#each costRows as row (row.id)}
+          {@const metaKey = row.model ?? row.generation_type}
+          {@const meta = MODEL_META[metaKey] ?? { icon: '◆', label: metaKey }}
+          <div class="rounded-[10px] border border-border bg-surface p-3 md:p-4">
+            <span class="text-lg">{meta.icon}</span>
+            <p class="mt-1.5 text-[11px] font-semibold text-text">{meta.label}</p>
+            <p class="font-mono text-base font-extrabold text-accent">◈{row.token_cost}</p>
+          </div>
+        {/each}
+      {:else}
+        {#each FALLBACK_COSTS as item (item.label)}
+          <div class="rounded-[10px] border border-border bg-surface p-3 md:p-4">
+            <span class="text-lg">{item.icon}</span>
+            <p class="mt-1.5 text-[11px] font-semibold text-text">{item.label}</p>
+            <p class="font-mono text-base font-extrabold text-accent">◈{item.cost}</p>
+          </div>
+        {/each}
+      {/if}
     </div>
 
   {:else if activeTab === 'buy'}
-    <div class="grid grid-cols-1 gap-2.5 md:grid-cols-2">
-      {#each packages as pkg (pkg.name)}
-        <div
-          class="relative cursor-pointer rounded-xl border p-4 transition-colors {pkg.popular
-            ? 'border-accent-dim bg-gradient-to-br from-accent-dim/8 to-surface'
-            : 'border-border bg-surface hover:border-border-active'}"
-        >
-          {#if pkg.popular}
-            <span
-              class="absolute -top-2 right-3 rounded-md bg-gradient-to-r from-accent-dim to-accent px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white"
-            >
-              Popular
-            </span>
-          {/if}
-          <div class="flex items-baseline justify-between">
-            <p class="text-sm font-bold text-text">{pkg.name}</p>
-            <p class="font-mono text-[22px] font-extrabold text-text">{formatUsd(pkg.price)}</p>
+    {#if packagesQuery.isLoading}
+      <div class="grid grid-cols-1 gap-2.5 md:grid-cols-2">
+        {#each Array(4) as _, i (i)}
+          <div class="h-24 animate-pulse rounded-xl bg-surface"></div>
+        {/each}
+      </div>
+    {:else}
+      <div class="grid grid-cols-1 gap-2.5 md:grid-cols-2">
+        {#each (packagesQuery.data ?? []) as pkg (pkg.id)}
+          <div class="relative cursor-pointer rounded-xl border p-4 transition-colors border-border bg-surface hover:border-border-active">
+            <div class="flex items-baseline justify-between">
+              <p class="text-sm font-bold text-text">{pkg.name}</p>
+              <p class="font-mono text-[22px] font-extrabold text-text">{formatUsd(pkg.price_usd)}</p>
+            </div>
+            <div class="mt-1 flex items-center gap-2">
+              <span class="font-mono text-xs font-semibold text-accent">◈{formatNumber(pkg.total_tokens)}</span>
+              {#if pkg.bonus_tokens > 0}
+                <span class="rounded px-1.5 py-0.5 text-[10px] font-semibold text-success bg-success/10">
+                  +{Math.round((pkg.bonus_tokens / pkg.tokens) * 100)}%
+                </span>
+              {/if}
+            </div>
           </div>
-          <div class="mt-1 flex items-center gap-2">
-            <span class="font-mono text-xs font-semibold text-accent">◈{pkg.tokens.toLocaleString()}</span>
-            {#if pkg.bonus > 0}
-              <span class="rounded px-1.5 py-0.5 text-[10px] font-semibold text-success bg-success/10">
-                +{pkg.bonus}%
-              </span>
-            {/if}
-          </div>
-        </div>
-      {/each}
-    </div>
-
+        {/each}
+      </div>
+    {/if}
     <div class="mt-4 flex gap-2">
-      <button
-        class="flex-1 rounded-[10px] bg-[#635bff] py-3 text-sm font-bold text-white"
-        disabled
-      >
+      <button class="flex-1 rounded-[10px] bg-[#635bff] py-3 text-sm font-bold text-white" disabled>
         Stripe
       </button>
-      <button
-        class="flex-1 rounded-[10px] border border-border bg-transparent py-3 text-sm font-semibold text-text"
-        disabled
-      >
+      <button class="flex-1 rounded-[10px] border border-border bg-transparent py-3 text-sm font-semibold text-text" disabled>
         Crypto
       </button>
     </div>
 
   {:else}
-    <div class="flex flex-col items-center justify-center py-16">
-      <p class="text-sm text-text-dim">No transactions yet</p>
-    </div>
+    {#if transactionsQuery.isLoading}
+      <div class="flex flex-col gap-2">
+        {#each Array(5) as _, i (i)}
+          <div class="h-12 animate-pulse rounded-lg bg-surface"></div>
+        {/each}
+      </div>
+    {:else if (transactionsQuery.data?.items ?? []).length === 0}
+      <div class="flex flex-col items-center justify-center py-16">
+        <p class="text-sm text-text-dim">No transactions yet</p>
+      </div>
+    {:else}
+      <div class="flex flex-col divide-y divide-border">
+        {#each (transactionsQuery.data?.items ?? []) as tx (tx.id)}
+          <div class="flex items-center justify-between py-3">
+            <div>
+              <p class="text-xs font-medium capitalize text-text">{tx.transaction_type.replace('_', ' ')}</p>
+              {#if tx.description}
+                <p class="text-[11px] text-text-dim">{tx.description}</p>
+              {/if}
+            </div>
+            <div class="text-right">
+              <p class="font-mono text-xs font-semibold {tx.amount >= 0 ? 'text-success' : 'text-danger'}">
+                {tx.amount >= 0 ? '+' : ''}◈{Math.abs(tx.amount)}
+              </p>
+              <p class="font-mono text-[10px] text-text-dim">bal: ◈{tx.balance_after}</p>
+            </div>
+          </div>
+        {/each}
+      </div>
+    {/if}
   {/if}
 </div>

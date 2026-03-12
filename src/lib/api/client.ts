@@ -2,11 +2,7 @@ import createClient, { type Middleware } from 'openapi-fetch';
 import { API_BASE_URL } from '$lib/utils/constants';
 import { getAccessToken } from '$lib/stores/auth';
 import { silentRefresh } from '$lib/api/auth';
-
-// NOTE: In production, import type { paths } from './types' for full type safety.
-// For now we use a loose type until the OpenAPI schema is synced from the backend.
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
-type paths = {};
+import type { paths } from './types';
 
 /* ─── Auth Middleware ─── */
 const authMiddleware: Middleware = {

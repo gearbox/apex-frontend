@@ -41,3 +41,18 @@ export function truncate(text: string, maxLength: number): string {
   if (text.length <= maxLength) return text;
   return text.slice(0, maxLength - 1) + '…';
 }
+
+/** Format a number with locale separators (no symbol). e.g. 1247 → "1,247" */
+export function formatNumber(n: number): string {
+  return n.toLocaleString();
+}
+
+/** Format relative time from ISO string. e.g. "2m ago", "1h ago", "3d ago" */
+export function formatRelativeTime(iso: string): string {
+  return timeAgo(iso);
+}
+
+/** Format file size in human-readable form. e.g. "1.4 MB", "340 KB" */
+export function formatFileSize(bytes: number): string {
+  return formatBytes(bytes);
+}

@@ -13,7 +13,18 @@ export const BREAKPOINT_MD = 768;
 
 /* ─── Job Polling ─── */
 export const JOB_POLL_INTERVAL_MS = 2000;
+export const POLL_INTERVAL_MS = 2000;
 export const TERMINAL_JOB_STATUSES = ['completed', 'failed', 'cancelled', 'moderated'] as const;
+export const ACTIVE_JOB_STATUSES = ['pending', 'queued', 'running'] as const;
+
+/* ─── Gallery ─── */
+export const GALLERY_PAGE_SIZE = 20;
+export const PRESIGNED_URL_STALE_MS = 30 * 60 * 1000; // 30 min
+
+/* ─── Session Storage Keys ─── */
+export const SESSION_KEYS = {
+  ACTIVE_JOB: 'apex-active-job',
+} as const;
 
 /* ─── Prompt Limits ─── */
 export const MAX_PROMPT_LENGTH = 4096;

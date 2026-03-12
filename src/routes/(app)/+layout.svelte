@@ -5,6 +5,7 @@
   import { currentAuthStatus } from '$lib/stores/auth';
   import { initAuth } from '$lib/api/auth';
   import AppShell from '$lib/components/layout/AppShell.svelte';
+  import ToastContainer from '$lib/components/ui/ToastContainer.svelte';
 
   let { children }: { children: Snippet } = $props();
   let checking = $state(true);
@@ -35,4 +36,5 @@
   <AppShell>
     {@render children()}
   </AppShell>
+  <ToastContainer />
 {/if}
