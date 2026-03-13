@@ -51,26 +51,19 @@
   const currentItem = $derived(navOverride ?? item);
   const isVideo = $derived(currentItem.generation_type === 't2v' || currentItem.generation_type === 'i2v');
 
-  // Fetch output URLs — reactive because queryKey includes currentItem.id
+  // Fetch full job to get presigned output URLs — single request, no N+1.
+  // UnifiedJobResponse embeds outputs[].url as presigned URLs directly.
   const jobQuery = createQuery(() => ({
-    queryKey: ['job-outputs', currentItem.id],
+    queryKey: ['job-detail', currentItem.id],
     queryFn: async () => {
-      const jobId = currentItem.id;
-      const { data: outputs } = await apiClient.GET('/v1/storage/jobs/{job_id}/outputs', {
-        params: { path: { job_id: jobId } },
+      const { data, error } = await apiClient.GET('/v1/jobs/{job_id}', {
+        params: { path: { job_id: currentItem.id } },
       });
-      if (!outputs || 'error' in outputs || !outputs.items?.length) return [] as string[];
-
-      const urls = await Promise.all(
-        outputs.items.map(async (out) => {
-          const { data: access } = await apiClient.GET('/v1/storage/outputs/{output_id}', {
-            params: { path: { output_id: out.id } },
-          });
-          if (!access || 'error' in access) return null;
-          return access.presigned_url ?? null;
-        }),
-      );
-      return urls.filter((u): u is string => u !== null);
+      if (error || !data?.outputs) return [] as string[];
+      return data.outputs
+        .filter((o) => !o.is_thumbnail)
+        .sort((a, b) => a.output_index - b.output_index)
+        .map((o) => o.url);
     },
     staleTime: PRESIGNED_URL_STALE_MS,
   }));

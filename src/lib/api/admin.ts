@@ -1,5 +1,11 @@
 import apiClient from '$lib/api/client';
 import type { components } from '$lib/api/types';
+import { parseApiError, ApiRequestError } from '$lib/api/errors';
+
+function throwApiError(error: unknown, fallbackMsg: string): never {
+  const apiErr = parseApiError(error, 0);
+  throw new ApiRequestError({ ...apiErr, message: apiErr.message || fallbackMsg });
+}
 
 export type AdminUserResponse = components['schemas']['AdminUserResponse'];
 export type AdminUserListResponse = components['schemas']['AdminUserListResponse'];
@@ -26,7 +32,7 @@ export async function fetchAdminUsers(params?: {
   const { data, error } = await apiClient.GET('/v1/admin/users', {
     params: { query: params },
   });
-  if (error || !data) throw new Error('Failed to fetch admin users');
+  if (error || !data) throwApiError(error, 'Failed to fetch admin users');
   return data;
 }
 
@@ -38,7 +44,7 @@ export async function patchAdminUser(
     params: { path: { user_id: userId } },
     body: body as components['schemas']['AdminPatchUserRequest'],
   });
-  if (error || !data) throw new Error('Failed to update user');
+  if (error || !data) throwApiError(error, 'Failed to update user');
   return data;
 }
 
@@ -46,7 +52,7 @@ export async function fetchUserAccount(userId: string): Promise<BalanceResponse>
   const { data, error } = await apiClient.GET('/v1/admin/users/{user_id}/account', {
     params: { path: { user_id: userId } },
   });
-  if (error || !data) throw new Error('Failed to fetch user account');
+  if (error || !data) throwApiError(error, 'Failed to fetch user account');
   return data;
 }
 
@@ -60,7 +66,7 @@ export async function fetchAdminOrgs(params?: {
   const { data, error } = await apiClient.GET('/v1/admin/organizations', {
     params: { query: params },
   });
-  if (error || !data) throw new Error('Failed to fetch admin organizations');
+  if (error || !data) throwApiError(error, 'Failed to fetch admin organizations');
   return data;
 }
 
@@ -68,7 +74,7 @@ export async function fetchOrgAccount(orgId: string): Promise<BalanceResponse> {
   const { data, error } = await apiClient.GET('/v1/admin/organizations/{org_id}/account', {
     params: { path: { org_id: orgId } },
   });
-  if (error || !data) throw new Error('Failed to fetch org account');
+  if (error || !data) throwApiError(error, 'Failed to fetch org account');
   return data;
 }
 
@@ -80,7 +86,7 @@ export async function fetchAdminModels(params?: {
   const { data, error } = await apiClient.GET('/v1/admin/models', {
     params: { query: params },
   });
-  if (error || !data) throw new Error('Failed to fetch admin models');
+  if (error || !data) throwApiError(error, 'Failed to fetch admin models');
   return data;
 }
 
@@ -92,7 +98,7 @@ export async function toggleAdminModel(
     params: { path: { model_key: modelKey } },
     body: { is_enabled: isEnabled },
   });
-  if (error || !data) throw new Error('Failed to toggle model');
+  if (error || !data) throwApiError(error, 'Failed to toggle model');
   return data;
 }
 
@@ -107,7 +113,7 @@ export async function fetchAdminPayments(params?: {
   const { data, error } = await apiClient.GET('/v1/admin/payments', {
     params: { query: params },
   });
-  if (error || !data) throw new Error('Failed to fetch admin payments');
+  if (error || !data) throwApiError(error, 'Failed to fetch admin payments');
   return data;
 }
 
@@ -115,7 +121,7 @@ export async function fetchAdminPayment(paymentId: string): Promise<PaymentRespo
   const { data, error } = await apiClient.GET('/v1/admin/payments/{payment_id}', {
     params: { path: { payment_id: paymentId } },
   });
-  if (error || !data) throw new Error('Failed to fetch payment');
+  if (error || !data) throwApiError(error, 'Failed to fetch payment');
   return data;
 }
 
@@ -125,7 +131,7 @@ export async function fetchAccountBalance(accountId: string): Promise<BalanceRes
   const { data, error } = await apiClient.GET('/v1/admin/accounts/{account_id}/balance', {
     params: { path: { account_id: accountId } },
   });
-  if (error || !data) throw new Error('Failed to fetch account balance');
+  if (error || !data) throwApiError(error, 'Failed to fetch account balance');
   return data;
 }
 
@@ -139,7 +145,7 @@ export async function fetchAccountTransactions(
       params: { path: { account_id: accountId }, query: params },
     },
   );
-  if (error || !data) throw new Error('Failed to fetch account transactions');
+  if (error || !data) throwApiError(error, 'Failed to fetch account transactions');
   return data;
 }
 
@@ -151,6 +157,6 @@ export async function adjustAccountBalance(
     params: { path: { account_id: accountId } },
     body,
   });
-  if (error || !data) throw new Error('Failed to adjust account balance');
+  if (error || !data) throwApiError(error, 'Failed to adjust account balance');
   return data;
 }

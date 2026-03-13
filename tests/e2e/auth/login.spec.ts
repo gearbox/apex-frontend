@@ -39,7 +39,7 @@ test.describe('Login page', () => {
 
   test('2. Invalid credentials shows error message on form', async ({ page }) => {
     await page.route('**/v1/auth/login', jsonRoute(
-      { error: 'invalid_credentials', detail: 'Invalid email or password' },
+      { error: 'invalid_credentials', message: 'Invalid email or password', status_code: 401 },
       401,
     ));
 
@@ -50,7 +50,7 @@ test.describe('Login page', () => {
     await page.getByRole('button', { name: 'Sign In' }).click();
 
     await expect(page.locator('.text-danger')).toBeVisible();
-    await expect(page.locator('.text-danger')).toContainText('invalid_credentials');
+    await expect(page.locator('.text-danger')).toContainText('Invalid email or password');
   });
 
   test('3. Unauthenticated redirect: navigating to /app/create without a session', async ({ page }) => {

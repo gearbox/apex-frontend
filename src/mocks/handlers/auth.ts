@@ -31,7 +31,7 @@ export const authHandlers = [
 /** Override for simulating a 401 from refresh (token expired/revoked). */
 export const failedRefreshHandler = http.post(`${BASE}/v1/auth/refresh`, () =>
   HttpResponse.json(
-    { error: 'token_revoked', detail: 'Refresh token has been revoked' },
+    { error: 'token_revoked', message: 'Refresh token has been revoked', status_code: 401 },
     { status: 401 },
   ),
 );
@@ -39,7 +39,7 @@ export const failedRefreshHandler = http.post(`${BASE}/v1/auth/refresh`, () =>
 /** Override for simulating a 401 login response. */
 export const failedLoginHandler = http.post(`${BASE}/v1/auth/login`, () =>
   HttpResponse.json(
-    { error: 'invalid_credentials', detail: 'Invalid email or password' },
+    { error: 'invalid_credentials', message: 'Invalid email or password', status_code: 401 },
     { status: 401 },
   ),
 );

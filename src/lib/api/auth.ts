@@ -8,6 +8,10 @@ import {
   type AuthTokens,
   type UserProfile,
 } from '$lib/stores/auth';
+import { parseApiError, AuthError } from '$lib/api/errors';
+
+// Re-export so existing callers (login/register pages) don't need to change their imports
+export { AuthError };
 
 /* ─── Types matching backend responses ─── */
 interface AuthResponse {
@@ -16,12 +20,6 @@ interface AuthResponse {
   token_type: string;
   expires_in: number;
   expires_at: string;
-}
-
-interface ApiError {
-  error?: string;
-  detail?: string;
-  error_description?: string;
 }
 
 /* ─── State ─── */
@@ -42,23 +40,10 @@ async function fetchJson<T>(path: string, init: RequestInit): Promise<T> {
     headers: { 'Content-Type': 'application/json', ...init.headers },
   });
   if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as ApiError;
-    throw new AuthError(
-      body.error ?? body.detail ?? `Request failed (${res.status})`,
-      res.status,
-    );
+    const body = await res.json().catch(() => ({}));
+    throw new AuthError(parseApiError(body, res.status));
   }
   return res.json() as Promise<T>;
-}
-
-export class AuthError extends Error {
-  constructor(
-    message: string,
-    public status: number,
-  ) {
-    super(message);
-    this.name = 'AuthError';
-  }
 }
 
 /* ─── Public API ─── */

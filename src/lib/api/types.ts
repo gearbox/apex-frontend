@@ -1153,11 +1153,6 @@ export interface components {
          * @enum {string}
          */
         AspectRatio: "2:3" | "3:2" | "1:1" | "9:16" | "16:9" | "3:4" | "4:3";
-        /** AuthErrorResponse */
-        AuthErrorResponse: {
-            error: string;
-            error_description?: string | null;
-        };
         /** BalanceResponse */
         BalanceResponse: {
             /** Format: uuid */
@@ -1198,10 +1193,12 @@ export interface components {
             /** Format: date-time */
             deactivated_at: string;
         };
-        /** ErrorResponse */
-        ErrorResponse: {
+        /** ErrorEnvelope */
+        ErrorEnvelope: {
             error: string;
-            detail?: string | null;
+            message: string;
+            status_code: number;
+            detail?: Record<string, never> | null;
         };
         /** ForgotPasswordRequest */
         ForgotPasswordRequest: {
@@ -1409,6 +1406,7 @@ export interface components {
             generation_type: string;
             prompt: string;
             output_count: number;
+            thumbnail_url?: string | null;
             /** Format: date-time */
             created_at: string;
             completed_at?: string | null;
@@ -1677,6 +1675,7 @@ export interface components {
             email: string;
             display_name?: string | null;
             subscription_tier: string;
+            role: string;
             is_active: boolean;
             /** Format: date-time */
             created_at: string;
@@ -1800,7 +1799,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TokenResponse"] | components["schemas"]["AuthErrorResponse"];
+                    "application/json": components["schemas"]["TokenResponse"] | components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -1878,7 +1877,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TokenResponse"] | components["schemas"]["AuthErrorResponse"];
+                    "application/json": components["schemas"]["TokenResponse"] | components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -1917,7 +1916,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TokenResponse"] | components["schemas"]["AuthErrorResponse"];
+                    "application/json": components["schemas"]["TokenResponse"] | components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -1952,7 +1951,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["MessageResponse"] | components["schemas"]["AuthErrorResponse"];
+                    "application/json": components["schemas"]["MessageResponse"] | components["schemas"]["ErrorEnvelope"];
                 };
             };
         };
@@ -1976,7 +1975,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["MessageResponse"] | components["schemas"]["AuthErrorResponse"];
+                    "application/json": components["schemas"]["MessageResponse"] | components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -2015,7 +2014,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["MessageResponse"] | components["schemas"]["AuthErrorResponse"];
+                    "application/json": components["schemas"]["MessageResponse"] | components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -2054,7 +2053,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["MessageResponse"] | components["schemas"]["AuthErrorResponse"];
+                    "application/json": components["schemas"]["MessageResponse"] | components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -2089,7 +2088,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["UserProfileResponse"] | components["schemas"]["AuthErrorResponse"];
+                    "application/json": components["schemas"]["UserProfileResponse"] | components["schemas"]["ErrorEnvelope"];
                 };
             };
         };
@@ -2133,7 +2132,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["UserProfileResponse"] | components["schemas"]["AuthErrorResponse"];
+                    "application/json": components["schemas"]["UserProfileResponse"] | components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -3566,7 +3565,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ImageAccessResponse"] | components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["ImageAccessResponse"] | components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -3638,7 +3637,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": string | components["schemas"]["ErrorResponse"];
+                    "application/json": string | components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -3675,7 +3674,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": string | components["schemas"]["ErrorResponse"];
+                    "application/json": string | components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -3715,7 +3714,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ImageAccessResponse"] | components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["ImageAccessResponse"] | components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -3772,7 +3771,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["OutputListResponse"] | components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["OutputListResponse"] | components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -3890,7 +3889,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["UploadResponse"] | components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["UploadResponse"] | components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -3949,7 +3948,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["JobCreatedResponse"];
+                    "application/json": components["schemas"]["JobCreatedResponse"] | components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -3988,7 +3987,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["JobCreatedResponse"];
+                    "application/json": components["schemas"]["JobCreatedResponse"] | components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -4027,7 +4026,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["JobCreatedResponse"];
+                    "application/json": components["schemas"]["JobCreatedResponse"] | components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -4066,7 +4065,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["JobCreatedResponse"];
+                    "application/json": components["schemas"]["JobCreatedResponse"] | components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -4105,7 +4104,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["JobCreatedResponse"];
+                    "application/json": components["schemas"]["JobCreatedResponse"] | components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Bad request syntax or unsupported method */

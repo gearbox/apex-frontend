@@ -32,18 +32,21 @@ describe('login()', () => {
     expect(getRefreshToken()).toBe(tokenRes.refresh_token);
   });
 
-  it('failure (401): throws AuthError with correct message', async () => {
+  it('failure (401): throws AuthError with correct error code and message', async () => {
     server.use(
       http.post(`${BASE}/v1/auth/login`, () =>
         HttpResponse.json(
-          { error: 'invalid_credentials', detail: 'Invalid email or password' },
+          { error: 'invalid_credentials', message: 'Invalid email or password', status_code: 401 },
           { status: 401 },
         ),
       ),
     );
 
-    await expect(login('bad@example.com', 'wrongpassword')).rejects.toThrow(AuthError);
-    await expect(login('bad@example.com', 'wrongpassword')).rejects.toThrow('invalid_credentials');
+    const err = await login('bad@example.com', 'wrongpassword').catch((e) => e);
+    expect(err).toBeInstanceOf(AuthError);
+    expect(err.error).toBe('invalid_credentials');
+    expect(err.message).toBe('Invalid email or password');
+    expect(err.status_code).toBe(401);
   });
 });
 

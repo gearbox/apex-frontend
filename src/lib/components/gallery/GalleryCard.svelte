@@ -1,9 +1,6 @@
 <script lang="ts">
-  import { createQuery } from '@tanstack/svelte-query';
   import { timeAgo } from '$lib/utils/format';
-  import { PRESIGNED_URL_STALE_MS } from '$lib/utils/constants';
   import { Play } from 'lucide-svelte';
-  import apiClient from '$lib/api/client';
   import type { components } from '$lib/api/types';
 
   type JobSummaryResponse = components['schemas']['JobSummaryResponse'];
@@ -12,29 +9,9 @@
 
   const isVideo = $derived(item.generation_type === 't2v' || item.generation_type === 'i2v');
 
-  // Lazily fetch thumbnail URL for completed jobs
-  const thumbnailQuery = createQuery(() => ({
-    queryKey: ['job-thumbnail', item.id],
-    queryFn: async () => {
-      const jobId = item.id;
-      const { data: outputs } = await apiClient.GET('/v1/storage/jobs/{job_id}/outputs', {
-        params: { path: { job_id: jobId } },
-      });
-      // Guard against error union type
-      if (!outputs || 'error' in outputs) return null;
-      const firstId = outputs.items?.[0]?.id;
-      if (!firstId) return null;
-
-      const { data: access } = await apiClient.GET('/v1/storage/outputs/{output_id}', {
-        params: { path: { output_id: firstId } },
-      });
-      // Guard against error union type
-      if (!access || 'error' in access) return null;
-      return access.presigned_url ?? null;
-    },
-    enabled: item.status === 'completed' && item.output_count > 0,
-    staleTime: PRESIGNED_URL_STALE_MS,
-  }));
+  // thumbnail_url is a presigned URL included directly in the JobSummaryResponse —
+  // no secondary fetch needed.
+  const thumbnailUrl = $derived(item.thumbnail_url ?? null);
 </script>
 
 <button
@@ -43,7 +20,7 @@
 >
   <!-- Thumbnail / placeholder -->
   <div class="aspect-square w-full overflow-hidden bg-surface">
-    {#if thumbnailQuery.data}
+    {#if thumbnailUrl}
       {#if isVideo}
         <div class="relative h-full w-full bg-black">
           <div class="absolute inset-0 flex items-center justify-center">
@@ -54,14 +31,12 @@
         </div>
       {:else}
         <img
-          src={thumbnailQuery.data}
+          src={thumbnailUrl}
           alt={item.prompt}
           class="h-full w-full object-cover transition-transform group-hover:scale-105"
           loading="lazy"
         />
       {/if}
-    {:else if thumbnailQuery.isLoading}
-      <div class="h-full w-full animate-pulse bg-surface-hover"></div>
     {:else}
       <div
         class="flex h-full w-full items-center justify-center"

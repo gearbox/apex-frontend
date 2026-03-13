@@ -18,7 +18,7 @@
       goto('/app/create', { replaceState: true });
     } catch (err) {
       if (err instanceof AuthError) {
-        error = err.status === 409 ? 'An account with this email already exists.' : err.message;
+        error = err.error === 'email_exists' ? 'An account with this email already exists.' : err.message;
       } else {
         error = 'An unexpected error occurred. Please try again.';
       }

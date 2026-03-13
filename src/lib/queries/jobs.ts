@@ -1,6 +1,7 @@
 import apiClient from '$lib/api/client';
 import type { QueryClient } from '@tanstack/svelte-query';
 import type { components } from '$lib/api/types';
+import { parseApiError, ApiRequestError } from '$lib/api/errors';
 
 type JobStatus = components['schemas']['JobStatus'];
 type GenerationType = components['schemas']['GenerationType'];
@@ -34,7 +35,7 @@ export function jobsListQueryOptions(filters: JobListFilters) {
           ),
         );
         for (const { error } of results) {
-          if (error) throw new Error('Failed to fetch jobs');
+          if (error) throw new ApiRequestError(parseApiError(error, 0));
         }
         const items = results
           .flatMap((r) => r.data!.items)
@@ -47,7 +48,7 @@ export function jobsListQueryOptions(filters: JobListFilters) {
       const { data, error } = await apiClient.GET('/v1/jobs', {
         params: { query: { ...filters, generation_type: singleType } },
       });
-      if (error || !data) throw new Error('Failed to fetch jobs');
+      if (error || !data) throw new ApiRequestError(parseApiError(error, 0));
       return data;
     },
     staleTime: 0,
@@ -62,7 +63,7 @@ export function jobDetailQueryOptions(id: string) {
         params: { path: { job_id: id } },
       });
       if (response.status === 404) return null;
-      if (error || !data) throw new Error('Failed to fetch job');
+      if (error || !data) throw new ApiRequestError(parseApiError(error, 0));
       return data; // UnifiedJobResponse
     },
     staleTime: 30 * 60 * 1000,
@@ -75,7 +76,7 @@ export function deleteJobMutationOptions(queryClient: QueryClient) {
       const { error } = await apiClient.DELETE('/v1/jobs/{job_id}', {
         params: { path: { job_id: jobId } },
       });
-      if (error) throw new Error('Failed to delete job');
+      if (error) throw new ApiRequestError(parseApiError(error, 0));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: jobKeys.all });

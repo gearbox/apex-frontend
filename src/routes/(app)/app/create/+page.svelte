@@ -2,6 +2,7 @@
   import { onDestroy, onMount } from 'svelte';
   import { createQuery, useQueryClient } from '@tanstack/svelte-query';
   import apiClient from '$lib/api/client';
+  import { parseApiError } from '$lib/api/errors';
   import { generationStore, isGenerating } from '$lib/stores/generation';
   import { activeJobStore } from '$lib/stores/jobs';
   import { addToast } from '$lib/stores/toasts';
@@ -60,6 +61,19 @@
   let stopPoller: (() => void) | null = null;
   let submitting = $state(false);
 
+  function handleJobError(error: unknown): void {
+    const apiErr = parseApiError(error, 0);
+    if (apiErr.error === 'insufficient_balance') {
+      addToast({ type: 'error', message: 'Not enough tokens.', action: { label: 'Buy more →', href: '/app/billing' } });
+    } else if (apiErr.error === 'service_unavailable') {
+      addToast({ type: 'warning', message: 'AI provider temporarily unavailable' });
+    } else if (apiErr.error === 'moderation') {
+      addToast({ type: 'warning', message: apiErr.message });
+    } else {
+      addToast({ type: 'error', message: apiErr.message || 'Failed to start generation. Please try again.' });
+    }
+  }
+
   function startPolling(jobId: string) {
     stopPoller?.();
     activeJobStore.setJob(jobId, 'pending');
@@ -103,7 +117,7 @@
       let jobId: string | undefined;
 
       if (state.mode === 't2i') {
-        const { data, response } = await apiClient.POST('/v1/grok/image', {
+        const { data, error } = await apiClient.POST('/v1/grok/image', {
           body: {
             prompt: state.prompt,
             model: state.model,
@@ -111,42 +125,24 @@
             aspect_ratio: state.aspectRatio,
           },
         });
-        if (response.status === 402) {
-          addToast({ type: 'error', message: 'Not enough tokens.', action: { label: 'Buy more →', href: '/app/billing' } });
-          return;
-        }
-        if (response.status === 503) {
-          addToast({ type: 'warning', message: 'AI provider temporarily unavailable' });
-          return;
-        }
-        if (response.status === 422) {
-          addToast({ type: 'warning', message: 'Content blocked by moderation policy' });
-          return;
-        }
-        jobId = data?.job_id;
+        if (error) { handleJobError(error); return; }
+        if (data && 'job_id' in data) jobId = (data as { job_id: string }).job_id;
       } else if (state.mode === 'i2i') {
         if (!state.uploadedImageId) {
           addToast({ type: 'error', message: 'Please upload a source image first.' });
           return;
         }
-        const { data, response } = await apiClient.POST('/v1/grok/image/edit', {
+        const { data, error } = await apiClient.POST('/v1/grok/image/edit', {
           body: {
             prompt: state.prompt,
             input_image_id: state.uploadedImageId,
             model: state.model,
           },
         });
-        if (response.status === 402) {
-          addToast({ type: 'error', message: 'Not enough tokens.', action: { label: 'Buy more →', href: '/app/billing' } });
-          return;
-        }
-        if (response.status === 422) {
-          addToast({ type: 'warning', message: 'Content blocked by moderation policy' });
-          return;
-        }
-        jobId = data?.job_id;
+        if (error) { handleJobError(error); return; }
+        if (data && 'job_id' in data) jobId = (data as { job_id: string }).job_id;
       } else if (state.mode === 't2v') {
-        const { data, response } = await apiClient.POST('/v1/grok/video', {
+        const { data, error } = await apiClient.POST('/v1/grok/video', {
           body: {
             prompt: state.prompt,
             model: state.model,
@@ -155,21 +151,14 @@
             resolution: state.videoResolution,
           },
         });
-        if (response.status === 402) {
-          addToast({ type: 'error', message: 'Not enough tokens.', action: { label: 'Buy more →', href: '/app/billing' } });
-          return;
-        }
-        if (response.status === 503) {
-          addToast({ type: 'warning', message: 'AI provider temporarily unavailable' });
-          return;
-        }
-        jobId = data?.job_id;
+        if (error) { handleJobError(error); return; }
+        if (data && 'job_id' in data) jobId = (data as { job_id: string }).job_id;
       } else if (state.mode === 'i2v') {
         if (!state.uploadedImageId) {
           addToast({ type: 'error', message: 'Please upload a source image first.' });
           return;
         }
-        const { data, response } = await apiClient.POST('/v1/grok/video/from-image', {
+        const { data, error } = await apiClient.POST('/v1/grok/video/from-image', {
           body: {
             prompt: state.prompt,
             input_image_id: state.uploadedImageId,
@@ -177,11 +166,8 @@
             duration: state.videoDuration,
           },
         });
-        if (response.status === 402) {
-          addToast({ type: 'error', message: 'Not enough tokens.', action: { label: 'Buy more →', href: '/app/billing' } });
-          return;
-        }
-        jobId = data?.job_id;
+        if (error) { handleJobError(error); return; }
+        if (data && 'job_id' in data) jobId = (data as { job_id: string }).job_id;
       }
 
       if (!jobId) {
