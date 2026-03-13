@@ -1,5 +1,8 @@
 <script lang="ts">
   import type { JobListFilters } from '$lib/queries/jobs';
+  import type { components } from '$lib/api/types';
+
+  type GenerationType = components['schemas']['GenerationType'];
 
   let { filters, onChange }: {
     filters: JobListFilters;
@@ -13,11 +16,18 @@
     { label: 'Failed',    value: 'failed' },
   ] as const;
 
-  const typeOptions = [
+  const typeOptions: { label: string; value: GenerationType[] | null }[] = [
     { label: 'All types', value: null },
-    { label: 'Images',    value: 't2i' },
-    { label: 'Video',     value: 't2v' },
-  ] as const;
+    { label: 'Images',    value: ['t2i', 'i2i'] },
+    { label: 'Video',     value: ['t2v', 'i2v', 'v2v'] },
+  ];
+
+  function isTypeActive(optValue: GenerationType[] | null): boolean {
+    const current = filters.generation_type;
+    if (optValue === null) return current == null || (Array.isArray(current) && current.length === 0);
+    if (!Array.isArray(current)) return false;
+    return current.length === optValue.length && optValue.every((t) => current.includes(t));
+  }
 
   function chipClass(active: boolean) {
     return active
@@ -40,7 +50,7 @@
 
   {#each typeOptions as opt (opt.label)}
     <button
-      class="shrink-0 cursor-pointer rounded-full px-3 py-1 text-sm transition-colors {chipClass(filters.generation_type === opt.value)}"
+      class="shrink-0 cursor-pointer rounded-full px-3 py-1 text-sm transition-colors {chipClass(isTypeActive(opt.value))}"
       onclick={() => onChange({ ...filters, generation_type: opt.value, offset: 0 })}
     >
       {opt.label}

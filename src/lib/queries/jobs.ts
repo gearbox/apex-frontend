@@ -8,7 +8,7 @@ type GenerationType = components['schemas']['GenerationType'];
 export interface JobListFilters {
   status?: JobStatus | null;
   provider?: string | null;
-  generation_type?: GenerationType | null;
+  generation_type?: GenerationType | GenerationType[] | null;
   limit?: number;
   offset?: number;
 }
@@ -23,11 +23,32 @@ export function jobsListQueryOptions(filters: JobListFilters) {
   return {
     queryKey: jobKeys.list(filters),
     queryFn: async () => {
+      const types = filters.generation_type;
+
+      if (Array.isArray(types) && types.length > 1) {
+        // Parallel calls for each type, then merge and sort by created_at desc
+        const baseQuery = { status: filters.status, provider: filters.provider, limit: filters.limit, offset: filters.offset };
+        const results = await Promise.all(
+          types.map((t) =>
+            apiClient.GET('/v1/jobs', { params: { query: { ...baseQuery, generation_type: t } } }),
+          ),
+        );
+        for (const { error } of results) {
+          if (error) throw new Error('Failed to fetch jobs');
+        }
+        const items = results
+          .flatMap((r) => r.data!.items)
+          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        const total = results.reduce((sum, r) => sum + r.data!.total, 0);
+        return { items, total };
+      }
+
+      const singleType = Array.isArray(types) ? types[0] ?? null : types;
       const { data, error } = await apiClient.GET('/v1/jobs', {
-        params: { query: filters },
+        params: { query: { ...filters, generation_type: singleType } },
       });
       if (error || !data) throw new Error('Failed to fetch jobs');
-      return data; // UnifiedJobListResponse
+      return data;
     },
     staleTime: 0,
   };
