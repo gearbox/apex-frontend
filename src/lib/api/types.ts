@@ -641,6 +641,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/organizations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListOrganizations */
+        get: operations["V1AdminOrganizationsListOrganizations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/payments": {
         parameters: {
             query?: never;
@@ -656,6 +673,40 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListUsers */
+        get: operations["V1AdminUsersListUsers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/users/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** PatchUser */
+        patch: operations["V1AdminUsersUserIdPatchUser"];
         trace?: never;
     };
     "/v1/admin/models/{model_key}": {
@@ -1049,6 +1100,51 @@ export interface components {
         AdminAdjustResponse: {
             transaction: components["schemas"]["TransactionResponse"];
             new_balance: number;
+        };
+        /** AdminOrgListResponse */
+        AdminOrgListResponse: {
+            items: components["schemas"]["AdminOrgResponse"][];
+            total: number;
+        };
+        /** AdminOrgResponse */
+        AdminOrgResponse: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            slug: string;
+            /** Format: uuid */
+            owner_id: string;
+            is_active: boolean;
+            member_count: number;
+            token_balance: number;
+            /** Format: date-time */
+            created_at: string;
+        };
+        /** AdminPatchUserRequest */
+        AdminPatchUserRequest: {
+            role?: components["schemas"]["UserRole"] | null;
+            subscription_tier?: components["schemas"]["SubscriptionTier"] | null;
+            is_active?: boolean | null;
+        };
+        /** AdminUserListResponse */
+        AdminUserListResponse: {
+            items: components["schemas"]["AdminUserResponse"][];
+            total: number;
+        };
+        /** AdminUserResponse */
+        AdminUserResponse: {
+            /** Format: uuid */
+            id: string;
+            email: string;
+            display_name?: string | null;
+            role: string;
+            subscription_tier: string;
+            is_active: boolean;
+            email_verified_at?: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
         };
         /**
          * AspectRatio
@@ -1471,6 +1567,12 @@ export interface components {
             /** Format: uuid */
             payment_id: string;
         };
+        /**
+         * SubscriptionTier
+         * @description User subscription tiers.
+         * @enum {string}
+         */
+        SubscriptionTier: "free" | "basic" | "pro" | "enterprise";
         /** TokenPackageResponse */
         TokenPackageResponse: {
             id: string;
@@ -1581,6 +1683,16 @@ export interface components {
             /** Format: date-time */
             updated_at: string;
         };
+        /**
+         * UserRole
+         * @description User account roles.
+         *
+         *     SYSTEM — internal sentinel user (seeded by migration, cannot authenticate).
+         *     ADMIN  — full administrative access to the platform.
+         *     USER   — standard authenticated user (default for all registrations).
+         * @enum {string}
+         */
+        UserRole: "system" | "admin" | "user";
         /** UserStatsResponse */
         UserStatsResponse: {
             total_jobs: number;
@@ -3109,6 +3221,45 @@ export interface operations {
             };
         };
     };
+    V1AdminOrganizationsListOrganizations: {
+        parameters: {
+            query?: {
+                is_active?: boolean | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminOrgListResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
     V1AdminPaymentsListPayments: {
         parameters: {
             query?: {
@@ -3130,6 +3281,88 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PaymentListResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1AdminUsersListUsers: {
+        parameters: {
+            query?: {
+                is_active?: boolean | null;
+                role?: string | null;
+                email?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUserListResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1AdminUsersUserIdPatchUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminPatchUserRequest"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUserResponse"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
