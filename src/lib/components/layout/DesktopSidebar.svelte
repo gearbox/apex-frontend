@@ -1,12 +1,14 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { sidebarCollapsed, toggleSidebar } from '$lib/stores/ui';
+  import { isAdmin } from '$lib/stores/auth';
   import {
     Plus,
     Image,
     Activity,
     Coins,
     User,
+    Shield,
     ChevronLeft,
     ChevronRight,
   } from 'lucide-svelte';
@@ -17,6 +19,7 @@
     activity: Activity,
     coins: Coins,
     user: User,
+    shield: Shield,
   };
 
   const mainItems = [
@@ -26,6 +29,7 @@
     { label: 'Billing', href: '/app/billing', icon: 'coins' },
   ];
 
+  const adminItem = { label: 'Admin', href: '/app/admin', icon: 'shield' };
   const profileItem = { label: 'Profile', href: '/app/profile', icon: 'user' };
 </script>
 
@@ -58,6 +62,24 @@
         {/if}
       </a>
     {/each}
+
+    {#if $isAdmin}
+      <div class="admin-divider"></div>
+      {@const AdminIcon = iconMap[adminItem.icon]}
+      {@const adminActive = $page.url.pathname.startsWith(adminItem.href)}
+      <a
+        href={adminItem.href}
+        class="nav-item"
+        class:active={adminActive}
+        class:collapsed={$sidebarCollapsed}
+        title={$sidebarCollapsed ? adminItem.label : undefined}
+      >
+        <span class="nav-icon">{#if AdminIcon}<AdminIcon size={18} strokeWidth={adminActive ? 2 : 1.75} />{/if}</span>
+        {#if !$sidebarCollapsed}
+          <span class="nav-label">{adminItem.label}</span>
+        {/if}
+      </a>
+    {/if}
   </nav>
 
   <!-- Bottom section: profile + collapse -->
@@ -160,6 +182,11 @@
     flex-direction: column;
     gap: 2px;
     flex: 1;
+  }
+
+  .admin-divider {
+    border-top: 1px solid var(--apex-border);
+    margin: 8px 12px;
   }
 
   .sidebar-bottom {

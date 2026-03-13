@@ -38,7 +38,11 @@ const authMiddleware: Middleware = {
 };
 
 /* ─── Client Instance ─── */
-const apiClient = createClient<paths>({ baseUrl: API_BASE_URL });
+// Use a lazy fetch wrapper so tests can intercept via MSW after module initialization
+const apiClient = createClient<paths>({
+  baseUrl: API_BASE_URL,
+  fetch: (...args: Parameters<typeof fetch>) => fetch(...args),
+});
 apiClient.use(authMiddleware);
 
 export default apiClient;

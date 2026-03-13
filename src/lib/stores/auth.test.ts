@@ -8,6 +8,7 @@ import {
   getRefreshToken,
   currentUser,
   isAuthenticated,
+  isAdmin,
   currentAuthStatus,
 } from './auth';
 import { makeUserProfile } from '../../mocks/factories/user';
@@ -108,5 +109,27 @@ describe('getRefreshToken()', () => {
   it('returns stored refresh token from localStorage', () => {
     localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, 'stored-refresh-token');
     expect(getRefreshToken()).toBe('stored-refresh-token');
+  });
+});
+
+describe('isAdmin', () => {
+  it('returns false when user is null', () => {
+    expect(getStoreValue(isAdmin)).toBe(false);
+  });
+
+  it('returns false for a regular user', () => {
+    setAuth(mockTokens, makeUserProfile({ role: 'user' }));
+    expect(getStoreValue(isAdmin)).toBe(false);
+  });
+
+  it('returns true for an admin user', () => {
+    setAuth(mockTokens, makeUserProfile({ role: 'admin' }));
+    expect(getStoreValue(isAdmin)).toBe(true);
+  });
+
+  it('returns false after clearAuth', () => {
+    setAuth(mockTokens, makeUserProfile({ role: 'admin' }));
+    clearAuth();
+    expect(getStoreValue(isAdmin)).toBe(false);
   });
 });

@@ -1,12 +1,14 @@
 <script lang="ts">
   import { moreSheetOpen, closeMoreSheet } from '$lib/stores/ui';
   import { MORE_ITEMS } from '$lib/utils/constants';
-  import { Coins, Activity, User, ChevronRight } from 'lucide-svelte';
+  import { isAdmin } from '$lib/stores/auth';
+  import { Coins, Activity, User, Shield, ChevronRight } from 'lucide-svelte';
 
   const iconMap: Record<string, typeof Coins> = {
     coins: Coins,
     activity: Activity,
     user: User,
+    shield: Shield,
   };
 
   function handleKeydown(e: KeyboardEvent) {
@@ -34,6 +36,17 @@
             <span class="sheet-item-chevron"><ChevronRight size={16} /></span>
           </a>
         {/each}
+
+        {#if $isAdmin}
+          <div class="sheet-admin-divider"></div>
+          <a href="/app/admin" onclick={closeMoreSheet} class="sheet-item">
+            <span class="sheet-item-icon">
+              <Shield size={20} strokeWidth={1.75} />
+            </span>
+            <span class="sheet-item-label">Admin Panel</span>
+            <span class="sheet-item-chevron"><ChevronRight size={16} /></span>
+          </a>
+        {/if}
       </nav>
 
       <div class="sheet-cancel-wrap">
@@ -94,6 +107,11 @@
   .sheet-item-icon { color: var(--apex-text-muted); display: flex; flex-shrink: 0; }
   .sheet-item-label { flex: 1; }
   .sheet-item-chevron { color: var(--apex-text-dim); display: flex; }
+
+  .sheet-admin-divider {
+    border-top: 1px solid var(--apex-border);
+    margin: 4px 24px;
+  }
 
   .sheet-cancel-wrap { padding: 8px 24px 0; }
   .sheet-cancel {

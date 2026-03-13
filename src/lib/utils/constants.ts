@@ -47,6 +47,18 @@ export const MORE_ITEMS: NavItem[] = [
   { label: 'Profile & Settings', href: '/app/profile', icon: 'user' },
 ];
 
+export const ADMIN_NAV_ITEM: NavItem = {
+  label: 'Admin',
+  href: '/app/admin',
+  icon: 'shield',
+};
+
+export const ADMIN_MORE_ITEM: NavItem = {
+  label: 'Admin Panel',
+  href: '/app/admin',
+  icon: 'shield',
+};
+
 /** All sidebar items for desktop (flat list) */
 export const SIDEBAR_ITEMS: NavItem[] = [
   { label: 'Create', href: '/app/create', icon: 'plus' },

@@ -13,6 +13,7 @@ export interface UserProfile {
   id: string;
   email: string;
   display_name: string | null;
+  role: string;
   subscription_tier: string;
   email_verified: boolean;
   created_at: string;
@@ -30,6 +31,7 @@ let accessToken: string | null = null;
 export const currentUser = { subscribe: user.subscribe };
 export const currentAuthStatus = { subscribe: authStatus.subscribe };
 export const isAuthenticated = derived(authStatus, ($s) => $s === 'authenticated');
+export const isAdmin = derived(user, ($u) => $u?.role === 'admin');
 
 /* ─── Token Access ─── */
 export function getAccessToken(): string | null {
