@@ -26,7 +26,7 @@
 
 {#if checking || $currentAuthStatus === 'unknown'}
   <!-- Auth check skeleton -->
-  <div class="flex min-h-[100dvh] items-center justify-center bg-bg">
+  <div class="flex min-h-dvh items-center justify-center bg-bg">
     <div class="flex flex-col items-center gap-3">
       <div class="h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent"></div>
       <p class="text-sm text-text-dim">Loading…</p>

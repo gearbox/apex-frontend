@@ -68,7 +68,7 @@
     </button>
     {#if menuOpen}
       <div
-        class="absolute right-0 top-8 z-10 min-w-[130px] overflow-hidden rounded-lg border border-border bg-surface shadow-lg"
+        class="absolute right-0 top-8 z-10 min-w-32.5 overflow-hidden rounded-lg border border-border bg-surface shadow-lg"
         data-menu
       >
         <button

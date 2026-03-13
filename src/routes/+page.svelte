@@ -7,6 +7,6 @@
   });
 </script>
 
-<div class="flex min-h-[100dvh] items-center justify-center bg-bg">
+<div class="flex min-h-dvh items-center justify-center bg-bg">
   <p class="text-text-dim">Redirecting…</p>
 </div>

@@ -85,10 +85,10 @@
 </script>
 
 <div class="flex flex-col gap-2">
-  <span class="text-[11px] font-semibold uppercase tracking-[0.05em] text-text-muted">Source Image</span>
+  <span class="text-[11px] font-semibold uppercase tracking-wider text-text-muted">Source Image</span>
 
   {#if previewUrl}
-    <div class="relative flex items-center gap-3 rounded-[10px] border border-border bg-surface p-3">
+    <div class="relative flex items-center gap-3 rounded-2.5 border border-border bg-surface p-3">
       <img src={previewUrl} alt="Preview" class="h-14 w-14 rounded-lg object-cover" />
       <div class="min-w-0 flex-1">
         <p class="truncate text-xs font-medium text-text">{fileName}</p>
@@ -111,7 +111,7 @@
     <!-- Drag-drop zone -->
     <button
       type="button"
-      class="flex flex-col items-center gap-2 rounded-[10px] border-2 border-dashed p-5 transition-colors
+      class="flex flex-col items-center gap-2 rounded-2.5 border-2 border-dashed p-5 transition-colors
         {dragOver ? 'border-accent bg-accent-glow' : 'border-border hover:border-border-active'}"
       ondragover={(e) => { e.preventDefault(); dragOver = true; }}
       ondragleave={() => (dragOver = false)}

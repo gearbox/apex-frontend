@@ -215,7 +215,7 @@
 <!-- Desktop: side-by-side panels. Mobile: single-column scroll. -->
 <div class="flex flex-col md:h-full md:flex-row md:gap-6">
   <!-- Controls column -->
-  <div class="flex flex-col gap-4 p-4 pb-24 md:w-[400px] md:shrink-0 md:overflow-y-auto md:p-0 md:pb-5">
+  <div class="flex flex-col gap-4 p-4 pb-24 md:w-100 md:shrink-0 md:overflow-y-auto md:p-0 md:pb-5">
 
     <ModelSelector models={providerQuery.data?.models ?? []} />
 

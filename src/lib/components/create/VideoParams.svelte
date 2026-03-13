@@ -6,7 +6,7 @@
   <!-- Duration slider -->
   <div class="flex flex-col gap-2">
     <div class="flex items-baseline justify-between">
-      <span class="text-[11px] font-semibold uppercase tracking-[0.05em] text-text-muted">Duration</span>
+      <span class="text-[11px] font-semibold uppercase tracking-wider text-text-muted">Duration</span>
       <span class="font-mono text-xs font-semibold text-accent">{$generationStore.videoDuration}s</span>
     </div>
     <input
@@ -26,7 +26,7 @@
 
   <!-- Resolution toggle -->
   <div class="flex flex-col gap-2">
-    <span class="text-[11px] font-semibold uppercase tracking-[0.05em] text-text-muted">Resolution</span>
+    <span class="text-[11px] font-semibold uppercase tracking-wider text-text-muted">Resolution</span>
     <div class="flex gap-1.5">
       {#each ['480p', '720p'] as res (res)}
         {@const isActive = $generationStore.videoResolution === res}

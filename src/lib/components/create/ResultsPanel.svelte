@@ -72,7 +72,7 @@
           {/if}
 
           <!-- Hover actions -->
-          <div class="absolute inset-x-0 bottom-0 flex justify-end gap-1.5 bg-gradient-to-t from-black/60 to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+          <div class="absolute inset-x-0 bottom-0 flex justify-end gap-1.5 bg-linear-to-t from-black/60 to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
             <a
               href={output.url}
               download
@@ -98,10 +98,10 @@
 {:else if !showSkeleton}
   <!-- Empty state -->
   <div
-    class="flex min-h-[200px] items-center justify-center rounded-2xl border border-border"
+    class="flex min-h-50 items-center justify-center rounded-2xl border border-border"
     style="background: radial-gradient(ellipse at center, color-mix(in srgb, var(--apex-accent-dim) 8%, transparent), transparent 70%);"
   >
-    <div class="max-w-[280px] p-5 text-center">
+    <div class="max-w-70 p-5 text-center">
       <div class="mb-4 text-5xl opacity-30">✦</div>
       <p class="text-sm leading-relaxed text-text-muted">Your generated content will appear here</p>
     </div>

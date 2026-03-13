@@ -17,5 +17,6 @@
   "eslint.validate": ["javascript", "typescript", "svelte"],
   "files.associations": {
     "*.svelte": "svelte"
-  }
+  },
+  "tailwindCSS.lint.cssConflict": "ignore"
 }

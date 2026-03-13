@@ -8,7 +8,7 @@
 </script>
 
 <div class="flex flex-col gap-2">
-  <span class="text-[11px] font-semibold uppercase tracking-[0.05em] text-text-muted">Aspect Ratio</span>
+  <span class="text-[11px] font-semibold uppercase tracking-wider text-text-muted">Aspect Ratio</span>
   <div class="flex flex-wrap gap-1">
     {#each RATIOS as ratio (ratio)}
       {@const isActive = $generationStore.aspectRatio === ratio}

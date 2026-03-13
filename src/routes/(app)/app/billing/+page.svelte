@@ -94,7 +94,7 @@
   {#if activeTab === 'overview'}
     <!-- TOKEN BALANCE gradient panel -->
     <div
-      class="mb-5 rounded-2xl border border-accent-dim/20 bg-gradient-to-br from-accent-dim/10 to-surface p-5 md:p-7"
+      class="mb-5 rounded-2xl border border-accent-dim/20 bg-linear-to-br from-accent-dim/10 to-surface p-5 md:p-7"
     >
       <p class="mb-1.5 text-[11px] font-semibold uppercase tracking-widest text-text-muted">
         Token Balance
@@ -132,7 +132,7 @@
         {#each costRows as row (row.id)}
           {@const metaKey = row.model ?? row.generation_type}
           {@const meta = MODEL_META[metaKey] ?? { icon: '◆', label: metaKey }}
-          <div class="rounded-[10px] border border-border bg-surface p-3 md:p-4">
+          <div class="rounded-2.5 border border-border bg-surface p-3 md:p-4">
             <span class="text-lg">{meta.icon}</span>
             <p class="mt-1.5 text-[11px] font-semibold text-text">{meta.label}</p>
             <p class="font-mono text-base font-extrabold text-accent">◈{row.token_cost}</p>
@@ -140,7 +140,7 @@
         {/each}
       {:else}
         {#each FALLBACK_COSTS as item (item.label)}
-          <div class="rounded-[10px] border border-border bg-surface p-3 md:p-4">
+          <div class="rounded-2.5 border border-border bg-surface p-3 md:p-4">
             <span class="text-lg">{item.icon}</span>
             <p class="mt-1.5 text-[11px] font-semibold text-text">{item.label}</p>
             <p class="font-mono text-base font-extrabold text-accent">◈{item.cost}</p>
@@ -177,10 +177,10 @@
       </div>
     {/if}
     <div class="mt-4 flex gap-2">
-      <button class="flex-1 rounded-[10px] bg-[#635bff] py-3 text-sm font-bold text-white" disabled>
+      <button class="flex-1 rounded-2.5 bg-[#635bff] py-3 text-sm font-bold text-white" disabled>
         Stripe
       </button>
-      <button class="flex-1 rounded-[10px] border border-border bg-transparent py-3 text-sm font-semibold text-text" disabled>
+      <button class="flex-1 rounded-2.5 border border-border bg-transparent py-3 text-sm font-semibold text-text" disabled>
         Crypto
       </button>
     </div>

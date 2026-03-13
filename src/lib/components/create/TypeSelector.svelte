@@ -41,7 +41,7 @@
 </script>
 
 <div class="flex flex-col gap-2">
-  <span class="text-[11px] font-semibold uppercase tracking-[0.05em] text-text-muted">Type</span>
+  <span class="text-[11px] font-semibold uppercase tracking-wider text-text-muted">Type</span>
   <div class="flex flex-wrap gap-1.5">
     {#each supportedModes as modeOpt (modeOpt.value)}
       {@const isActive = $generationStore.mode === modeOpt.value}

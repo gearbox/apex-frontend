@@ -32,7 +32,7 @@
   <title>Sign Up — Apex</title>
 </svelte:head>
 
-<div class="flex min-h-[100dvh] items-center justify-center bg-bg px-4">
+<div class="flex min-h-dvh items-center justify-center bg-bg px-4">
   <div class="w-full max-w-sm">
     <div class="mb-8 text-center">
       <h1 class="text-2xl font-bold text-accent">apex</h1>
