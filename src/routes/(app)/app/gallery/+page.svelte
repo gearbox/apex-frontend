@@ -31,7 +31,7 @@
   }));
 
   const allItems = $derived(
-    (galleryQuery.data?.pages ?? []).flatMap((p) => p.items),
+    (galleryQuery.data?.pages ?? []).flatMap((p) => p.items).filter((i) => i.status === 'completed'),
   );
 
   const filteredItems = $derived(
