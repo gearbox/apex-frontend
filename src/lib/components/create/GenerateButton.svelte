@@ -2,7 +2,7 @@
   import { generationStore } from '$lib/stores/generation';
   import CostPreview from './CostPreview.svelte';
 
-  let { onclick, submitting = false }: { onclick: () => void; submitting?: boolean } = $props();
+  let { onclick, submitting = false, estimatedCost = 0 }: { onclick: () => void; submitting?: boolean; estimatedCost?: number } = $props();
 
   const isPolling = $derived(
     $generationStore.jobStatus !== null &&
@@ -33,5 +33,5 @@
     <span class="absolute inset-0 animate-pulse opacity-20" style="background: linear-gradient(90deg, transparent, white, transparent); background-size: 200% 100%;"></span>
   {/if}
   <span>{label}</span>
-  <CostPreview />
+  <CostPreview {estimatedCost} />
 </button>

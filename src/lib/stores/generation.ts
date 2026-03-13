@@ -24,9 +24,6 @@ export interface GenerationState {
   videoDuration: number;
   videoResolution: '480p' | '720p';
 
-  // Computed cost
-  estimatedCost: number;
-
   // Session job tracking
   activeJobId: string | null;
   jobStatus: JobStatus | null;
@@ -48,7 +45,6 @@ function createGenerationStore() {
     imageCount: 1,
     videoDuration: 5,
     videoResolution: '720p',
-    estimatedCost: 0,
     activeJobId: null,
     jobStatus: null,
     completedJob: null,
@@ -93,10 +89,6 @@ function createGenerationStore() {
 
     setVideoResolution(videoResolution: '480p' | '720p') {
       update((s) => ({ ...s, videoResolution }));
-    },
-
-    setEstimatedCost(estimatedCost: number) {
-      update((s) => ({ ...s, estimatedCost }));
     },
 
     startJob(jobId: string) {

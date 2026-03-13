@@ -1,8 +1,10 @@
 <script lang="ts">
   import { generationStore } from '$lib/stores/generation';
 
+  let { estimatedCost = 0 }: { estimatedCost?: number } = $props();
+
   const totalCost = $derived(
-    $generationStore.estimatedCost *
+    estimatedCost *
       ($generationStore.mode === 't2i' || $generationStore.mode === 'i2i'
         ? $generationStore.imageCount
         : 1),

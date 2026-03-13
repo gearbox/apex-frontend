@@ -44,13 +44,12 @@
     staleTime: 60 * 60 * 1000,
   }));
 
-  // Reactively update estimated cost
-  $effect(() => {
-    const pricing = pricingQuery.data;
-    if (!pricing) return;
-    const cost = lookupCost(pricing, 'grok', $generationStore.model, $generationStore.mode);
-    generationStore.setEstimatedCost(cost);
-  });
+  // Derived estimated cost (per unit — imageCount multiplier applied in CostPreview)
+  const estimatedCost = $derived(
+    pricingQuery.data
+      ? lookupCost(pricingQuery.data, 'grok', $generationStore.model, $generationStore.mode)
+      : 0,
+  );
 
   // ── Current model info
   const currentModelInfo = $derived(
@@ -237,7 +236,7 @@
 
     <!-- Generate button (desktop, inline at bottom of controls) -->
     <div class="hidden md:block">
-      <GenerateButton onclick={handleGenerate} {submitting} />
+      <GenerateButton onclick={handleGenerate} {submitting} {estimatedCost} />
     </div>
   </div>
 
