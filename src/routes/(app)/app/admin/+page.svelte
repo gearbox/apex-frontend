@@ -6,6 +6,7 @@
   import AdminOrgsTab from '$lib/components/admin/AdminOrgsTab.svelte';
   import AdminModelsTab from '$lib/components/admin/AdminModelsTab.svelte';
   import AdminPaymentsTab from '$lib/components/admin/AdminPaymentsTab.svelte';
+  import AdminPricingTab from '$lib/components/admin/AdminPricingTab.svelte';
 
   let activeTab = $state('users');
 
@@ -33,6 +34,8 @@
       <AdminModelsTab />
     {:else if activeTab === 'payments'}
       <AdminPaymentsTab />
+    {:else if activeTab === 'pricing'}
+      <AdminPricingTab />
     {/if}
   </div>
 </div>

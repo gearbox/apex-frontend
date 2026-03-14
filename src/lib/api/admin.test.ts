@@ -8,12 +8,17 @@ import {
   makePayment,
   makeBalanceResponse,
   makeTransactionResponse,
+  makePricingRule,
 } from '../../mocks/factories/admin';
 import {
   fetchAdminUsers,
   fetchAdminOrgs,
   fetchAdminModels,
   fetchAdminPayments,
+  fetchAdminPricing,
+  createPricingRule,
+  patchPricingRule,
+  deletePricingRule,
   patchAdminUser,
   toggleAdminModel,
   fetchUserAccount,
@@ -210,6 +215,133 @@ describe('fetchAccountTransactions()', () => {
     expect(result.items.length).toBeGreaterThan(0);
     expect(result.items[0]).toHaveProperty('transaction_type');
     expect(result.items[0]).toHaveProperty('amount');
+  });
+});
+
+describe('fetchAdminPricing()', () => {
+  it('returns a list of pricing rules', async () => {
+    server.use(
+      http.get(`${BASE}/v1/admin/pricing`, () =>
+        HttpResponse.json([
+          makePricingRule({ id: 'rule_001', provider: 'grok', generation_type: 't2i', token_cost: 10 }),
+          makePricingRule({ id: 'rule_002', generation_type: 't2v', token_cost: 50, is_active: false }),
+        ]),
+      ),
+    );
+    const result = await fetchAdminPricing();
+    expect(result.length).toBeGreaterThan(0);
+    expect(result[0]).toHaveProperty('provider');
+    expect(result[0]).toHaveProperty('token_cost');
+    expect(result[0]).toHaveProperty('is_active');
+  });
+
+  it('passes active_only param correctly', async () => {
+    server.use(
+      http.get(`${BASE}/v1/admin/pricing`, () =>
+        HttpResponse.json([makePricingRule({ is_active: true })]),
+      ),
+    );
+    const result = await fetchAdminPricing({ active_only: true });
+    expect(result).toBeDefined();
+    expect(result[0].is_active).toBe(true);
+  });
+
+  it('throws on error response', async () => {
+    server.use(
+      http.get(`${BASE}/v1/admin/pricing`, () =>
+        HttpResponse.json({ error: 'Forbidden' }, { status: 403 }),
+      ),
+    );
+    await expect(fetchAdminPricing()).rejects.toThrow();
+  });
+});
+
+describe('createPricingRule()', () => {
+  it('returns the created rule on success', async () => {
+    server.use(
+      http.post(`${BASE}/v1/admin/pricing`, async ({ request }) => {
+        const body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(
+          makePricingRule({
+            id: 'rule_new',
+            provider: body.provider as string,
+            generation_type: body.generation_type as string,
+            token_cost: body.token_cost as number,
+          }),
+          { status: 201 },
+        );
+      }),
+    );
+    const result = await createPricingRule({
+      provider: 'grok',
+      generation_type: 't2i',
+      token_cost: 15,
+    });
+    expect(result.id).toBe('rule_new');
+    expect(result.provider).toBe('grok');
+    expect(result.token_cost).toBe(15);
+  });
+
+  it('throws on error response', async () => {
+    server.use(
+      http.post(`${BASE}/v1/admin/pricing`, () =>
+        HttpResponse.json({ error: 'Forbidden' }, { status: 403 }),
+      ),
+    );
+    await expect(
+      createPricingRule({ provider: 'grok', generation_type: 't2i', token_cost: 10 }),
+    ).rejects.toThrow();
+  });
+});
+
+describe('patchPricingRule()', () => {
+  it('returns updated rule on success', async () => {
+    server.use(
+      http.patch(`${BASE}/v1/admin/pricing/:ruleId`, async ({ request, params }) => {
+        const body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(
+          makePricingRule({
+            id: params.ruleId as string,
+            token_cost: body.token_cost as number,
+            is_active: body.is_active as boolean,
+          }),
+        );
+      }),
+    );
+    const result = await patchPricingRule('rule_001', { token_cost: 20, is_active: false });
+    expect(result.id).toBe('rule_001');
+    expect(result.token_cost).toBe(20);
+    expect(result.is_active).toBe(false);
+  });
+
+  it('throws on error response', async () => {
+    server.use(
+      http.patch(`${BASE}/v1/admin/pricing/:ruleId`, () =>
+        HttpResponse.json({ error: 'not_found' }, { status: 404 }),
+      ),
+    );
+    await expect(patchPricingRule('rule_bad', { token_cost: 5 })).rejects.toThrow();
+  });
+});
+
+describe('deletePricingRule()', () => {
+  it('returns success message on delete', async () => {
+    server.use(
+      http.delete(`${BASE}/v1/admin/pricing/:ruleId`, () =>
+        HttpResponse.json({ message: 'Pricing rule deleted.' }),
+      ),
+    );
+    const result = await deletePricingRule('rule_001');
+    expect(result).toHaveProperty('message');
+  });
+
+  it('throws on error response', async () => {
+    server.use(
+      http.delete(`${BASE}/v1/admin/pricing/:ruleId`, () =>
+        HttpResponse.json({ error: 'not_found' }, { status: 404 }),
+      ),
+    );
+    await expect(deletePricingRule('rule_bad')).rejects.toThrow();
   });
 });
 

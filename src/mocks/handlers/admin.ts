@@ -6,6 +6,7 @@ import {
   makePayment,
   makeBalanceResponse,
   makeTransactionResponse,
+  makePricingRule,
 } from '../factories/admin';
 import { MOCK_BASE_URL as BASE } from '../config';
 
@@ -131,6 +132,53 @@ export const adminHandlers = [
       new_balance: 500 + body.amount,
     });
   }),
+
+  // List pricing rules
+  http.get(`${BASE}/v1/admin/pricing`, () =>
+    HttpResponse.json([
+      makePricingRule({ id: 'rule_001', provider: 'grok', generation_type: 't2i', token_cost: 10 }),
+      makePricingRule({
+        id: 'rule_002',
+        provider: 'grok',
+        generation_type: 't2v',
+        token_cost: 50,
+        is_active: false,
+      }),
+    ]),
+  ),
+
+  // Create pricing rule
+  http.post(`${BASE}/v1/admin/pricing`, async ({ request }) => {
+    const body = (await request.json()) as Record<string, unknown>;
+    return HttpResponse.json(
+      makePricingRule({
+        id: 'rule_new',
+        provider: body.provider as string,
+        generation_type: body.generation_type as string,
+        model: (body.model as string | null) ?? null,
+        token_cost: body.token_cost as number,
+        notes: (body.notes as string | null) ?? null,
+      }),
+      { status: 201 },
+    );
+  }),
+
+  // Patch pricing rule
+  http.patch(`${BASE}/v1/admin/pricing/:ruleId`, async ({ request, params }) => {
+    const body = (await request.json()) as Record<string, unknown>;
+    return HttpResponse.json(
+      makePricingRule({
+        id: params.ruleId as string,
+        token_cost: (body.token_cost as number) ?? 10,
+        is_active: (body.is_active as boolean) ?? true,
+      }),
+    );
+  }),
+
+  // Delete pricing rule
+  http.delete(`${BASE}/v1/admin/pricing/:ruleId`, () =>
+    HttpResponse.json({ message: 'Pricing rule deleted.' }),
+  ),
 ];
 
 // Named override handlers for negative-path tests
@@ -142,4 +190,14 @@ export const adminUserPatchFailHandler = http.patch(
 export const adminAdjustFailHandler = http.post(
   `${BASE}/v1/admin/accounts/:accountId/adjust`,
   () => HttpResponse.json({ error: 'Bad Request' }, { status: 400 }),
+);
+
+export const adminPricingCreateFailHandler = http.post(
+  `${BASE}/v1/admin/pricing`,
+  () => HttpResponse.json({ error: 'Forbidden', message: 'Insufficient permissions', status_code: 403 }, { status: 403 }),
+);
+
+export const adminPricingDeleteFailHandler = http.delete(
+  `${BASE}/v1/admin/pricing/:ruleId`,
+  () => HttpResponse.json({ error: 'not_found', message: 'Pricing rule not found', status_code: 404 }, { status: 404 }),
 );

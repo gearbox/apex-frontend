@@ -4,11 +4,17 @@ import {
   fetchAdminOrgs,
   fetchAdminModels,
   fetchAdminPayments,
+  fetchAdminPricing,
+  createPricingRule,
+  patchPricingRule,
+  deletePricingRule,
   patchAdminUser,
   toggleAdminModel,
   adjustAccountBalance,
   fetchAccountBalance,
   fetchAccountTransactions,
+  type CreatePricingRuleRequest,
+  type PatchPricingRuleRequest,
 } from '$lib/api/admin';
 
 /* ─── Query Key Factory ─── */
@@ -19,6 +25,7 @@ export const adminKeys = {
   orgs: (params?: object) => ['admin', 'orgs', params ?? {}] as const,
   models: (params?: object) => ['admin', 'models', params ?? {}] as const,
   payments: (params?: object) => ['admin', 'payments', params ?? {}] as const,
+  pricing: (params?: object) => ['admin', 'pricing', params ?? {}] as const,
   accountBalance: (id: string) => ['admin', 'account-balance', id] as const,
   accountTransactions: (id: string, params?: object) =>
     ['admin', 'account-txns', id, params ?? {}] as const,
@@ -121,6 +128,47 @@ export function toggleAdminModelMutationOptions(queryClient: QueryClient) {
       toggleAdminModel(modelKey, isEnabled),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: adminKeys.models() });
+    },
+  };
+}
+
+export interface AdminPricingFilters {
+  active_only?: boolean;
+}
+
+export function adminPricingQueryOptions(filters: AdminPricingFilters = {}) {
+  return {
+    queryKey: adminKeys.pricing(filters),
+    queryFn: () => fetchAdminPricing(filters),
+    staleTime: 30_000,
+    refetchOnWindowFocus: true,
+  };
+}
+
+export function createPricingRuleMutationOptions(queryClient: QueryClient) {
+  return {
+    mutationFn: (body: CreatePricingRuleRequest) => createPricingRule(body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.pricing() });
+    },
+  };
+}
+
+export function patchPricingRuleMutationOptions(queryClient: QueryClient) {
+  return {
+    mutationFn: ({ ruleId, body }: { ruleId: string; body: PatchPricingRuleRequest }) =>
+      patchPricingRule(ruleId, body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.pricing() });
+    },
+  };
+}
+
+export function deletePricingRuleMutationOptions(queryClient: QueryClient) {
+  return {
+    mutationFn: (ruleId: string) => deletePricingRule(ruleId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.pricing() });
     },
   };
 }

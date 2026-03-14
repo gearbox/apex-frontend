@@ -52,4 +52,13 @@ describe('adminKeys', () => {
       { limit: 5 },
     ]);
   });
+
+  it('pricing returns key with params', () => {
+    expect(adminKeys.pricing()).toEqual(['admin', 'pricing', {}]);
+    expect(adminKeys.pricing({ active_only: true })).toEqual([
+      'admin',
+      'pricing',
+      { active_only: true },
+    ]);
+  });
 });

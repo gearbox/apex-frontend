@@ -19,6 +19,9 @@ export type BalanceResponse = components['schemas']['BalanceResponse'];
 export type TransactionResponse = components['schemas']['TransactionResponse'];
 export type TransactionListResponse = components['schemas']['TransactionListResponse'];
 export type AdminAdjustResponse = components['schemas']['AdminAdjustResponse'];
+export type PricingRuleResponse = components['schemas']['PricingRuleResponse'];
+export type CreatePricingRuleRequest = components['schemas']['CreatePricingRuleRequest'];
+export type PatchPricingRuleRequest = components['schemas']['PatchPricingRuleRequest'];
 
 /* ─── Users ─── */
 
@@ -147,6 +150,46 @@ export async function fetchAccountTransactions(
   );
   if (error || !data) throwApiError(error, 'Failed to fetch account transactions');
   return data;
+}
+
+/* ─── Pricing ─── */
+
+export async function fetchAdminPricing(params?: {
+  active_only?: boolean;
+}): Promise<PricingRuleResponse[]> {
+  const { data, error } = await apiClient.GET('/v1/admin/pricing', {
+    params: { query: params },
+  });
+  if (error || !data) throwApiError(error, 'Failed to fetch pricing rules');
+  return data;
+}
+
+export async function createPricingRule(
+  body: CreatePricingRuleRequest,
+): Promise<PricingRuleResponse> {
+  const { data, error } = await apiClient.POST('/v1/admin/pricing', { body });
+  if (error || !data) throwApiError(error, 'Failed to create pricing rule');
+  return data;
+}
+
+export async function patchPricingRule(
+  ruleId: string,
+  body: PatchPricingRuleRequest,
+): Promise<PricingRuleResponse> {
+  const { data, error } = await apiClient.PATCH('/v1/admin/pricing/{rule_id}', {
+    params: { path: { rule_id: ruleId } },
+    body,
+  });
+  if (error || !data) throwApiError(error, 'Failed to update pricing rule');
+  return data;
+}
+
+export async function deletePricingRule(ruleId: string): Promise<{ message: string }> {
+  const { data, error } = await apiClient.DELETE('/v1/admin/pricing/{rule_id}', {
+    params: { path: { rule_id: ruleId } },
+  });
+  if (error || !data) throwApiError(error, 'Failed to delete pricing rule');
+  return data as { message: string };
 }
 
 export async function adjustAccountBalance(
