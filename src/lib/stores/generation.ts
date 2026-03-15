@@ -1,7 +1,7 @@
 import { writable, derived, get } from 'svelte/store';
 import type { components } from '$lib/api/types';
 
-export type GenerationMode = 't2i' | 'i2i' | 't2v' | 'i2v';
+export type GenerationMode = 't2i' | 'i2i' | 't2v' | 'i2v' | 'v2v' | 'flf2v';
 type ModelType = components['schemas']['ModelType'];
 type AspectRatio = components['schemas']['AspectRatio'];
 type JobStatus = components['schemas']['JobStatus'];

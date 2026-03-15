@@ -12,6 +12,7 @@ export interface JobListFilters {
   generation_type?: GenerationType | GenerationType[] | null;
   limit?: number;
   offset?: number;
+  cursor?: string | null;
 }
 
 export const jobKeys = {
@@ -27,7 +28,8 @@ export function jobsListQueryOptions(filters: JobListFilters) {
       const types = filters.generation_type;
 
       if (Array.isArray(types) && types.length > 1) {
-        // Parallel calls for each type, then merge and sort by created_at desc
+        // Parallel calls for each type, then merge and sort by created_at desc.
+        // Cursor-based paging is not supported when merging multiple types — fall back to offset.
         const baseQuery = { status: filters.status, provider: filters.provider, limit: filters.limit, offset: filters.offset };
         const results = await Promise.all(
           types.map((t) =>
@@ -41,7 +43,7 @@ export function jobsListQueryOptions(filters: JobListFilters) {
           .flatMap((r) => r.data!.items)
           .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         const total = results.reduce((sum, r) => sum + r.data!.total, 0);
-        return { items, total };
+        return { items, total, has_more: false, next_cursor: null };
       }
 
       const singleType = Array.isArray(types) ? types[0] ?? null : types;

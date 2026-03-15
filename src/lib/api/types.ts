@@ -735,25 +735,25 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** CreateGeneration */
-        post: operations["V1GenerateCreateGeneration"];
+        /** Generate */
+        post: operations["V1GenerateGenerate"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/v1/generate/with-images": {
+    "/v1/providers": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** ListProviders */
+        get: operations["V1ProvidersListProviders"];
         put?: never;
-        /** CreateGenerationWithImages */
-        post: operations["V1GenerateWithImagesCreateGenerationWithImages"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -931,6 +931,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/legacy/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** CreateGeneration */
+        post: operations["V1LegacyGenerateCreateGeneration"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/legacy/generate/with-images": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** CreateGenerationWithImages */
+        post: operations["V1LegacyGenerateWithImagesCreateGenerationWithImages"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/grok": {
         parameters: {
             query?: never;
@@ -1101,11 +1135,6 @@ export interface components {
             transaction: components["schemas"]["TransactionResponse"];
             new_balance: number;
         };
-        /** AdminOrgListResponse */
-        AdminOrgListResponse: {
-            items: components["schemas"]["AdminOrgResponse"][];
-            total: number;
-        };
         /** AdminOrgResponse */
         AdminOrgResponse: {
             /** Format: uuid */
@@ -1126,11 +1155,6 @@ export interface components {
             subscription_tier?: components["schemas"]["SubscriptionTier"] | null;
             is_active?: boolean | null;
             locale?: components["schemas"]["SupportedLocale"] | null;
-        };
-        /** AdminUserListResponse */
-        AdminUserListResponse: {
-            items: components["schemas"]["AdminUserResponse"][];
-            total: number;
         };
         /** AdminUserResponse */
         AdminUserResponse: {
@@ -1199,7 +1223,9 @@ export interface components {
             error: string;
             message: string;
             status_code: number;
-            detail?: Record<string, never> | null;
+            detail?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** ForgotPasswordRequest */
         ForgotPasswordRequest: {
@@ -1342,11 +1368,6 @@ export interface components {
             /** Format: date-time */
             expires_at: string;
         };
-        /** ImageListResponse */
-        ImageListResponse: {
-            items: components["schemas"]["ImageListItem"][];
-            count: number;
-        };
         /** ImageUploadResponse */
         ImageUploadResponse: {
             filename: string;
@@ -1485,10 +1506,77 @@ export interface components {
             /** Format: date-time */
             expires_at: string;
         };
-        /** OutputListResponse */
-        OutputListResponse: {
+        /** PaginatedResponse[AdminOrgResponse] */
+        "PaginatedResponse_src.api.schemas.admin.AdminOrgResponse_": {
+            items: components["schemas"]["AdminOrgResponse"][];
+            total: number;
+            limit: number;
+            offset: number;
+            has_more: boolean;
+            next_cursor?: string | null;
+        };
+        /** PaginatedResponse[AdminUserResponse] */
+        "PaginatedResponse_src.api.schemas.admin.AdminUserResponse_": {
+            items: components["schemas"]["AdminUserResponse"][];
+            total: number;
+            limit: number;
+            offset: number;
+            has_more: boolean;
+            next_cursor?: string | null;
+        };
+        /** PaginatedResponse[PaymentResponse] */
+        "PaginatedResponse_src.api.schemas.billing.PaymentResponse_": {
+            items: components["schemas"]["PaymentResponse"][];
+            total: number;
+            limit: number;
+            offset: number;
+            has_more: boolean;
+            next_cursor?: string | null;
+        };
+        /** PaginatedResponse[TransactionResponse] */
+        "PaginatedResponse_src.api.schemas.billing.TransactionResponse_": {
+            items: components["schemas"]["TransactionResponse"][];
+            total: number;
+            limit: number;
+            offset: number;
+            has_more: boolean;
+            next_cursor?: string | null;
+        };
+        /** PaginatedResponse[UnifiedJobResponse] */
+        "PaginatedResponse_src.api.schemas.jobs.UnifiedJobResponse_": {
+            items: components["schemas"]["UnifiedJobResponse"][];
+            total: number;
+            limit: number;
+            offset: number;
+            has_more: boolean;
+            next_cursor?: string | null;
+        };
+        /** PaginatedResponse[ImageListItem] */
+        "PaginatedResponse_src.api.schemas.storage.ImageListItem_": {
+            items: components["schemas"]["ImageListItem"][];
+            total: number;
+            limit: number;
+            offset: number;
+            has_more: boolean;
+            next_cursor?: string | null;
+        };
+        /** PaginatedResponse[OutputListItem] */
+        "PaginatedResponse_src.api.schemas.storage.OutputListItem_": {
             items: components["schemas"]["OutputListItem"][];
-            count: number;
+            total: number;
+            limit: number;
+            offset: number;
+            has_more: boolean;
+            next_cursor?: string | null;
+        };
+        /** PaginatedResponse[JobSummaryResponse] */
+        "PaginatedResponse_src.api.schemas.user.JobSummaryResponse_": {
+            items: components["schemas"]["JobSummaryResponse"][];
+            total: number;
+            limit: number;
+            offset: number;
+            has_more: boolean;
+            next_cursor?: string | null;
         };
         /** PatchPricingRuleRequest */
         PatchPricingRuleRequest: {
@@ -1496,11 +1584,6 @@ export interface components {
             is_active?: boolean | null;
             effective_until?: string | null;
             notes?: string | null;
-        };
-        /** PaymentListResponse */
-        PaymentListResponse: {
-            items: components["schemas"]["PaymentResponse"][];
-            total: number;
         };
         /** PaymentResponse */
         PaymentResponse: {
@@ -1528,6 +1611,32 @@ export interface components {
             effective_from: string;
             effective_until?: string | null;
             notes?: string | null;
+        };
+        /** ProviderInfo */
+        ProviderInfo: {
+            provider: string;
+            name: string;
+            available: boolean;
+        };
+        /** ProviderModelInfo */
+        ProviderModelInfo: {
+            model: string;
+            name: string;
+            description: string;
+            provider: string;
+            is_enabled: boolean;
+            supports_t2i: boolean;
+            supports_i2i: boolean;
+            supports_t2v: boolean;
+            supports_i2v: boolean;
+            supports_v2v: boolean;
+            supports_flf2v: boolean;
+            max_images: number;
+        };
+        /** ProvidersResponse */
+        ProvidersResponse: {
+            providers: components["schemas"]["ProviderInfo"][];
+            models: components["schemas"]["ProviderModelInfo"][];
         };
         /** RefreshTokenRequest */
         RefreshTokenRequest: {
@@ -1608,11 +1717,6 @@ export interface components {
         TopUpStripeRequest: {
             package_id: string;
         };
-        /** TransactionListResponse */
-        TransactionListResponse: {
-            items: components["schemas"]["TransactionResponse"][];
-            total: number;
-        };
         /** TransactionResponse */
         TransactionResponse: {
             /** Format: uuid */
@@ -1621,19 +1725,33 @@ export interface components {
             amount: number;
             balance_after: number;
             description?: string | null;
-            metadata: Record<string, never>;
+            metadata: {
+                [key: string]: unknown;
+            };
             job_id?: string | null;
             payment_id?: string | null;
             /** Format: date-time */
             created_at: string;
             created_by?: string | null;
         };
-        /** UnifiedJobListResponse */
-        UnifiedJobListResponse: {
-            items: components["schemas"]["UnifiedJobResponse"][];
-            total: number;
-            limit: number;
-            offset: number;
+        /** UnifiedGenerationRequest */
+        UnifiedGenerationRequest: {
+            prompt: string;
+            generation_type: components["schemas"]["GenerationType"];
+            model: components["schemas"]["ModelType"];
+            input_image_id?: string | null;
+            input_video_url?: string | null;
+            negative_prompt?: string | null;
+            aspect_ratio?: components["schemas"]["AspectRatio"];
+            /** @default 1 */
+            n: number;
+            name?: string | null;
+            /** @default 5 */
+            duration: number;
+            resolution?: components["schemas"]["VideoResolution"];
+            height?: number | null;
+            seed?: number | null;
+            steps?: number | null;
         };
         /** UnifiedJobResponse */
         UnifiedJobResponse: {
@@ -1673,11 +1791,6 @@ export interface components {
             created_at: string;
             /** Format: date-time */
             expires_at: string;
-        };
-        /** UserJobsResponse */
-        UserJobsResponse: {
-            items: components["schemas"]["JobSummaryResponse"][];
-            total: number;
         };
         /** UserProfileResponse */
         UserProfileResponse: {
@@ -2168,6 +2281,7 @@ export interface operations {
             query?: {
                 limit?: number;
                 offset?: number;
+                cursor?: string | null;
             };
             header?: never;
             path?: never;
@@ -2181,7 +2295,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["UserJobsResponse"];
+                    "application/json": components["schemas"]["PaginatedResponse_src.api.schemas.user.JobSummaryResponse_"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -2366,6 +2480,7 @@ export interface operations {
                 limit?: number;
                 offset?: number;
                 type?: string | null;
+                cursor?: string | null;
             };
             header?: never;
             path?: never;
@@ -2379,7 +2494,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TransactionListResponse"];
+                    "application/json": components["schemas"]["PaginatedResponse_src.api.schemas.billing.TransactionResponse_"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -2492,7 +2607,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
         };
@@ -2512,7 +2629,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
         };
@@ -2613,7 +2732,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -2770,7 +2891,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -2944,7 +3067,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -3063,7 +3188,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TransactionListResponse"];
+                    "application/json": components["schemas"]["PaginatedResponse_src.api.schemas.billing.TransactionResponse_"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -3250,7 +3375,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AdminOrgListResponse"];
+                    "application/json": components["schemas"]["PaginatedResponse_src.api.schemas.admin.AdminOrgResponse_"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -3290,7 +3415,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PaymentListResponse"];
+                    "application/json": components["schemas"]["PaginatedResponse_src.api.schemas.billing.PaymentResponse_"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -3331,7 +3456,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AdminUserListResponse"];
+                    "application/json": components["schemas"]["PaginatedResponse_src.api.schemas.admin.AdminUserResponse_"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -3433,7 +3558,7 @@ export interface operations {
             };
         };
     };
-    V1GenerateCreateGeneration: {
+    V1GenerateGenerate: {
         parameters: {
             query?: never;
             header?: never;
@@ -3442,7 +3567,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["GenerationRequest"];
+                "application/json": components["schemas"]["UnifiedGenerationRequest"];
             };
         };
         responses: {
@@ -3452,7 +3577,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["JobResponse"];
+                    "application/json": components["schemas"]["JobCreatedResponse"] | components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -3472,44 +3597,22 @@ export interface operations {
             };
         };
     };
-    V1GenerateWithImagesCreateGenerationWithImages: {
+    V1ProvidersListProviders: {
         parameters: {
-            query?: {
-                image1?: string | null;
-                image2?: string | null;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "multipart/form-data": components["schemas"]["GenerationRequest"];
-            };
-        };
+        requestBody?: never;
         responses: {
-            /** @description Document created, URL follows */
-            201: {
+            /** @description Request fulfilled, document follows */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["JobResponse"];
-                };
-            };
-            /** @description Bad request syntax or unsupported method */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        status_code: number;
-                        detail: string;
-                        extra?: null | {
-                            [key: string]: unknown;
-                        } | unknown[];
-                    };
+                    "application/json": components["schemas"]["ProvidersResponse"];
                 };
             };
         };
@@ -3782,7 +3885,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["OutputListResponse"] | components["schemas"]["ErrorEnvelope"];
+                    "application/json": components["schemas"]["PaginatedResponse_src.api.schemas.storage.OutputListItem_"] | components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -3807,6 +3910,7 @@ export interface operations {
             query?: {
                 limit?: number;
                 offset?: number;
+                cursor?: string | null;
             };
             header?: never;
             path?: never;
@@ -3820,7 +3924,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["OutputListResponse"];
+                    "application/json": components["schemas"]["PaginatedResponse_src.api.schemas.storage.OutputListItem_"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -3845,6 +3949,7 @@ export interface operations {
             query?: {
                 limit?: number;
                 offset?: number;
+                cursor?: string | null;
             };
             header?: never;
             path?: never;
@@ -3858,7 +3963,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ImageListResponse"];
+                    "application/json": components["schemas"]["PaginatedResponse_src.api.schemas.storage.ImageListItem_"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -3901,6 +4006,87 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UploadResponse"] | components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1LegacyGenerateCreateGeneration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GenerationRequest"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1LegacyGenerateWithImagesCreateGenerationWithImages: {
+        parameters: {
+            query?: {
+                image1?: string | null;
+                image2?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["GenerationRequest"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobResponse"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -4215,6 +4401,7 @@ export interface operations {
                 generation_type?: components["schemas"]["GenerationType"] | null;
                 limit?: number;
                 offset?: number;
+                cursor?: string | null;
             };
             header?: never;
             path?: never;
@@ -4228,7 +4415,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["UnifiedJobListResponse"];
+                    "application/json": components["schemas"]["PaginatedResponse_src.api.schemas.jobs.UnifiedJobResponse_"];
                 };
             };
             /** @description Bad request syntax or unsupported method */

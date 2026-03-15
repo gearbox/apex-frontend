@@ -3,9 +3,53 @@
 > **Source:** `gearbox/apex` repository
 > **Framework:** Litestar 2.5+ / Python 3.13
 > **Schema:** `GET /docs/openapi.json` from running backend (Litestar OpenAPIConfig has `path="/docs"`)
-> **Last synced:** 2026-03-14
+> **Last synced:** 2026-03-15
 
 This document captures the API surface that the frontend depends on. It is a **stable reference**, not a live mirror. When endpoints change in the backend, update this document and regenerate `types.ts`.
+
+---
+
+## Pagination
+
+All list endpoints return a **unified `PaginatedResponse<T>`** shape:
+
+```typescript
+interface PaginatedResponse<T> {
+  items: T[];
+  total: number;      // total matching records (regardless of cursor/offset)
+  limit: number;      // echoed page size
+  offset: number;     // echoed offset (0 when cursor-based paging is active)
+  has_more: boolean;  // true when there are additional pages
+  next_cursor: string | null;  // opaque cursor token for the next page; null if none
+}
+```
+
+### Cursor-based pagination (keyset)
+
+Priority list endpoints (`/v1/jobs`, `/v1/users/me/jobs`, `/v1/storage/outputs`,
+`/v1/billing/transactions`, `/v1/storage/uploads`) support an optional `cursor`
+query parameter alongside the existing `limit`/`offset` parameters.
+
+- Pass `cursor=<next_cursor>` from the previous response to fetch the next page.
+- When `cursor` is supplied, `offset` is **ignored**.
+- The cursor is an opaque, URL-safe base64 token; do not parse or construct it manually.
+- `next_cursor` is `null` when `has_more` is `false`.
+
+```
+// Page 1
+GET /v1/jobs?limit=20
+Response: { items: [...], total: 142, limit: 20, offset: 0, has_more: true, next_cursor: "eyJ..." }
+
+// Page 2 (cursor-based — stable even if new jobs were added)
+GET /v1/jobs?limit=20&cursor=eyJ...
+Response: { items: [...], total: 142, limit: 20, offset: 0, has_more: true, next_cursor: "eyJ..." }
+```
+
+Traditional offset paging still works unchanged for all endpoints:
+
+```
+GET /v1/jobs?limit=20&offset=40
+```
 
 ---
 
@@ -34,7 +78,8 @@ This document captures the API surface that the frontend depends on. It is a **s
 ```
 Request:  { email: string, password: string, display_name?: string }
 Response: { access_token, refresh_token, token_type: "bearer", expires_in: int, expires_at: datetime }
-Errors:   400 (validation), 409 (email exists)
+Status:   201 Created
+Errors:   400 (validation), 409 email_exists
 ```
 
 #### `POST /v1/auth/login`
@@ -50,7 +95,7 @@ Errors:   401 (invalid_credentials | account_inactive)
 ```
 Request:  { refresh_token: string }
 Response: { access_token, refresh_token, token_type: "bearer", expires_in: int, expires_at: datetime }
-Errors:   401 (token revoked/expired/invalid)
+Errors:   401 (token revoked/expired/invalid | token_reuse_detected | account_inactive)
 ```
 
 #### `POST /v1/auth/logout`
@@ -66,7 +111,7 @@ Note:     Revokes the specific refresh token
 ```
 Request:  { token: string }  // from email link query param (20-100 chars)
 Response: { message: string }
-Errors:   400 (invalid/expired token)
+Errors:   400 (invalid_token | expired)
 ```
 
 #### `POST /v1/auth/forgot-password`
@@ -80,9 +125,9 @@ Rate:     3/hour
 #### `POST /v1/auth/reset-password`
 
 ```
-Request:  { token: string, new_password: string }
+Request:  { token: string (20-100 chars), new_password: string (8-128 chars) }
 Response: { message: string }
-Errors:   400 (invalid/expired token)
+Errors:   400 (invalid_token | expired)
 ```
 
 #### `POST /v1/auth/resend-verification` *(authenticated)*
@@ -106,6 +151,8 @@ Response: {
   email: string,
   display_name: string | null,
   subscription_tier: SubscriptionTier,
+  locale: SupportedLocale,
+  role: UserRole,
   is_active: bool,
   created_at: datetime,
   updated_at: datetime
@@ -115,8 +162,9 @@ Response: {
 #### `PATCH /v1/users/me`
 
 ```
-Request:  { display_name?: string, email?: string }
-Response: same as GET /users/me
+Request:  { display_name?: string | null, email?: string, locale?: SupportedLocale }
+Response: same as GET /v1/users/me
+Errors:   400 email_exists
 ```
 
 #### `POST /v1/users/me/password`
@@ -124,6 +172,7 @@ Response: same as GET /users/me
 ```
 Request:  { current_password: string, new_password: string }
 Response: { message: string }
+Errors:   400 invalid_password
 Note:     Revokes ALL refresh tokens
 ```
 
@@ -150,11 +199,9 @@ Response: {
 #### `GET /v1/users/me/jobs`
 
 ```
-Query:    limit? (default 20), offset? (default 0)
-Response: {
-  items: JobSummaryResponse[],
-  total: int
-}
+Query:    limit? (1-100, default 50), offset? (default 0), cursor? (opaque token)
+Response: PaginatedResponse<JobSummaryResponse>
+  // has_more, next_cursor for cursor-based paging
 
 JobSummaryResponse: {
   id: UUID,
@@ -172,141 +219,39 @@ JobSummaryResponse: {
 #### `POST /v1/users/me/logout-all`
 
 ```
-Response: { message: "Logged out from N session(s)" }
+Response: { message: string }
 ```
 
 ---
 
-## 4. Generation — ComfyUI Provider
+## 4. Generation *(authenticated)*
 
-All endpoints require `Authorization: Bearer <access_token>`.
+### Unified Endpoint (primary)
 
-#### `POST /v1/generate/`
+#### `POST /v1/generate`
+
+Single endpoint for all generation types and providers.
 
 ```
 Request: {
   prompt: string (1–4096 chars),
-  name?: string,
-  negative_prompt?: string (max 2048 chars),
-  height?: int (256–2048, default 1024),
-  aspect_ratio?: AspectRatio (default "1:1"),
-  model_type?: ModelType (default "aisha"),
-  generation_type?: GenerationType (default "t2i"),
-  max_images?: int (1–4, default 1),
-  seed?: int,
-  steps?: int (1–20, default 12)
-}
-Response: { job_id: UUID, status: JobStatus, name: string, created_at: datetime, message?: string }
-```
-
-#### `POST /v1/generate/with-images`
-
-```
-Request: multipart/form-data
-  - Fields from GenerationRequest (above)
-  - image1?: file (optional input image)
-  - image2?: file (optional second input image)
-Response: { job_id: UUID, status: JobStatus, name: string, created_at: datetime, message?: string }
-```
-
----
-
-## 5. Generation — Grok Provider
-
-### 5.1 Provider Info
-
-#### `GET /v1/grok/`
-
-```
-Response: {
-  provider: "grok",
-  name: "xAI Grok",
-  available: bool,
-  models: GrokModelInfo[]
-}
-
-GrokModelInfo: {
+  generation_type: GenerationType,
   model: ModelType,
-  name: string,
-  description: string,
-  supports_t2i: bool,
-  supports_i2i: bool,
-  supports_t2v: bool,
-  supports_i2v: bool,
-  supports_v2v: bool,
-  max_images: int
-}
-```
-
-### 5.2 Image Generation *(authenticated)*
-
-#### `POST /v1/grok/image/`
-
-```
-Request: {
-  prompt: string (1–4096 chars),
-  model?: "grok-imagine-image" | "grok-2-image-1212",  // default: grok-imagine-image
-  n?: int (1–10),                                       // default: 1
-  aspect_ratio?: AspectRatio,                           // default: "1:1"
-  name?: string
+  input_image_id?: UUID,          // required for i2i / i2v / flf2v
+  input_video_url?: string,       // required for v2v (public URL)
+  negative_prompt?: string,
+  aspect_ratio?: AspectRatio (default "1:1"),
+  n?: int (1–10, default 1),      // number of outputs
+  name?: string,
+  duration?: int (1–15, default 5),          // video only
+  resolution?: VideoResolution (default "720p"),  // video only
+  height?: int,                   // ComfyUI only
+  seed?: int,                     // ComfyUI only
+  steps?: int (1–20)              // ComfyUI only
 }
 Response: JobCreatedResponse
-Errors: 402 (insufficient balance), 503 (provider unavailable)
-```
-
-#### `POST /v1/grok/image/edit`
-
-```
-Request: {
-  prompt: string (1–4096 chars),
-  input_image_id: UUID,        // from POST /v1/storage/upload
-  model?: "grok-imagine-image",
-  name?: string
-}
-Response: JobCreatedResponse
-```
-
-### 5.3 Video Generation *(authenticated)*
-
-#### `POST /v1/grok/video/`
-
-```
-Request: {
-  prompt: string (1–4096 chars),
-  model?: "grok-imagine-video",
-  duration?: int (1–15),           // default: 5
-  aspect_ratio?: AspectRatio,      // default: "16:9"
-  resolution?: "480p" | "720p",   // default: "720p"
-  name?: string
-}
-Response: JobCreatedResponse
-```
-
-#### `POST /v1/grok/video/from-image`
-
-```
-Request: {
-  prompt: string (1–4096 chars),
-  input_image_id: UUID,
-  model?: "grok-imagine-video",
-  duration?: int (1–15),
-  aspect_ratio?: AspectRatio,
-  resolution?: VideoResolution,
-  name?: string
-}
-Response: JobCreatedResponse
-```
-
-#### `POST /v1/grok/video/edit`
-
-```
-Request: {
-  prompt: string (1–4096 chars),
-  input_video_url: string,         // public URL of the source video
-  model?: "grok-imagine-video",
-  name?: string
-}
-Response: JobCreatedResponse
+Status:   201 Created
+Errors:   400 (model_disabled | validation_error | generation_failed), 402 insufficient_balance, 503 service_unavailable
 ```
 
 ### JobCreatedResponse Schema
@@ -327,18 +272,28 @@ Response: JobCreatedResponse
 
 ---
 
+## 5. Providers *(public)*
+
+#### `GET /v1/providers`
+
+```
+Response: {
+  providers: ProviderInfo[],
+  models: ProviderModelInfo[]
+}
+```
+
+---
+
 ## 6. Jobs *(authenticated)*
 
 #### `GET /v1/jobs`
 
 ```
-Query:    status?, provider?, generation_type?, limit? (default 20), offset? (default 0)
-Response: {
-  items: UnifiedJobResponse[],
-  total: int,
-  limit: int,
-  offset: int
-}
+Query:    status?, provider?, generation_type?, limit? (default 20), offset? (default 0),
+          cursor? (opaque token for keyset pagination)
+Response: PaginatedResponse<UnifiedJobResponse>
+  // has_more, next_cursor for cursor-based paging
 ```
 
 #### `GET /v1/jobs/{job_id}`
@@ -362,7 +317,7 @@ Note:     Soft-hide from history
   id: UUID,
   name: string,
   status: JobStatus,
-  provider: "grok" | "comfyui",
+  provider: "grok" | "aisha",
   model: string | null,
   generation_type: GenerationType,
   prompt: string,
@@ -407,8 +362,26 @@ Response: {
   created_at: datetime,
   expires_at: datetime
 }
-Errors:   400 (invalid type, too large, empty)
+Status:   201 Created
+Errors:   400 (invalid_file_type | file_too_large | empty_file)
 Note:     Returns image id used for I2I/I2V generation requests
+```
+
+#### `GET /v1/storage/uploads`
+
+```
+Query:    limit? (1–100, default 50), offset? (default 0), cursor? (opaque token)
+Response: PaginatedResponse<ImageListItem>
+  // has_more, next_cursor for cursor-based paging
+
+ImageListItem: {
+  id: UUID,
+  filename: string,
+  content_type: string,
+  size_bytes: int,
+  created_at: datetime,
+  expires_at: datetime
+}
 ```
 
 #### `GET /v1/storage/uploads/{image_id}`
@@ -423,12 +396,14 @@ Response: {
   size_bytes: int,
   expires_in_seconds: int
 }
+Errors:   404 not_found
 ```
 
 #### `GET /v1/storage/uploads/{image_id}/download`
 
 ```
 Response: Raw bytes (with appropriate Content-Type header)
+Errors:   404 not_found
 ```
 
 #### `DELETE /v1/storage/uploads/{image_id}`
@@ -437,55 +412,14 @@ Response: Raw bytes (with appropriate Content-Type header)
 Response: 204 No Content
 ```
 
-#### `GET /v1/storage/uploads`
-
-```
-Query:    limit? (1–100, default 50), offset? (default 0)
-Response: {
-  items: ImageListItem[],
-  count: int
-}
-
-ImageListItem: {
-  id: UUID,
-  filename: string,
-  content_type: string,
-  size_bytes: int,
-  created_at: datetime,
-  expires_at: datetime
-}
-```
-
 ### Outputs
-
-#### `GET /v1/storage/outputs/{output_id}`
-
-```
-Query:    expires_in? (60–86400 seconds, default 3600)
-Response: {
-  id: UUID,
-  storage_key: string,
-  presigned_url: string,
-  content_type: string,
-  size_bytes: int,
-  expires_in_seconds: int
-}
-```
-
-#### `GET /v1/storage/outputs/{output_id}/download`
-
-```
-Response: Raw bytes (with appropriate Content-Type header)
-```
 
 #### `GET /v1/storage/outputs`
 
 ```
-Query:    limit? (1–100, default 50), offset? (default 0)
-Response: {
-  items: OutputListItem[],
-  count: int
-}
+Query:    limit? (1–100, default 50), offset? (default 0), cursor? (opaque token)
+Response: PaginatedResponse<OutputListItem>
+  // has_more, next_cursor for cursor-based paging
 
 OutputListItem: {
   id: UUID,
@@ -498,10 +432,25 @@ OutputListItem: {
 }
 ```
 
+#### `GET /v1/storage/outputs/{output_id}`
+
+```
+Query:    expires_in? (60–86400 seconds, default 3600)
+Response: { id, storage_key, presigned_url, content_type, size_bytes, expires_in_seconds }
+Errors:   404 not_found
+```
+
+#### `GET /v1/storage/outputs/{output_id}/download`
+
+```
+Response: Raw bytes (with appropriate Content-Type header)
+Errors:   404 not_found
+```
+
 #### `GET /v1/storage/jobs/{job_id}/outputs`
 
 ```
-Response: { items: OutputListItem[], count: int }
+Response: PaginatedResponse<OutputListItem>  // has_more=false, no cursor (returns all outputs)
 Errors:   404
 ```
 
@@ -536,11 +485,10 @@ Response: {
 #### `GET /v1/billing/transactions`
 
 ```
-Query:    limit? (default 50), offset?, type? ("debit" | "credit" | "refund" | "admin_adjustment")
-Response: {
-  items: TransactionResponse[],
-  total: int
-}
+Query:    limit? (default 50), offset?, type? ("debit" | "credit" | "refund" | "admin_adjustment"),
+          cursor? (opaque token for keyset pagination)
+Response: PaginatedResponse<TransactionResponse>
+  // has_more, next_cursor for cursor-based paging
 
 TransactionResponse: {
   id: UUID,
@@ -568,7 +516,7 @@ PricingRuleResponse: {
   model: string | null,
   token_cost: int,
   is_active: bool,
-  effective_from: datetime | null,
+  effective_from: datetime,
   effective_until: datetime | null,
   notes: string | null
 }
@@ -589,21 +537,6 @@ TokenPackageResponse: {
 }
 ```
 
-#### `POST /v1/billing/topup/stripe`
-
-```
-Request:  { package_id: string }
-Response: { checkout_url: string, session_id: string, payment_id: UUID }
-Note:     Redirect user to checkout_url for Stripe Checkout
-```
-
-#### `POST /v1/billing/topup/nowpayments`
-
-```
-Request:  { package_id: string, pay_currency: string }
-Response: { invoice_url: string, payment_id: UUID }
-```
-
 #### `GET /v1/billing/account`
 
 ```
@@ -616,6 +549,23 @@ Response: { preferred_account: AccountType | null, message: string }
 Request:  { account: "personal" | "enterprise" }
 Response: { preferred_account: AccountType | null, message: string }
 Note:     Sets preferred billing account (personal vs enterprise)
+```
+
+#### `POST /v1/billing/topup/stripe`
+
+```
+Request:  { package_id: string }
+Response: { checkout_url: string, session_id: string, payment_id: UUID }
+Status:   201 Created
+Note:     Redirect user to checkout_url for Stripe Checkout
+```
+
+#### `POST /v1/billing/topup/nowpayments`
+
+```
+Request:  { package_id: string, pay_currency: string }
+Response: { invoice_url: string, payment_id: UUID }
+Status:   201 Created
 ```
 
 ### Billing — Public (no auth)
@@ -669,12 +619,14 @@ Response: {
   account: AccountSummary,
   membership: MemberResponse
 }
+Status:   201 Created
 ```
 
 #### `GET /v1/organizations/me`
 
 ```
 Response: { organization: OrgResponse, role: OrgRole, balance: int }
+Errors:   404 (not a member of any org)
 ```
 
 #### `GET /v1/organizations/{org_id}`
@@ -695,6 +647,7 @@ Response: MemberResponse[]
 ```
 Request:  { user_id: UUID, role: "admin" | "member" }
 Response: MemberResponse
+Status:   201 Created
 ```
 
 #### `PATCH /v1/organizations/{org_id}/members/{user_id}`
@@ -715,6 +668,7 @@ Response: { message: string }
 ```
 Query:    force_delete? (bool)
 Response: { message: string }
+Errors:   409 organization_balance_nonzero (unless force_delete=true)
 ```
 
 ### Organization Schemas
@@ -754,10 +708,7 @@ MemberResponse: {
 ```
 Query:    is_active? (bool), role? (string), email? (partial match, case-insensitive),
           limit? (default 50), offset? (default 0)
-Response: {
-  items: AdminUserResponse[],
-  total: int
-}
+Response: PaginatedResponse<AdminUserResponse>
 Note:     SYSTEM role users are never returned regardless of filters.
 
 AdminUserResponse: {
@@ -776,22 +727,25 @@ AdminUserResponse: {
 #### `PATCH /v1/admin/users/{user_id}`
 
 ```
-Request:  { role?: UserRole, subscription_tier?: SubscriptionTier, is_active?: bool }
+Request:  {
+  role?: UserRole,
+  subscription_tier?: SubscriptionTier,
+  is_active?: bool,
+  locale?: SupportedLocale
+}
           // All fields optional — only provided fields are updated
 Response: AdminUserResponse
 Errors:   400 (role=system), 403 (patching own account), 404 (user not found)
 Note:     Admins cannot modify their own account via this endpoint.
-          Only fields present in the request body are mutated.
 ```
+
+### Organization Management
 
 #### `GET /v1/admin/organizations`
 
 ```
 Query:    is_active? (bool), limit? (default 50), offset? (default 0)
-Response: {
-  items: AdminOrgResponse[],
-  total: int
-}
+Response: PaginatedResponse<AdminOrgResponse>
 
 AdminOrgResponse: {
   id: UUID,
@@ -799,8 +753,8 @@ AdminOrgResponse: {
   slug: string,
   owner_id: UUID,
   is_active: bool,
-  member_count: int,    // count of OrganizationMember rows
-  token_balance: int,   // sum of token_transactions for the enterprise account (0 if no account)
+  member_count: int,
+  token_balance: int,   // 0 if no token account
   created_at: datetime
 }
 ```
@@ -817,7 +771,7 @@ Response: BalanceResponse (same as GET /billing/balance)
 
 ```
 Query:    limit?, offset?, type?
-Response: TransactionListResponse
+Response: PaginatedResponse<TransactionResponse>
 ```
 
 #### `POST /v1/admin/accounts/{account_id}/adjust`
@@ -854,6 +808,7 @@ Response: PricingRuleResponse[]
 ```
 Request:  { provider: string, generation_type: string, model?: string, token_cost: int, notes?: string }
 Response: PricingRuleResponse
+Status:   201 Created
 ```
 
 #### `PATCH /v1/admin/pricing/{rule_id}`
@@ -867,6 +822,7 @@ Response: PricingRuleResponse
 
 ```
 Response: { message: string }
+Note:     Deactivates the rule (sets is_active=false), does not hard-delete
 ```
 
 ### Payment Management
@@ -874,16 +830,16 @@ Response: { message: string }
 #### `GET /v1/admin/payments`
 
 ```
-Query:    status?, payment_provider?, limit?, offset?
-Response: { items: PaymentResponse[], total: int }
+Query:    status?, payment_provider?, limit? (default 50), offset?
+Response: PaginatedResponse<PaymentResponse>
 
 PaymentResponse: {
   id: UUID,
   payment_provider: string,
   status: PaymentStatus,
-  amount_usd: string,
+  amount_usd: string,        // decimal string
   tokens_granted: int,
-  currency: string,
+  currency: string,          // e.g. "USD"
   created_at: datetime,
   completed_at: datetime | null
 }
@@ -893,6 +849,7 @@ PaymentResponse: {
 
 ```
 Response: PaymentResponse
+Errors:   404
 ```
 
 ### Model Management
@@ -922,11 +879,105 @@ GenerationModelResponse: {
 ```
 Request:  { is_enabled: bool }
 Response: GenerationModelResponse
+Errors:   404
 ```
 
 ---
 
-## 11. Enums Reference
+## 11. Legacy Generation *(deprecated)*
+
+> These routes are kept for backwards compatibility. Prefer `POST /v1/generate` for all new code.
+
+#### `POST /v1/legacy/generate`
+
+```
+Request:  {
+  prompt: string (1–4096 chars),
+  name?: string,
+  negative_prompt?: string (max 2048 chars),
+  height?: int (256–2048, default 1024),
+  aspect_ratio?: AspectRatio (default "1:1"),
+  model_type?: ModelType (default "aisha"),
+  generation_type?: GenerationType (default "t2i"),
+  max_images?: int (1–4, default 1),
+  seed?: int,
+  steps?: int (1–20, default 12)
+}
+Response: { job_id: UUID, status: JobStatus, name: string, created_at: datetime, message?: string }
+```
+
+#### `POST /v1/legacy/generate/with-images`
+
+```
+Request:  multipart/form-data — same fields as above + image1?, image2? (file uploads)
+Response: same as /v1/legacy/generate
+```
+
+### Grok Provider *(deprecated)*
+
+> Prefer `POST /v1/generate` with `model: ModelType` for new code.
+
+#### `GET /v1/grok`
+
+```
+Response: {
+  provider: "grok",
+  name: "xAI Grok",
+  available: bool,
+  models: GrokModelInfo[]
+}
+
+GrokModelInfo: {
+  model: ModelType,
+  name: string,
+  description: string,
+  supports_t2i: bool,
+  supports_i2i: bool,
+  supports_t2v: bool,
+  supports_i2v: bool,
+  supports_v2v: bool,
+  max_images: int
+}
+```
+
+#### `POST /v1/grok/image`
+
+```
+Request:  { prompt: string (1–4096 chars), model?: ModelType, n?: int (1–10), aspect_ratio?: AspectRatio, name?: string }
+Response: JobCreatedResponse
+```
+
+#### `POST /v1/grok/image/edit`
+
+```
+Request:  { prompt: string, input_image_id: UUID, model?: ModelType, name?: string }
+Response: JobCreatedResponse
+```
+
+#### `POST /v1/grok/video`
+
+```
+Request:  { prompt: string, model?: ModelType, duration?: int (1–15), aspect_ratio?: AspectRatio, resolution?: VideoResolution, name?: string }
+Response: JobCreatedResponse
+```
+
+#### `POST /v1/grok/video/from-image`
+
+```
+Request:  { prompt: string, input_image_id: UUID, model?: ModelType, duration?: int, aspect_ratio?: AspectRatio, resolution?: VideoResolution, name?: string }
+Response: JobCreatedResponse
+```
+
+#### `POST /v1/grok/video/edit`
+
+```
+Request:  { prompt: string, input_video_url: string, model?: ModelType, name?: string }
+Response: JobCreatedResponse
+```
+
+---
+
+## 12. Enums Reference
 
 ### ModelType
 
@@ -935,7 +986,7 @@ Response: GenerationModelResponse
 | `grok-imagine-image` | grok | ✓ | ✓ | | | | 10 |
 | `grok-2-image-1212` | grok | ✓ | | | | | 10 |
 | `grok-imagine-video` | grok | | | ✓ | ✓ | ✓ | 1 |
-| `aisha` | comfyui | ✓ | ✓ | | | | 4 |
+| `aisha` | aisha | ✓ | ✓ | | | | 4 |
 
 ### GenerationType
 
@@ -960,7 +1011,7 @@ Response: GenerationModelResponse
 | `cancelled` | Yes | User or system cancelled |
 | `moderated` | Yes | Content moderated by provider |
 
-**Polling strategy:** Poll `GET /jobs/{id}` every 2s while status is `pending`, `queued`, or `running`. Stop on any terminal status.
+**Polling strategy:** Poll `GET /v1/jobs/{id}` every 2s while status is `pending`, `queued`, or `running`. Stop on any terminal status.
 
 ### AspectRatio
 
@@ -996,9 +1047,13 @@ Values: `"owner"`, `"admin"`, `"member"`
 
 Values: `"pending"`, `"completed"`, `"failed"`, `"refunded"`
 
+### SupportedLocale
+
+Values: `"en"` (English), `"ru"` (Russian), `"sr"` (Serbian Latin)
+
 ---
 
-## 12. Error Response Format
+## 13. Error Response Format
 
 All non-2xx responses use a single unified envelope:
 
@@ -1015,7 +1070,7 @@ The `error` code is always a stable snake_case string — treat it like an enum.
 
 | HTTP | `error` | `detail` keys |
 |------|---------|---------------|
-| 400 | `bad_request`, `email_exists`, `invalid_token`, `invalid_password`, `validation_error`, `empty_file`, `file_too_large`, `invalid_file_type`, `upload_failed`, `payment_verification_failed` | — |
+| 400 | `bad_request`, `email_exists`, `invalid_token`, `invalid_password`, `validation_error`, `empty_file`, `file_too_large`, `invalid_file_type`, `upload_failed`, `payment_verification_failed`, `model_disabled`, `generation_failed` | — |
 | 401 | `unauthorized`, `invalid_credentials`, `account_inactive`, `token_reuse_detected` | — |
 | 402 | `insufficient_balance` | `balance`, `required` |
 | 403 | `forbidden`, `account_inactive`, `permission_denied` | — |
@@ -1056,7 +1111,7 @@ async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
 
 ---
 
-## 13. Presigned URL Notes
+## 14. Presigned URL Notes
 
 - All R2 presigned URLs are valid for **~1 hour** by default
 - Do **not** aggressively cache them — use `staleTime` of ~30 minutes in TanStack Query
@@ -1067,7 +1122,7 @@ async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
 
 ---
 
-## 14. Rate Limits
+## 15. Rate Limits
 
 | Endpoint | Limit |
 |----------|-------|
@@ -1080,7 +1135,7 @@ Rate limit headers are **not currently exposed** in responses. The frontend shou
 
 ---
 
-## 15. Health Check
+## 16. Health Check
 
 #### `GET /health/`
 
@@ -1091,7 +1146,7 @@ Note:     Public endpoint, no auth needed
 
 ---
 
-## 16. OpenAPI Documentation Endpoints
+## 17. OpenAPI Documentation Endpoints
 
 The backend's `OpenAPIConfig` is configured with `path="/docs"`, so all schema and documentation UI endpoints live under `/docs/`:
 

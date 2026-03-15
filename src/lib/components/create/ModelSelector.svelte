@@ -3,9 +3,9 @@
   import type { components } from '$lib/api/types';
 
   type ModelType = components['schemas']['ModelType'];
-  type GrokModelInfo = components['schemas']['GrokModelInfo'];
+  type ProviderModelInfo = components['schemas']['ProviderModelInfo'];
 
-  let { models = [] }: { models: GrokModelInfo[] } = $props();
+  let { models = [] }: { models: ProviderModelInfo[] } = $props();
 
   const MODEL_META: Record<ModelType, { label: string; icon: string }> = {
     'grok-imagine-image': { label: 'Grok Imagine', icon: '✦' },
@@ -14,9 +14,9 @@
     'aisha': { label: 'Aisha', icon: '◆' },
   };
 
-  const grokModels = $derived(
+  const availableModels = $derived(
     models.length > 0
-      ? models.map((m) => m.model).filter((m): m is ModelType => m in MODEL_META)
+      ? models.filter((m) => m.is_enabled).map((m) => m.model).filter((m): m is ModelType => m in MODEL_META)
       : (['grok-imagine-image', 'grok-2-image-1212', 'grok-imagine-video'] as ModelType[]),
   );
 </script>
@@ -24,7 +24,7 @@
 <div class="flex flex-col gap-2">
   <span class="text-[11px] font-semibold uppercase tracking-wider text-text-muted">Model</span>
   <div class="flex gap-1.5">
-    {#each grokModels as modelId (modelId)}
+    {#each availableModels as modelId (modelId)}
       {@const meta = MODEL_META[modelId]}
       {@const isActive = $generationStore.model === modelId}
       <button

@@ -2,9 +2,9 @@
   import { generationStore, type GenerationMode } from '$lib/stores/generation';
   import type { components } from '$lib/api/types';
 
-  type GrokModelInfo = components['schemas']['GrokModelInfo'];
+  type ProviderModelInfo = components['schemas']['ProviderModelInfo'];
 
-  let { modelInfo }: { modelInfo: GrokModelInfo | null } = $props();
+  let { modelInfo }: { modelInfo: ProviderModelInfo | null } = $props();
 
   interface ModeOption {
     value: GenerationMode;
@@ -17,6 +17,8 @@
     { value: 'i2i', label: 'Image → Image', requiresImage: true },
     { value: 't2v', label: 'Text → Video', requiresImage: false },
     { value: 'i2v', label: 'Image → Video', requiresImage: true },
+    { value: 'flf2v', label: 'Frame → Video', requiresImage: true },
+    { value: 'v2v', label: 'Video → Video', requiresImage: false },
   ];
 
   const supportedModes = $derived(
@@ -26,6 +28,8 @@
           if (m.value === 'i2i') return modelInfo.supports_i2i;
           if (m.value === 't2v') return modelInfo.supports_t2v;
           if (m.value === 'i2v') return modelInfo.supports_i2v;
+          if (m.value === 'v2v') return modelInfo.supports_v2v;
+          if (m.value === 'flf2v') return modelInfo.supports_flf2v;
           return false;
         })
       : ALL_MODES.filter((m) => m.value === 't2i' || m.value === 'i2i'),

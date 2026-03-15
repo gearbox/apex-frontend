@@ -5,6 +5,17 @@ import { SvelteKitPWA } from '@vite-pwa/sveltekit';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('/node_modules/svelte/')) {
+            return 'svelte-vendor';
+          }
+        },
+      },
+    },
+  },
   plugins: [
     paraglide({ project: './project.inlang', outdir: './src/paraglide' }),
     tailwindcss(),

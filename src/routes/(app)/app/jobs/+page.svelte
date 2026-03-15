@@ -15,9 +15,10 @@
   const queryClient = useQueryClient();
 
   // ── Filter + pagination state
-  let filters = $state<JobListFilters>({ limit: 20, offset: 0 });
+  let filters = $state<JobListFilters>({ limit: 20 });
   let accumulatedItems = $state<UnifiedJobResponse[]>([]);
   let total = $state(0);
+  let nextCursor = $state<string | null>(null);
   let loadingMore = $state(false);
 
   // ── Query — auto-refresh while any non-terminal job exists
@@ -32,12 +33,13 @@
   $effect(() => {
     const data = query.data;
     if (!data) return;
-    if (filters.offset === 0) {
+    if (!filters.cursor) {
       accumulatedItems = data.items;
     } else {
       accumulatedItems = [...accumulatedItems, ...data.items];
     }
     total = data.total;
+    nextCursor = data.next_cursor ?? null;
     loadingMore = false;
   });
 
@@ -52,12 +54,14 @@
   }
 
   function handleFilterChange(newFilters: JobListFilters) {
-    filters = { ...newFilters, offset: 0 };
+    accumulatedItems = [];
+    filters = { ...newFilters, cursor: null };
   }
 
   function handleLoadMore() {
+    if (!nextCursor) return;
     loadingMore = true;
-    filters = { ...filters, offset: (filters.offset ?? 0) + (filters.limit ?? 20) };
+    filters = { ...filters, cursor: nextCursor };
   }
 </script>
 
@@ -125,7 +129,7 @@
     </div>
 
     <!-- Load more -->
-    {#if accumulatedItems.length < total}
+    {#if nextCursor !== null}
       <div class="flex justify-center pt-2">
         <button
           onclick={handleLoadMore}

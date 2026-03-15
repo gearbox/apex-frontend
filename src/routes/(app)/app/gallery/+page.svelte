@@ -16,17 +16,14 @@
 
   const galleryQuery = createInfiniteQuery(() => ({
     queryKey: ['gallery'],
-    queryFn: async ({ pageParam }: { pageParam: number }) => {
+    queryFn: async ({ pageParam }: { pageParam: string | null }) => {
       const { data } = await apiClient.GET('/v1/users/me/jobs', {
-        params: { query: { limit: GALLERY_PAGE_SIZE, offset: pageParam } },
+        params: { query: { limit: GALLERY_PAGE_SIZE, ...(pageParam ? { cursor: pageParam } : {}) } },
       });
-      return data ?? { items: [], total: 0 };
+      return data ?? { items: [], total: 0, has_more: false, next_cursor: null };
     },
-    initialPageParam: 0,
-    getNextPageParam: (lastPage: { items: JobSummaryResponse[]; total: number }, allPages: { items: JobSummaryResponse[]; total: number }[]) => {
-      const loaded = allPages.reduce((acc, p) => acc + p.items.length, 0);
-      return loaded < lastPage.total ? loaded : undefined;
-    },
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage) => lastPage.has_more ? lastPage.next_cursor : undefined,
     staleTime: 0,
   }));
 

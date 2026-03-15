@@ -27,10 +27,10 @@
 
   // ── Provider info (model capabilities)
   const providerQuery = createQuery(() => ({
-    queryKey: ['grok-provider'],
+    queryKey: ['providers'],
     queryFn: async () => {
-      const { data } = await apiClient.GET('/v1/grok');
-      return data ?? null;
+      const { data } = await apiClient.GET('/v1/providers');
+      return data ?? { providers: [], models: [] };
     },
     staleTime: 60 * 60 * 1000,
   }));
@@ -45,16 +45,16 @@
     staleTime: 60 * 60 * 1000,
   }));
 
-  // Derived estimated cost (per unit — imageCount multiplier applied in CostPreview)
-  const estimatedCost = $derived(
-    pricingQuery.data
-      ? lookupCost(pricingQuery.data, 'grok', $generationStore.model, $generationStore.mode)
-      : 0,
-  );
-
   // ── Current model info
   const currentModelInfo = $derived(
-    (providerQuery.data?.models ?? []).find((m: { model: string }) => m.model === $generationStore.model) ?? null,
+    (providerQuery.data?.models ?? []).find((m) => m.model === $generationStore.model) ?? null,
+  );
+
+  // Derived estimated cost (per unit — imageCount multiplier applied in CostPreview)
+  const estimatedCost = $derived(
+    pricingQuery.data && currentModelInfo
+      ? lookupCost(pricingQuery.data, currentModelInfo.provider, $generationStore.model, $generationStore.mode)
+      : 0,
   );
 
   // ── Job polling
@@ -111,65 +111,31 @@
     if (submitting || $isGenerating) return;
 
     const state = $generationStore;
+
+    if ((state.mode === 'i2i' || state.mode === 'i2v' || state.mode === 'flf2v') && !state.uploadedImageId) {
+      addToast({ type: 'error', message: 'Please upload a source image first.' });
+      return;
+    }
+
     submitting = true;
 
     try {
-      let jobId: string | undefined;
+      const { data, error } = await apiClient.POST('/v1/generate', {
+        body: {
+          prompt: state.prompt,
+          generation_type: state.mode,
+          model: state.model,
+          ...(state.uploadedImageId ? { input_image_id: state.uploadedImageId } : {}),
+          aspect_ratio: state.aspectRatio,
+          n: state.imageCount,
+          duration: state.videoDuration,
+          resolution: state.videoResolution,
+        },
+      });
 
-      if (state.mode === 't2i') {
-        const { data, error } = await apiClient.POST('/v1/grok/image', {
-          body: {
-            prompt: state.prompt,
-            model: state.model,
-            n: state.imageCount,
-            aspect_ratio: state.aspectRatio,
-          },
-        });
-        if (error) { handleJobError(error); return; }
-        if (data && 'job_id' in data) jobId = (data as { job_id: string }).job_id;
-      } else if (state.mode === 'i2i') {
-        if (!state.uploadedImageId) {
-          addToast({ type: 'error', message: 'Please upload a source image first.' });
-          return;
-        }
-        const { data, error } = await apiClient.POST('/v1/grok/image/edit', {
-          body: {
-            prompt: state.prompt,
-            input_image_id: state.uploadedImageId,
-            model: state.model,
-          },
-        });
-        if (error) { handleJobError(error); return; }
-        if (data && 'job_id' in data) jobId = (data as { job_id: string }).job_id;
-      } else if (state.mode === 't2v') {
-        const { data, error } = await apiClient.POST('/v1/grok/video', {
-          body: {
-            prompt: state.prompt,
-            model: state.model,
-            duration: state.videoDuration,
-            aspect_ratio: state.aspectRatio,
-            resolution: state.videoResolution,
-          },
-        });
-        if (error) { handleJobError(error); return; }
-        if (data && 'job_id' in data) jobId = (data as { job_id: string }).job_id;
-      } else if (state.mode === 'i2v') {
-        if (!state.uploadedImageId) {
-          addToast({ type: 'error', message: 'Please upload a source image first.' });
-          return;
-        }
-        const { data, error } = await apiClient.POST('/v1/grok/video/from-image', {
-          body: {
-            prompt: state.prompt,
-            input_image_id: state.uploadedImageId,
-            model: state.model,
-            duration: state.videoDuration,
-          },
-        });
-        if (error) { handleJobError(error); return; }
-        if (data && 'job_id' in data) jobId = (data as { job_id: string }).job_id;
-      }
+      if (error) { handleJobError(error); return; }
 
+      const jobId = data && 'job_id' in data ? (data as { job_id: string }).job_id : undefined;
       if (!jobId) {
         addToast({ type: 'error', message: 'Failed to start generation. Please try again.' });
         return;
@@ -189,7 +155,7 @@
   });
 
   const showImageUpload = $derived(
-    $generationStore.mode === 'i2i' || $generationStore.mode === 'i2v',
+    $generationStore.mode === 'i2i' || $generationStore.mode === 'i2v' || $generationStore.mode === 'flf2v',
   );
   const showSkeleton = $derived($isGenerating);
 </script>
@@ -205,7 +171,7 @@
 
     <ModelSelector models={providerQuery.data?.models ?? []} />
 
-    <TypeSelector modelInfo={currentModelInfo} />
+    <TypeSelector modelInfo={currentModelInfo ?? null} />
 
     {#if showImageUpload}
       <ImageUpload />
