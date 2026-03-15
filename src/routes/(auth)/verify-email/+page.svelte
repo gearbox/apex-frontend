@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import { verifyEmail, AuthError } from '$lib/api/auth';
+  import * as m from '$paraglide/messages';
 
   let status = $state<'verifying' | 'success' | 'error'>('verifying');
   let error = $state('');
@@ -18,7 +19,7 @@
       await verifyEmail(token);
       status = 'success';
     } catch (err) {
-      error = err instanceof AuthError ? err.message : 'Verification failed.';
+      error = err instanceof AuthError ? err.message : m.error_generic();
       status = 'error';
     }
   });

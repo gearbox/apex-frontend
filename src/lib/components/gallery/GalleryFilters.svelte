@@ -1,4 +1,6 @@
 <script lang="ts">
+  import * as m from '$paraglide/messages';
+
   export type GalleryFilter = 'all' | 'images' | 'videos';
 
   let {
@@ -11,10 +13,10 @@
     onchange: (f: GalleryFilter) => void;
   } = $props();
 
-  const FILTERS: { key: GalleryFilter; label: string }[] = [
-    { key: 'all', label: 'All' },
-    { key: 'images', label: 'Images' },
-    { key: 'videos', label: 'Videos' },
+  const FILTERS: { key: GalleryFilter; label: () => string }[] = [
+    { key: 'all', label: m.gallery_filter_all },
+    { key: 'images', label: m.gallery_filter_images },
+    { key: 'videos', label: m.gallery_filter_videos },
   ];
 </script>
 
@@ -28,7 +30,7 @@
           ? 'bg-accent/15 text-accent'
           : 'border border-border text-text-muted hover:text-text'}"
     >
-      {f.label}
+      {f.label()}
       {#if count > 0}
         <span class="rounded-full bg-current/10 px-1.5 py-0.5 text-[10px] font-semibold leading-none">{count}</span>
       {/if}

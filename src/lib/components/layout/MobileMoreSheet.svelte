@@ -1,7 +1,7 @@
 <script lang="ts">
   import { moreSheetOpen, closeMoreSheet } from '$lib/stores/ui';
-  import { MORE_ITEMS } from '$lib/utils/constants';
   import { isAdmin } from '$lib/stores/auth';
+  import * as m from '$paraglide/messages';
   import { Coins, Activity, User, Shield, ChevronRight } from 'lucide-svelte';
 
   const iconMap: Record<string, typeof Coins> = {
@@ -26,16 +26,21 @@
       <div class="sheet-handle"></div>
 
       <nav>
-        {#each MORE_ITEMS as item (item.href)}
-          {@const Icon = iconMap[item.icon]}
-          <a href={item.href} onclick={closeMoreSheet} class="sheet-item">
-            <span class="sheet-item-icon">
-              {#if Icon}<Icon size={20} strokeWidth={1.75} />{/if}
-            </span>
-            <span class="sheet-item-label">{item.label}</span>
-            <span class="sheet-item-chevron"><ChevronRight size={16} /></span>
-          </a>
-        {/each}
+        <a href="/app/billing" onclick={closeMoreSheet} class="sheet-item">
+          <span class="sheet-item-icon"><Coins size={20} strokeWidth={1.75} /></span>
+          <span class="sheet-item-label">{m.nav_billing()}</span>
+          <span class="sheet-item-chevron"><ChevronRight size={16} /></span>
+        </a>
+        <a href="/app/jobs" onclick={closeMoreSheet} class="sheet-item">
+          <span class="sheet-item-icon"><Activity size={20} strokeWidth={1.75} /></span>
+          <span class="sheet-item-label">{m.nav_jobs()}</span>
+          <span class="sheet-item-chevron"><ChevronRight size={16} /></span>
+        </a>
+        <a href="/app/profile" onclick={closeMoreSheet} class="sheet-item">
+          <span class="sheet-item-icon"><User size={20} strokeWidth={1.75} /></span>
+          <span class="sheet-item-label">{m.nav_profile()}</span>
+          <span class="sheet-item-chevron"><ChevronRight size={16} /></span>
+        </a>
 
         {#if $isAdmin}
           <div class="sheet-admin-divider"></div>
@@ -43,14 +48,14 @@
             <span class="sheet-item-icon">
               <Shield size={20} strokeWidth={1.75} />
             </span>
-            <span class="sheet-item-label">Admin Panel</span>
+            <span class="sheet-item-label">{m.nav_admin_panel()}</span>
             <span class="sheet-item-chevron"><ChevronRight size={16} /></span>
           </a>
         {/if}
       </nav>
 
       <div class="sheet-cancel-wrap">
-        <button onclick={closeMoreSheet} class="sheet-cancel">Cancel</button>
+        <button onclick={closeMoreSheet} class="sheet-cancel">{m.common_cancel()}</button>
       </div>
     </div>
   </div>

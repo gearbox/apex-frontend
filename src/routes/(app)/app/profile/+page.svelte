@@ -4,6 +4,8 @@
   import ProfileFields from '$lib/components/profile/ProfileFields.svelte';
   import ThemeSelector from '$lib/components/profile/ThemeSelector.svelte';
   import ModeSelector from '$lib/components/profile/ModeSelector.svelte';
+  import LanguageSelector from '$lib/components/profile/LanguageSelector.svelte';
+  import * as m from '$paraglide/messages';
 
   let loggingOut = $state(false);
 
@@ -23,23 +25,29 @@
 
   <!-- Appearance -->
   <div class="appearance-section">
-    <p class="section-header">Appearance</p>
+    <p class="section-header">{m.profile_section_appearance()}</p>
     <ThemeSelector />
     <ModeSelector />
   </div>
 
+  <!-- Language -->
+  <div class="appearance-section">
+    <p class="section-header">{m.profile_section_language()}</p>
+    <LanguageSelector />
+  </div>
+
   <!-- Actions -->
   <div class="actions">
-    <button class="action-btn">Change Password</button>
-    <button class="action-btn">Logout All Devices</button>
+    <button class="action-btn">{m.profile_change_password()}</button>
+    <button class="action-btn">{m.profile_logout_all()}</button>
     <button
       onclick={handleLogout}
       disabled={loggingOut}
       class="action-btn"
     >
-      {loggingOut ? 'Signing out…' : 'Sign Out'}
+      {loggingOut ? m.profile_signing_out() : m.profile_logout()}
     </button>
-    <button class="action-btn danger">Delete Account</button>
+    <button class="action-btn danger">{m.profile_delete_account()}</button>
   </div>
 </div>
 

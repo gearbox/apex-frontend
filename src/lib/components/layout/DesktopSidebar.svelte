@@ -2,6 +2,7 @@
   import { page } from '$app/stores';
   import { sidebarCollapsed, toggleSidebar } from '$lib/stores/ui';
   import { isAdmin } from '$lib/stores/auth';
+  import * as m from '$paraglide/messages';
   import {
     Plus,
     Image,
@@ -23,14 +24,14 @@
   };
 
   const mainItems = [
-    { label: 'Create', href: '/app/create', icon: 'plus' },
-    { label: 'Gallery', href: '/app/gallery', icon: 'image' },
-    { label: 'Jobs', href: '/app/jobs', icon: 'activity' },
-    { label: 'Billing', href: '/app/billing', icon: 'coins' },
+    { label: () => m.topbar_create(), href: '/app/create', icon: 'plus' },
+    { label: () => m.topbar_gallery(), href: '/app/gallery', icon: 'image' },
+    { label: () => m.topbar_jobs(), href: '/app/jobs', icon: 'activity' },
+    { label: () => m.topbar_billing(), href: '/app/billing', icon: 'coins' },
   ];
 
-  const adminItem = { label: 'Admin', href: '/app/admin', icon: 'shield' };
-  const profileItem = { label: 'Profile', href: '/app/profile', icon: 'user' };
+  const adminItem = { label: () => m.nav_admin(), href: '/app/admin', icon: 'shield' };
+  const profileItem = { label: () => m.topbar_profile(), href: '/app/profile', icon: 'user' };
 </script>
 
 <aside class="sidebar" class:collapsed={$sidebarCollapsed}>
@@ -54,11 +55,11 @@
         class="nav-item"
         class:active={isActive}
         class:collapsed={$sidebarCollapsed}
-        title={$sidebarCollapsed ? item.label : undefined}
+        title={$sidebarCollapsed ? item.label() : undefined}
       >
         <span class="nav-icon">{#if Icon}<Icon size={18} strokeWidth={isActive ? 2 : 1.75} />{/if}</span>
         {#if !$sidebarCollapsed}
-          <span class="nav-label">{item.label}</span>
+          <span class="nav-label">{item.label()}</span>
         {/if}
       </a>
     {/each}
@@ -72,11 +73,11 @@
         class="nav-item"
         class:active={adminActive}
         class:collapsed={$sidebarCollapsed}
-        title={$sidebarCollapsed ? adminItem.label : undefined}
+        title={$sidebarCollapsed ? adminItem.label() : undefined}
       >
         <span class="nav-icon">{#if AdminIcon}<AdminIcon size={18} strokeWidth={adminActive ? 2 : 1.75} />{/if}</span>
         {#if !$sidebarCollapsed}
-          <span class="nav-label">{adminItem.label}</span>
+          <span class="nav-label">{adminItem.label()}</span>
         {/if}
       </a>
     {/if}
@@ -92,11 +93,11 @@
         class="nav-item"
         class:active={profileActive}
         class:collapsed={$sidebarCollapsed}
-        title={$sidebarCollapsed ? profileItem.label : undefined}
+        title={$sidebarCollapsed ? profileItem.label() : undefined}
       >
         <span class="nav-icon">{#if ProfileIcon}<ProfileIcon size={18} strokeWidth={profileActive ? 2 : 1.75} />{/if}</span>
         {#if !$sidebarCollapsed}
-          <span class="nav-label">{profileItem.label}</span>
+          <span class="nav-label">{profileItem.label()}</span>
         {/if}
       </a>
     {/if}

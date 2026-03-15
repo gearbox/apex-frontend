@@ -1,17 +1,18 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { currentUser } from '$lib/stores/auth';
+  import * as m from '$paraglide/messages';
   import BalancePill from './BalancePill.svelte';
 
-  const pageTitles: Record<string, string> = {
-    '/app/create': 'Create',
-    '/app/gallery': 'Gallery',
-    '/app/jobs': 'Jobs',
-    '/app/billing': 'Billing',
-    '/app/profile': 'Profile',
+  const pageTitleFns: Record<string, () => string> = {
+    '/app/create': m.topbar_create,
+    '/app/gallery': m.topbar_gallery,
+    '/app/jobs': m.topbar_jobs,
+    '/app/billing': m.topbar_billing,
+    '/app/profile': m.topbar_profile,
   };
 
-  let pageTitle = $derived(pageTitles[$page.url.pathname] ?? '');
+  let pageTitle = $derived((pageTitleFns[$page.url.pathname] ?? (() => ''))());
   let initials = $derived(
     $currentUser?.display_name
       ? $currentUser.display_name.charAt(0).toUpperCase()

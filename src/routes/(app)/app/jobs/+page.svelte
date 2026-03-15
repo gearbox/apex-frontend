@@ -1,5 +1,6 @@
 <script lang="ts">
   import { createQuery, createMutation, useQueryClient } from '@tanstack/svelte-query';
+  import * as m from '$paraglide/messages';
   import { Inbox, RefreshCw } from 'lucide-svelte';
   import { jobsListQueryOptions, deleteJobMutationOptions, jobKeys } from '$lib/queries/jobs';
   import JobCard from '$lib/components/jobs/JobCard.svelte';
@@ -67,7 +68,7 @@
 <div class="space-y-4 p-4 md:p-0">
   <!-- Header -->
   <div class="flex items-center justify-between">
-    <h1 class="text-lg font-semibold text-text">Jobs</h1>
+    <h1 class="text-lg font-semibold text-text">{m.jobs_title()}</h1>
     <button
       onclick={() => queryClient.invalidateQueries({ queryKey: jobKeys.all })}
       class="flex h-8 w-8 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-surface-hover hover:text-text"
@@ -97,7 +98,7 @@
         onclick={() => query.refetch()}
         class="rounded-lg bg-surface px-3 py-1.5 text-xs font-medium text-text hover:bg-surface-hover"
       >
-        Retry
+        {m.common_retry()}
       </button>
     </div>
 
@@ -105,13 +106,13 @@
     <!-- Empty state -->
     <div class="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-20 text-center">
       <Inbox size={40} class="mb-3 text-text-dim opacity-40" />
-      <p class="text-sm font-medium text-text">No jobs yet</p>
-      <p class="mt-1 text-xs text-text-muted">Your generation jobs will appear here</p>
+      <p class="text-sm font-medium text-text">{m.jobs_empty()}</p>
+      <p class="mt-1 text-xs text-text-muted">{m.jobs_empty_subtitle()}</p>
       <a
         href="/app/create"
         class="mt-4 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-bg transition-opacity hover:opacity-90"
       >
-        Start generating →
+        {m.jobs_empty_cta()}
       </a>
     </div>
 
@@ -133,9 +134,9 @@
         >
           {#if loadingMore || query.isFetching}
             <div class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-accent border-t-transparent"></div>
-            Loading…
+            {m.jobs_loading()}
           {:else}
-            Load more
+            {m.jobs_load_more()}
           {/if}
         </button>
       </div>

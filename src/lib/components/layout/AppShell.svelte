@@ -1,6 +1,7 @@
 <script lang="ts">
   import { type Snippet } from 'svelte';
   import { isDesktop } from '$lib/utils/breakpoints';
+  import { locale } from '$lib/stores/locale';
   import TopBar from './TopBar.svelte';
   import DesktopSidebar from './DesktopSidebar.svelte';
   import MobileBottomTabs from './MobileBottomTabs.svelte';
@@ -9,28 +10,30 @@
   let { children }: { children: Snippet } = $props();
 </script>
 
-{#if $isDesktop}
-  <!-- Desktop: sidebar + (topbar + content) in a row -->
-  <div class="desktop-shell">
-    <DesktopSidebar />
-    <main class="desktop-main">
+{#key $locale}
+  {#if $isDesktop}
+    <!-- Desktop: sidebar + (topbar + content) in a row -->
+    <div class="desktop-shell">
+      <DesktopSidebar />
+      <main class="desktop-main">
+        <TopBar />
+        <div class="desktop-content">
+          {@render children()}
+        </div>
+      </main>
+    </div>
+  {:else}
+    <!-- Mobile: topbar + content + bottom tabs -->
+    <div class="mobile-shell">
       <TopBar />
-      <div class="desktop-content">
+      <div class="mobile-content">
         {@render children()}
       </div>
-    </main>
-  </div>
-{:else}
-  <!-- Mobile: topbar + content + bottom tabs -->
-  <div class="mobile-shell">
-    <TopBar />
-    <div class="mobile-content">
-      {@render children()}
+      <MobileBottomTabs />
+      <MobileMoreSheet />
     </div>
-    <MobileBottomTabs />
-    <MobileMoreSheet />
-  </div>
-{/if}
+  {/if}
+{/key}
 
 <style>
   /* ─── Desktop ─── */

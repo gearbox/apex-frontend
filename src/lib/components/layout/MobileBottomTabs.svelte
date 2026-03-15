@@ -2,6 +2,7 @@
   import { page } from '$app/stores';
   import { openMoreSheet } from '$lib/stores/ui';
   import { TAB_ITEMS } from '$lib/utils/constants';
+  import * as m from '$paraglide/messages';
   import { Plus, Image, MoreVertical } from 'lucide-svelte';
 
   const iconMap: Record<string, typeof Plus> = {
@@ -26,7 +27,7 @@
     <span class="btm-tab-icon">
       <MoreVertical size={22} strokeWidth={1.75} />
     </span>
-    <span class="btm-tab-label">More</span>
+    <span class="btm-tab-label">{m.nav_more()}</span>
   </button>
 </nav>
 

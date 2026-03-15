@@ -16,6 +16,8 @@ const config = {
 
     alias: {
       $lib: './src/lib',
+      '$paraglide/runtime': './src/paraglide/runtime.js',
+      '$paraglide/messages': './src/paraglide/messages.js',
     },
   },
 };

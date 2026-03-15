@@ -1,5 +1,6 @@
 <script lang="ts">
   import { forgotPassword, AuthError } from '$lib/api/auth';
+  import * as m from '$paraglide/messages';
 
   let email = $state('');
   let error = $state('');
@@ -15,7 +16,7 @@
       await forgotPassword(email);
       sent = true;
     } catch (err) {
-      error = err instanceof AuthError ? err.message : 'Something went wrong. Please try again.';
+      error = err instanceof AuthError ? err.message : m.error_generic();
     } finally {
       loading = false;
     }
@@ -30,15 +31,15 @@
   <div class="w-full max-w-sm">
     <div class="mb-8 text-center">
       <h1 class="text-2xl font-bold text-accent">apex</h1>
-      <p class="mt-2 text-sm text-text-muted">Reset your password</p>
+      <p class="mt-2 text-sm text-text-muted">{m.auth_forgot_subtitle()}</p>
     </div>
 
     {#if sent}
       <div class="rounded-lg border border-success/30 bg-success/10 px-4 py-3 text-sm text-success">
-        If an account with that email exists, you'll receive a password reset link shortly.
+        {m.auth_forgot_sent()}
       </div>
       <p class="mt-6 text-center text-sm text-text-muted">
-        <a href="/login" class="font-medium text-accent hover:underline">Back to sign in</a>
+        <a href="/login" class="font-medium text-accent hover:underline">{m.auth_forgot_back()}</a>
       </p>
     {:else}
       <form onsubmit={handleSubmit} class="flex flex-col gap-4">
@@ -49,7 +50,7 @@
         {/if}
 
         <label class="flex flex-col gap-1.5">
-          <span class="text-sm font-medium text-text">Email</span>
+          <span class="text-sm font-medium text-text">{m.auth_forgot_email()}</span>
           <input
             type="email"
             bind:value={email}
@@ -64,12 +65,12 @@
           disabled={loading}
           class="rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
         >
-          {loading ? 'Sending…' : 'Send Reset Link'}
+          {loading ? m.auth_forgot_sending() : m.auth_forgot_submit()}
         </button>
       </form>
 
       <p class="mt-6 text-center text-sm text-text-muted">
-        <a href="/login" class="font-medium text-accent hover:underline">Back to sign in</a>
+        <a href="/login" class="font-medium text-accent hover:underline">{m.auth_forgot_back()}</a>
       </p>
     {/if}
   </div>

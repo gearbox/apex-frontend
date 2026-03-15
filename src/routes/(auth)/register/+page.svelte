@@ -1,6 +1,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { register, AuthError } from '$lib/api/auth';
+  import * as m from '$paraglide/messages';
 
   let email = $state('');
   let password = $state('');
@@ -20,7 +21,7 @@
       if (err instanceof AuthError) {
         error = err.error === 'email_exists' ? 'An account with this email already exists.' : err.message;
       } else {
-        error = 'An unexpected error occurred. Please try again.';
+        error = m.error_generic();
       }
     } finally {
       loading = false;
@@ -36,7 +37,7 @@
   <div class="w-full max-w-sm">
     <div class="mb-8 text-center">
       <h1 class="text-2xl font-bold text-accent">apex</h1>
-      <p class="mt-2 text-sm text-text-muted">Create your account</p>
+      <p class="mt-2 text-sm text-text-muted">{m.auth_register_title()}</p>
     </div>
 
     <form onsubmit={handleSubmit} class="flex flex-col gap-4">
@@ -47,7 +48,7 @@
       {/if}
 
       <label class="flex flex-col gap-1.5">
-        <span class="text-sm font-medium text-text">Display Name</span>
+        <span class="text-sm font-medium text-text">{m.auth_register_display_name()}</span>
         <input
           type="text"
           bind:value={displayName}
@@ -58,7 +59,7 @@
       </label>
 
       <label class="flex flex-col gap-1.5">
-        <span class="text-sm font-medium text-text">Email</span>
+        <span class="text-sm font-medium text-text">{m.auth_register_email()}</span>
         <input
           type="email"
           bind:value={email}
@@ -70,7 +71,7 @@
       </label>
 
       <label class="flex flex-col gap-1.5">
-        <span class="text-sm font-medium text-text">Password</span>
+        <span class="text-sm font-medium text-text">{m.auth_register_password()}</span>
         <input
           type="password"
           bind:value={password}
@@ -87,13 +88,13 @@
         disabled={loading}
         class="rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
       >
-        {loading ? 'Creating account…' : 'Create Account'}
+        {loading ? m.auth_register_creating() : m.auth_register_submit()}
       </button>
     </form>
 
     <p class="mt-6 text-center text-sm text-text-muted">
-      Already have an account?
-      <a href="/login" class="font-medium text-accent hover:underline">Sign in</a>
+      {m.auth_register_has_account()}
+      <a href="/login" class="font-medium text-accent hover:underline">{m.auth_register_login()}</a>
     </p>
   </div>
 </div>

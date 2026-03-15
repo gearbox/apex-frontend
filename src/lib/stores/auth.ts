@@ -1,6 +1,7 @@
 import { writable, derived } from 'svelte/store';
 import { STORAGE_KEYS } from '$lib/utils/constants';
 import { isBrowser } from '$lib/utils/env';
+import { locale } from '$lib/stores/locale';
 
 /* ─── Types ─── */
 export interface AuthTokens {
@@ -18,6 +19,7 @@ export interface UserProfile {
   email_verified: boolean;
   created_at: string;
   updated_at: string;
+  locale?: string;
 }
 
 export type AuthStatus = 'unknown' | 'authenticated' | 'unauthenticated';
@@ -51,6 +53,9 @@ export function setAuth(tokens: AuthTokens, profile: UserProfile): void {
   }
   user.set(profile);
   authStatus.set('authenticated');
+  if (profile.locale) {
+    locale.hydrate(profile.locale);
+  }
 }
 
 export function updateTokens(tokens: Omit<AuthTokens, 'refreshToken'> & { refreshToken: string }): void {

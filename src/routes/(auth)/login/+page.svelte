@@ -2,6 +2,7 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { login, AuthError } from '$lib/api/auth';
+  import * as m from '$paraglide/messages';
 
   let email = $state('');
   let password = $state('');
@@ -21,7 +22,7 @@
       if (err instanceof AuthError) {
         error = err.message;
       } else {
-        error = 'An unexpected error occurred. Please try again.';
+        error = m.error_generic();
       }
     } finally {
       loading = false;
@@ -37,7 +38,7 @@
   <div class="w-full max-w-sm">
     <div class="mb-8 text-center">
       <h1 class="text-2xl font-bold text-accent">apex</h1>
-      <p class="mt-2 text-sm text-text-muted">Sign in to your account</p>
+      <p class="mt-2 text-sm text-text-muted">{m.auth_login_subtitle()}</p>
     </div>
 
     <form onsubmit={handleSubmit} class="flex flex-col gap-4">
@@ -48,7 +49,7 @@
       {/if}
 
       <label class="flex flex-col gap-1.5">
-        <span class="text-sm font-medium text-text">Email</span>
+        <span class="text-sm font-medium text-text">{m.auth_login_email()}</span>
         <input
           type="email"
           bind:value={email}
@@ -60,7 +61,7 @@
       </label>
 
       <label class="flex flex-col gap-1.5">
-        <span class="text-sm font-medium text-text">Password</span>
+        <span class="text-sm font-medium text-text">{m.auth_login_password()}</span>
         <input
           type="password"
           bind:value={password}
@@ -73,7 +74,7 @@
 
       <div class="flex justify-end">
         <a href="/forgot-password" class="text-xs text-accent hover:underline">
-          Forgot password?
+          {m.auth_login_forgot()}
         </a>
       </div>
 
@@ -82,13 +83,13 @@
         disabled={loading}
         class="rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
       >
-        {loading ? 'Signing in…' : 'Sign In'}
+        {loading ? m.auth_login_signing_in() : m.auth_login_submit()}
       </button>
     </form>
 
     <p class="mt-6 text-center text-sm text-text-muted">
-      Don't have an account?
-      <a href="/register" class="font-medium text-accent hover:underline">Sign up</a>
+      {m.auth_login_no_account()}
+      <a href="/register" class="font-medium text-accent hover:underline">{m.auth_login_register()}</a>
     </p>
   </div>
 </div>

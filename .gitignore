@@ -10,3 +10,6 @@ build
 # Playwright
 /playwright-report/
 /test-results/
+
+# Paraglide compiled output
+src/paraglide/

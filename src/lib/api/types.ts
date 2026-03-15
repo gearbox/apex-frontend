@@ -1125,6 +1125,7 @@ export interface components {
             role?: components["schemas"]["UserRole"] | null;
             subscription_tier?: components["schemas"]["SubscriptionTier"] | null;
             is_active?: boolean | null;
+            locale?: components["schemas"]["SupportedLocale"] | null;
         };
         /** AdminUserListResponse */
         AdminUserListResponse: {
@@ -1571,6 +1572,14 @@ export interface components {
          * @enum {string}
          */
         SubscriptionTier: "free" | "basic" | "pro" | "enterprise";
+        /**
+         * SupportedLocale
+         * @description Supported UI/email locales.
+         *
+         *     Add new locales here AND create corresponding email template directories simultaneously.
+         * @enum {string}
+         */
+        SupportedLocale: "en" | "ru" | "sr";
         /** TokenPackageResponse */
         TokenPackageResponse: {
             id: string;
@@ -1651,6 +1660,7 @@ export interface components {
         UpdateProfileRequest: {
             display_name?: string | null;
             email?: string | null;
+            locale?: components["schemas"]["SupportedLocale"] | null;
         };
         /** UploadResponse */
         UploadResponse: {
@@ -1675,6 +1685,7 @@ export interface components {
             email: string;
             display_name?: string | null;
             subscription_tier: string;
+            locale: string;
             role: string;
             is_active: boolean;
             /** Format: date-time */

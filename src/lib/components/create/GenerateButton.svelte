@@ -1,6 +1,7 @@
 <script lang="ts">
   import { generationStore } from '$lib/stores/generation';
   import CostPreview from './CostPreview.svelte';
+  import * as m from '$paraglide/messages';
 
   let { onclick, submitting = false, estimatedCost = 0 }: { onclick: () => void; submitting?: boolean; estimatedCost?: number } = $props();
 
@@ -17,7 +18,7 @@
   );
 
   const label = $derived(
-    submitting ? 'Submitting…' : isPolling ? 'Generating…' : '✦ Generate',
+    submitting ? m.create_submitting() : isPolling ? m.create_generating() : m.create_generate(),
   );
 </script>
 
