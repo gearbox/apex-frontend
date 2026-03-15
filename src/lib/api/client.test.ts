@@ -4,6 +4,7 @@ import { server } from '../../mocks/server';
 import { makeTokenResponse } from '../../mocks/factories/auth';
 import { makeUserProfile } from '../../mocks/factories/user';
 import { setAuth, clearAuth, getAccessToken } from '$lib/stores/auth';
+import { clearRateLimits, getRateLimitState } from '$lib/stores/rateLimit';
 import { STORAGE_KEYS } from '$lib/utils/constants';
 
 const BASE = 'http://localhost:8000';
@@ -13,6 +14,7 @@ let apiClient: (typeof import('./client'))['default'];
 
 beforeEach(async () => {
   clearAuth();
+  clearRateLimits();
   localStorage.clear();
   apiClient = (await import('./client')).default;
 });
@@ -92,5 +94,114 @@ describe('auth middleware', () => {
 
     expect(hrefSetter).toHaveBeenCalledWith(expect.stringContaining('/login?redirect='));
     expect(getAccessToken()).toBeNull();
+  });
+});
+
+describe('rate limit middleware', () => {
+  it('parses X-RateLimit-* headers and updates store on any response', async () => {
+    server.use(
+      http.get(`${BASE}/v1/billing/balance`, () =>
+        HttpResponse.json(
+          { account_id: 'acc_001', account_type: 'personal', balance: 500 },
+          {
+            headers: {
+              'X-RateLimit-Limit': '100',
+              'X-RateLimit-Remaining': '87',
+              'X-RateLimit-Reset': '1710345600',
+            },
+          },
+        ),
+      ),
+    );
+
+    await apiClient.GET('/v1/billing/balance');
+
+    const state = getRateLimitState('/v1/billing/balance');
+    expect(state).toMatchObject({ limit: 100, remaining: 87, reset: 1710345600 });
+  });
+
+  it('on 429 with Retry-After: 0 — retries immediately and returns the successful response', async () => {
+    let callCount = 0;
+
+    server.use(
+      http.get(`${BASE}/v1/billing/balance`, () => {
+        callCount++;
+        if (callCount === 1) {
+          return HttpResponse.json(
+            { error: 'rate_limit_exceeded', message: 'Too many requests', status_code: 429 },
+            {
+              status: 429,
+              headers: {
+                'X-RateLimit-Limit': '10',
+                'X-RateLimit-Remaining': '0',
+                'X-RateLimit-Reset': '1710345600',
+                'Retry-After': '0',
+              },
+            },
+          );
+        }
+        return HttpResponse.json(
+          { account_id: 'acc_001', account_type: 'personal', balance: 500 },
+          {
+            headers: {
+              'X-RateLimit-Limit': '10',
+              'X-RateLimit-Remaining': '1',
+              'X-RateLimit-Reset': '1710345600',
+            },
+          },
+        );
+      }),
+    );
+
+    const { response } = await apiClient.GET('/v1/billing/balance');
+
+    expect(response.status).toBe(200);
+    expect(callCount).toBe(2);
+    // After the retry the updated remaining count should be reflected in the store
+    expect(getRateLimitState('/v1/billing/balance')).toMatchObject({ remaining: 1 });
+  });
+
+  it('on 429: updates store with retryAfter from Retry-After header', async () => {
+    server.use(
+      http.get(`${BASE}/v1/billing/balance`, () =>
+        HttpResponse.json(
+          { error: 'rate_limit_exceeded', message: 'Too many requests', status_code: 429 },
+          {
+            status: 429,
+            headers: {
+              'X-RateLimit-Limit': '10',
+              'X-RateLimit-Remaining': '0',
+              'Retry-After': '0',
+            },
+          },
+        ),
+      ),
+    );
+
+    // Exhaust all retries (MAX_RATE_LIMIT_RETRIES = 3, so 4 total calls)
+    await apiClient.GET('/v1/billing/balance');
+
+    const state = getRateLimitState('/v1/billing/balance');
+    expect(state).toMatchObject({ remaining: 0, retryAfter: 0 });
+  });
+
+  it('gives up after MAX_RATE_LIMIT_RETRIES and returns the 429 response', async () => {
+    let callCount = 0;
+
+    server.use(
+      http.get(`${BASE}/v1/billing/balance`, () => {
+        callCount++;
+        return HttpResponse.json(
+          { error: 'rate_limit_exceeded', message: 'Too many requests', status_code: 429 },
+          { status: 429, headers: { 'Retry-After': '0' } },
+        );
+      }),
+    );
+
+    const { response } = await apiClient.GET('/v1/billing/balance');
+
+    expect(response.status).toBe(429);
+    // 1 original + 3 retries = 4 calls
+    expect(callCount).toBe(4);
   });
 });

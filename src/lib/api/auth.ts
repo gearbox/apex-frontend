@@ -9,6 +9,8 @@ import {
   type UserProfile,
 } from '$lib/stores/auth';
 import { parseApiError, AuthError } from '$lib/api/errors';
+import { parseRateLimitHeaders, endpointKey } from '$lib/api/rateLimit';
+import { updateRateLimit } from '$lib/stores/rateLimit';
 
 // Re-export so existing callers (login/register pages) don't need to change their imports
 export { AuthError };
@@ -39,6 +41,13 @@ async function fetchJson<T>(path: string, init: RequestInit): Promise<T> {
     ...init,
     headers: { 'Content-Type': 'application/json', ...init.headers },
   });
+
+  // Parse and store rate limit headers regardless of response status
+  const rlHeaders = parseRateLimitHeaders(res.headers);
+  if (Object.keys(rlHeaders).length > 0) {
+    updateRateLimit(endpointKey(path), rlHeaders);
+  }
+
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new AuthError(parseApiError(body, res.status));

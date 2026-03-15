@@ -2,9 +2,13 @@ import createClient, { type Middleware } from 'openapi-fetch';
 import { API_BASE_URL } from '$lib/utils/constants';
 import { getAccessToken } from '$lib/stores/auth';
 import { silentRefresh } from '$lib/api/auth';
+import { parseRateLimitHeaders, endpointKey, getRetryDelay } from '$lib/api/rateLimit';
+import { updateRateLimit } from '$lib/stores/rateLimit';
 import type { paths } from './types';
 
-/* ─── Auth Middleware ─── */
+const MAX_RATE_LIMIT_RETRIES = 3;
+
+/* ─── Auth + Rate-limit Middleware ─── */
 const authMiddleware: Middleware = {
   async onRequest({ request }) {
     const token = getAccessToken();
@@ -15,6 +19,30 @@ const authMiddleware: Middleware = {
   },
 
   async onResponse({ response, request }) {
+    // Always parse and store rate limit headers
+    const key = endpointKey(request.url);
+    const rlHeaders = parseRateLimitHeaders(response.headers);
+    if (Object.keys(rlHeaders).length > 0) {
+      updateRateLimit(key, rlHeaders);
+    }
+
+    // 429 — smart retry loop with exponential backoff / Retry-After
+    if (response.status === 429) {
+      let current = response;
+      for (let attempt = 1; attempt <= MAX_RATE_LIMIT_RETRIES; attempt++) {
+        const currentHeaders = parseRateLimitHeaders(current.headers);
+        const delay = getRetryDelay(currentHeaders.retryAfter, attempt);
+        await new Promise<void>((resolve) => setTimeout(resolve, delay));
+        current = await fetch(request);
+        const retriedHeaders = parseRateLimitHeaders(current.headers);
+        if (Object.keys(retriedHeaders).length > 0) {
+          updateRateLimit(key, retriedHeaders);
+        }
+        if (current.status !== 429) break;
+      }
+      return current;
+    }
+
     if (response.status !== 401) return response;
 
     // Attempt refresh

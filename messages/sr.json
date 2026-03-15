@@ -7,14 +7,12 @@
   "nav_more": "Više",
   "nav_admin": "Admin",
   "nav_admin_panel": "Admin panel",
-
   "topbar_balance": "◈ {amount}",
   "topbar_create": "Kreiraj",
   "topbar_gallery": "Galerija",
   "topbar_jobs": "Poslovi",
   "topbar_billing": "Naplata",
   "topbar_profile": "Profil",
-
   "auth_login_title": "Dobrodošli nazad",
   "auth_login_subtitle": "Prijavite se na vaš nalog",
   "auth_login_email": "Email adresa",
@@ -24,7 +22,7 @@
   "auth_login_no_account": "Nemate nalog?",
   "auth_login_register": "Napravite nalog",
   "auth_login_signing_in": "Prijavljivanje…",
-
+  "auth_login_attempts_remaining": "Preostalo {remaining} pokušaja",
   "auth_register_title": "Napravite nalog",
   "auth_register_display_name": "Ime za prikaz",
   "auth_register_email": "Email adresa",
@@ -33,7 +31,6 @@
   "auth_register_has_account": "Već imate nalog?",
   "auth_register_login": "Prijavite se",
   "auth_register_creating": "Pravljenje naloga…",
-
   "auth_forgot_title": "Zaboravili ste lozinku?",
   "auth_forgot_subtitle": "Unesite vaš email i poslaćemo vam link za resetovanje.",
   "auth_forgot_email": "Email adresa",
@@ -41,10 +38,8 @@
   "auth_forgot_back": "Nazad na prijavu",
   "auth_forgot_sent": "Proverite pristiglu poštu",
   "auth_forgot_sending": "Slanje…",
-
   "auth_verify_title": "Potvrdite vaš email",
   "auth_verify_resend": "Ponovo pošalji email za potvrdu",
-
   "create_title": "Kreiraj",
   "create_prompt_label": "Prompt",
   "create_prompt_placeholder": "Opišite šta želite da generišete…",
@@ -60,13 +55,11 @@
   "create_uploading": "Otpremanje…",
   "create_generating": "Generisanje…",
   "create_submitting": "Slanje…",
-
   "gallery_title": "Galerija",
   "gallery_empty": "Još nema rezultata. Kreirajte nešto!",
   "gallery_filter_all": "Sve",
   "gallery_filter_images": "Slike",
   "gallery_filter_videos": "Video",
-
   "jobs_title": "Poslovi",
   "jobs_empty": "Još nema poslova",
   "jobs_empty_subtitle": "Vaši poslovi generisanja će se pojaviti ovde",
@@ -80,7 +73,6 @@
   "jobs_status_moderated": "Na moderaciji",
   "jobs_load_more": "Učitaj više",
   "jobs_loading": "Učitavanje…",
-
   "billing_title": "Naplata i tokeni",
   "billing_balance": "Stanje tokena",
   "billing_buy": "Kupi tokene",
@@ -91,7 +83,6 @@
   "billing_transaction_credit": "Dopuna",
   "billing_transaction_refund": "Povraćaj",
   "billing_transaction_admin_adjustment": "Korekcija",
-
   "profile_title": "Profil i podešavanja",
   "profile_display_name": "Ime za prikaz",
   "profile_email": "Email",
@@ -115,13 +106,11 @@
   "profile_change_password": "Promeni lozinku",
   "profile_delete_account": "Obriši nalog",
   "profile_signing_out": "Odjavljivanje…",
-
   "error_generic": "Nešto je pošlo naopako. Pokušajte ponovo.",
   "error_network": "Greška mreže. Proverite vezu.",
   "error_unauthorized": "Vaša sesija je istekla. Prijavite se ponovo.",
   "error_not_found": "Nije pronađeno.",
   "error_rate_limited": "Previše zahteva. Sačekajte malo.",
-
   "common_cancel": "Otkaži",
   "common_close": "Zatvori",
   "common_save": "Sačuvaj",

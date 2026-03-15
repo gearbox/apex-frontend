@@ -7,14 +7,12 @@
   "nav_more": "Ещё",
   "nav_admin": "Админ",
   "nav_admin_panel": "Панель администратора",
-
   "topbar_balance": "◈ {amount}",
   "topbar_create": "Создать",
   "topbar_gallery": "Галерея",
   "topbar_jobs": "Задачи",
   "topbar_billing": "Платежи",
   "topbar_profile": "Профиль",
-
   "auth_login_title": "С возвращением",
   "auth_login_subtitle": "Войдите в свой аккаунт",
   "auth_login_email": "Адрес электронной почты",
@@ -24,7 +22,7 @@
   "auth_login_no_account": "Нет аккаунта?",
   "auth_login_register": "Создать аккаунт",
   "auth_login_signing_in": "Вход…",
-
+  "auth_login_attempts_remaining": "Осталось {remaining} попыток",
   "auth_register_title": "Создайте аккаунт",
   "auth_register_display_name": "Отображаемое имя",
   "auth_register_email": "Адрес электронной почты",
@@ -33,7 +31,6 @@
   "auth_register_has_account": "Уже есть аккаунт?",
   "auth_register_login": "Войти",
   "auth_register_creating": "Создание аккаунта…",
-
   "auth_forgot_title": "Забыли пароль?",
   "auth_forgot_subtitle": "Введите свою электронную почту, и мы отправим ссылку для сброса пароля.",
   "auth_forgot_email": "Адрес электронной почты",
@@ -41,10 +38,8 @@
   "auth_forgot_back": "Вернуться ко входу",
   "auth_forgot_sent": "Проверьте вашу почту",
   "auth_forgot_sending": "Отправка…",
-
   "auth_verify_title": "Подтвердите ваш email",
   "auth_verify_resend": "Отправить письмо подтверждения повторно",
-
   "create_title": "Создать",
   "create_prompt_label": "Запрос",
   "create_prompt_placeholder": "Опишите, что вы хотите сгенерировать…",
@@ -60,13 +55,11 @@
   "create_uploading": "Загрузка…",
   "create_generating": "Генерация…",
   "create_submitting": "Отправка…",
-
   "gallery_title": "Галерея",
   "gallery_empty": "Пока нет результатов. Создайте что-нибудь!",
   "gallery_filter_all": "Все",
   "gallery_filter_images": "Изображения",
   "gallery_filter_videos": "Видео",
-
   "jobs_title": "Задачи",
   "jobs_empty": "Пока нет задач",
   "jobs_empty_subtitle": "Ваши задачи генерации появятся здесь",
@@ -80,7 +73,6 @@
   "jobs_status_moderated": "На модерации",
   "jobs_load_more": "Загрузить ещё",
   "jobs_loading": "Загрузка…",
-
   "billing_title": "Платежи и токены",
   "billing_balance": "Баланс токенов",
   "billing_buy": "Купить токены",
@@ -91,7 +83,6 @@
   "billing_transaction_credit": "Пополнение",
   "billing_transaction_refund": "Возврат",
   "billing_transaction_admin_adjustment": "Корректировка",
-
   "profile_title": "Профиль и настройки",
   "profile_display_name": "Отображаемое имя",
   "profile_email": "Email",
@@ -115,13 +106,11 @@
   "profile_change_password": "Изменить пароль",
   "profile_delete_account": "Удалить аккаунт",
   "profile_signing_out": "Выход…",
-
   "error_generic": "Что-то пошло не так. Пожалуйста, попробуйте снова.",
   "error_network": "Ошибка сети. Проверьте подключение.",
   "error_unauthorized": "Сессия истекла. Пожалуйста, войдите снова.",
   "error_not_found": "Не найдено.",
   "error_rate_limited": "Слишком много запросов. Пожалуйста, подождите немного.",
-
   "common_cancel": "Отмена",
   "common_close": "Закрыть",
   "common_save": "Сохранить",

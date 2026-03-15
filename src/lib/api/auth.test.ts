@@ -3,15 +3,17 @@ import { http, HttpResponse } from 'msw';
 import { server } from '../../mocks/server';
 import { makeTokenResponse } from '../../mocks/factories/auth';
 import { makeUserProfile } from '../../mocks/factories/user';
-import { failedRefreshHandler } from '../../mocks/handlers/auth';
+import { failedRefreshHandler, rateLimitedLoginHandler, rateLimitWarningLoginHandler } from '../../mocks/handlers/auth';
 import { login, logout, silentRefresh, initAuth, AuthError } from './auth';
 import { clearAuth, getAccessToken, getRefreshToken } from '$lib/stores/auth';
+import { clearRateLimits, getRateLimitState } from '$lib/stores/rateLimit';
 import { STORAGE_KEYS } from '$lib/utils/constants';
 
 const BASE = 'http://localhost:8000';
 
 beforeEach(() => {
   clearAuth();
+  clearRateLimits();
   localStorage.clear();
   vi.restoreAllMocks();
 });
@@ -157,5 +159,34 @@ describe('initAuth()', () => {
     unsub();
 
     expect(status).toBe('authenticated');
+  });
+});
+
+describe('rate limiting in auth flows', () => {
+  it('login: parses rate limit headers from a successful response and stores them', async () => {
+    const profile = makeUserProfile();
+
+    server.use(
+      rateLimitWarningLoginHandler,
+      http.get(`${BASE}/v1/users/me`, () => HttpResponse.json(profile)),
+    );
+
+    await login('user@example.com', 'password123');
+
+    const state = getRateLimitState('/v1/auth/login');
+    expect(state).toMatchObject({ limit: 10, remaining: 2 });
+  });
+
+  it('login: on 429, throws AuthError with status 429 and stores rate limit info', async () => {
+    server.use(rateLimitedLoginHandler);
+
+    const err = await login('user@example.com', 'password123').catch((e) => e);
+
+    expect(err).toBeInstanceOf(AuthError);
+    expect(err.status_code).toBe(429);
+    expect(err.error).toBe('rate_limit_exceeded');
+
+    const state = getRateLimitState('/v1/auth/login');
+    expect(state).toMatchObject({ remaining: 0, retryAfter: 45 });
   });
 });

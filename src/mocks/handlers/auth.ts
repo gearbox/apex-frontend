@@ -43,3 +43,33 @@ export const failedLoginHandler = http.post(`${BASE}/v1/auth/login`, () =>
     { status: 401 },
   ),
 );
+
+/** Override for simulating a 429 on login (rate limited, with Retry-After and remaining count). */
+export const rateLimitedLoginHandler = http.post(`${BASE}/v1/auth/login`, () =>
+  HttpResponse.json(
+    { error: 'rate_limit_exceeded', message: 'Too many login attempts', status_code: 429 },
+    {
+      status: 429,
+      headers: {
+        'X-RateLimit-Limit': '10',
+        'X-RateLimit-Remaining': '0',
+        'X-RateLimit-Reset': '1710345600',
+        'Retry-After': '45',
+      },
+    },
+  ),
+);
+
+/**
+ * Override that returns rate limit warning headers (low remaining count)
+ * on an otherwise successful login response.
+ */
+export const rateLimitWarningLoginHandler = http.post(`${BASE}/v1/auth/login`, () =>
+  HttpResponse.json(makeTokenResponse(), {
+    headers: {
+      'X-RateLimit-Limit': '10',
+      'X-RateLimit-Remaining': '2',
+      'X-RateLimit-Reset': '1710345600',
+    },
+  }),
+);

@@ -2,12 +2,15 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { login, AuthError } from '$lib/api/auth';
+  import { rateLimitFor } from '$lib/stores/rateLimit';
   import * as m from '$paraglide/messages';
 
   let email = $state('');
   let password = $state('');
   let error = $state('');
   let loading = $state(false);
+
+  const loginRateLimit = rateLimitFor('/v1/auth/login');
 
   async function handleSubmit(e: Event) {
     e.preventDefault();
@@ -45,6 +48,12 @@
       {#if error}
         <div class="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
           {error}
+        </div>
+      {/if}
+
+      {#if $loginRateLimit?.remaining !== undefined && $loginRateLimit.remaining <= 3}
+        <div class="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning">
+          {m.auth_login_attempts_remaining({ remaining: $loginRateLimit.remaining })}
         </div>
       {/if}
 
