@@ -37,9 +37,13 @@ function toTokens(res: AuthResponse): AuthTokens {
 }
 
 async function fetchJson<T>(path: string, init: RequestInit): Promise<T> {
+  const devHeaders: Record<string, string> = {};
+  if (import.meta.env.DEV) {
+    devHeaders['X-Product-Id'] = import.meta.env.VITE_PRODUCT_ID || 'vex';
+  }
   const res = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
-    headers: { 'Content-Type': 'application/json', ...init.headers },
+    headers: { 'Content-Type': 'application/json', ...devHeaders, ...init.headers },
   });
 
   // Parse and store rate limit headers regardless of response status
@@ -72,10 +76,16 @@ export async function register(
   email: string,
   password: string,
   displayName?: string,
+  ageConfirmed?: boolean,
+  dateOfBirth?: string,
 ): Promise<void> {
+  const body: Record<string, unknown> = { email, password, display_name: displayName };
+  if (ageConfirmed !== undefined) body.age_confirmed = ageConfirmed;
+  if (dateOfBirth !== undefined) body.date_of_birth = dateOfBirth;
+
   const authRes = await fetchJson<AuthResponse>('/v1/auth/register', {
     method: 'POST',
-    body: JSON.stringify({ email, password, display_name: displayName }),
+    body: JSON.stringify(body),
   });
 
   const tokens = toTokens(authRes);

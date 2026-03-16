@@ -2,6 +2,7 @@
   import { createQuery } from '@tanstack/svelte-query';
   import apiClient from '$lib/api/client';
   import { formatUsd, formatNumber } from '$lib/utils/format';
+  import { productInfo } from '$lib/stores/product';
 
   let activeTab = $state<'overview' | 'buy' | 'history'>('overview');
 
@@ -60,6 +61,10 @@
     'i2i': { icon: '◈', label: 'Image → Image' },
     'i2v': { icon: '▶', label: 'Image → Video' },
   };
+
+  // Payment provider availability from product info (default true when not yet loaded)
+  let hasStripe = $derived($productInfo?.payment_providers.includes('stripe') ?? true);
+  let hasCrypto = $derived($productInfo?.payment_providers.includes('nowpayments') ?? true);
 
   const FALLBACK_COSTS = [
     { label: 'Imagine', icon: '✦', cost: 5 },
@@ -176,14 +181,20 @@
         {/each}
       </div>
     {/if}
-    <div class="mt-4 flex gap-2">
-      <button class="flex-1 rounded-2.5 bg-[#635bff] py-3 text-sm font-bold text-white" disabled>
-        Stripe
-      </button>
-      <button class="flex-1 rounded-2.5 border border-border bg-transparent py-3 text-sm font-semibold text-text" disabled>
-        Crypto
-      </button>
-    </div>
+    {#if hasStripe || hasCrypto}
+      <div class="mt-4 flex gap-2">
+        {#if hasStripe}
+          <button class="flex-1 rounded-2.5 bg-[#635bff] py-3 text-sm font-bold text-white" disabled>
+            Stripe
+          </button>
+        {/if}
+        {#if hasCrypto}
+          <button class="flex-1 rounded-2.5 border border-border bg-transparent py-3 text-sm font-semibold text-text" disabled>
+            Crypto
+          </button>
+        {/if}
+      </div>
+    {/if}
 
   {:else}
     {#if transactionsQuery.isLoading}

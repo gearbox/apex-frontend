@@ -11,6 +11,9 @@ const MAX_RATE_LIMIT_RETRIES = 3;
 /* ─── Auth + Rate-limit Middleware ─── */
 const authMiddleware: Middleware = {
   async onRequest({ request }) {
+    if (import.meta.env.DEV) {
+      request.headers.set('X-Product-Id', import.meta.env.VITE_PRODUCT_ID || 'vex');
+    }
     const token = getAccessToken();
     if (token) {
       request.headers.set('Authorization', `Bearer ${token}`);

@@ -72,6 +72,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/auth/product-info": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ProductInfo */
+        get: operations["V1AuthProductInfoProductInfo"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/auth/refresh": {
         parameters: {
             query?: never;
@@ -931,142 +948,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/legacy/generate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** CreateGeneration */
-        post: operations["V1LegacyGenerateCreateGeneration"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/legacy/generate/with-images": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** CreateGenerationWithImages */
-        post: operations["V1LegacyGenerateWithImagesCreateGenerationWithImages"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/grok": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** GetProviderInfo */
-        get: operations["V1GrokGetProviderInfo"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/grok/image/edit": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** EditImage */
-        post: operations["V1GrokImageEditEditImage"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/grok/image": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** GenerateImage */
-        post: operations["V1GrokImageGenerateImage"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/grok/video/edit": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** EditVideo */
-        post: operations["V1GrokVideoEditEditVideo"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/grok/video": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** GenerateVideo */
-        post: operations["V1GrokVideoGenerateVideo"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/grok/video/from-image": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** GenerateVideoFromImage */
-        post: operations["V1GrokVideoFromImageGenerateVideoFromImage"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/v1/jobs/{job_id}": {
         parameters: {
             query?: never;
@@ -1243,103 +1124,12 @@ export interface components {
             /** Format: date-time */
             updated_at: string;
         };
-        /** GenerationRequest */
-        GenerationRequest: {
-            prompt: string;
-            name?: string | null;
-            /** @default waxy texture, blurry face, over-sharpening, unrealistic symmetry, flat lighting, low detail skin, extra fingers, distorted anatomy, deformed */
-            negative_prompt: string;
-            /** @default 1024 */
-            height: number;
-            aspect_ratio?: components["schemas"]["AspectRatio"];
-            model_type?: components["schemas"]["ModelType"];
-            generation_type?: components["schemas"]["GenerationType"];
-            /** @default 1 */
-            max_images: number;
-            seed?: number | null;
-            /** @default 12 */
-            steps: number;
-        };
         /**
          * GenerationType
          * @description Generation type - text-to-image or image-to-image.
-         * @default t2i
          * @enum {string}
          */
         GenerationType: "t2i" | "i2i" | "t2v" | "i2v" | "v2v" | "flf2v";
-        /** GrokImageEditRequest */
-        GrokImageEditRequest: {
-            prompt: string;
-            /** Format: uuid */
-            input_image_id: string;
-            model?: components["schemas"]["ModelType"];
-            name?: string | null;
-        };
-        /** GrokImageRequest */
-        GrokImageRequest: {
-            prompt: string;
-            model?: components["schemas"]["ModelType"];
-            /** @default 1 */
-            n: number;
-            aspect_ratio?: components["schemas"]["AspectRatio"];
-            name?: string | null;
-        };
-        /** GrokModelInfo */
-        GrokModelInfo: {
-            model: components["schemas"]["ModelType"];
-            name: string;
-            description: string;
-            /** @default false */
-            supports_t2i: boolean;
-            /** @default false */
-            supports_i2i: boolean;
-            /** @default false */
-            supports_t2v: boolean;
-            /** @default false */
-            supports_i2v: boolean;
-            /** @default false */
-            supports_v2v: boolean;
-            /** @default 1 */
-            max_images: number;
-        };
-        /** GrokProviderInfo */
-        GrokProviderInfo: {
-            /** @default grok */
-            provider: string;
-            /** @default xAI Grok */
-            name: string;
-            available: boolean;
-            models?: components["schemas"]["GrokModelInfo"][];
-        };
-        /** GrokVideoEditRequest */
-        GrokVideoEditRequest: {
-            prompt: string;
-            input_video_url: string;
-            model?: components["schemas"]["ModelType"];
-            name?: string | null;
-        };
-        /** GrokVideoFromImageRequest */
-        GrokVideoFromImageRequest: {
-            prompt: string;
-            /** Format: uuid */
-            input_image_id: string;
-            model?: components["schemas"]["ModelType"];
-            /** @default 5 */
-            duration: number;
-            aspect_ratio?: components["schemas"]["AspectRatio"];
-            resolution?: components["schemas"]["VideoResolution"];
-            name?: string | null;
-        };
-        /** GrokVideoRequest */
-        GrokVideoRequest: {
-            prompt: string;
-            model?: components["schemas"]["ModelType"];
-            /** @default 5 */
-            duration: number;
-            aspect_ratio?: components["schemas"]["AspectRatio"];
-            resolution?: components["schemas"]["VideoResolution"];
-            name?: string | null;
-        };
         /** HealthResponse */
         HealthResponse: {
             /** @enum {string} */
@@ -1412,15 +1202,6 @@ export interface components {
             /** @default false */
             is_thumbnail: boolean;
         };
-        /** JobResponse */
-        JobResponse: {
-            job_id: string;
-            status: components["schemas"]["JobStatus"];
-            name: string;
-            /** Format: date-time */
-            created_at: string;
-            message?: string | null;
-        };
         /**
          * JobStatus
          * @description Job execution status.
@@ -1481,7 +1262,6 @@ export interface components {
         /**
          * ModelType
          * @description Available model types.
-         * @default aisha-image
          * @enum {string}
          */
         ModelType: "aisha-image" | "aisha-video" | "grok-imagine-image" | "grok-2-image-1212" | "grok-imagine-video";
@@ -1633,6 +1413,15 @@ export interface components {
             effective_until?: string | null;
             notes?: string | null;
         };
+        /** ProductInfoResponse */
+        ProductInfoResponse: {
+            product: string;
+            display_name: string;
+            age_gate: string;
+            allowed_auth_methods: string[];
+            content_rating: string;
+            payment_providers: string[];
+        };
         /** ProviderInfo */
         ProviderInfo: {
             provider: string;
@@ -1654,6 +1443,9 @@ export interface components {
             email: string;
             password: string;
             display_name?: string | null;
+            age_confirmed?: boolean | null;
+            /** Format: date */
+            date_of_birth?: string | null;
         };
         /** ResetPasswordRequest */
         ResetPasswordRequest: {
@@ -1994,6 +1786,26 @@ export interface operations {
                             [key: string]: unknown;
                         } | unknown[];
                     };
+                };
+            };
+        };
+    };
+    V1AuthProductInfoProductInfo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductInfoResponse"];
                 };
             };
         };
@@ -4022,302 +3834,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UploadResponse"] | components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Bad request syntax or unsupported method */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        status_code: number;
-                        detail: string;
-                        extra?: null | {
-                            [key: string]: unknown;
-                        } | unknown[];
-                    };
-                };
-            };
-        };
-    };
-    V1LegacyGenerateCreateGeneration: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GenerationRequest"];
-            };
-        };
-        responses: {
-            /** @description Document created, URL follows */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["JobResponse"];
-                };
-            };
-            /** @description Bad request syntax or unsupported method */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        status_code: number;
-                        detail: string;
-                        extra?: null | {
-                            [key: string]: unknown;
-                        } | unknown[];
-                    };
-                };
-            };
-        };
-    };
-    V1LegacyGenerateWithImagesCreateGenerationWithImages: {
-        parameters: {
-            query?: {
-                image1?: string | null;
-                image2?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "multipart/form-data": components["schemas"]["GenerationRequest"];
-            };
-        };
-        responses: {
-            /** @description Document created, URL follows */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["JobResponse"];
-                };
-            };
-            /** @description Bad request syntax or unsupported method */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        status_code: number;
-                        detail: string;
-                        extra?: null | {
-                            [key: string]: unknown;
-                        } | unknown[];
-                    };
-                };
-            };
-        };
-    };
-    V1GrokGetProviderInfo: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Request fulfilled, document follows */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GrokProviderInfo"];
-                };
-            };
-        };
-    };
-    V1GrokImageEditEditImage: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GrokImageEditRequest"];
-            };
-        };
-        responses: {
-            /** @description Document created, URL follows */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["JobCreatedResponse"] | components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Bad request syntax or unsupported method */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        status_code: number;
-                        detail: string;
-                        extra?: null | {
-                            [key: string]: unknown;
-                        } | unknown[];
-                    };
-                };
-            };
-        };
-    };
-    V1GrokImageGenerateImage: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GrokImageRequest"];
-            };
-        };
-        responses: {
-            /** @description Document created, URL follows */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["JobCreatedResponse"] | components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Bad request syntax or unsupported method */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        status_code: number;
-                        detail: string;
-                        extra?: null | {
-                            [key: string]: unknown;
-                        } | unknown[];
-                    };
-                };
-            };
-        };
-    };
-    V1GrokVideoEditEditVideo: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GrokVideoEditRequest"];
-            };
-        };
-        responses: {
-            /** @description Document created, URL follows */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["JobCreatedResponse"] | components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Bad request syntax or unsupported method */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        status_code: number;
-                        detail: string;
-                        extra?: null | {
-                            [key: string]: unknown;
-                        } | unknown[];
-                    };
-                };
-            };
-        };
-    };
-    V1GrokVideoGenerateVideo: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GrokVideoRequest"];
-            };
-        };
-        responses: {
-            /** @description Document created, URL follows */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["JobCreatedResponse"] | components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Bad request syntax or unsupported method */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        status_code: number;
-                        detail: string;
-                        extra?: null | {
-                            [key: string]: unknown;
-                        } | unknown[];
-                    };
-                };
-            };
-        };
-    };
-    V1GrokVideoFromImageGenerateVideoFromImage: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GrokVideoFromImageRequest"];
-            };
-        };
-        responses: {
-            /** @description Document created, URL follows */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["JobCreatedResponse"] | components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Bad request syntax or unsupported method */

@@ -3,7 +3,7 @@
 > **Source:** `gearbox/apex` repository
 > **Framework:** Litestar 2.5+ / Python 3.13
 > **Schema:** `GET /docs/openapi.json` from running backend (Litestar OpenAPIConfig has `path="/docs"`)
-> **Last synced:** 2026-03-15
+> **Last synced:** 2026-03-16
 
 This document captures the API surface that the frontend depends on. It is a **stable reference**, not a live mirror. When endpoints change in the backend, update this document and regenerate `types.ts`.
 
@@ -53,10 +53,41 @@ GET /v1/jobs?limit=20&offset=40
 
 ---
 
+## 0. Multi-Product Architecture
+
+The backend serves two distinct products from the same codebase:
+
+| Product | Slug | Domains | Audience | Content |
+|---------|------|---------|----------|---------|
+| **vex.pics** | `vex` | `vex.pics`, `www.vex.pics`, `app.vex.pics` | Consumer / creator | Permissive — NSFW-capable models available |
+| **Synthara** | `synthara` | `synthara.app`, `www.synthara.app`, `app.synthara.app` | Enterprise / business | SFW only, professional |
+
+### Product Resolution
+
+Every request is resolved to a product via:
+1. `Origin` header domain (preferred)
+2. `Host` header domain
+3. `X-Product-Id` header (`vex` or `synthara`) — dev fallback
+4. `localhost` / `127.0.0.1` / `0.0.0.0` → uses `DEFAULT_PRODUCT` env var (default: `vex`)
+
+If no product can be resolved: `400 Bad Request` with `{ "error": "unknown_product" }`.
+
+The response always includes `X-Product-Id` header for debugging.
+
+### User Scoping
+
+Accounts are **product-scoped** — the same email address can register independently on both products. Users cannot authenticate across products.
+
+### JWT Token Scoping
+
+JWT tokens embed a `product_id` claim. Tokens issued for one product are rejected on the other product.
+
+---
+
 ## 1. Base URL & CORS
 
 - **Local dev:** `http://localhost:8000`
-- **Production:** `https://api.apex.example.com` (configure via `VITE_API_BASE_URL`)
+- **Production:** Determined by `Origin`/`Host` header per-product (no single base URL)
 - **CORS:** Backend allows `*` origins in dev; tighten for production
 
 ---
@@ -73,13 +104,28 @@ GET /v1/jobs?limit=20&offset=40
 
 ### 2.2 Auth Endpoints
 
+#### `GET /v1/auth/product-info`
+
+```
+Response: {
+  product: string,              // "vex" | "synthara"
+  display_name: string,         // e.g. "vex.pics"
+  age_gate: string,             // "none" | "checkbox" | "date_of_birth"
+  allowed_auth_methods: string[],  // e.g. ["email_password", "google_oauth"]
+  content_rating: string,       // "sfw" | "permissive"
+  payment_providers: string[]   // e.g. ["stripe", "nowpayments"]
+}
+Note:     Public endpoint — no auth needed. Frontend calls this on load.
+```
+
 #### `POST /v1/auth/register`
 
 ```
-Request:  { email: string, password: string, display_name?: string }
+Request:  { email: string, password: string, display_name?: string, age_confirmed?: bool, date_of_birth?: date }
 Response: { access_token, refresh_token, token_type: "bearer", expires_in: int, expires_at: datetime }
 Status:   201 Created
-Errors:   400 (validation), 409 email_exists
+Errors:   400 (validation), 409 email_exists, 403 age_verification_required
+Note:     age_confirmed required for vex.pics (age_gate=checkbox). date_of_birth for date_of_birth mode.
 ```
 
 #### `POST /v1/auth/login`
@@ -251,7 +297,7 @@ Request: {
 }
 Response: JobCreatedResponse
 Status:   201 Created
-Errors:   400 (model_disabled | validation_error | generation_failed), 402 insufficient_balance, 429 rate_limited, 503 service_unavailable
+Errors:   400 (model_disabled | validation_error | generation_failed), 402 insufficient_balance, 403 model_not_allowed (model unavailable on this product), 429 rate_limited, 503 service_unavailable
 ```
 
 ### JobCreatedResponse Schema
@@ -277,6 +323,8 @@ Errors:   400 (model_disabled | validation_error | generation_failed), 402 insuf
 #### `GET /v1/providers`
 
 Auth-optional: unauthenticated callers get the full capabilities catalog; authenticated callers additionally receive `user_context` with their subscription tier.
+
+Models are **filtered by the current product** — Synthara only returns SFW-safe models; vex.pics returns all enabled models.
 
 ```
 Response: {
@@ -323,7 +371,6 @@ UserContext: {
 ```
 
 > **Deprecated flat format** (`providers` + `models` as a flat list) was removed in v2.
-> The old `GET /v1/grok` endpoint is still available for backward compatibility (see section 11).
 
 ---
 
@@ -943,96 +990,22 @@ Errors:   404
 
 ---
 
-## 11. Legacy Generation *(deprecated)*
+## 11. Product Reference
 
-> These routes are kept for backwards compatibility. Prefer `POST /v1/generate` for all new code.
+### Products
 
-#### `POST /v1/legacy/generate`
+| Slug | Display Name | Domains | Content Rating | Age Gate | Payment Providers | Org Feature |
+|------|-------------|---------|---------------|----------|------------------|-------------|
+| `vex` | vex.pics | vex.pics, www.vex.pics, app.vex.pics | permissive | checkbox | Stripe + NowPayments | No |
+| `synthara` | Synthara | synthara.app, www.synthara.app, app.synthara.app | sfw | none | Stripe only | Yes |
 
-```
-Request:  {
-  prompt: string (1–4096 chars),
-  name?: string,
-  negative_prompt?: string (max 2048 chars),
-  height?: int (256–2048, default 1024),
-  aspect_ratio?: AspectRatio (default "1:1"),
-  model_type?: ModelType (default "aisha-image"),
-  generation_type?: GenerationType (default "t2i"),
-  max_images?: int (1–4, default 1),
-  seed?: int,
-  steps?: int (1–20, default 12)
-}
-Response: { job_id: UUID, status: JobStatus, name: string, created_at: datetime, message?: string }
-```
+### AgeGatePolicy
 
-#### `POST /v1/legacy/generate/with-images`
+Values: `"none"`, `"checkbox"`, `"date_of_birth"`
 
-```
-Request:  multipart/form-data — same fields as above + image1?, image2? (file uploads)
-Response: same as /v1/legacy/generate
-```
+### ContentRating
 
-### Grok Provider *(deprecated)*
-
-> Prefer `POST /v1/generate` with `model: ModelType` for new code.
-
-#### `GET /v1/grok`
-
-```
-Response: {
-  provider: "grok",
-  name: "xAI Grok",
-  available: bool,
-  models: GrokModelInfo[]
-}
-
-GrokModelInfo: {
-  model: ModelType,
-  name: string,
-  description: string,
-  supports_t2i: bool,
-  supports_i2i: bool,
-  supports_t2v: bool,
-  supports_i2v: bool,
-  supports_v2v: bool,
-  max_images: int
-}
-```
-
-#### `POST /v1/grok/image`
-
-```
-Request:  { prompt: string (1–4096 chars), model?: ModelType, n?: int (1–10), aspect_ratio?: AspectRatio, name?: string }
-Response: JobCreatedResponse
-```
-
-#### `POST /v1/grok/image/edit`
-
-```
-Request:  { prompt: string, input_image_id: UUID, model?: ModelType, name?: string }
-Response: JobCreatedResponse
-```
-
-#### `POST /v1/grok/video`
-
-```
-Request:  { prompt: string, model?: ModelType, duration?: int (1–15), aspect_ratio?: AspectRatio, resolution?: VideoResolution, name?: string }
-Response: JobCreatedResponse
-```
-
-#### `POST /v1/grok/video/from-image`
-
-```
-Request:  { prompt: string, input_image_id: UUID, model?: ModelType, duration?: int, aspect_ratio?: AspectRatio, resolution?: VideoResolution, name?: string }
-Response: JobCreatedResponse
-```
-
-#### `POST /v1/grok/video/edit`
-
-```
-Request:  { prompt: string, input_video_url: string, model?: ModelType, name?: string }
-Response: JobCreatedResponse
-```
+Values: `"sfw"`, `"permissive"`
 
 ---
 
@@ -1132,10 +1105,10 @@ The `error` code is always a stable snake_case string — treat it like an enum.
 
 | HTTP | `error` | `detail` keys |
 |------|---------|---------------|
-| 400 | `bad_request`, `email_exists`, `invalid_token`, `invalid_password`, `validation_error`, `empty_file`, `file_too_large`, `invalid_file_type`, `upload_failed`, `payment_verification_failed`, `model_disabled`, `generation_failed` | — |
+| 400 | `bad_request`, `email_exists`, `invalid_token`, `invalid_password`, `validation_error`, `empty_file`, `file_too_large`, `invalid_file_type`, `upload_failed`, `payment_verification_failed`, `model_disabled`, `generation_failed`, `unknown_product` | — |
 | 401 | `unauthorized`, `invalid_credentials`, `account_inactive`, `token_reuse_detected` | — |
 | 402 | `insufficient_balance` | `balance`, `required` |
-| 403 | `forbidden`, `account_inactive`, `permission_denied` | — |
+| 403 | `forbidden`, `account_inactive`, `permission_denied`, `age_verification_required`, `model_not_allowed` | — |
 | 404 | `not_found`, `account_not_found`, `price_not_found` | — |
 | 409 | `conflict`, `refund_not_eligible`, `organization_balance_nonzero` | `balance` |
 | 422 | `validation_error`, `moderation` | `provider`, `policy` |

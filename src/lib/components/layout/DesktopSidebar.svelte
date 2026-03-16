@@ -2,6 +2,7 @@
   import { page } from '$app/stores';
   import { sidebarCollapsed, toggleSidebar } from '$lib/stores/ui';
   import { isAdmin } from '$lib/stores/auth';
+  import { productInfo } from '$lib/stores/product';
   import * as m from '$paraglide/messages';
   import {
     Plus,
@@ -32,15 +33,18 @@
 
   const adminItem = { label: () => m.nav_admin(), href: '/app/admin', icon: 'shield' };
   const profileItem = { label: () => m.topbar_profile(), href: '/app/profile', icon: 'user' };
+
+  let logoText = $derived($productInfo?.display_name ?? 'apex');
+  let logoLetter = $derived(($productInfo?.display_name ?? 'apex').charAt(0).toUpperCase());
 </script>
 
 <aside class="sidebar" class:collapsed={$sidebarCollapsed}>
   <!-- Logo area -->
   <div class="sidebar-logo">
     {#if $sidebarCollapsed}
-      <span class="logo-letter">A</span>
+      <span class="logo-letter">{logoLetter}</span>
     {:else}
-      <span class="logo-text">apex</span>
+      <span class="logo-text">{logoText}</span>
       <span class="logo-badge">PWA</span>
     {/if}
   </div>

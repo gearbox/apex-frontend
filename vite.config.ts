@@ -4,6 +4,33 @@ import tailwindcss from '@tailwindcss/vite';
 import { SvelteKitPWA } from '@vite-pwa/sveltekit';
 import { defineConfig } from 'vite';
 
+const productId = process.env.VITE_PRODUCT_ID || 'vex';
+
+const productManifests: Record<string, {
+  name: string;
+  short_name: string;
+  description: string;
+  theme_color: string;
+  background_color: string;
+}> = {
+  vex: {
+    name: 'vex.pics',
+    short_name: 'vex.pics',
+    description: 'AI-powered image and video generation',
+    theme_color: '#110f0b',
+    background_color: '#110f0b',
+  },
+  synthara: {
+    name: 'Synthara',
+    short_name: 'Synthara',
+    description: 'AI-powered image and video generation for professionals',
+    theme_color: '#0f1117',
+    background_color: '#0f1117',
+  },
+};
+
+const manifest = productManifests[productId] ?? productManifests.vex;
+
 export default defineConfig({
   build: {
     rollupOptions: {
@@ -23,12 +50,8 @@ export default defineConfig({
     SvelteKitPWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'Apex — AI Content Studio',
-        short_name: 'Apex',
-        description: 'AI-powered image and video generation platform',
+        ...manifest,
         display: 'standalone',
-        theme_color: '#110f0b',
-        background_color: '#110f0b',
         icons: [
           { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },

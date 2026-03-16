@@ -1,6 +1,7 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { currentUser } from '$lib/stores/auth';
+  import { productInfo } from '$lib/stores/product';
   import * as m from '$paraglide/messages';
   import BalancePill from './BalancePill.svelte';
 
@@ -13,6 +14,7 @@
   };
 
   let pageTitle = $derived((pageTitleFns[$page.url.pathname] ?? (() => ''))());
+  let logoText = $derived($productInfo?.display_name ?? 'apex');
   let initials = $derived(
     $currentUser?.display_name
       ? $currentUser.display_name.charAt(0).toUpperCase()
@@ -22,7 +24,7 @@
 
 <header class="topbar">
   <div class="topbar-left">
-    <a href="/app/create" class="topbar-logo">apex</a>
+    <a href="/app/create" class="topbar-logo">{logoText}</a>
     {#if pageTitle}
       <span class="topbar-title">{pageTitle}</span>
     {/if}

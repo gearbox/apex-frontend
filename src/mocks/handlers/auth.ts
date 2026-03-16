@@ -2,7 +2,19 @@ import { http, HttpResponse } from 'msw';
 import { makeTokenResponse } from '../factories/auth';
 import { MOCK_BASE_URL as BASE } from '../config';
 
+/** Default product info — vex with checkbox age gate */
+const vexProductInfo = {
+  product: 'vex',
+  display_name: 'vex.pics',
+  age_gate: 'checkbox',
+  allowed_auth_methods: ['email_password'],
+  content_rating: 'permissive',
+  payment_providers: ['stripe', 'nowpayments'],
+};
+
 export const authHandlers = [
+  http.get(`${BASE}/v1/auth/product-info`, () => HttpResponse.json(vexProductInfo)),
+
   http.post(`${BASE}/v1/auth/login`, () => HttpResponse.json(makeTokenResponse())),
 
   http.post(`${BASE}/v1/auth/register`, () =>
@@ -72,4 +84,29 @@ export const rateLimitWarningLoginHandler = http.post(`${BASE}/v1/auth/login`, (
       'X-RateLimit-Reset': '1710345600',
     },
   }),
+);
+
+/** Override: Synthara product — SFW, no age gate, Stripe only. */
+export const syntharaProductHandler = http.get(`${BASE}/v1/auth/product-info`, () =>
+  HttpResponse.json({
+    product: 'synthara',
+    display_name: 'Synthara',
+    age_gate: 'none',
+    allowed_auth_methods: ['email_password'],
+    content_rating: 'sfw',
+    payment_providers: ['stripe'],
+  }),
+);
+
+/** Override: vex product with no age gate (for simplified test scenarios). */
+export const vexNoAgeGateProductHandler = http.get(`${BASE}/v1/auth/product-info`, () =>
+  HttpResponse.json({ ...vexProductInfo, age_gate: 'none' }),
+);
+
+/** Override: product-info fetch fails (network error). */
+export const productInfoErrorHandler = http.get(`${BASE}/v1/auth/product-info`, () =>
+  HttpResponse.json(
+    { error: 'unknown_product', message: 'Unknown product', status_code: 400 },
+    { status: 400 },
+  ),
 );
