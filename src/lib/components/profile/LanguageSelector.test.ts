@@ -21,36 +21,28 @@ vi.mock('$paraglide/runtime', () => ({
 // Mock $app/environment
 vi.mock('$app/environment', () => ({ browser: true }));
 
-// Track what the mutation function was called with
-let lastMutateArg: unknown = null;
 let isPendingMock = false;
-const mutateFn = vi.fn((arg: unknown) => {
-  lastMutateArg = arg;
-});
+const mutateFn = vi.fn();
 
-vi.mock('@tanstack/svelte-query', () => {
-  const { writable, readable } = require('svelte/store');
-  return {
-    useQueryClient: vi.fn(() => ({ invalidateQueries: vi.fn() })),
-    createMutation: vi.fn((optionsFn: () => object) => {
-      // Call optionsFn to register the mutation but we control the result
-      optionsFn();
-      return {
-        mutate: mutateFn,
-        get isPending() {
-          return isPendingMock;
-        },
-      };
-    }),
-    QueryClient: vi.fn(() => ({})),
-  };
-});
+vi.mock('@tanstack/svelte-query', () => ({
+  useQueryClient: vi.fn(() => ({ invalidateQueries: vi.fn() })),
+  createMutation: vi.fn((optionsFn: () => object) => {
+    // Call optionsFn to register the mutation but we control the result
+    optionsFn();
+    return {
+      mutate: mutateFn,
+      get isPending() {
+        return isPendingMock;
+      },
+    };
+  }),
+  QueryClient: vi.fn(() => ({})),
+}));
 
 import LanguageSelector from './LanguageSelector.svelte';
 
 beforeEach(() => {
   localStorage.clear();
-  lastMutateArg = null;
   isPendingMock = false;
   mutateFn.mockClear();
 });
@@ -74,10 +66,8 @@ describe('LanguageSelector', () => {
   });
 
   it('calls PATCH /v1/users/me on change via mutate', async () => {
-    let patchedBody: unknown;
     server.use(
-      http.patch(`${BASE}/v1/users/me`, async ({ request }) => {
-        patchedBody = await request.json();
+      http.patch(`${BASE}/v1/users/me`, async () => {
         return HttpResponse.json({
           id: 'usr_1',
           email: 'test@example.com',

@@ -1,5 +1,5 @@
 import { writable } from 'svelte/store';
-import { setLanguageTag, languageTag } from '$paraglide/runtime';
+import { setLanguageTag } from '$paraglide/runtime';
 import { browser } from '$app/environment';
 
 const SUPPORTED_LOCALES = ['en', 'ru', 'sr'] as const;

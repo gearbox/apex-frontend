@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 
 // Mock the locale store so format.ts doesn't require $paraglide/runtime
-vi.mock('$lib/stores/locale', () => {
-  const { writable } = require('svelte/store');
+vi.mock('$lib/stores/locale', async () => {
+  const { writable } = await import('svelte/store');
   return { locale: writable('en') };
 });
 

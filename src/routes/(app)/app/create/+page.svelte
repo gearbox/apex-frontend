@@ -30,7 +30,7 @@
     queryKey: ['providers'],
     queryFn: async () => {
       const { data } = await apiClient.GET('/v1/providers');
-      return data ?? { providers: [], models: [] };
+      return data ?? { providers: [], user_context: null };
     },
     staleTime: 60 * 60 * 1000,
   }));
@@ -45,9 +45,16 @@
     staleTime: 60 * 60 * 1000,
   }));
 
-  // ── Current model info
+  // Flatten all models from all providers, attaching the provider string for pricing lookup
+  const allModels = $derived(
+    (providerQuery.data?.providers ?? []).flatMap((p) =>
+      p.models.map((m) => ({ ...m, provider: p.provider })),
+    ),
+  );
+
+  // ── Current model info (includes provider for pricing lookup)
   const currentModelInfo = $derived(
-    (providerQuery.data?.models ?? []).find((m) => m.model === $generationStore.model) ?? null,
+    allModels.find((m) => m.model_key === $generationStore.model) ?? null,
   );
 
   // Derived estimated cost (per unit — imageCount multiplier applied in CostPreview)
@@ -169,7 +176,7 @@
   <!-- Controls column -->
   <div class="flex flex-col gap-4 p-4 pb-24 md:w-100 md:shrink-0 md:overflow-y-auto md:p-0 md:pb-5">
 
-    <ModelSelector models={providerQuery.data?.models ?? []} />
+    <ModelSelector models={allModels} />
 
     <TypeSelector modelInfo={currentModelInfo ?? null} />
 

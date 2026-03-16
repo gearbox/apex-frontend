@@ -1,37 +1,44 @@
 import { test, expect } from '../fixtures/auth.fixture';
 import { jsonRoute } from '../helpers/api';
 
-const mockProviderInfo = {
-  provider: 'grok',
-  name: 'xAI Grok',
-  available: true,
-  models: [
+const mockProvidersResponse = {
+  providers: [
     {
-      model: 'aisha',
+      provider: 'aisha',
       name: 'Aisha',
-      description: 'Fast image model',
-      supports_t2i: true,
-      supports_i2i: false,
-      supports_t2v: false,
-      supports_i2v: false,
-      supports_v2v: false,
-      max_images: 4,
+      available: true,
+      models: [
+        {
+          model_key: 'aisha-image',
+          name: 'Aisha',
+          description: 'Fast image model',
+          capabilities: ['t2i', 'i2i'],
+          is_enabled: true,
+          max_images: 4,
+          max_prompt_length: 4096,
+          supports_negative_prompt: true,
+          aspect_ratios: ['1:1', '16:9'],
+          image: null,
+          video: null,
+        },
+      ],
     },
   ],
+  user_context: null,
 };
 
-const mockGrokJobResponse = {
+const mockGenerateResponse = {
   job_id: 'job_e2e_001',
   status: 'pending',
   name: 'E2E generation',
-  model: 'aisha',
+  model: 'aisha-image',
   generation_type: 't2i',
   created_at: '2025-01-01T00:00:00Z',
 };
 
 test.describe('Generate page', () => {
   test.beforeEach(async ({ authenticatedPage: page }) => {
-    await page.route('**/v1/grok', jsonRoute(mockProviderInfo));
+    await page.route('**/v1/providers', jsonRoute(mockProvidersResponse));
     await page.route('**/v1/billing/pricing', jsonRoute([]));
   });
 
@@ -50,13 +57,13 @@ test.describe('Generate page', () => {
   });
 
   test('3. Job submission shows loading state', async ({ authenticatedPage: page }) => {
-    await page.route('**/v1/grok/image', jsonRoute(mockGrokJobResponse));
+    await page.route('**/v1/generate', jsonRoute(mockGenerateResponse));
     await page.route('**/v1/jobs/**', jsonRoute({
       id: 'job_e2e_001',
       status: 'running',
       name: 'E2E generation',
-      provider: 'grok',
-      model: 'grok-imagine-image',
+      provider: 'aisha',
+      model: 'aisha-image',
       generation_type: 't2i',
       prompt: 'A beautiful test image',
       created_at: '2025-01-01T00:00:00Z',

@@ -4,13 +4,6 @@
   import * as m from '$paraglide/messages';
   import { Coins, Activity, User, Shield, ChevronRight } from 'lucide-svelte';
 
-  const iconMap: Record<string, typeof Coins> = {
-    coins: Coins,
-    activity: Activity,
-    user: User,
-    shield: Shield,
-  };
-
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') closeMoreSheet();
   }

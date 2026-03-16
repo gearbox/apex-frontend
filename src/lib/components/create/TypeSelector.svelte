@@ -2,9 +2,9 @@
   import { generationStore, type GenerationMode } from '$lib/stores/generation';
   import type { components } from '$lib/api/types';
 
-  type ProviderModelInfo = components['schemas']['ProviderModelInfo'];
+  type ModelInfo = components['schemas']['ModelInfo'];
 
-  let { modelInfo }: { modelInfo: ProviderModelInfo | null } = $props();
+  let { modelInfo }: { modelInfo: ModelInfo | null } = $props();
 
   interface ModeOption {
     value: GenerationMode;
@@ -23,15 +23,7 @@
 
   const supportedModes = $derived(
     modelInfo
-      ? ALL_MODES.filter((m) => {
-          if (m.value === 't2i') return modelInfo.supports_t2i;
-          if (m.value === 'i2i') return modelInfo.supports_i2i;
-          if (m.value === 't2v') return modelInfo.supports_t2v;
-          if (m.value === 'i2v') return modelInfo.supports_i2v;
-          if (m.value === 'v2v') return modelInfo.supports_v2v;
-          if (m.value === 'flf2v') return modelInfo.supports_flf2v;
-          return false;
-        })
+      ? ALL_MODES.filter((m) => modelInfo.capabilities.includes(m.value))
       : ALL_MODES.filter((m) => m.value === 't2i' || m.value === 'i2i'),
   );
 

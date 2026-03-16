@@ -1357,6 +1357,13 @@ export interface components {
             size_bytes: number;
             expires_in_seconds: number;
         };
+        /** ImageConstraints */
+        ImageConstraints: {
+            min_height?: number | null;
+            max_height?: number | null;
+            default_height?: number | null;
+            output_resolutions?: string[] | null;
+        };
         /** ImageListItem */
         ImageListItem: {
             id: string;
@@ -1452,6 +1459,20 @@ export interface components {
         MessageResponse: {
             message: string;
         };
+        /** ModelInfo */
+        ModelInfo: {
+            model_key: string;
+            name: string;
+            description: string;
+            capabilities: string[];
+            is_enabled: boolean;
+            max_images: number;
+            max_prompt_length: number;
+            supports_negative_prompt: boolean;
+            aspect_ratios: string[];
+            image?: components["schemas"]["ImageConstraints"] | null;
+            video?: components["schemas"]["VideoConstraints"] | null;
+        };
         /** ModelListResponse */
         ModelListResponse: {
             items: components["schemas"]["GenerationModelResponse"][];
@@ -1460,10 +1481,10 @@ export interface components {
         /**
          * ModelType
          * @description Available model types.
-         * @default aisha
+         * @default aisha-image
          * @enum {string}
          */
-        ModelType: "aisha" | "grok-imagine-image" | "grok-2-image-1212" | "grok-imagine-video";
+        ModelType: "aisha-image" | "aisha-video" | "grok-imagine-image" | "grok-2-image-1212" | "grok-imagine-video";
         /** NowPaymentsInvoiceResponse */
         NowPaymentsInvoiceResponse: {
             invoice_url: string;
@@ -1617,26 +1638,12 @@ export interface components {
             provider: string;
             name: string;
             available: boolean;
-        };
-        /** ProviderModelInfo */
-        ProviderModelInfo: {
-            model: string;
-            name: string;
-            description: string;
-            provider: string;
-            is_enabled: boolean;
-            supports_t2i: boolean;
-            supports_i2i: boolean;
-            supports_t2v: boolean;
-            supports_i2v: boolean;
-            supports_v2v: boolean;
-            supports_flf2v: boolean;
-            max_images: number;
+            models: components["schemas"]["ModelInfo"][];
         };
         /** ProvidersResponse */
         ProvidersResponse: {
             providers: components["schemas"]["ProviderInfo"][];
-            models: components["schemas"]["ProviderModelInfo"][];
+            user_context?: components["schemas"]["UserContext"] | null;
         };
         /** RefreshTokenRequest */
         RefreshTokenRequest: {
@@ -1792,6 +1799,10 @@ export interface components {
             /** Format: date-time */
             expires_at: string;
         };
+        /** UserContext */
+        UserContext: {
+            subscription_tier: string;
+        };
         /** UserProfileResponse */
         UserProfileResponse: {
             id: string;
@@ -1828,6 +1839,11 @@ export interface components {
         /** VerifyEmailRequest */
         VerifyEmailRequest: {
             token: string;
+        };
+        /** VideoConstraints */
+        VideoConstraints: {
+            max_duration: number;
+            resolutions: string[];
         };
         /**
          * VideoResolution

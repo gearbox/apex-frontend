@@ -3,33 +3,83 @@ import { makeJobCreatedResponse, makeUnifiedJobResponse } from '../factories/job
 import { MOCK_BASE_URL as BASE } from '../config';
 
 export const jobHandlers = [
-  // Generation endpoints — return JobCreatedResponse
-  http.post(`${BASE}/v1/grok/image`, () => HttpResponse.json(makeJobCreatedResponse())),
-  http.post(`${BASE}/v1/grok/image/edit`, () => HttpResponse.json(makeJobCreatedResponse({ generation_type: 'i2i' }))),
-  http.post(`${BASE}/v1/grok/video`, () => HttpResponse.json(makeJobCreatedResponse({ generation_type: 't2v', model: 'grok-imagine-video' }))),
-  http.post(`${BASE}/v1/grok/video/from-image`, () => HttpResponse.json(makeJobCreatedResponse({ generation_type: 'i2v', model: 'grok-imagine-video' }))),
-
-  // Provider info
-  http.get(`${BASE}/v1/grok`, () =>
+  // Provider info — unified format
+  http.get(`${BASE}/v1/providers`, () =>
     HttpResponse.json({
-      provider: 'grok',
-      name: 'xAI Grok',
-      available: true,
-      models: [
+      providers: [
         {
-          model: 'grok-imagine-image',
-          name: 'Grok Imagine',
-          description: 'Fast image model',
-          supports_t2i: true,
-          supports_i2i: true,
-          supports_t2v: false,
-          supports_i2v: false,
-          supports_v2v: false,
-          max_images: 10,
+          provider: 'grok',
+          name: 'xAI Grok',
+          available: true,
+          models: [
+            {
+              model_key: 'grok-imagine-image',
+              name: 'Grok Imagine',
+              description: 'Fast image generation model',
+              capabilities: ['t2i', 'i2i'],
+              is_enabled: true,
+              max_images: 10,
+              max_prompt_length: 4096,
+              supports_negative_prompt: false,
+              aspect_ratios: ['1:1', '16:9', '9:16'],
+              image: null,
+              video: null,
+            },
+            {
+              model_key: 'grok-2-image-1212',
+              name: 'Grok 2',
+              description: 'High-quality image model',
+              capabilities: ['t2i'],
+              is_enabled: true,
+              max_images: 10,
+              max_prompt_length: 4096,
+              supports_negative_prompt: false,
+              aspect_ratios: ['1:1', '16:9', '9:16'],
+              image: null,
+              video: null,
+            },
+            {
+              model_key: 'grok-imagine-video',
+              name: 'Grok Video',
+              description: 'Video generation model',
+              capabilities: ['t2v', 'i2v', 'v2v', 'flf2v'],
+              is_enabled: true,
+              max_images: 1,
+              max_prompt_length: 4096,
+              supports_negative_prompt: false,
+              aspect_ratios: ['1:1', '16:9', '9:16'],
+              image: null,
+              video: { max_duration: 15, resolutions: ['480p', '720p'] },
+            },
+          ],
+        },
+        {
+          provider: 'aisha',
+          name: 'Aisha',
+          available: true,
+          models: [
+            {
+              model_key: 'aisha-image',
+              name: 'Aisha',
+              description: 'Aisha image generation model',
+              capabilities: ['t2i', 'i2i'],
+              is_enabled: true,
+              max_images: 4,
+              max_prompt_length: 4096,
+              supports_negative_prompt: true,
+              aspect_ratios: ['1:1', '16:9', '9:16', '4:3', '3:4'],
+              image: null,
+              video: null,
+            },
+          ],
         },
       ],
+      user_context: null,
     }),
   ),
+
+  // Generation endpoint — unified
+  http.post(`${BASE}/v1/generate`, () => HttpResponse.json(makeJobCreatedResponse())),
 
   // Job status — use the new UnifiedJobResponse
   http.get(`${BASE}/v1/jobs/:job_id`, ({ params }) =>
