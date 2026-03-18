@@ -520,6 +520,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/broadcast": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** BroadcastNotification */
+        post: operations["V1AdminBroadcastBroadcastNotification"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/pricing": {
         parameters: {
             query?: never;
@@ -975,6 +992,40 @@ export interface paths {
         };
         /** ListJobs */
         get: operations["V1JobsListJobs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/events/sse-ticket": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** CreateSseTicket */
+        post: operations["V1EventsSseTicketCreateSseTicket"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/events/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Stream */
+        get: operations["V1EventsStreamStream"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1443,14 +1494,15 @@ export interface components {
             email: string;
             password: string;
             display_name?: string | null;
-            age_confirmed?: boolean | null;
-            /** Format: date */
-            date_of_birth?: string | null;
         };
         /** ResetPasswordRequest */
         ResetPasswordRequest: {
             token: string;
             new_password: string;
+        };
+        /** SSETicketResponse */
+        SSETicketResponse: {
+            ticket: string;
         };
         /** SetBillingAccountRequest */
         SetBillingAccountRequest: {
@@ -1488,6 +1540,13 @@ export interface components {
          * @enum {string}
          */
         SupportedLocale: "en" | "ru" | "sr";
+        /** SystemBroadcastRequest */
+        SystemBroadcastRequest: {
+            level: string;
+            title: string;
+            message: string;
+            expires_at?: string | null;
+        };
         /** TokenPackageResponse */
         TokenPackageResponse: {
             id: string;
@@ -2802,6 +2861,47 @@ export interface operations {
             };
         };
     };
+    V1AdminBroadcastBroadcastNotification: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SystemBroadcastRequest"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
     V1AdminPricingListPricingRules: {
         parameters: {
             query?: {
@@ -3948,6 +4048,63 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PaginatedResponse_src.api.schemas.jobs.UnifiedJobResponse_"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1EventsSseTicketCreateSseTicket: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SSETicketResponse"] | unknown;
+                };
+            };
+        };
+    };
+    V1EventsStreamStream: {
+        parameters: {
+            query: {
+                ticket: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Bad request syntax or unsupported method */
