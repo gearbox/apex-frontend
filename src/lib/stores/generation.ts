@@ -28,6 +28,7 @@ export interface GenerationState {
   activeJobId: string | null;
   jobStatus: JobStatus | null;
   completedJob: UnifiedJobResponse | null;
+  progress: number | null; // 0–100, null when not tracking
 }
 
 const DEFAULT_NEGATIVE_PROMPT =
@@ -48,6 +49,7 @@ function createGenerationStore() {
     activeJobId: null,
     jobStatus: null,
     completedJob: null,
+    progress: null,
   };
 
   const { subscribe, update, set } = writable<GenerationState>(initial);
@@ -92,11 +94,15 @@ function createGenerationStore() {
     },
 
     startJob(jobId: string) {
-      update((s) => ({ ...s, activeJobId: jobId, jobStatus: 'pending', completedJob: null }));
+      update((s) => ({ ...s, activeJobId: jobId, jobStatus: 'pending', completedJob: null, progress: null }));
     },
 
     setStatus(status: JobStatus) {
       update((s) => ({ ...s, jobStatus: status }));
+    },
+
+    setProgress(pct: number) {
+      update((s) => ({ ...s, progress: Math.min(100, Math.max(0, pct)) }));
     },
 
     setComplete(job: UnifiedJobResponse) {
@@ -104,11 +110,12 @@ function createGenerationStore() {
         ...s,
         jobStatus: 'completed',
         completedJob: job,
+        progress: 100,
       }));
     },
 
     setError() {
-      update((s) => ({ ...s, jobStatus: 'failed', activeJobId: null }));
+      update((s) => ({ ...s, jobStatus: 'failed', activeJobId: null, progress: null }));
     },
 
     prefill(params: Partial<GenerationState>) {

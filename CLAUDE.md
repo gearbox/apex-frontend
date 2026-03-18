@@ -244,6 +244,52 @@ The `BACKEND_API_REFERENCE.md` document in this project's Claude Project knowled
 
 ---
 
+## Real-Time Events (SSE)
+
+### Architecture
+
+The app uses Server-Sent Events for real-time updates, with automatic fallback to polling.
+
+```
+EventStreamService (src/lib/services/eventStream.ts)
+  ├── Lifecycle managed by (app)/+layout.svelte
+  ├── Connects after auth, reconnects on failure
+  ├── Dispatches to stores + TanStack Query cache
+  └── Falls back to polling after 5 consecutive failures
+
+Connection states: disconnected → connecting → connected
+                                            → fallback (polling)
+```
+
+### Event Flow
+
+| SSE Event | Store Update | Query Cache Action |
+|-----------|-------------|-------------------|
+| `job.status_changed` | `generationStore`, `activeJobStore` | Optimistic `setQueryData` on detail, `invalidateQueries` on terminal |
+| `job.progress` | `generationStore.setProgress()` | — |
+| `balance.updated` | — | Optimistic `setQueryData(['balance'])`, `invalidateQueries(['transactions'])` |
+| `system.notification` | `notifications` store | — |
+
+### Fallback Behavior
+
+When SSE is unavailable or fails:
+- `BalancePill` resumes 30s polling
+- Jobs page resumes 5s polling for active jobs
+- `createJobPoller` continues as before
+- SSE retries every 60s in background
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `src/lib/api/events.ts` | SSE payload types + type guards |
+| `src/lib/services/eventStream.ts` | SSE connection service |
+| `src/lib/stores/eventStream.ts` | Connection status store |
+| `src/lib/stores/notifications.ts` | System notification store |
+| `src/lib/components/ui/SystemBanner.svelte` | Notification banner UI |
+
+---
+
 ## Common Commands
 
 ```bash

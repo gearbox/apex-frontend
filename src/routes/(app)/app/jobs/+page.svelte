@@ -7,6 +7,7 @@
   import JobFilters from '$lib/components/jobs/JobFilters.svelte';
   import type { components } from '$lib/api/types';
   import type { JobListFilters } from '$lib/queries/jobs';
+  import { isSSEConnected } from '$lib/stores/eventStream';
 
   type UnifiedJobResponse = components['schemas']['UnifiedJobResponse'];
 
@@ -26,7 +27,9 @@
 
   const query = createQuery(() => ({
     ...jobsListQueryOptions(filters),
-    refetchInterval: hasActiveJobs ? 5000 : false,
+    // When SSE is connected, job status updates arrive in real-time.
+    // Fall back to 5s polling only when SSE is down AND there are active jobs.
+    refetchInterval: $isSSEConnected ? false : (hasActiveJobs ? 5000 : false),
   }));
 
   // Append or replace on new data

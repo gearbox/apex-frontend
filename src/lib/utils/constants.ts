@@ -26,6 +26,13 @@ export const SESSION_KEYS = {
   ACTIVE_JOB: 'apex-active-job',
 } as const;
 
+/* ─── SSE / Real-Time Events ─── */
+export const SSE_RECONNECT_BASE_MS = 2000;
+export const SSE_RECONNECT_MAX_MS = 30_000;
+export const SSE_MAX_CONSECUTIVE_FAILURES = 5;
+export const SSE_FALLBACK_RETRY_MS = 60_000;
+export const SSE_TICKET_RATE_LIMIT_BUFFER_MS = 500;
+
 /* ─── Prompt Limits ─── */
 export const MAX_PROMPT_LENGTH = 4096;
 

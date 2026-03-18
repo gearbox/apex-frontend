@@ -1,18 +1,43 @@
 <script lang="ts">
-  import { onMount, type Snippet } from 'svelte';
+  import { onMount, onDestroy, type Snippet } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
+  import { useQueryClient } from '@tanstack/svelte-query';
   import { currentAuthStatus } from '$lib/stores/auth';
   import { initAuth } from '$lib/api/auth';
+  import { EventStreamService } from '$lib/services/eventStream';
   import AppShell from '$lib/components/layout/AppShell.svelte';
   import ToastContainer from '$lib/components/ui/ToastContainer.svelte';
+  import SystemBanner from '$lib/components/ui/SystemBanner.svelte';
 
   let { children }: { children: Snippet } = $props();
   let checking = $state(true);
 
+  const queryClient = useQueryClient();
+  let eventStream: EventStreamService | null = null;
+
   onMount(async () => {
     await initAuth();
     checking = false;
+  });
+
+  // SSE lifecycle — connect when authenticated, disconnect when not
+  $effect(() => {
+    if (checking) return;
+
+    if ($currentAuthStatus === 'authenticated') {
+      if (!eventStream) {
+        eventStream = new EventStreamService({ queryClient });
+      }
+      eventStream.connect();
+    } else {
+      eventStream?.disconnect();
+    }
+  });
+
+  onDestroy(() => {
+    eventStream?.dispose();
+    eventStream = null;
   });
 
   // Redirect when auth resolves to unauthenticated
@@ -33,6 +58,7 @@
     </div>
   </div>
 {:else}
+  <SystemBanner />
   <AppShell>
     {@render children()}
   </AppShell>

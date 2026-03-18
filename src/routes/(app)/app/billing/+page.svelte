@@ -3,6 +3,7 @@
   import apiClient from '$lib/api/client';
   import { formatUsd, formatNumber } from '$lib/utils/format';
   import { productInfo } from '$lib/stores/product';
+  import { isSSEConnected } from '$lib/stores/eventStream';
 
   let activeTab = $state<'overview' | 'buy' | 'history'>('overview');
 
@@ -13,6 +14,7 @@
       return data ?? null;
     },
     staleTime: 30_000,
+    refetchInterval: $isSSEConnected ? false : 30_000,
     refetchOnWindowFocus: true,
   }));
 

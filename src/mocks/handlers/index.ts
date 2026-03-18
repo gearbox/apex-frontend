@@ -4,6 +4,7 @@ import { jobHandlers } from './jobs';
 import { galleryHandlers } from './gallery';
 import { billingHandlers } from './billing';
 import { adminHandlers } from './admin';
+import { eventHandlers } from './events';
 
 export const handlers = [
   ...authHandlers,
@@ -12,4 +13,5 @@ export const handlers = [
   ...galleryHandlers,
   ...billingHandlers,
   ...adminHandlers,
+  ...eventHandlers,
 ];
