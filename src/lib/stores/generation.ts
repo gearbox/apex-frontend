@@ -42,7 +42,7 @@ function createGenerationStore() {
     prompt: '',
     negativePrompt: DEFAULT_NEGATIVE_PROMPT,
     uploadedImageId: null,
-    aspectRatio: '1:1',
+    aspectRatio: '3:4',
     imageCount: 1,
     videoDuration: 5,
     videoResolution: '720p',
