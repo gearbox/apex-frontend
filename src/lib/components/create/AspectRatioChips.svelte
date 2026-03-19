@@ -26,7 +26,7 @@
 <div class="flex flex-col gap-2">
   <span class="text-[11px] font-semibold uppercase tracking-wider text-text-muted">Aspect Ratio</span
   >
-  <div class="flex flex-wrap gap-1">
+  <div class="flex gap-1 overflow-x-auto">
     {#each RATIOS as ratio (ratio)}
       {@const meta = RATIO_META[ratio]}
       {@const isActive = $generationStore.aspectRatio === ratio}

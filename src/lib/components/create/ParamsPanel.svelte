@@ -10,7 +10,7 @@
 {#if isVideo}
   <VideoParams />
 {:else}
-  <div class="grid grid-cols-2 gap-3">
+  <div class="flex flex-col gap-3">
     <AspectRatioChips />
     <ImageCountStepper />
   </div>
