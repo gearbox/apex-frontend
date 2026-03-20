@@ -210,23 +210,6 @@ export interface paths {
         patch: operations["V1UsersMeUpdateProfile"];
         trace?: never;
     };
-    "/v1/users/me/jobs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** GetJobs */
-        get: operations["V1UsersMeJobsGetJobs"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/v1/users/me/stats": {
         parameters: {
             query?: never;
@@ -1259,19 +1242,6 @@ export interface components {
          * @enum {string}
          */
         JobStatus: "pending" | "queued" | "running" | "completed" | "failed" | "cancelled" | "moderated";
-        /** JobSummaryResponse */
-        JobSummaryResponse: {
-            id: string;
-            name: string;
-            status: string;
-            generation_type: string;
-            prompt: string;
-            output_count: number;
-            thumbnail_url?: string | null;
-            /** Format: date-time */
-            created_at: string;
-            completed_at?: string | null;
-        };
         /** LoginRequest */
         LoginRequest: {
             email: string;
@@ -1415,15 +1385,6 @@ export interface components {
         /** PaginatedResponse[OutputListItem] */
         "PaginatedResponse_src.api.schemas.storage.OutputListItem_": {
             items: components["schemas"]["OutputListItem"][];
-            total: number;
-            limit: number;
-            offset: number;
-            has_more: boolean;
-            next_cursor?: string | null;
-        };
-        /** PaginatedResponse[JobSummaryResponse] */
-        "PaginatedResponse_src.api.schemas.user.JobSummaryResponse_": {
-            items: components["schemas"]["JobSummaryResponse"][];
             total: number;
             limit: number;
             offset: number;
@@ -2144,45 +2105,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserProfileResponse"] | components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Bad request syntax or unsupported method */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        status_code: number;
-                        detail: string;
-                        extra?: null | {
-                            [key: string]: unknown;
-                        } | unknown[];
-                    };
-                };
-            };
-        };
-    };
-    V1UsersMeJobsGetJobs: {
-        parameters: {
-            query?: {
-                limit?: number;
-                offset?: number;
-                cursor?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Request fulfilled, document follows */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PaginatedResponse_src.api.schemas.user.JobSummaryResponse_"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
