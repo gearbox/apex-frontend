@@ -1,40 +1,57 @@
 <script lang="ts">
   import { timeAgo } from '$lib/utils/format';
   import { Play } from 'lucide-svelte';
+  import AuthImage from '$lib/components/ui/AuthImage.svelte';
   import type { components } from '$lib/api/types';
 
-  type JobSummaryResponse = components['schemas']['JobSummaryResponse'];
+  type GalleryGridItem = components['schemas']['GalleryGridItem'];
 
-  let { item, onclick }: { item: JobSummaryResponse; onclick: () => void } = $props();
+  let { item, onclick }: { item: GalleryGridItem; onclick: () => void } = $props();
 
-  const isVideo = $derived(item.generation_type === 't2v' || item.generation_type === 'i2v');
+  const isVideo = $derived(item.media_type === 'video');
 
-  // thumbnail_url is a presigned URL included directly in the JobSummaryResponse —
-  // no secondary fetch needed.
-  const thumbnailUrl = $derived(item.thumbnail_url ?? null);
+  function parseAspectRatio(ratio: string | null | undefined): string | null {
+    if (!ratio) return null;
+    const [w, h] = ratio.split(':').map(Number);
+    if (!w || !h) return null;
+    return `${w}/${h}`;
+  }
+
+  const aspectStyle = $derived(
+    parseAspectRatio(item.aspect_ratio)
+      ? `aspect-ratio: ${parseAspectRatio(item.aspect_ratio)};`
+      : '',
+  );
 </script>
 
 <button
   {onclick}
+  data-aspect={item.aspect_ratio ?? '1:1'}
   class="group relative overflow-hidden rounded-xl border border-border bg-surface transition-all hover:border-border-active hover:shadow-lg"
 >
   <!-- Thumbnail / placeholder -->
-  <div class="aspect-square w-full overflow-hidden bg-surface">
-    {#if thumbnailUrl}
+  <div class="aspect-square w-full overflow-hidden bg-surface" style={aspectStyle}>
+    {#if item.cover_url}
       {#if isVideo}
         <div class="relative h-full w-full bg-black">
+          <AuthImage
+            src={item.cover_url}
+            alt={item.prompt_snippet}
+            class="h-full w-full object-cover opacity-70 transition-transform group-hover:scale-105"
+          />
           <div class="absolute inset-0 flex items-center justify-center">
-            <div class="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm">
+            <div
+              class="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm"
+            >
               <Play size={16} fill="white" class="text-white" />
             </div>
           </div>
         </div>
       {:else}
-        <img
-          src={thumbnailUrl}
-          alt={item.prompt}
+        <AuthImage
+          src={item.cover_url}
+          alt={item.prompt_snippet}
           class="h-full w-full object-cover transition-transform group-hover:scale-105"
-          loading="lazy"
         />
       {/if}
     {:else}
@@ -47,17 +64,32 @@
     {/if}
   </div>
 
-  <!-- Hover overlay with prompt -->
-  <div class="absolute inset-0 flex flex-col justify-end bg-linear-to-t from-black/70 via-transparent to-transparent p-3 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
-    <p class="line-clamp-2 text-left text-xs text-white">{item.prompt}</p>
+  <!-- Badge pill (top-left) -->
+  <div
+    class="absolute left-2 top-2 rounded-md bg-black/50 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm"
+  >
+    {#if item.badge === 'image'}
+      🖼 Image
+    {:else}
+      ✦ Prompt
+    {/if}
   </div>
 
-  <!-- Video type badge -->
-  {#if isVideo}
-    <div class="absolute left-2 top-2 rounded-md bg-black/50 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm">
-      VIDEO
+  <!-- Output count badge (bottom-right, only if > 1) -->
+  {#if item.output_count > 1}
+    <div
+      class="absolute bottom-8 right-2 rounded-md bg-black/50 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm"
+    >
+      ×{item.output_count}
     </div>
   {/if}
+
+  <!-- Hover overlay with prompt snippet -->
+  <div
+    class="absolute inset-0 flex flex-col justify-end bg-linear-to-t from-black/70 via-transparent to-transparent p-3 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+  >
+    <p class="line-clamp-2 text-left text-xs text-white">{item.prompt_snippet}</p>
+  </div>
 
   <!-- Bottom metadata strip -->
   <div class="border-t border-border/50 px-2.5 py-1.5 text-left">

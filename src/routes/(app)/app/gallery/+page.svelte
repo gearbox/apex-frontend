@@ -1,51 +1,31 @@
 <script lang="ts">
   import { createInfiniteQuery } from '@tanstack/svelte-query';
-  import apiClient from '$lib/api/client';
-  import { GALLERY_PAGE_SIZE } from '$lib/utils/constants';
+  import { galleryListInfiniteQueryOptions } from '$lib/queries/gallery';
   import GalleryGrid from '$lib/components/gallery/GalleryGrid.svelte';
   import GalleryFilters from '$lib/components/gallery/GalleryFilters.svelte';
   import InfiniteScrollSentinel from '$lib/components/gallery/InfiniteScrollSentinel.svelte';
   import Lightbox from '$lib/components/gallery/Lightbox.svelte';
   import type { components } from '$lib/api/types';
-  import type { GalleryFilter } from '$lib/components/gallery/GalleryFilters.svelte';
+  import type { GalleryMediaFilter } from '$lib/components/gallery/GalleryFilters.svelte';
 
-  type JobSummaryResponse = components['schemas']['JobSummaryResponse'];
+  type GalleryGridItem = components['schemas']['GalleryGridItem'];
+  type OutputMediaType = components['schemas']['OutputMediaType'];
 
-  let filter = $state<GalleryFilter>('all');
-  let lightboxItem = $state<JobSummaryResponse | null>(null);
+  let filter = $state<GalleryMediaFilter>('all');
+  let lightboxItem = $state<GalleryGridItem | null>(null);
 
-  const galleryQuery = createInfiniteQuery(() => ({
-    queryKey: ['gallery'],
-    queryFn: async ({ pageParam }: { pageParam: string | null }) => {
-      const { data } = await apiClient.GET('/v1/users/me/jobs', {
-        params: { query: { limit: GALLERY_PAGE_SIZE, ...(pageParam ? { cursor: pageParam } : {}) } },
-      });
-      return data ?? { items: [], total: 0, has_more: false, next_cursor: null };
-    },
-    initialPageParam: null as string | null,
-    getNextPageParam: (lastPage) => lastPage.has_more ? lastPage.next_cursor : undefined,
-    staleTime: 0,
-  }));
-
-  const allItems = $derived(
-    (galleryQuery.data?.pages ?? []).flatMap((p) => p.items).filter((i) => i.status === 'completed'),
+  // Map UI filter to API media_type param
+  const mediaTypeParam = $derived<OutputMediaType | undefined>(
+    filter === 'all' ? undefined : filter,
   );
 
-  const filteredItems = $derived(
-    filter === 'all'
-      ? allItems
-      : filter === 'images'
-        ? allItems.filter((i) => i.generation_type === 't2i' || i.generation_type === 'i2i')
-        : allItems.filter((i) => i.generation_type === 't2v' || i.generation_type === 'i2v'),
+  const galleryQuery = createInfiniteQuery(() =>
+    galleryListInfiniteQueryOptions({ media_type: mediaTypeParam ?? null }),
   );
 
-  const counts = $derived({
-    all: allItems.length,
-    images: allItems.filter((i) => i.generation_type === 't2i' || i.generation_type === 'i2i').length,
-    videos: allItems.filter((i) => i.generation_type === 't2v' || i.generation_type === 'i2v').length,
-  });
+  const allItems = $derived((galleryQuery.data?.pages ?? []).flatMap((p) => p.items));
 
-  function handleFilterChange(f: GalleryFilter) {
+  function handleFilterChange(f: GalleryMediaFilter) {
     filter = f;
   }
 
@@ -63,9 +43,9 @@
 <div class="flex flex-col gap-4 p-4 md:p-0">
   <!-- Filter bar -->
   <div class="flex items-center gap-2">
-    <GalleryFilters {filter} {counts} onchange={handleFilterChange} />
+    <GalleryFilters {filter} onchange={handleFilterChange} />
     <span class="ml-auto text-xs text-text-dim">
-      {filteredItems.length}{galleryQuery.hasNextPage ? '+' : ''} items
+      {allItems.length} loaded{galleryQuery.hasNextPage ? '+' : ''}
     </span>
   </div>
 
@@ -76,7 +56,9 @@
       {/each}
     </div>
   {:else if galleryQuery.isError}
-    <div class="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface/50 py-20">
+    <div
+      class="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface/50 py-20"
+    >
       <p class="text-sm text-danger">Failed to load gallery</p>
       <button
         onclick={() => galleryQuery.refetch()}
@@ -85,17 +67,21 @@
         Try again
       </button>
     </div>
-  {:else if filteredItems.length === 0}
-    <div class="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface/50 py-20">
+  {:else if allItems.length === 0}
+    <div
+      class="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface/50 py-20"
+    >
       <p class="text-sm text-text-dim">
-        {filter === 'all' ? 'Your generated content will appear here' : `No ${filter} yet`}
+        {filter === 'all'
+          ? 'Your generated content will appear here'
+          : `No ${filter === 'image' ? 'images' : 'videos'} yet`}
       </p>
       <a href="/app/create" class="mt-2 text-sm font-medium text-accent hover:underline">
         Start creating
       </a>
     </div>
   {:else}
-    <GalleryGrid items={filteredItems} onCardClick={(item) => (lightboxItem = item)} />
+    <GalleryGrid items={allItems} onCardClick={(item) => (lightboxItem = item)} />
 
     <InfiniteScrollSentinel
       onVisible={handleLoadMore}
@@ -104,18 +90,16 @@
 
     {#if galleryQuery.isFetchingNextPage}
       <div class="flex justify-center py-4">
-        <div class="h-5 w-5 animate-spin rounded-full border-2 border-accent border-t-transparent"></div>
+        <div
+          class="h-5 w-5 animate-spin rounded-full border-2 border-accent border-t-transparent"
+        ></div>
       </div>
-    {:else if !galleryQuery.hasNextPage && filteredItems.length > 0}
+    {:else if !galleryQuery.hasNextPage && allItems.length > 0}
       <p class="py-4 text-center text-xs text-text-dim">All caught up</p>
     {/if}
   {/if}
 </div>
 
 {#if lightboxItem}
-  <Lightbox
-    item={lightboxItem}
-    allItems={filteredItems}
-    onclose={() => (lightboxItem = null)}
-  />
+  <Lightbox item={lightboxItem} {allItems} onclose={() => (lightboxItem = null)} />
 {/if}

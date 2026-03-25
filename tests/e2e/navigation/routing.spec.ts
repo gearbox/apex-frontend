@@ -20,7 +20,10 @@ authTest.describe('Navigation routing (authenticated)', () => {
   authTest.beforeEach(async ({ authenticatedPage: page }) => {
     await page.route('**/v1/grok', jsonRoute(mockProviderInfo));
     await page.route('**/v1/billing/pricing', jsonRoute([]));
-    await page.route('**/v1/users/me/jobs*', jsonRoute({ items: [], total: 0 }));
+    await page.route(
+      '**/v1/gallery*',
+      jsonRoute({ items: [], limit: 20, has_more: false, next_cursor: null }),
+    );
   });
 
   authTest('1. Desktop sidebar visible at ≥768px', async ({ authenticatedPage: page }) => {

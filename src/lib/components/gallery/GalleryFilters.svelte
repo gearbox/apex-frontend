@@ -1,28 +1,23 @@
 <script lang="ts">
-  import * as m from '$paraglide/messages';
-
-  export type GalleryFilter = 'all' | 'images' | 'videos';
+  export type GalleryMediaFilter = 'all' | 'image' | 'video';
 
   let {
     filter = 'all',
-    counts,
     onchange,
   }: {
-    filter?: GalleryFilter;
-    counts: { all: number; images: number; videos: number };
-    onchange: (f: GalleryFilter) => void;
+    filter?: GalleryMediaFilter;
+    onchange: (f: GalleryMediaFilter) => void;
   } = $props();
 
-  const FILTERS: { key: GalleryFilter; label: () => string }[] = [
-    { key: 'all', label: m.gallery_filter_all },
-    { key: 'images', label: m.gallery_filter_images },
-    { key: 'videos', label: m.gallery_filter_videos },
+  const FILTERS: { key: GalleryMediaFilter; label: string }[] = [
+    { key: 'all', label: 'All' },
+    { key: 'image', label: 'Images' },
+    { key: 'video', label: 'Videos' },
   ];
 </script>
 
 <div class="flex items-center gap-2">
   {#each FILTERS as f (f.key)}
-    {@const count = counts[f.key]}
     <button
       onclick={() => onchange(f.key)}
       class="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors
@@ -30,10 +25,7 @@
           ? 'bg-accent/15 text-accent'
           : 'border border-border text-text-muted hover:text-text'}"
     >
-      {f.label()}
-      {#if count > 0}
-        <span class="rounded-full bg-current/10 px-1.5 py-0.5 text-[10px] font-semibold leading-none">{count}</span>
-      {/if}
+      {f.label}
     </button>
   {/each}
 </div>

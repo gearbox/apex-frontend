@@ -3,7 +3,10 @@ import { jsonRoute } from '../helpers/api';
 
 test.describe('Token refresh', () => {
   test('1. Silent refresh on expired access token: retries and succeeds', async ({ authenticatedPage: page }) => {
-    await page.route('**/v1/users/me/jobs*', jsonRoute({ items: [], total: 0 }));
+    await page.route(
+      '**/v1/gallery*',
+      jsonRoute({ items: [], limit: 20, has_more: false, next_cursor: null }),
+    );
 
     await page.goto('/app/gallery');
 

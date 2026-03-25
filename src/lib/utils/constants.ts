@@ -20,6 +20,7 @@ export const ACTIVE_JOB_STATUSES = ['pending', 'queued', 'running'] as const;
 /* ─── Gallery ─── */
 export const GALLERY_PAGE_SIZE = 20;
 export const PRESIGNED_URL_STALE_MS = 30 * 60 * 1000; // 30 min
+export const GALLERY_CONTENT_STALE_MS = 10 * 60 * 1000; // 10 min — content proxy URLs are immutable
 
 /* ─── Session Storage Keys ─── */
 export const SESSION_KEYS = {

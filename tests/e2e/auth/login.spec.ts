@@ -68,7 +68,10 @@ test.describe('Login page', () => {
     await page.route('**/v1/auth/refresh', jsonRoute(mockTokenResponse));
     await page.route('**/v1/users/me', jsonRoute(mockUserProfile));
     await page.route('**/v1/billing/balance', jsonRoute({ account_id: 'acc_001', account_type: 'personal', balance: 500 }));
-    await page.route('**/v1/users/me/jobs*', jsonRoute({ items: [], total: 0 }));
+    await page.route(
+      '**/v1/gallery*',
+      jsonRoute({ items: [], limit: 20, has_more: false, next_cursor: null }),
+    );
 
     // Navigate to a protected page — no session → redirect to /login?redirect=/app/gallery
     await page.goto('/app/gallery');
