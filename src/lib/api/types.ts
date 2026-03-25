@@ -1017,6 +1017,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/gallery/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetGalleryDetail */
+        get: operations["V1GalleryJobIdGetGalleryDetail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/gallery": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListGallery */
+        get: operations["V1GalleryListGallery"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/content/outputs/{output_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ProxyOutput */
+        get: operations["V1ContentOutputsOutputIdProxyOutput"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/content/uploads/{image_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ProxyUpload */
+        get: operations["V1ContentUploadsImageIdProxyUpload"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1127,6 +1195,62 @@ export interface components {
             token_cost: number;
             notes?: string | null;
         };
+        /** CursorPage[AdminOrgResponse] */
+        "CursorPage_src.api.schemas.admin.AdminOrgResponse_": {
+            items: components["schemas"]["AdminOrgResponse"][];
+            limit: number;
+            has_more: boolean;
+            next_cursor?: string | null;
+        };
+        /** CursorPage[AdminUserResponse] */
+        "CursorPage_src.api.schemas.admin.AdminUserResponse_": {
+            items: components["schemas"]["AdminUserResponse"][];
+            limit: number;
+            has_more: boolean;
+            next_cursor?: string | null;
+        };
+        /** CursorPage[PaymentResponse] */
+        "CursorPage_src.api.schemas.billing.PaymentResponse_": {
+            items: components["schemas"]["PaymentResponse"][];
+            limit: number;
+            has_more: boolean;
+            next_cursor?: string | null;
+        };
+        /** CursorPage[TransactionResponse] */
+        "CursorPage_src.api.schemas.billing.TransactionResponse_": {
+            items: components["schemas"]["TransactionResponse"][];
+            limit: number;
+            has_more: boolean;
+            next_cursor?: string | null;
+        };
+        /** CursorPage[GalleryGridItem] */
+        "CursorPage_src.api.schemas.gallery.GalleryGridItem_": {
+            items: components["schemas"]["GalleryGridItem"][];
+            limit: number;
+            has_more: boolean;
+            next_cursor?: string | null;
+        };
+        /** CursorPage[UnifiedJobResponse] */
+        "CursorPage_src.api.schemas.jobs.UnifiedJobResponse_": {
+            items: components["schemas"]["UnifiedJobResponse"][];
+            limit: number;
+            has_more: boolean;
+            next_cursor?: string | null;
+        };
+        /** CursorPage[ImageListItem] */
+        "CursorPage_src.api.schemas.storage.ImageListItem_": {
+            items: components["schemas"]["ImageListItem"][];
+            limit: number;
+            has_more: boolean;
+            next_cursor?: string | null;
+        };
+        /** CursorPage[OutputListItem] */
+        "CursorPage_src.api.schemas.storage.OutputListItem_": {
+            items: components["schemas"]["OutputListItem"][];
+            limit: number;
+            has_more: boolean;
+            next_cursor?: string | null;
+        };
         /** DeleteAccountResponse */
         DeleteAccountResponse: {
             message: string;
@@ -1146,6 +1270,76 @@ export interface components {
         ForgotPasswordRequest: {
             email: string;
         };
+        /**
+         * GalleryBadge
+         * @description Badge type for gallery grid — describes the input source.
+         * @enum {string}
+         */
+        GalleryBadge: "image" | "prompt";
+        /** GalleryGridItem */
+        GalleryGridItem: {
+            /** Format: uuid */
+            job_id: string;
+            cover_url: string;
+            video_url?: string | null;
+            badge: components["schemas"]["GalleryBadge"];
+            media_type: components["schemas"]["OutputMediaType"];
+            output_count: number;
+            generation_type: components["schemas"]["GenerationType"];
+            model?: string | null;
+            aspect_ratio?: string | null;
+            prompt_snippet: string;
+            /** Format: date-time */
+            created_at: string;
+        };
+        /** GalleryGroupDetail */
+        GalleryGroupDetail: {
+            /** Format: uuid */
+            job_id: string;
+            badge: components["schemas"]["GalleryBadge"];
+            input_image_url?: string | null;
+            prompt: string;
+            negative_prompt?: string | null;
+            outputs: components["schemas"]["GalleryOutputItem"][];
+            media_type: components["schemas"]["OutputMediaType"];
+            model?: string | null;
+            provider: string;
+            generation_type: components["schemas"]["GenerationType"];
+            aspect_ratio?: string | null;
+            token_cost?: number | null;
+            /** Format: date-time */
+            created_at: string;
+            completed_at?: string | null;
+            lineage?: components["schemas"]["GalleryLineage"] | null;
+        };
+        /** GalleryLineage */
+        GalleryLineage: {
+            source_type: components["schemas"]["GallerySourceType"];
+            source_upload_id?: string | null;
+            source_job_id?: string | null;
+            source_job_name?: string | null;
+            source_output_id?: string | null;
+        };
+        /** GalleryOutputItem */
+        GalleryOutputItem: {
+            /** Format: uuid */
+            id: string;
+            url: string;
+            thumbnail_url?: string | null;
+            content_type: string;
+            media_type: components["schemas"]["OutputMediaType"];
+            format: string;
+            size_bytes: number;
+            output_index: number;
+            /** Format: date-time */
+            created_at: string;
+        };
+        /**
+         * GallerySourceType
+         * @description Type of input source for lineage display.
+         * @enum {string}
+         */
+        GallerySourceType: "upload" | "generation";
         /** GenerationModelResponse */
         GenerationModelResponse: {
             model_key: string;
@@ -1328,69 +1522,12 @@ export interface components {
             /** Format: date-time */
             expires_at: string;
         };
-        /** PaginatedResponse[AdminOrgResponse] */
-        "PaginatedResponse_src.api.schemas.admin.AdminOrgResponse_": {
-            items: components["schemas"]["AdminOrgResponse"][];
-            total: number;
-            limit: number;
-            offset: number;
-            has_more: boolean;
-            next_cursor?: string | null;
-        };
-        /** PaginatedResponse[AdminUserResponse] */
-        "PaginatedResponse_src.api.schemas.admin.AdminUserResponse_": {
-            items: components["schemas"]["AdminUserResponse"][];
-            total: number;
-            limit: number;
-            offset: number;
-            has_more: boolean;
-            next_cursor?: string | null;
-        };
-        /** PaginatedResponse[PaymentResponse] */
-        "PaginatedResponse_src.api.schemas.billing.PaymentResponse_": {
-            items: components["schemas"]["PaymentResponse"][];
-            total: number;
-            limit: number;
-            offset: number;
-            has_more: boolean;
-            next_cursor?: string | null;
-        };
-        /** PaginatedResponse[TransactionResponse] */
-        "PaginatedResponse_src.api.schemas.billing.TransactionResponse_": {
-            items: components["schemas"]["TransactionResponse"][];
-            total: number;
-            limit: number;
-            offset: number;
-            has_more: boolean;
-            next_cursor?: string | null;
-        };
-        /** PaginatedResponse[UnifiedJobResponse] */
-        "PaginatedResponse_src.api.schemas.jobs.UnifiedJobResponse_": {
-            items: components["schemas"]["UnifiedJobResponse"][];
-            total: number;
-            limit: number;
-            offset: number;
-            has_more: boolean;
-            next_cursor?: string | null;
-        };
-        /** PaginatedResponse[ImageListItem] */
-        "PaginatedResponse_src.api.schemas.storage.ImageListItem_": {
-            items: components["schemas"]["ImageListItem"][];
-            total: number;
-            limit: number;
-            offset: number;
-            has_more: boolean;
-            next_cursor?: string | null;
-        };
-        /** PaginatedResponse[OutputListItem] */
-        "PaginatedResponse_src.api.schemas.storage.OutputListItem_": {
-            items: components["schemas"]["OutputListItem"][];
-            total: number;
-            limit: number;
-            offset: number;
-            has_more: boolean;
-            next_cursor?: string | null;
-        };
+        /**
+         * OutputMediaType
+         * @description Media type classification for gallery filtering.
+         * @enum {string}
+         */
+        OutputMediaType: "image" | "video";
         /** PatchPricingRuleRequest */
         PatchPricingRuleRequest: {
             token_cost?: number | null;
@@ -1559,6 +1696,7 @@ export interface components {
             generation_type: components["schemas"]["GenerationType"];
             model: components["schemas"]["ModelType"];
             input_image_id?: string | null;
+            source_output_id?: string | null;
             input_video_url?: string | null;
             negative_prompt?: string | null;
             aspect_ratio?: components["schemas"]["AspectRatio"];
@@ -2287,7 +2425,6 @@ export interface operations {
         parameters: {
             query?: {
                 limit?: number;
-                offset?: number;
                 type?: string | null;
                 cursor?: string | null;
             };
@@ -2303,7 +2440,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PaginatedResponse_src.api.schemas.billing.TransactionResponse_"];
+                    "application/json": components["schemas"]["CursorPage_src.api.schemas.billing.TransactionResponse_"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -3021,8 +3158,8 @@ export interface operations {
         parameters: {
             query?: {
                 limit?: number;
-                offset?: number;
                 type?: string | null;
+                cursor?: string | null;
             };
             header?: never;
             path: {
@@ -3038,7 +3175,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PaginatedResponse_src.api.schemas.billing.TransactionResponse_"];
+                    "application/json": components["schemas"]["CursorPage_src.api.schemas.billing.TransactionResponse_"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -3211,7 +3348,7 @@ export interface operations {
             query?: {
                 is_active?: boolean | null;
                 limit?: number;
-                offset?: number;
+                cursor?: string | null;
             };
             header?: never;
             path?: never;
@@ -3225,7 +3362,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PaginatedResponse_src.api.schemas.admin.AdminOrgResponse_"];
+                    "application/json": components["schemas"]["CursorPage_src.api.schemas.admin.AdminOrgResponse_"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -3251,7 +3388,7 @@ export interface operations {
                 status?: string | null;
                 payment_provider?: string | null;
                 limit?: number;
-                offset?: number;
+                cursor?: string | null;
             };
             header?: never;
             path?: never;
@@ -3265,7 +3402,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PaginatedResponse_src.api.schemas.billing.PaymentResponse_"];
+                    "application/json": components["schemas"]["CursorPage_src.api.schemas.billing.PaymentResponse_"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -3292,7 +3429,7 @@ export interface operations {
                 role?: string | null;
                 email?: string | null;
                 limit?: number;
-                offset?: number;
+                cursor?: string | null;
             };
             header?: never;
             path?: never;
@@ -3306,7 +3443,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PaginatedResponse_src.api.schemas.admin.AdminUserResponse_"];
+                    "application/json": components["schemas"]["CursorPage_src.api.schemas.admin.AdminUserResponse_"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -3735,7 +3872,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PaginatedResponse_src.api.schemas.storage.OutputListItem_"] | components["schemas"]["ErrorEnvelope"];
+                    "application/json": components["schemas"]["CursorPage_src.api.schemas.storage.OutputListItem_"] | components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -3759,7 +3896,6 @@ export interface operations {
         parameters: {
             query?: {
                 limit?: number;
-                offset?: number;
                 cursor?: string | null;
             };
             header?: never;
@@ -3774,7 +3910,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PaginatedResponse_src.api.schemas.storage.OutputListItem_"];
+                    "application/json": components["schemas"]["CursorPage_src.api.schemas.storage.OutputListItem_"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -3798,7 +3934,6 @@ export interface operations {
         parameters: {
             query?: {
                 limit?: number;
-                offset?: number;
                 cursor?: string | null;
             };
             header?: never;
@@ -3813,7 +3948,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PaginatedResponse_src.api.schemas.storage.ImageListItem_"];
+                    "application/json": components["schemas"]["CursorPage_src.api.schemas.storage.ImageListItem_"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -3954,7 +4089,6 @@ export interface operations {
                 provider?: string | null;
                 generation_type?: components["schemas"]["GenerationType"] | null;
                 limit?: number;
-                offset?: number;
                 cursor?: string | null;
             };
             header?: never;
@@ -3969,7 +4103,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PaginatedResponse_src.api.schemas.jobs.UnifiedJobResponse_"];
+                    "application/json": components["schemas"]["CursorPage_src.api.schemas.jobs.UnifiedJobResponse_"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -4016,6 +4150,158 @@ export interface operations {
             };
             header?: never;
             path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1GalleryJobIdGetGalleryDetail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GalleryGroupDetail"] | components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1GalleryListGallery: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursor?: string | null;
+                media_type?: components["schemas"]["OutputMediaType"] | null;
+                generation_type?: components["schemas"]["GenerationType"] | null;
+                model?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CursorPage_src.api.schemas.gallery.GalleryGridItem_"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1ContentOutputsOutputIdProxyOutput: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                output_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1ContentUploadsImageIdProxyUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                image_id: string;
+            };
             cookie?: never;
         };
         requestBody?: never;
