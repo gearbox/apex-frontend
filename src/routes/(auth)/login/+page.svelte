@@ -34,13 +34,13 @@
 </script>
 
 <svelte:head>
-  <title>Login — Apex</title>
+  <title>Login — Vex.pics</title>
 </svelte:head>
 
 <div class="flex min-h-dvh items-center justify-center bg-bg px-4">
   <div class="w-full max-w-sm">
     <div class="mb-8 text-center">
-      <h1 class="text-2xl font-bold text-accent">apex</h1>
+      <h1 class="text-2xl font-bold text-accent">Vex.pics</h1>
       <p class="mt-2 text-sm text-text-muted">{m.auth_login_subtitle()}</p>
     </div>
 

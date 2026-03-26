@@ -57,7 +57,7 @@
 </script>
 
 <svelte:head>
-  <title>Sign Up — {$productInfo?.display_name ?? 'Apex'}</title>
+  <title>Sign Up — {$productInfo?.display_name ?? 'Vex.pics'}</title>
 </svelte:head>
 
 {#if showAgeGate}
@@ -69,7 +69,7 @@
   <div class="flex min-h-dvh items-center justify-center bg-bg px-4">
     <div class="w-full max-w-sm">
       <div class="mb-8 text-center">
-        <h1 class="text-2xl font-bold text-accent">{$productInfo?.display_name ?? 'apex'}</h1>
+        <h1 class="text-2xl font-bold text-accent">{$productInfo?.display_name ?? 'Vex.pics'}</h1>
         <p class="mt-2 text-sm text-text-muted">{m.auth_register_title()}</p>
       </div>
 
