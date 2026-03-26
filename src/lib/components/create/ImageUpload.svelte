@@ -6,6 +6,7 @@
   import ImagePickerModal from './ImagePickerModal.svelte';
   import type { ImagePickerSelection } from './ImagePickerModal.svelte';
   import AuthImage from '$lib/components/ui/AuthImage.svelte';
+  import { uploadImage } from '$lib/api/upload';
 
   const MAX_SIZE_BYTES = 20 * 1024 * 1024; // 20 MB
   const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
@@ -19,6 +20,20 @@
   let pickerSelection = $state<{ previewUrl: string; label: string } | null>(null);
 
   let fileInput: HTMLInputElement;
+
+  // Sync external selections (from Lightbox Remix, ResultsPanel "Use as input")
+  $effect(() => {
+    const storeState = $generationStore;
+    if (storeState.sourceOutputId && storeState.selectedImagePreviewUrl && !pickerSelection) {
+      pickerSelection = {
+        previewUrl: storeState.selectedImagePreviewUrl,
+        label: 'From generated',
+      };
+    }
+    if (!storeState.sourceOutputId && !storeState.uploadedImageId && pickerSelection) {
+      pickerSelection = null;
+    }
+  });
 
   function validateFile(file: File): string | null {
     if (!ACCEPTED_TYPES.includes(file.type)) {
@@ -43,25 +58,11 @@
     fileSize = file.size;
 
     try {
-      const formData = new FormData();
-      formData.append('data', file);
-
-      const res = await fetch(`${(await import('$lib/utils/constants')).API_BASE_URL}/v1/storage/upload`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${(await import('$lib/stores/auth')).getAccessToken()}`,
-        },
-        body: formData,
-      });
-
-      if (!res.ok) {
-        throw new Error(`Upload failed (${res.status})`);
-      }
-
-      const data = await res.json() as { id: string };
-      generationStore.setUploadedImageId(data.id);
-    } catch {
-      addToast({ type: 'error', message: 'Upload failed. Please try again.' });
+      const result = await uploadImage(file);
+      generationStore.setUploadedImageId(result.id);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Upload failed. Please try again.';
+      addToast({ type: 'error', message });
       clearUpload();
     } finally {
       uploading = false;

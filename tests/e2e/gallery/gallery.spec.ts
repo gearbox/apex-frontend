@@ -96,6 +96,117 @@ const mockDetailWithLineage = {
   },
 };
 
+const mockProvidersResponse = {
+  providers: [
+    {
+      provider: 'grok',
+      name: 'Grok',
+      available: true,
+      models: [
+        {
+          model_key: 'grok-imagine-image',
+          name: 'Grok Image',
+          description: 'Image generation model',
+          capabilities: ['t2i', 'i2i'],
+          is_enabled: true,
+          max_images: 4,
+          max_prompt_length: 4096,
+          supports_negative_prompt: true,
+          aspect_ratios: ['1:1', '16:9', '3:4'],
+          image: null,
+          video: null,
+        },
+      ],
+    },
+  ],
+  user_context: null,
+};
+
+test.describe('Lightbox Remix', () => {
+  test.beforeEach(async ({ authenticatedPage: page }) => {
+    await page.route('**/v1/content/**', (route) =>
+      route.fulfill({ status: 200, contentType: 'image/jpeg', body: Buffer.from('fake') }),
+    );
+  });
+
+  test('8. Remix button navigates to Create page with I2I mode and source image', async ({
+    authenticatedPage: page,
+  }) => {
+    await page.route((url) => url.pathname === '/v1/gallery', jsonRoute(mockGalleryPage));
+    await page.route('**/v1/gallery/job_001', jsonRoute(mockGalleryDetail));
+    await page.route('**/v1/providers', jsonRoute(mockProvidersResponse));
+    await page.route('**/v1/billing/balance', jsonRoute({ account_id: 'acc_001', account_type: 'personal', balance: 1000 }));
+    await page.route('**/v1/billing/pricing', jsonRoute([]));
+
+    await page.goto('/app/gallery');
+    await expect(page.getByText(/loaded/i)).toBeVisible({ timeout: 5000 });
+
+    // Open lightbox
+    await page.locator('[class*="grid"]').locator('button, [role="button"]').first().click();
+    await expect(
+      page.getByText('A beautiful sunset over mountains with golden light').first(),
+    ).toBeVisible({ timeout: 3000 });
+
+    // Click Re-Generate button
+    await page.getByRole('button', { name: /Re-Generate/i }).click();
+
+    // Should navigate to Create page
+    await expect(page).toHaveURL(/\/app\/create/, { timeout: 5000 });
+
+    // Prompt should be pre-filled
+    const promptTextarea = page.locator('textarea').first();
+    await expect(promptTextarea).toHaveValue(
+      /A beautiful sunset over mountains with golden light/i,
+      { timeout: 3000 },
+    );
+
+    // Mode should be I2I — ImageUpload component should be visible
+    await expect(page.getByText(/Source Image/i)).toBeVisible();
+
+    // The selected image preview should show "From generated"
+    await expect(page.getByText('From generated')).toBeVisible();
+  });
+
+  test('9. Re-Generate button shown for video outputs (T2I fallback)', async ({ authenticatedPage: page }) => {
+    const videoDetail = {
+      ...mockGalleryDetail,
+      job_id: 'job_003',
+      media_type: 'video',
+      generation_type: 't2v',
+      outputs: [
+        {
+          id: 'vid_001',
+          url: '/v1/content/outputs/vid_001',
+          thumbnail_url: null,
+          content_type: 'video/mp4',
+          media_type: 'video',
+          format: 'mp4',
+          size_bytes: 5000000,
+          output_index: 0,
+          created_at: '2025-01-01T00:01:00Z',
+        },
+      ],
+    };
+
+    await page.route((url) => url.pathname === '/v1/gallery', jsonRoute({
+      items: [mockGalleryItems[2]],
+      limit: 20,
+      has_more: false,
+      next_cursor: null,
+    }));
+    await page.route('**/v1/gallery/job_003', jsonRoute(videoDetail));
+
+    await page.goto('/app/gallery');
+    await expect(page.getByText(/loaded/i)).toBeVisible({ timeout: 5000 });
+
+    await page.locator('[class*="grid"]').locator('button, [role="button"]').first().click();
+    await page.waitForTimeout(1000);
+
+    // Re-Generate button IS visible for video (falls back to T2I regenerate)
+    await expect(page.getByRole('button', { name: /Re-Generate/i })).toBeVisible();
+  });
+});
+
 test.describe('Gallery page', () => {
   test.beforeEach(async ({ authenticatedPage: page }) => {
     // Content proxy URLs return placeholder images

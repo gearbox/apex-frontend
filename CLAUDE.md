@@ -33,6 +33,7 @@ src/
 │   ├── api/
 │   │   ├── client.ts              # openapi-fetch instance + auth interceptor
 │   │   ├── auth.ts                # JWT token management, refresh rotation
+│   │   ├── upload.ts              # uploadImage() — multipart upload wrapper (raw fetch, static auth)
 │   │   ├── types.ts               # Generated from backend OpenAPI schema
 │   │   └── schema.json            # Exported OpenAPI schema (source of truth)
 │   ├── stores/
@@ -286,6 +287,33 @@ Cursor-based: `{ items, limit, has_more, next_cursor }` — no `total` field.
 ### Query Layer
 
 `src/lib/queries/gallery.ts` exports `galleryKeys`, `galleryListInfiniteQueryOptions(params)`, and `galleryDetailQueryOptions(jobId)`.
+
+---
+
+## Re-Generate Workflow
+
+Users can re-use a generated image as the source for a new I2I generation via two entry points:
+
+### Lightbox — Re-Generate Button
+
+The Lightbox metadata panel has a single accent-styled **Re-Generate** button (replaces the old separate Remix + Re-generate pair). Clicking it calls `handleRemix`, which:
+
+- **Image outputs**: calls `generationStore.prefill(...)` with the original prompt, model, aspect ratio, and negative prompt in `i2i` mode, then calls `generationStore.setSourceOutputId(output.id, output.url)` *after* prefill (prefill would otherwise reset image source fields). Navigates to `/app/create` with the image pre-loaded in I2I mode.
+- **Video outputs**: falls back to `handleRegenerate` — copies prompt + model only and navigates to `/app/create` in T2I mode.
+
+The button is always visible regardless of output type.
+
+### ResultsPanel — "Use as I2I input" Hover Action
+
+Each image output thumbnail in the ResultsPanel has a third hover action button (Repeat2 icon) that:
+1. Calls `generationStore.setMode('i2i')`
+2. Calls `generationStore.setSourceOutputId(output.id, output.url)`
+
+The user stays on the Create page; the mode switches to I2I and the image appears in the upload zone.
+
+### ImageUpload — External Source Sync
+
+`ImageUpload.svelte` uses a `$effect` to watch `$generationStore.sourceOutputId`. When it is set externally (by the Lightbox Re-Generate or ResultsPanel "Use as input"), the component updates its local `pickerSelection` state to show the "From generated" preview strip. This keeps the component reactive to store changes without prop threading.
 
 ---
 

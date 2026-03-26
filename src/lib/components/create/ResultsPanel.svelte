@@ -1,11 +1,12 @@
 <script lang="ts">
   import { generationStore } from '$lib/stores/generation';
   import { timeAgo } from '$lib/utils/format';
-  import { Download, RefreshCw, Play } from 'lucide-svelte';
+  import { Download, RefreshCw, Play, Repeat2 } from 'lucide-svelte';
   import type { components } from '$lib/api/types';
 
   type UnifiedJobResponse = components['schemas']['UnifiedJobResponse'];
   type ModelType = components['schemas']['ModelType'];
+  type JobOutputItem = components['schemas']['JobOutputItem'];
 
   let { showSkeleton = false }: { showSkeleton?: boolean } = $props();
 
@@ -19,6 +20,12 @@
       prompt: completedJob.prompt,
       model: (completedJob.model ?? 'grok-imagine-image') as ModelType,
     });
+  }
+
+  function handleUseAsInput(output: JobOutputItem) {
+    if (!job) return;
+    generationStore.setMode('i2i');
+    generationStore.setSourceOutputId(output.id, output.url);
   }
 </script>
 
@@ -85,9 +92,18 @@
               <button
                 onclick={() => handleRegenerate(job)}
                 class="flex h-7 w-7 items-center justify-center rounded-lg bg-white/20 text-white backdrop-blur-sm hover:bg-white/30 transition-colors"
-                aria-label="Re-generate"
+                aria-label="Re-generate with same prompt"
               >
                 <RefreshCw size={13} />
+              </button>
+            {/if}
+            {#if output.content_type.startsWith('image/')}
+              <button
+                onclick={() => handleUseAsInput(output)}
+                class="flex h-7 w-7 items-center justify-center rounded-lg bg-white/20 text-white backdrop-blur-sm hover:bg-white/30 transition-colors"
+                aria-label="Use as I2I input"
+              >
+                <Repeat2 size={13} />
               </button>
             {/if}
           </div>

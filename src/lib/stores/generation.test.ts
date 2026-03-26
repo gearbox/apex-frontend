@@ -68,3 +68,38 @@ describe('generationStore — prefill', () => {
     expect(state.sourceOutputId).toBe('output_002');
   });
 });
+
+describe('generationStore — remix flow', () => {
+  it('prefill then setSourceOutputId simulates Lightbox remix', () => {
+    // Simulate: Lightbox calls prefill (resets images), then setSourceOutputId
+    generationStore.prefill({
+      prompt: 'remix prompt',
+      mode: 'i2i',
+    });
+
+    let state = get(generationStore);
+    expect(state.prompt).toBe('remix prompt');
+    expect(state.mode).toBe('i2i');
+    expect(state.sourceOutputId).toBeNull(); // prefill cleared it
+
+    generationStore.setSourceOutputId('out_001', '/v1/content/outputs/out_001');
+
+    state = get(generationStore);
+    expect(state.sourceOutputId).toBe('out_001');
+    expect(state.selectedImagePreviewUrl).toBe('/v1/content/outputs/out_001');
+    expect(state.uploadedImageId).toBeNull();
+    expect(state.prompt).toBe('remix prompt'); // prompt preserved
+    expect(state.mode).toBe('i2i'); // mode preserved
+  });
+
+  it('setMode + setSourceOutputId simulates ResultsPanel use-as-input', () => {
+    generationStore.setMode('i2i');
+    generationStore.setSourceOutputId('out_002', '/v1/content/outputs/out_002');
+
+    const state = get(generationStore);
+    expect(state.mode).toBe('i2i');
+    expect(state.sourceOutputId).toBe('out_002');
+    expect(state.selectedImagePreviewUrl).toBe('/v1/content/outputs/out_002');
+    expect(state.uploadedImageId).toBeNull();
+  });
+});

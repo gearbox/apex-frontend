@@ -5,15 +5,17 @@
   import { generationStore } from '$lib/stores/generation';
   import { timeAgo } from '$lib/utils/format';
   import { API_BASE_URL } from '$lib/utils/constants';
-  import { X, Download, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-svelte';
+  import { X, Download, ChevronLeft, ChevronRight, Repeat2 } from 'lucide-svelte';
   import { galleryDetailQueryOptions } from '$lib/queries/gallery';
   import { getAccessToken } from '$lib/stores/auth';
   import AuthImage from '$lib/components/ui/AuthImage.svelte';
   import AuthVideo from '$lib/components/ui/AuthVideo.svelte';
   import type { components } from '$lib/api/types';
+  import type { GenerationMode } from '$lib/stores/generation';
 
   type GalleryGridItem = components['schemas']['GalleryGridItem'];
   type ModelType = components['schemas']['ModelType'];
+  type AspectRatio = components['schemas']['AspectRatio'];
 
   let {
     item,
@@ -70,6 +72,33 @@
       prompt: detail.prompt,
       model: (detail.model ?? 'grok-imagine-image') as ModelType,
     });
+    goto('/app/create');
+    onclose();
+  }
+
+  function handleRemix() {
+    if (!detailQuery.data) return;
+    const detail = detailQuery.data;
+
+    const output = detail.outputs[selectedOutputIndex] ?? detail.outputs[0];
+    if (!output) return;
+
+    if (output.media_type !== 'image') {
+      handleRegenerate();
+      return;
+    }
+
+    generationStore.prefill({
+      prompt: detail.prompt,
+      negativePrompt: detail.negative_prompt ?? undefined,
+      model: (detail.model ?? 'grok-imagine-image') as ModelType,
+      mode: 'i2i' as GenerationMode,
+      aspectRatio: (detail.aspect_ratio ?? '1:1') as AspectRatio,
+    });
+
+    // Must happen AFTER prefill — prefill resets image source fields
+    generationStore.setSourceOutputId(output.id, output.url);
+
     goto('/app/create');
     onclose();
   }
@@ -229,11 +258,12 @@
               {downloading ? 'Downloading…' : 'Download'}
             </button>
           {/if}
+
           <button
-            onclick={handleRegenerate}
-            class="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-2 text-xs font-medium text-text transition-colors hover:bg-surface-hover"
+            onclick={handleRemix}
+            class="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-accent/15 px-3 py-2 text-xs font-semibold text-accent transition-colors hover:bg-accent/25"
           >
-            <RefreshCw size={13} /> Re-generate
+            <Repeat2 size={13} /> Re-Generate
           </button>
         </div>
 
