@@ -42,8 +42,7 @@ export function jobsListQueryOptions(filters: JobListFilters) {
         const items = results
           .flatMap((r) => r.data!.items)
           .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-        const total = results.reduce((sum, r) => sum + r.data!.total, 0);
-        return { items, total, has_more: false, next_cursor: null };
+        return { items, limit: filters.limit ?? 20, has_more: false, next_cursor: null };
       }
 
       const singleType = Array.isArray(types) ? types[0] ?? null : types;

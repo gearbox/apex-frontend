@@ -8,24 +8,23 @@
 
   type UnifiedJobResponse = components['schemas']['UnifiedJobResponse'];
 
-  let { job, onDelete }: { job: UnifiedJobResponse; onDelete?: (id: string) => void } = $props();
-
-  let menuOpen = $state(false);
-
-  function handleWindowPointerDown(e: PointerEvent) {
-    if (!menuOpen) return;
-    const target = e.target as HTMLElement;
-    if (!target.closest('[data-menu]')) {
-      menuOpen = false;
-    }
-  }
+  let {
+    job,
+    onDelete,
+    menuOpen = false,
+    onMenuToggle,
+  }: {
+    job: UnifiedJobResponse;
+    onDelete?: (id: string) => void;
+    menuOpen?: boolean;
+    onMenuToggle?: (id: string | null) => void;
+  } = $props();
 </script>
-
-<svelte:window onpointerdown={handleWindowPointerDown} />
 
 <a
   href="/app/jobs/{job.id}"
   class="relative flex items-center gap-3 rounded-xl border border-border bg-surface p-3 text-left transition-colors hover:border-border-active hover:bg-surface-hover"
+  class:z-20={menuOpen}
 >
   {#if job.status === 'running'}
     <div class="absolute bottom-0 left-0 h-0.5 w-full animate-pulse rounded-full bg-accent"></div>
@@ -60,7 +59,7 @@
   <!-- Actions menu -->
   <div class="relative z-10" data-menu>
     <button
-      onclick={(e) => { e.preventDefault(); e.stopPropagation(); menuOpen = !menuOpen; }}
+      onclick={(e) => { e.preventDefault(); e.stopPropagation(); onMenuToggle?.(menuOpen ? null : job.id); }}
       class="flex h-7 w-7 items-center justify-center rounded-lg text-text-dim transition-colors hover:bg-surface-hover hover:text-text"
       aria-label="Job actions"
     >
@@ -72,14 +71,14 @@
         data-menu
       >
         <button
-          onclick={(e) => { e.preventDefault(); menuOpen = false; goto('/app/jobs/' + job.id); }}
+          onclick={(e) => { e.preventDefault(); onMenuToggle?.(null); goto('/app/jobs/' + job.id); }}
           class="w-full px-3 py-2 text-left text-sm text-text hover:bg-surface-hover"
         >
           View details
         </button>
         {#if onDelete}
           <button
-            onclick={(e) => { e.preventDefault(); menuOpen = false; onDelete!(job.id); }}
+            onclick={(e) => { e.preventDefault(); onMenuToggle?.(null); onDelete!(job.id); }}
             class="w-full px-3 py-2 text-left text-sm text-danger hover:bg-danger/10"
           >
             Delete

@@ -17,8 +17,15 @@
 
   // ── Filter + pagination state
   let filters = $state<JobListFilters>({ limit: 20 });
+  let openMenuJobId = $state<string | null>(null);
+
+  function handleWindowPointerDown(e: PointerEvent) {
+    if (!openMenuJobId) return;
+    if (!(e.target as HTMLElement).closest('[data-menu]')) {
+      openMenuJobId = null;
+    }
+  }
   let accumulatedItems = $state<UnifiedJobResponse[]>([]);
-  let total = $state(0);
   let nextCursor = $state<string | null>(null);
   let loadingMore = $state(false);
 
@@ -41,7 +48,6 @@
     } else {
       accumulatedItems = [...accumulatedItems, ...data.items];
     }
-    total = data.total;
     nextCursor = data.next_cursor ?? null;
     loadingMore = false;
   });
@@ -52,7 +58,6 @@
   function handleDelete(jobId: string) {
     // Optimistic removal
     accumulatedItems = accumulatedItems.filter((j) => j.id !== jobId);
-    total = Math.max(0, total - 1);
     deleteMutation.mutate(jobId);
   }
 
@@ -67,6 +72,8 @@
     filters = { ...filters, cursor: nextCursor };
   }
 </script>
+
+<svelte:window onpointerdown={handleWindowPointerDown} />
 
 <svelte:head>
   <title>Jobs — Apex</title>
@@ -127,7 +134,7 @@
     <!-- Job list -->
     <div class="flex flex-col gap-2">
       {#each accumulatedItems as job (job.id)}
-        <JobCard {job} onDelete={handleDelete} />
+        <JobCard {job} onDelete={handleDelete} menuOpen={openMenuJobId === job.id} onMenuToggle={(id) => (openMenuJobId = id)} />
       {/each}
     </div>
 
