@@ -7,6 +7,10 @@
   import type { ImagePickerSelection } from './ImagePickerModal.svelte';
   import AuthImage from '$lib/components/ui/AuthImage.svelte';
   import { uploadImage } from '$lib/api/upload';
+  import { useQueryClient } from '@tanstack/svelte-query';
+  import { storageKeys } from '$lib/queries/storage';
+
+  const queryClient = useQueryClient();
 
   const MAX_SIZE_BYTES = 20 * 1024 * 1024; // 20 MB
   const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
@@ -60,6 +64,7 @@
     try {
       const result = await uploadImage(file);
       generationStore.setUploadedImageId(result.id);
+      queryClient.invalidateQueries({ queryKey: storageKeys.uploads() });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Upload failed. Please try again.';
       addToast({ type: 'error', message });
