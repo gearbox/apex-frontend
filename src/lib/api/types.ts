@@ -1737,6 +1737,11 @@ export interface components {
             email?: string | null;
             locale?: components["schemas"]["SupportedLocale"] | null;
         };
+        /** UploadForm */
+        UploadForm: {
+            /** Format: binary */
+            data: string;
+        };
         /** UploadResponse */
         UploadResponse: {
             id: string;
@@ -3977,10 +3982,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "multipart/form-data": {
-                    /** Format: binary */
-                    file?: string;
-                };
+                "multipart/form-data": components["schemas"]["UploadForm"];
             };
         };
         responses: {
