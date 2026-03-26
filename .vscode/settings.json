@@ -18,5 +18,6 @@
   "files.associations": {
     "*.svelte": "svelte"
   },
-  "tailwindCSS.lint.cssConflict": "ignore"
+  "tailwindCSS.lint.cssConflict": "ignore",
+  "css.lint.unknownAtRules": "ignore"
 }

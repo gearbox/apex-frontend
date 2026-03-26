@@ -2,7 +2,10 @@
   import { generationStore } from '$lib/stores/generation';
   import { addToast } from '$lib/stores/toasts';
   import { formatFileSize } from '$lib/utils/format';
-  import { X, ImageIcon } from 'lucide-svelte';
+  import { X, ImageIcon, GalleryHorizontalEnd } from 'lucide-svelte';
+  import ImagePickerModal from './ImagePickerModal.svelte';
+  import type { ImagePickerSelection } from './ImagePickerModal.svelte';
+  import AuthImage from '$lib/components/ui/AuthImage.svelte';
 
   const MAX_SIZE_BYTES = 20 * 1024 * 1024; // 20 MB
   const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
@@ -12,6 +15,8 @@
   let previewUrl = $state<string | null>(null);
   let fileName = $state<string | null>(null);
   let fileSize = $state<number | null>(null);
+  let pickerOpen = $state(false);
+  let pickerSelection = $state<{ previewUrl: string; label: string } | null>(null);
 
   let fileInput: HTMLInputElement;
 
@@ -68,8 +73,15 @@
     previewUrl = null;
     fileName = null;
     fileSize = null;
+    pickerSelection = null;
     generationStore.setUploadedImageId(null);
     if (fileInput) fileInput.value = '';
+  }
+
+  function clearSelection() {
+    pickerSelection = null;
+    clearUpload();
+    generationStore.setSourceOutputId(null);
   }
 
   function handleDrop(e: DragEvent) {
@@ -82,12 +94,60 @@
     const file = (e.target as HTMLInputElement).files?.[0];
     if (file) uploadFile(file);
   }
+
+  function handlePickerSelect(selection: ImagePickerSelection) {
+    pickerOpen = false;
+
+    // Clear any previous file upload state
+    if (previewUrl && !pickerSelection) URL.revokeObjectURL(previewUrl);
+    previewUrl = null;
+    fileName = null;
+    fileSize = null;
+    if (fileInput) fileInput.value = '';
+
+    if (selection.source === 'upload') {
+      generationStore.setUploadedImageId(selection.id);
+      pickerSelection = {
+        previewUrl: selection.previewUrl,
+        label: 'From uploads',
+      };
+    } else {
+      generationStore.setSourceOutputId(selection.id, selection.previewUrl);
+      pickerSelection = {
+        previewUrl: selection.previewUrl,
+        label: 'From generated',
+      };
+
+      if (selection.prompt) {
+        generationStore.setPrompt(selection.prompt);
+      }
+    }
+  }
 </script>
 
 <div class="flex flex-col gap-2">
   <span class="text-[11px] font-semibold uppercase tracking-wider text-text-muted">Source Image</span>
 
-  {#if previewUrl}
+  {#if pickerSelection}
+    <!-- Picker selection preview -->
+    <div class="relative flex items-center gap-3 rounded-2.5 border border-border bg-surface p-3">
+      <AuthImage
+        src={pickerSelection.previewUrl}
+        alt="Selected"
+        class="h-14 w-14 rounded-lg object-cover"
+      />
+      <div class="min-w-0 flex-1">
+        <p class="truncate text-xs font-medium text-text">{pickerSelection.label}</p>
+      </div>
+      <button
+        onclick={clearSelection}
+        class="shrink-0 rounded-md p-1 text-text-muted transition-colors hover:text-text"
+        aria-label="Remove image"
+      >
+        <X size={14} />
+      </button>
+    </div>
+  {:else if previewUrl}
     <div class="relative flex items-center gap-3 rounded-2.5 border border-border bg-surface p-3">
       <img src={previewUrl} alt="Preview" class="h-14 w-14 rounded-lg object-cover" />
       <div class="min-w-0 flex-1">
@@ -124,6 +184,16 @@
         <p class="text-[11px] text-text-dim">PNG, JPEG, WebP · Max 20 MB</p>
       </div>
     </button>
+
+    <!-- Choose from library -->
+    <button
+      type="button"
+      class="flex w-full items-center justify-center gap-2 rounded-xl border border-border px-3 py-2.5 text-xs font-medium text-text-muted transition-colors hover:border-border-active hover:text-text"
+      onclick={() => (pickerOpen = true)}
+    >
+      <GalleryHorizontalEnd size={14} />
+      Choose from library
+    </button>
   {/if}
 
   <input
@@ -134,3 +204,11 @@
     onchange={handleFileChange}
   />
 </div>
+
+{#if pickerOpen}
+  <ImagePickerModal
+    open={pickerOpen}
+    onclose={() => (pickerOpen = false)}
+    onselect={handlePickerSelect}
+  />
+{/if}

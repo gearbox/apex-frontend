@@ -119,8 +119,12 @@
 
     const state = $generationStore;
 
-    if ((state.mode === 'i2i' || state.mode === 'i2v' || state.mode === 'flf2v') && !state.uploadedImageId) {
-      addToast({ type: 'error', message: 'Please upload a source image first.' });
+    if (
+      (state.mode === 'i2i' || state.mode === 'i2v' || state.mode === 'flf2v') &&
+      !state.uploadedImageId &&
+      !state.sourceOutputId
+    ) {
+      addToast({ type: 'error', message: 'Please select or upload a source image first.' });
       return;
     }
 
@@ -133,6 +137,7 @@
           generation_type: state.mode,
           model: state.model,
           ...(state.uploadedImageId ? { input_image_id: state.uploadedImageId } : {}),
+          ...(state.sourceOutputId ? { source_output_id: state.sourceOutputId } : {}),
           aspect_ratio: state.aspectRatio,
           n: state.imageCount,
           duration: state.videoDuration,

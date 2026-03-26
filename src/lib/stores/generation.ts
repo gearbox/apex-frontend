@@ -16,7 +16,9 @@ export interface GenerationState {
   // Inputs
   prompt: string;
   negativePrompt: string;
-  uploadedImageId: string | null;
+  uploadedImageId: string | null; // from file upload → maps to input_image_id
+  sourceOutputId: string | null; // from gallery picker → maps to source_output_id
+  selectedImagePreviewUrl: string | null; // content proxy URL for picker preview display
 
   // Parameters
   aspectRatio: AspectRatio;
@@ -42,6 +44,8 @@ function createGenerationStore() {
     prompt: '',
     negativePrompt: DEFAULT_NEGATIVE_PROMPT,
     uploadedImageId: null,
+    sourceOutputId: null,
+    selectedImagePreviewUrl: null,
     aspectRatio: '3:4',
     imageCount: 1,
     videoDuration: 5,
@@ -74,7 +78,23 @@ function createGenerationStore() {
     },
 
     setUploadedImageId(id: string | null) {
-      update((s) => ({ ...s, uploadedImageId: id }));
+      update((s) => ({
+        ...s,
+        uploadedImageId: id,
+        // Clear sourceOutputId — mutually exclusive
+        sourceOutputId: id ? null : s.sourceOutputId,
+        selectedImagePreviewUrl: null,
+      }));
+    },
+
+    setSourceOutputId(id: string | null, previewUrl: string | null = null) {
+      update((s) => ({
+        ...s,
+        sourceOutputId: id,
+        // Clear uploadedImageId — mutually exclusive
+        uploadedImageId: id ? null : s.uploadedImageId,
+        selectedImagePreviewUrl: id ? previewUrl : null,
+      }));
     },
 
     setAspectRatio(aspectRatio: AspectRatio) {
@@ -119,7 +139,18 @@ function createGenerationStore() {
     },
 
     prefill(params: Partial<GenerationState>) {
-      update((s) => ({ ...s, ...params, activeJobId: null, jobStatus: null, completedJob: null }));
+      update((s) => ({
+        ...s,
+        ...params,
+        activeJobId: null,
+        jobStatus: null,
+        completedJob: null,
+        progress: null,
+        // Reset image source unless explicitly provided in params
+        ...(!params.uploadedImageId && !params.sourceOutputId
+          ? { uploadedImageId: null, sourceOutputId: null, selectedImagePreviewUrl: null }
+          : {}),
+      }));
     },
 
     reset() {

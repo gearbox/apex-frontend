@@ -1,22 +1,5 @@
 @import 'tailwindcss';
 
-/* ─── Google Fonts ─── */
-@font-face {
-  font-family: 'DM Sans';
-  font-style: normal;
-  font-weight: 100 1000;
-  font-display: swap;
-  src: url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap');
-}
-
-@font-face {
-  font-family: 'JetBrains Mono';
-  font-style: normal;
-  font-weight: 100 800;
-  font-display: swap;
-  src: url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@100..800&display=swap');
-}
-
 /* ─── Tailwind Theme Extension via CSS Variables ─── */
 /* @theme maps Tailwind utility names to runtime CSS vars set by the theme store.
    No fallback values here — Tailwind 4 would bake them in at build time, breaking

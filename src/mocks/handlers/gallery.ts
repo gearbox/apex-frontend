@@ -39,7 +39,21 @@ export const galleryHandlers = [
       );
     }
     if (mediaType === 'image') {
-      return HttpResponse.json(makeGalleryCursorPage(4));
+      // Mix t2i and i2i items; for i2i the backend sets cover_url to the source image
+      const t2iItems = makeGalleryCursorPage(3);
+      const i2iItems = makeGalleryCursorPage(1, {
+        job_id: 'job_mock_i2i',
+        cover_url: '/v1/content/uploads/upload_mock_001', // source image — backend bug
+        badge: 'image',
+        generation_type: 'i2i',
+        prompt_snippet: 'Stylised version of the source',
+      });
+      return HttpResponse.json({
+        items: [...t2iItems.items, ...i2iItems.items],
+        limit: 20,
+        has_more: false,
+        next_cursor: null,
+      });
     }
 
     return HttpResponse.json(baseItems);

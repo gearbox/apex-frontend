@@ -52,7 +52,9 @@ src/
 │   │   │   ├── TypeSelector.svelte
 │   │   │   ├── PromptInput.svelte
 │   │   │   ├── ParamsPanel.svelte
-│   │   │   ├── ImageUpload.svelte
+│   │   │   ├── ImageUpload.svelte    # Drag-drop upload + "Choose from library" trigger
+│   │   │   ├── ImagePickerModal.svelte # Library picker: bottom sheet (mobile) / modal (desktop)
+│   │   │   ├── GeneratedI2iOutputs.svelte # Expands i2i gallery items into individual selectable outputs
 │   │   │   ├── GenerateButton.svelte # Inline (desktop) or sticky bar (mobile)
 │   │   │   ├── ResultsPanel.svelte
 │   │   │   └── CostPreview.svelte
@@ -73,6 +75,7 @@ src/
 │   │       └── ProfileFields.svelte
 │   ├── queries/
 │   │   ├── gallery.ts                # galleryKeys, galleryListInfiniteQueryOptions, galleryDetailQueryOptions
+│   │   ├── storage.ts                # storageKeys, uploadsInfiniteQueryOptions
 │   │   └── admin.ts                  # Query key factory + query options for admin endpoints
 │   ├── themes/
 │   │   └── index.ts                  # Theme definitions + types
@@ -283,6 +286,51 @@ Cursor-based: `{ items, limit, has_more, next_cursor }` — no `total` field.
 ### Query Layer
 
 `src/lib/queries/gallery.ts` exports `galleryKeys`, `galleryListInfiniteQueryOptions(params)`, and `galleryDetailQueryOptions(jobId)`.
+
+---
+
+## Image Picker
+
+The Image Picker lets users select a previously uploaded or generated image as the source for I2I / I2V / FLF2V generations, eliminating the download/re-upload friction.
+
+### Entry Point
+
+Triggered from `ImageUpload.svelte` via a **"Choose from library"** button shown below the drag-drop zone when no image is selected. Opens as a bottom sheet on mobile (`< 768px`) or a centered modal on desktop (`≥ 768px`).
+
+### Tabs
+
+| Tab | Endpoint | Key field |
+|-----|----------|-----------|
+| **Uploads** | `GET /v1/storage/uploads` | `id` → `input_image_id` |
+| **Generated** | `GET /v1/gallery?media_type=image` | image output ID → `source_output_id` |
+
+### Generated Tab — i2i vs t2i distinction
+
+The Generated tab distinguishes between job badge types:
+
+- **`badge='image'` (i2i jobs)** — rendered via `GeneratedI2iOutputs.svelte`, which fetches the gallery detail and expands each individual image output as its own selectable thumbnail. Output ID is already known — no detail fetch on confirm.
+- **`badge='prompt'` (t2i jobs)** — shows `cover_url` directly. On confirm, fetches `GET /v1/gallery/{job_id}` to resolve the first image output ID.
+
+### Selection Behaviour
+
+The picker emits an `ImagePickerSelection` (`source: 'upload' | 'output'`, `id`, `previewUrl`, `prompt?`) to `ImageUpload.svelte`, which then updates the store:
+
+- **Upload selected** → calls `generationStore.setUploadedImageId(id)`, shows preview labelled "From uploads"
+- **Generated selected** → calls `generationStore.setSourceOutputId(id, previewUrl)`, auto-fills prompt field, shows preview labelled "From generated"
+- `input_image_id` and `source_output_id` are **mutually exclusive** — the store enforces this; setting one clears the other
+- The "Choose from library" button is only shown when no image is currently set (neither file upload nor picker selection)
+
+### Store Fields (GenerationState)
+
+| Field | Type | Purpose |
+|-------|------|---------|
+| `uploadedImageId` | `string \| null` | maps to `input_image_id` in the API request |
+| `sourceOutputId` | `string \| null` | maps to `source_output_id` in the API request |
+| `selectedImagePreviewUrl` | `string \| null` | content proxy URL used for picker preview display |
+
+### Query Layer
+
+`src/lib/queries/storage.ts` exports `storageKeys` and `uploadsInfiniteQueryOptions()` for cursor-based pagination of uploads.
 
 ---
 
