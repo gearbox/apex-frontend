@@ -34,6 +34,7 @@ src/
 │   │   ├── client.ts              # openapi-fetch instance + auth interceptor
 │   │   ├── auth.ts                # JWT token management, refresh rotation
 │   │   ├── upload.ts              # uploadImage() — multipart upload wrapper (raw fetch, static auth)
+│   │   ├── user.ts                # fetchUserStats, changePassword, logoutAllDevices, deleteAccount
 │   │   ├── types.ts               # Generated from backend OpenAPI schema
 │   │   └── schema.json            # Exported OpenAPI schema (source of truth)
 │   ├── stores/
@@ -71,13 +72,18 @@ src/
 │   │   │   ├── TransactionList.svelte
 │   │   │   └── CostReference.svelte
 │   │   └── profile/
-│   │       ├── ThemeSelector.svelte   # Slate / Frost card picker
-│   │       ├── ModeSelector.svelte    # Light / Dark / System toggle
-│   │       └── ProfileFields.svelte
+│   │       ├── ThemeSelector.svelte       # Slate / Frost card picker
+│   │       ├── ModeSelector.svelte        # Light / Dark / System toggle
+│   │       ├── ProfileFields.svelte
+│   │       ├── UserStats.svelte           # Usage stats grid (GET /v1/users/me/stats)
+│   │       ├── ChangePasswordModal.svelte # Modal: current + new + confirm password
+│   │       ├── LogoutAllModal.svelte      # Modal: confirm sign-out all devices
+│   │       └── DeleteAccountModal.svelte  # Modal: type DELETE to confirm account deletion
 │   ├── queries/
 │   │   ├── gallery.ts                # galleryKeys, galleryListInfiniteQueryOptions, galleryDetailQueryOptions
 │   │   ├── storage.ts                # storageKeys, uploadsInfiniteQueryOptions
-│   │   └── admin.ts                  # Query key factory + query options for admin endpoints
+│   │   ├── admin.ts                  # Query key factory + query options for admin endpoints
+│   │   └── user.ts                   # userKeys, userStatsQueryOptions, changePassword/logoutAll/deleteAccount mutation options
 │   ├── themes/
 │   │   └── index.ts                  # Theme definitions + types
 │   └── utils/

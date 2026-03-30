@@ -5,9 +5,16 @@
   import ThemeSelector from '$lib/components/profile/ThemeSelector.svelte';
   import ModeSelector from '$lib/components/profile/ModeSelector.svelte';
   import LanguageSelector from '$lib/components/profile/LanguageSelector.svelte';
+  import UserStats from '$lib/components/profile/UserStats.svelte';
+  import ChangePasswordModal from '$lib/components/profile/ChangePasswordModal.svelte';
+  import LogoutAllModal from '$lib/components/profile/LogoutAllModal.svelte';
+  import DeleteAccountModal from '$lib/components/profile/DeleteAccountModal.svelte';
   import * as m from '$paraglide/messages';
 
   let loggingOut = $state(false);
+  let showChangePassword = $state(false);
+  let showLogoutAll = $state(false);
+  let showDeleteAccount = $state(false);
 
   async function handleLogout() {
     loggingOut = true;
@@ -22,6 +29,8 @@
 
 <div class="profile-page">
   <ProfileFields />
+
+  <UserStats />
 
   <!-- Appearance -->
   <div class="appearance-section">
@@ -38,8 +47,8 @@
 
   <!-- Actions -->
   <div class="actions">
-    <button class="action-btn">{m.profile_change_password()}</button>
-    <button class="action-btn">{m.profile_logout_all()}</button>
+    <button class="action-btn" onclick={() => (showChangePassword = true)}>{m.profile_change_password()}</button>
+    <button class="action-btn" onclick={() => (showLogoutAll = true)}>{m.profile_logout_all()}</button>
     <button
       onclick={handleLogout}
       disabled={loggingOut}
@@ -47,9 +56,19 @@
     >
       {loggingOut ? m.profile_signing_out() : m.profile_logout()}
     </button>
-    <button class="action-btn danger">{m.profile_delete_account()}</button>
+    <button class="action-btn danger" onclick={() => (showDeleteAccount = true)}>{m.profile_delete_account()}</button>
   </div>
 </div>
+
+{#if showChangePassword}
+  <ChangePasswordModal onclose={() => (showChangePassword = false)} />
+{/if}
+{#if showLogoutAll}
+  <LogoutAllModal onclose={() => (showLogoutAll = false)} />
+{/if}
+{#if showDeleteAccount}
+  <DeleteAccountModal onclose={() => (showDeleteAccount = false)} />
+{/if}
 
 <style>
   .profile-page {
