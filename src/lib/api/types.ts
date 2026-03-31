@@ -2467,7 +2467,9 @@ export interface operations {
     };
     V1BillingTopupNowpaymentsTopupNowpayments: {
         parameters: {
-            query?: never;
+            query: {
+                connection: unknown;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -2506,7 +2508,9 @@ export interface operations {
     };
     V1BillingTopupStripeTopupStripe: {
         parameters: {
-            query?: never;
+            query: {
+                connection: unknown;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -2886,7 +2890,9 @@ export interface operations {
     };
     V1AdminAccountsAccountIdAdjustAdjustAccount: {
         parameters: {
-            query?: never;
+            query: {
+                connection: unknown;
+            };
             header?: never;
             path: {
                 account_id: string;
@@ -3552,7 +3558,9 @@ export interface operations {
     };
     V1GenerateGenerate: {
         parameters: {
-            query?: never;
+            query: {
+                connection: unknown;
+            };
             header?: never;
             path?: never;
             cookie?: never;
