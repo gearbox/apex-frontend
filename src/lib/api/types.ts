@@ -2467,10 +2467,11 @@ export interface operations {
     };
     V1BillingTopupNowpaymentsTopupNowpayments: {
         parameters: {
-            query: {
-                connection: unknown;
+            query?: never;
+            header: {
+                /** @description Unique key for request deduplication (max 64 chars). Repeated requests with the same key return the cached response. */
+                "Idempotency-Key": string;
             };
-            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -2508,10 +2509,11 @@ export interface operations {
     };
     V1BillingTopupStripeTopupStripe: {
         parameters: {
-            query: {
-                connection: unknown;
+            query?: never;
+            header: {
+                /** @description Unique key for request deduplication (max 64 chars). Repeated requests with the same key return the cached response. */
+                "Idempotency-Key": string;
             };
-            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -2890,10 +2892,11 @@ export interface operations {
     };
     V1AdminAccountsAccountIdAdjustAdjustAccount: {
         parameters: {
-            query: {
-                connection: unknown;
+            query?: never;
+            header: {
+                /** @description Unique key for request deduplication (max 64 chars). Repeated requests with the same key return the cached response. */
+                "Idempotency-Key": string;
             };
-            header?: never;
             path: {
                 account_id: string;
             };
@@ -3558,10 +3561,11 @@ export interface operations {
     };
     V1GenerateGenerate: {
         parameters: {
-            query: {
-                connection: unknown;
+            query?: never;
+            header: {
+                /** @description Unique key for request deduplication (max 64 chars). Repeated requests with the same key return the cached response. */
+                "Idempotency-Key": string;
             };
-            header?: never;
             path?: never;
             cookie?: never;
         };
