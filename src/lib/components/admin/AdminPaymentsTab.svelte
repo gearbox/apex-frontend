@@ -75,7 +75,7 @@
     </div>
   {:else if paymentsQuery.data}
     {@const items = paymentsQuery.data.items}
-    {@const total = paymentsQuery.data.total}
+    {@const total = offset + items.length + (paymentsQuery.data.has_more ? PAGE_SIZE : 0)}
 
     {#if items.length === 0}
       <div class="empty-state">

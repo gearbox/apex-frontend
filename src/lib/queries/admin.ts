@@ -1,4 +1,5 @@
 import type { QueryClient } from '@tanstack/svelte-query';
+import { generateIdempotencyKey } from '$lib/utils/idempotency';
 import {
   fetchAdminUsers,
   fetchAdminOrgs,
@@ -179,7 +180,7 @@ export function adjustBalanceMutationOptions(
 ) {
   return {
     mutationFn: (body: { amount: number; description: string }) =>
-      adjustAccountBalance(accountId, body),
+      adjustAccountBalance(accountId, body, generateIdempotencyKey()),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: adminKeys.accountBalance(accountId) });
       queryClient.invalidateQueries({ queryKey: adminKeys.accountTransactions(accountId) });

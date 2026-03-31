@@ -57,7 +57,25 @@ test.describe('Generate page', () => {
   });
 
   test('3. Job submission shows loading state', async ({ authenticatedPage: page }) => {
-    await page.route('**/v1/generate', jsonRoute(mockGenerateResponse));
+    await page.route('**/v1/generate', async (route) => {
+      const headers = route.request().headers();
+      if (!headers['idempotency-key']) {
+        return route.fulfill({
+          status: 400,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            error: 'validation_error',
+            message: 'Missing Idempotency-Key',
+            status_code: 400,
+          }),
+        });
+      }
+      return route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify(mockGenerateResponse),
+      });
+    });
     await page.route('**/v1/jobs/**', jsonRoute({
       id: 'job_e2e_001',
       status: 'running',

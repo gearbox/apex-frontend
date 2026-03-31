@@ -35,6 +35,7 @@ src/
 │   │   ├── auth.ts                # JWT token management, refresh rotation
 │   │   ├── upload.ts              # uploadImage() — multipart upload wrapper (raw fetch, static auth)
 │   │   ├── user.ts                # fetchUserStats, changePassword, logoutAllDevices, deleteAccount
+│   │   ├── billing.ts             # topUpStripe, topUpNowPayments — billing mutation wrappers
 │   │   ├── types.ts               # Generated from backend OpenAPI schema
 │   │   └── schema.json            # Exported OpenAPI schema (source of truth)
 │   ├── stores/
@@ -89,7 +90,8 @@ src/
 │   └── utils/
 │       ├── breakpoints.ts            # Reactive viewport width store
 │       ├── format.ts                 # Number formatting, relative time
-│       └── constants.ts              # API base URL, storage keys
+│       ├── constants.ts              # API base URL, storage keys
+│       └── idempotency.ts            # generateIdempotencyKey() for mutation endpoints
 ├── routes/
 │   ├── +layout.svelte                # Root: fonts, theme CSS vars, QueryClient
 │   ├── +layout.ts                    # SSG prerender config

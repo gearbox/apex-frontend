@@ -39,13 +39,13 @@ describe('fetchAdminUsers()', () => {
             makeAdminUser({ id: 'usr_001', email: 'alice@example.com', role: 'admin' }),
             makeAdminUser({ id: 'usr_002', email: 'bob@example.com' }),
           ],
-          total: 2,
+          limit: 20,
+          has_more: false,
         }),
       ),
     );
     const result = await fetchAdminUsers();
     expect(result.items.length).toBeGreaterThan(0);
-    expect(result.total).toBeGreaterThan(0);
     expect(result.items[0]).toHaveProperty('email');
     expect(result.items[0]).toHaveProperty('role');
   });
@@ -363,7 +363,7 @@ describe('adjustAccountBalance()', () => {
     const result = await adjustAccountBalance('acc_001', {
       amount: 100,
       description: 'Test credit',
-    });
+    }, 'test-idem-key');
     expect(result).toHaveProperty('new_balance');
     expect(result).toHaveProperty('transaction');
   });
@@ -375,7 +375,44 @@ describe('adjustAccountBalance()', () => {
       ),
     );
     await expect(
-      adjustAccountBalance('acc_001', { amount: 100, description: 'test' }),
+      adjustAccountBalance('acc_001', { amount: 100, description: 'test' }, 'test-idem-key'),
     ).rejects.toThrow();
+  });
+
+  it('sends Idempotency-Key header', async () => {
+    let capturedKey: string | null = null;
+
+    server.use(
+      http.post(`${BASE}/v1/admin/accounts/:accountId/adjust`, async ({ request }) => {
+        capturedKey = request.headers.get('Idempotency-Key');
+        const body = (await request.json()) as { amount: number; description: string };
+        return HttpResponse.json({
+          transaction: makeTransactionResponse({
+            transaction_type: 'admin_adjustment',
+            amount: body.amount,
+            description: body.description,
+          }),
+          new_balance: 600,
+        });
+      }),
+    );
+
+    await adjustAccountBalance('acc_001', { amount: 100, description: 'test' }, 'my-idem-key');
+    expect(capturedKey).toBe('my-idem-key');
+  });
+
+  it('throws on 409 idempotency_conflict', async () => {
+    server.use(
+      http.post(`${BASE}/v1/admin/accounts/:accountId/adjust`, () =>
+        HttpResponse.json(
+          { error: 'idempotency_conflict', message: 'Conflict', status_code: 409 },
+          { status: 409, headers: { 'Retry-After': '1' } },
+        ),
+      ),
+    );
+
+    await expect(
+      adjustAccountBalance('acc_001', { amount: 100, description: 'test' }, 'dup-key'),
+    ).rejects.toThrow('Conflict');
   });
 });

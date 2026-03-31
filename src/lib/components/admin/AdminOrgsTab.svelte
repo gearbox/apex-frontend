@@ -75,7 +75,7 @@
     </div>
   {:else if orgsQuery.data}
     {@const items = orgsQuery.data.items}
-    {@const total = orgsQuery.data.total}
+    {@const total = offset + items.length + (orgsQuery.data.has_more ? PAGE_SIZE : 0)}
 
     {#if items.length === 0}
       <div class="empty-state">

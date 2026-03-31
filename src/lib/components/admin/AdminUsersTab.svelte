@@ -108,7 +108,7 @@
     </div>
   {:else if usersQuery.data}
     {@const items = usersQuery.data.items}
-    {@const total = usersQuery.data.total}
+    {@const total = offset + items.length + (usersQuery.data.has_more ? PAGE_SIZE : 0)}
 
     {#if items.length === 0}
       <div class="empty-state">

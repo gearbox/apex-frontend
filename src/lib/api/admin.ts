@@ -8,16 +8,16 @@ function throwApiError(error: unknown, fallbackMsg: string): never {
 }
 
 export type AdminUserResponse = components['schemas']['AdminUserResponse'];
-export type AdminUserListResponse = components['schemas']['PaginatedResponse_src.api.schemas.admin.AdminUserResponse_'];
+export type AdminUserListResponse = components['schemas']['CursorPage_src.api.schemas.admin.AdminUserResponse_'];
 export type AdminOrgResponse = components['schemas']['AdminOrgResponse'];
-export type AdminOrgListResponse = components['schemas']['PaginatedResponse_src.api.schemas.admin.AdminOrgResponse_'];
+export type AdminOrgListResponse = components['schemas']['CursorPage_src.api.schemas.admin.AdminOrgResponse_'];
 export type GenerationModelResponse = components['schemas']['GenerationModelResponse'];
 export type ModelListResponse = components['schemas']['ModelListResponse'];
 export type PaymentResponse = components['schemas']['PaymentResponse'];
-export type PaymentListResponse = components['schemas']['PaginatedResponse_src.api.schemas.billing.PaymentResponse_'];
+export type PaymentListResponse = components['schemas']['CursorPage_src.api.schemas.billing.PaymentResponse_'];
 export type BalanceResponse = components['schemas']['BalanceResponse'];
 export type TransactionResponse = components['schemas']['TransactionResponse'];
-export type TransactionListResponse = components['schemas']['PaginatedResponse_src.api.schemas.billing.TransactionResponse_'];
+export type TransactionListResponse = components['schemas']['CursorPage_src.api.schemas.billing.TransactionResponse_'];
 export type AdminAdjustResponse = components['schemas']['AdminAdjustResponse'];
 export type PricingRuleResponse = components['schemas']['PricingRuleResponse'];
 export type CreatePricingRuleRequest = components['schemas']['CreatePricingRuleRequest'];
@@ -195,9 +195,13 @@ export async function deletePricingRule(ruleId: string): Promise<{ message: stri
 export async function adjustAccountBalance(
   accountId: string,
   body: { amount: number; description: string },
+  idempotencyKey: string,
 ): Promise<AdminAdjustResponse> {
   const { data, error } = await apiClient.POST('/v1/admin/accounts/{account_id}/adjust', {
-    params: { path: { account_id: accountId } },
+    params: {
+      path: { account_id: accountId },
+      header: { 'Idempotency-Key': idempotencyKey },
+    },
     body,
   });
   if (error || !data) throwApiError(error, 'Failed to adjust account balance');

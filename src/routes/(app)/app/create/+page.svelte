@@ -3,6 +3,7 @@
   import { createQuery, useQueryClient } from '@tanstack/svelte-query';
   import apiClient from '$lib/api/client';
   import { parseApiError } from '$lib/api/errors';
+  import { generateIdempotencyKey } from '$lib/utils/idempotency';
   import { generationStore, isGenerating } from '$lib/stores/generation';
   import { activeJobStore } from '$lib/stores/jobs';
   import { addToast } from '$lib/stores/toasts';
@@ -72,6 +73,8 @@
     const apiErr = parseApiError(error, 0);
     if (apiErr.error === 'insufficient_balance') {
       addToast({ type: 'error', message: 'Not enough tokens.', action: { label: 'Buy more →', href: '/app/billing' } });
+    } else if (apiErr.error === 'idempotency_conflict') {
+      addToast({ type: 'warning', message: 'Request already in progress. Please wait a moment and try again.' });
     } else if (apiErr.error === 'service_unavailable') {
       addToast({ type: 'warning', message: 'AI provider temporarily unavailable' });
     } else if (apiErr.error === 'moderation') {
@@ -129,6 +132,7 @@
     }
 
     submitting = true;
+    const idempotencyKey = generateIdempotencyKey();
 
     try {
       const { data, error } = await apiClient.POST('/v1/generate', {
@@ -142,6 +146,9 @@
           n: state.imageCount,
           duration: state.videoDuration,
           resolution: state.videoResolution,
+        },
+        params: {
+          header: { 'Idempotency-Key': idempotencyKey },
         },
       });
 

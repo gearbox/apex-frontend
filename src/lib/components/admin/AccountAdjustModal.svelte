@@ -8,6 +8,7 @@
     accountTransactionsQueryOptions,
     adjustBalanceMutationOptions,
   } from '$lib/queries/admin';
+  import { ApiRequestError } from '$lib/api/errors';
   import { addToast } from '$lib/stores/toasts';
 
   interface Props {
@@ -51,7 +52,11 @@
       description = '';
       setTimeout(() => onclose(), 1500);
     } catch (e) {
-      errorMsg = e instanceof Error ? e.message : 'Failed to adjust balance.';
+      if (e instanceof ApiRequestError && e.error === 'idempotency_conflict') {
+        errorMsg = 'This adjustment is already being processed. Please wait a moment.';
+      } else {
+        errorMsg = e instanceof Error ? e.message : 'Failed to adjust balance.';
+      }
     }
   }
 
