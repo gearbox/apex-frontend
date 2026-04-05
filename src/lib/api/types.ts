@@ -964,24 +964,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/storage/uploads/{image_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** GetUploadAccess */
-        get: operations["V1StorageUploadsImageIdGetUploadAccess"];
-        put?: never;
-        post?: never;
-        /** DeleteUpload */
-        delete: operations["V1StorageUploadsImageIdDeleteUpload"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/v1/storage/outputs/{output_id}/download": {
         parameters: {
             query?: never;
@@ -1042,6 +1024,23 @@ export interface paths {
         };
         /** GetStorageStats */
         get: operations["V1StorageStatsGetStorageStats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/storage/uploads/{image_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetUploadAccess */
+        get: operations["V1StorageUploadsImageIdGetUploadAccess"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1216,6 +1215,23 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/content/{content_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** DeleteContent */
+        delete: operations["V1ContentContentIdDeleteContent"];
         options?: never;
         head?: never;
         patch?: never;
@@ -4248,81 +4264,6 @@ export interface operations {
             };
         };
     };
-    V1StorageUploadsImageIdGetUploadAccess: {
-        parameters: {
-            query?: {
-                /** @description URL validity in seconds (1 min to 24 hours) */
-                expires_in?: number;
-            };
-            header?: never;
-            path: {
-                image_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Request fulfilled, document follows */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ImageAccessResponse"] | components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Bad request syntax or unsupported method */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        status_code: number;
-                        detail: string;
-                        extra?: null | {
-                            [key: string]: unknown;
-                        } | unknown[];
-                    };
-                };
-            };
-        };
-    };
-    V1StorageUploadsImageIdDeleteUpload: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                image_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Request fulfilled, nothing follows */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Bad request syntax or unsupported method */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        status_code: number;
-                        detail: string;
-                        extra?: null | {
-                            [key: string]: unknown;
-                        } | unknown[];
-                    };
-                };
-            };
-        };
-    };
     V1StorageOutputsOutputIdDownloadDownloadOutput: {
         parameters: {
             query?: never;
@@ -4453,6 +4394,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StorageStatsResponse"];
+                };
+            };
+        };
+    };
+    V1StorageUploadsImageIdGetUploadAccess: {
+        parameters: {
+            query?: {
+                /** @description URL validity in seconds (1 min to 24 hours) */
+                expires_in?: number;
+            };
+            header?: never;
+            path: {
+                image_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImageAccessResponse"] | components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
                 };
             };
         };
@@ -4839,6 +4820,41 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["CursorPage_src.api.schemas.gallery.GalleryGridItem_"];
                 };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1ContentContentIdDeleteContent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                content_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, nothing follows */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Bad request syntax or unsupported method */
             400: {
