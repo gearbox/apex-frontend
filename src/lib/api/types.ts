@@ -4,15 +4,83 @@
  */
 
 export interface paths {
-    "/health": {
+    "/health/live": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** HealthCheck */
-        get: operations["HealthHealthCheck"];
+        /** Liveness */
+        get: operations["HealthLiveLiveness"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/health/ready": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Readiness */
+        get: operations["HealthReadyReadiness"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Detailed */
+        get: operations["V1AdminHealthDetailed"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/health/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** History */
+        get: operations["V1AdminHealthHistoryHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/health/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Stream */
+        get: operations["V1AdminHealthStreamStream"];
         put?: never;
         post?: never;
         delete?: never;
@@ -743,6 +811,108 @@ export interface paths {
         patch: operations["V1AdminModelsModelKeyToggleModel"];
         trace?: never;
     };
+    "/v1/admin/manage/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetAuditLog */
+        get: operations["V1AdminManageAuditGetAuditLog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/manage/permissions/{user_id}/grant": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** GrantPermission */
+        post: operations["V1AdminManagePermissionsUserIdGrantGrantPermission"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/manage/roles/{user_id}/grant": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** GrantRole */
+        post: operations["V1AdminManageRolesUserIdGrantGrantRole"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/manage/admins": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListAdmins */
+        get: operations["V1AdminManageAdminsListAdmins"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/manage/permissions/{user_id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** RevokePermission */
+        post: operations["V1AdminManagePermissionsUserIdRevokeRevokePermission"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/manage/roles/{user_id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** RevokeRole */
+        post: operations["V1AdminManageRolesUserIdRevokeRevokeRole"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/generate": {
         parameters: {
             query?: never;
@@ -1139,6 +1309,28 @@ export interface components {
             is_active?: boolean | null;
             locale?: components["schemas"]["SupportedLocale"] | null;
         };
+        /**
+         * AdminPermission
+         * @description Granular permissions grantable to admin-role users by superadmins.
+         *
+         *     BILLING_ADJUST — allows use of POST /v1/admin/accounts/{id}/adjust.
+         * @enum {string}
+         */
+        AdminPermission: "billing_adjust";
+        /** AdminRoleResponse */
+        AdminRoleResponse: {
+            /** Format: uuid */
+            id: string;
+            email: string;
+            display_name?: string | null;
+            role: string;
+            permissions: string[];
+            is_active: boolean;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
         /** AdminUserResponse */
         AdminUserResponse: {
             /** Format: uuid */
@@ -1161,6 +1353,20 @@ export interface components {
          * @enum {string}
          */
         AspectRatio: "2:3" | "3:2" | "1:1" | "9:16" | "16:9" | "3:4" | "4:3";
+        /** AuditLogEntry */
+        AuditLogEntry: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            actor_id: string;
+            /** Format: uuid */
+            target_user_id: string;
+            action: string;
+            detail: string;
+            source: string;
+            /** Format: date-time */
+            created_at: string;
+        };
         /** BalanceResponse */
         BalanceResponse: {
             /** Format: uuid */
@@ -1174,6 +1380,11 @@ export interface components {
             preferred_account?: string | null;
             message: string;
         };
+        /** CategoryHealthResponse */
+        CategoryHealthResponse: {
+            status: string;
+            components: components["schemas"]["ComponentHealthResponse"][];
+        };
         /** ChangeMemberRoleRequest */
         ChangeMemberRoleRequest: {
             role: string;
@@ -1182,6 +1393,17 @@ export interface components {
         ChangePasswordRequest: {
             current_password: string;
             new_password: string;
+        };
+        /** ComponentHealthResponse */
+        ComponentHealthResponse: {
+            name: string;
+            status: string;
+            latency_ms: number;
+            /** @default  */
+            message: string;
+            metadata?: {
+                [key: string]: unknown;
+            };
         };
         /** CreateOrganizationRequest */
         CreateOrganizationRequest: {
@@ -1256,6 +1478,17 @@ export interface components {
             message: string;
             /** Format: date-time */
             deactivated_at: string;
+        };
+        /** DetailedHealthResponse */
+        DetailedHealthResponse: {
+            status: string;
+            checked_at: string;
+            infrastructure: components["schemas"]["CategoryHealthResponse"];
+            platform_apis: components["schemas"]["CategoryHealthResponse"];
+            cloud_providers: {
+                [key: string]: components["schemas"]["CategoryHealthResponse"];
+            };
+            gpu_sessions: components["schemas"]["GpuSessionHealthResponse"];
         };
         /** ErrorEnvelope */
         ErrorEnvelope: {
@@ -1358,13 +1591,28 @@ export interface components {
          * @enum {string}
          */
         GenerationType: "t2i" | "i2i" | "t2v" | "i2v" | "v2v" | "flf2v";
-        /** HealthResponse */
-        HealthResponse: {
-            /** @enum {string} */
-            status: "healthy" | "unhealthy";
-            comfyui_connected: boolean;
-            /** @default 0.1.0 */
-            version: string;
+        /** GpuSessionHealthResponse */
+        GpuSessionHealthResponse: {
+            status: string;
+            total: number;
+            healthy: number;
+            stale: number;
+            /** @default  */
+            message: string;
+        };
+        /** GrantPermissionRequest */
+        GrantPermissionRequest: {
+            permission: components["schemas"]["AdminPermission"];
+        };
+        /** GrantRoleRequest */
+        GrantRoleRequest: {
+            role: components["schemas"]["UserRole"];
+        };
+        /** HealthSnapshotResponse */
+        HealthSnapshotResponse: {
+            checked_at: string;
+            overall_status: string;
+            snapshot_data: Record<string, never>;
         };
         /** ImageAccessResponse */
         ImageAccessResponse: {
@@ -1436,6 +1684,10 @@ export interface components {
          * @enum {string}
          */
         JobStatus: "pending" | "queued" | "running" | "completed" | "failed" | "cancelled" | "moderated";
+        /** LivenessResponse */
+        LivenessResponse: {
+            status: string;
+        };
         /** LoginRequest */
         LoginRequest: {
             email: string;
@@ -1582,6 +1834,13 @@ export interface components {
         ProvidersResponse: {
             providers: components["schemas"]["ProviderInfo"][];
             user_context?: components["schemas"]["UserContext"] | null;
+        };
+        /** ReadinessResponse */
+        ReadinessResponse: {
+            status: string;
+            checks: {
+                [key: string]: string;
+            };
         };
         /** RefreshTokenRequest */
         RefreshTokenRequest: {
@@ -1776,12 +2035,13 @@ export interface components {
          * UserRole
          * @description User account roles.
          *
-         *     SYSTEM — internal sentinel user (seeded by migration, cannot authenticate).
-         *     ADMIN  — full administrative access to the platform.
-         *     USER   — standard authenticated user (default for all registrations).
+         *     SYSTEM     — internal sentinel user (seeded by migration, cannot authenticate).
+         *     SUPERADMIN — full administrative access including role management.
+         *     ADMIN      — administrative access to the platform (no role escalation).
+         *     USER       — standard authenticated user (default for all registrations).
          * @enum {string}
          */
-        UserRole: "system" | "admin" | "user";
+        UserRole: "system" | "superadmin" | "admin" | "user";
         /** UserStatsResponse */
         UserStatsResponse: {
             total_jobs: number;
@@ -1816,7 +2076,7 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    HealthHealthCheck: {
+    HealthLiveLiveness: {
         parameters: {
             query?: never;
             header?: never;
@@ -1831,7 +2091,106 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HealthResponse"];
+                    "application/json": components["schemas"]["LivenessResponse"];
+                };
+            };
+        };
+    };
+    HealthReadyReadiness: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadinessResponse"];
+                };
+            };
+        };
+    };
+    V1AdminHealthDetailed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DetailedHealthResponse"];
+                };
+            };
+        };
+    };
+    V1AdminHealthHistoryHistory: {
+        parameters: {
+            query?: {
+                after?: string | null;
+                before?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HealthSnapshotResponse"][];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1AdminHealthStreamStream: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
         };
@@ -3540,6 +3899,232 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GenerationModelResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1AdminManageAuditGetAuditLog: {
+        parameters: {
+            query?: {
+                target_user_id?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditLogEntry"][];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1AdminManagePermissionsUserIdGrantGrantPermission: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GrantPermissionRequest"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1AdminManageRolesUserIdGrantGrantRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GrantRoleRequest"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1AdminManageAdminsListAdmins: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminRoleResponse"][];
+                };
+            };
+        };
+    };
+    V1AdminManagePermissionsUserIdRevokeRevokePermission: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GrantPermissionRequest"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1AdminManageRolesUserIdRevokeRevokeRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
                 };
             };
             /** @description Bad request syntax or unsupported method */
