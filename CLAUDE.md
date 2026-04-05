@@ -67,6 +67,13 @@ src/
 │   │   │   ├── GalleryFilters.svelte # GalleryMediaFilter: all/image/video (server-side)
 │   │   │   ├── Lightbox.svelte       # GalleryGroupDetail; lineage, aspect_ratio, content proxy
 │   │   │   └── InfiniteScrollSentinel.svelte
+│   │   ├── shared/
+│   │   │   ├── ConfirmDeleteModal.svelte # Reusable danger confirmation dialog (z-index 200)
+│   │   │   ├── SwipeToDelete.svelte      # Mobile swipe-left gesture wrapper (touch events only)
+│   │   │   ├── ContextMenu.svelte        # Desktop right-click context menu (z-index 100)
+│   │   │   ├── Pagination.svelte
+│   │   │   ├── StatusBadge.svelte
+│   │   │   └── ToggleSwitch.svelte
 │   │   ├── billing/
 │   │   │   ├── BalanceCard.svelte
 │   │   │   ├── PackageGrid.svelte
@@ -81,7 +88,7 @@ src/
 │   │       ├── LogoutAllModal.svelte      # Modal: confirm sign-out all devices
 │   │       └── DeleteAccountModal.svelte  # Modal: type DELETE to confirm account deletion
 │   ├── queries/
-│   │   ├── gallery.ts                # galleryKeys, galleryListInfiniteQueryOptions, galleryDetailQueryOptions
+│   │   ├── gallery.ts                # galleryKeys, galleryListInfiniteQueryOptions, galleryDetailQueryOptions, deleteContentMutationOptions
 │   │   ├── storage.ts                # storageKeys, uploadsInfiniteQueryOptions
 │   │   ├── admin.ts                  # Query key factory + query options for admin endpoints
 │   │   └── user.ts                   # userKeys, userStatsQueryOptions, changePassword/logoutAll/deleteAccount mutation options
@@ -322,6 +329,45 @@ The user stays on the Create page; the mode switches to I2I and the image appear
 ### ImageUpload — External Source Sync
 
 `ImageUpload.svelte` uses a `$effect` to watch `$generationStore.sourceOutputId`. When it is set externally (by the Lightbox Re-Generate or ResultsPanel "Use as input"), the component updates its local `pickerSelection` state to show the "From generated" preview strip. This keeps the component reactive to store changes without prop threading.
+
+---
+
+## Content Deletion
+
+Users can permanently delete individual outputs from the Gallery and uploaded images from the Image Picker.
+
+### Backend Endpoint
+
+```
+DELETE /v1/content/{content_id}
+
+Path:     content_id (UUID) — generation output ID or upload ID
+Response: 204 No Content
+Errors:   404 not_found
+Note:     Checks generation_outputs first, then user_images.
+          Lineage references (source_output_id, input_image_id) SET NULL automatically.
+```
+
+TypeScript operation: `V1ContentContentIdDeleteContent`
+
+### Unified Mutation
+
+A single `deleteContentMutationOptions(queryClient)` in `src/lib/queries/gallery.ts` handles both output and upload deletion. On success it invalidates `galleryKeys.all`, `storageKeys.all`, `['jobs']`, and `['user']` query keys.
+
+### UX Entry Points
+
+| Surface | Interaction | Scope |
+|---------|-------------|-------|
+| **Gallery Card** (mobile) | Swipe left → red "Delete" action | Single-output jobs: confirm dialog; multi-output: opens Lightbox |
+| **Gallery Card** (desktop) | Right-click context menu | Same as above |
+| **Lightbox** metadata panel | Trash icon button next to Re-Generate | Deletes currently viewed output |
+| **Image Picker** uploads tab | Hover trash icon (desktop) / long-press 500ms (mobile) | Deletes the upload |
+
+### Shared Components
+
+- **`ConfirmDeleteModal`** — scoped CSS, no Tailwind, z-index 200. Does NOT own the mutation; calls `onconfirm`/`oncancel`. Does NOT lock body scroll.
+- **`SwipeToDelete`** — mobile-only (`< 768px`). Uses touch events (not pointer events). Module-level `activeSwipeId` singleton ensures only one card open at a time. 60px snap threshold, 120px auto-trigger.
+- **`ContextMenu`** — desktop-only (`≥ 768px`). Intercepts `contextmenu` event, stays within viewport. z-index 100.
 
 ---
 

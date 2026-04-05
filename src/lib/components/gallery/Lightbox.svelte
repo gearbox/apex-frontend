@@ -1,17 +1,20 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { createQuery } from '@tanstack/svelte-query';
+  import { createQuery, createMutation, useQueryClient } from '@tanstack/svelte-query';
   import { goto } from '$app/navigation';
   import { generationStore } from '$lib/stores/generation';
   import { timeAgo } from '$lib/utils/format';
   import { API_BASE_URL } from '$lib/utils/constants';
-  import { X, Download, ChevronLeft, ChevronRight, Repeat2 } from 'lucide-svelte';
-  import { galleryDetailQueryOptions } from '$lib/queries/gallery';
+  import { X, Download, ChevronLeft, ChevronRight, Repeat2, Trash2 } from 'lucide-svelte';
+  import { galleryDetailQueryOptions, deleteContentMutationOptions } from '$lib/queries/gallery';
   import { getAccessToken } from '$lib/stores/auth';
+  import { addToast } from '$lib/stores/toasts';
   import AuthImage from '$lib/components/ui/AuthImage.svelte';
   import AuthVideo from '$lib/components/ui/AuthVideo.svelte';
+  import ConfirmDeleteModal from '$lib/components/shared/ConfirmDeleteModal.svelte';
   import type { components } from '$lib/api/types';
   import type { GenerationMode } from '$lib/stores/generation';
+  import * as m from '$paraglide/messages';
 
   type GalleryGridItem = components['schemas']['GalleryGridItem'];
   type ModelType = components['schemas']['ModelType'];
@@ -30,6 +33,10 @@
   let navOverride = $state<GalleryGridItem | null>(null);
   let downloading = $state(false);
   let selectedOutputIndex = $state(0);
+  let showDeleteConfirm = $state(false);
+
+  const queryClient = useQueryClient();
+  const deleteMutation = createMutation(() => deleteContentMutationOptions(queryClient));
 
   const currentItem = $derived(navOverride ?? item);
 
@@ -101,6 +108,30 @@
 
     goto('/app/create');
     onclose();
+  }
+
+  async function handleDeleteOutput() {
+    const detail = detailQuery.data;
+    if (!detail) return;
+    const output = detail.outputs[selectedOutputIndex] ?? detail.outputs[0];
+    if (!output) return;
+
+    try {
+      await deleteMutation.mutateAsync(output.id);
+      addToast({ type: 'success', message: m.gallery_delete_success() });
+
+      if (detail.outputs.length <= 1) {
+        onclose();
+      } else {
+        if (selectedOutputIndex >= detail.outputs.length - 1) {
+          selectedOutputIndex = Math.max(0, selectedOutputIndex - 1);
+        }
+      }
+    } catch {
+      addToast({ type: 'error', message: m.gallery_delete_error() });
+    } finally {
+      showDeleteConfirm = false;
+    }
   }
 
   async function handleDownload(outputUrl: string, outputId: string) {
@@ -265,6 +296,15 @@
           >
             <Repeat2 size={13} /> Re-Generate
           </button>
+
+          <button
+            onclick={() => (showDeleteConfirm = true)}
+            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-danger/30 text-danger transition-colors hover:bg-danger/10"
+            aria-label={m.common_delete()}
+            title={m.common_delete()}
+          >
+            <Trash2 size={13} />
+          </button>
         </div>
 
         <!-- Prompt -->
@@ -391,3 +431,13 @@
     </div>
   </div>
 </div>
+
+{#if showDeleteConfirm}
+  <ConfirmDeleteModal
+    title={m.gallery_delete_title()}
+    message={m.gallery_delete_confirm_text()}
+    isPending={deleteMutation.isPending}
+    onconfirm={handleDeleteOutput}
+    oncancel={() => (showDeleteConfirm = false)}
+  />
+{/if}

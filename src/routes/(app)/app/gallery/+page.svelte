@@ -1,18 +1,24 @@
 <script lang="ts">
-  import { createInfiniteQuery } from '@tanstack/svelte-query';
-  import { galleryListInfiniteQueryOptions } from '$lib/queries/gallery';
+  import { createInfiniteQuery, createMutation, useQueryClient } from '@tanstack/svelte-query';
+  import { galleryListInfiniteQueryOptions, deleteContentMutationOptions } from '$lib/queries/gallery';
+  import apiClient from '$lib/api/client';
   import GalleryGrid from '$lib/components/gallery/GalleryGrid.svelte';
   import GalleryFilters from '$lib/components/gallery/GalleryFilters.svelte';
   import InfiniteScrollSentinel from '$lib/components/gallery/InfiniteScrollSentinel.svelte';
   import Lightbox from '$lib/components/gallery/Lightbox.svelte';
+  import ConfirmDeleteModal from '$lib/components/shared/ConfirmDeleteModal.svelte';
+  import { addToast } from '$lib/stores/toasts';
   import type { components } from '$lib/api/types';
   import type { GalleryMediaFilter } from '$lib/components/gallery/GalleryFilters.svelte';
+  import * as m from '$paraglide/messages';
 
   type GalleryGridItem = components['schemas']['GalleryGridItem'];
+  type GalleryGroupDetail = components['schemas']['GalleryGroupDetail'];
   type OutputMediaType = components['schemas']['OutputMediaType'];
 
   let filter = $state<GalleryMediaFilter>('all');
   let lightboxItem = $state<GalleryGridItem | null>(null);
+  let deleteTarget = $state<GalleryGridItem | null>(null);
 
   // Map UI filter to API media_type param
   const mediaTypeParam = $derived<OutputMediaType | undefined>(
@@ -25,6 +31,9 @@
 
   const allItems = $derived((galleryQuery.data?.pages ?? []).flatMap((p) => p.items));
 
+  const queryClient = useQueryClient();
+  const deleteMutation = createMutation(() => deleteContentMutationOptions(queryClient));
+
   function handleFilterChange(f: GalleryMediaFilter) {
     filter = f;
   }
@@ -32,6 +41,36 @@
   function handleLoadMore() {
     if (galleryQuery.hasNextPage && !galleryQuery.isFetchingNextPage) {
       galleryQuery.fetchNextPage();
+    }
+  }
+
+  function handleCardDelete(item: GalleryGridItem) {
+    if (item.output_count > 1) {
+      // Multi-output: open lightbox so user can select which output to delete
+      lightboxItem = item;
+    } else {
+      // Single-output: show confirm dialog
+      deleteTarget = item;
+    }
+  }
+
+  async function confirmCardDelete() {
+    if (!deleteTarget) return;
+    try {
+      const { data, error } = await apiClient.GET('/v1/gallery/{job_id}', {
+        params: { path: { job_id: deleteTarget.job_id } },
+      });
+      const detail = data as GalleryGroupDetail | undefined;
+      if (error || !detail?.outputs?.length) {
+        addToast({ type: 'error', message: m.gallery_delete_error() });
+        return;
+      }
+      await deleteMutation.mutateAsync(detail.outputs[0].id);
+      addToast({ type: 'success', message: m.gallery_delete_success() });
+    } catch {
+      addToast({ type: 'error', message: m.gallery_delete_error() });
+    } finally {
+      deleteTarget = null;
     }
   }
 </script>
@@ -81,7 +120,11 @@
       </a>
     </div>
   {:else}
-    <GalleryGrid items={allItems} onCardClick={(item) => (lightboxItem = item)} />
+    <GalleryGrid
+      items={allItems}
+      onCardClick={(item) => (lightboxItem = item)}
+      onCardDelete={handleCardDelete}
+    />
 
     <InfiniteScrollSentinel
       onVisible={handleLoadMore}
@@ -102,4 +145,14 @@
 
 {#if lightboxItem}
   <Lightbox item={lightboxItem} {allItems} onclose={() => (lightboxItem = null)} />
+{/if}
+
+{#if deleteTarget}
+  <ConfirmDeleteModal
+    title={m.gallery_delete_title()}
+    message={m.gallery_delete_confirm_text()}
+    isPending={deleteMutation.isPending}
+    onconfirm={confirmCardDelete}
+    oncancel={() => (deleteTarget = null)}
+  />
 {/if}

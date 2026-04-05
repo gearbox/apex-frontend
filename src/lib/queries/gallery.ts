@@ -1,6 +1,9 @@
 import apiClient from '$lib/api/client';
+import { parseApiError, ApiRequestError } from '$lib/api/errors';
 import { GALLERY_PAGE_SIZE } from '$lib/utils/constants';
+import type { QueryClient } from '@tanstack/svelte-query';
 import type { components } from '$lib/api/types';
+import { storageKeys } from '$lib/queries/storage';
 
 type GalleryGridItem = components['schemas']['GalleryGridItem'];
 type GalleryGroupDetail = components['schemas']['GalleryGroupDetail'];
@@ -54,6 +57,30 @@ export function galleryListInfiniteQueryOptions(params: GalleryListParams = {}) 
     getNextPageParam: (lastPage: { has_more: boolean; next_cursor?: string | null }) =>
       lastPage.has_more ? lastPage.next_cursor : undefined,
     staleTime: 5 * 60 * 1000,
+  };
+}
+
+/**
+ * Mutation for deleting any user content (output or upload) via the unified
+ * DELETE /v1/content/{content_id} endpoint.
+ *
+ * Pass the output ID or upload ID as the mutation variable.
+ * The backend checks generation_outputs first, then user_images.
+ */
+export function deleteContentMutationOptions(queryClient: QueryClient) {
+  return {
+    mutationFn: async (contentId: string) => {
+      const { error } = await apiClient.DELETE('/v1/content/{content_id}', {
+        params: { path: { content_id: contentId } },
+      });
+      if (error) throw new ApiRequestError(parseApiError(error, 0));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: galleryKeys.all });
+      queryClient.invalidateQueries({ queryKey: storageKeys.all });
+      queryClient.invalidateQueries({ queryKey: ['jobs'] });
+      queryClient.invalidateQueries({ queryKey: ['user'] });
+    },
   };
 }
 

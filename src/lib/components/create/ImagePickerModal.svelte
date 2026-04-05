@@ -1,16 +1,19 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { createInfiniteQuery } from '@tanstack/svelte-query';
-  import { X, Check } from 'lucide-svelte';
+  import { createInfiniteQuery, createMutation, useQueryClient } from '@tanstack/svelte-query';
+  import { X, Check, Trash2 } from 'lucide-svelte';
   import apiClient from '$lib/api/client';
   import { uploadsInfiniteQueryOptions } from '$lib/queries/storage';
-  import { galleryListInfiniteQueryOptions } from '$lib/queries/gallery';
+  import { galleryListInfiniteQueryOptions, deleteContentMutationOptions } from '$lib/queries/gallery';
   import { addToast } from '$lib/stores/toasts';
+  import { isDesktop } from '$lib/utils/breakpoints';
   import type { components } from '$lib/api/types';
   import AuthImage from '$lib/components/ui/AuthImage.svelte';
   import InfiniteScrollSentinel from '$lib/components/gallery/InfiniteScrollSentinel.svelte';
   import GeneratedI2iOutputs from './GeneratedI2iOutputs.svelte';
+  import ConfirmDeleteModal from '$lib/components/shared/ConfirmDeleteModal.svelte';
   import type { I2iOutputSelection } from './GeneratedI2iOutputs.svelte';
+  import * as m from '$paraglide/messages';
 
   type GalleryGroupDetail = components['schemas']['GalleryGroupDetail'];
 
@@ -41,6 +44,13 @@
     isDirectOutput?: boolean;
   } | null>(null);
   let confirming = $state(false);
+  let uploadDeleteTarget = $state<string | null>(null);
+
+  const queryClient = useQueryClient();
+  const deleteUploadMut = createMutation(() => deleteContentMutationOptions(queryClient));
+
+  // Long-press timer for mobile upload deletion
+  let longPressTimer: ReturnType<typeof setTimeout> | null = null;
 
   /* ─── Data fetching ─── */
   // Both queries always enabled when the modal is open so tab-switching never
@@ -121,6 +131,37 @@
       addToast({ type: 'error', message: 'Failed to load image details.' });
     } finally {
       confirming = false;
+    }
+  }
+
+  /* ─── Upload deletion ─── */
+
+  async function confirmUploadDelete() {
+    if (!uploadDeleteTarget) return;
+    const targetId = uploadDeleteTarget;
+    try {
+      await deleteUploadMut.mutateAsync(targetId);
+      addToast({ type: 'success', message: m.upload_delete_success() });
+      if (selectedItem?.source === 'upload' && selectedItem.id === targetId) {
+        selectedItem = null;
+      }
+    } catch {
+      addToast({ type: 'error', message: m.upload_delete_error() });
+    } finally {
+      uploadDeleteTarget = null;
+    }
+  }
+
+  function startLongPress(uploadId: string) {
+    longPressTimer = setTimeout(() => {
+      uploadDeleteTarget = uploadId;
+    }, 500);
+  }
+
+  function cancelLongPress() {
+    if (longPressTimer !== null) {
+      clearTimeout(longPressTimer);
+      longPressTimer = null;
     }
   }
 
@@ -221,28 +262,47 @@
           <div class="grid grid-cols-3 gap-2 md:grid-cols-4">
             {#each uploadItems as item (item.id)}
               {@const isSelected = selectedItem?.id === item.id && selectedItem?.source === 'upload'}
-              <button
-                onclick={() =>
-                  (selectedItem = isSelected
-                    ? null
-                    : { id: item.id, source: 'upload', previewUrl: getUploadThumbnailUrl(item.id) })}
+              <div
                 class="group relative aspect-square overflow-hidden rounded-lg border-2 transition-colors
                   {isSelected ? 'border-accent' : 'border-transparent hover:border-border-active'}"
-                aria-pressed={isSelected}
-                aria-label="Upload: {item.filename}"
               >
-                <AuthImage
-                  src={getUploadThumbnailUrl(item.id)}
-                  alt={item.filename}
-                  class="h-full w-full object-cover"
-                  loading="lazy"
-                />
-                {#if isSelected}
-                  <div class="absolute inset-0 flex items-center justify-center bg-accent/20">
-                    <Check size={20} class="text-accent" />
-                  </div>
+                <button
+                  onclick={() =>
+                    (selectedItem = isSelected
+                      ? null
+                      : { id: item.id, source: 'upload', previewUrl: getUploadThumbnailUrl(item.id) })}
+                  ontouchstart={() => { if (!$isDesktop) startLongPress(item.id); }}
+                  ontouchend={cancelLongPress}
+                  ontouchmove={cancelLongPress}
+                  ontouchcancel={cancelLongPress}
+                  class="h-full w-full"
+                  aria-pressed={isSelected}
+                  aria-label="Upload: {item.filename}"
+                >
+                  <AuthImage
+                    src={getUploadThumbnailUrl(item.id)}
+                    alt={item.filename}
+                    class="h-full w-full object-cover"
+                    loading="lazy"
+                  />
+                  {#if isSelected}
+                    <div class="absolute inset-0 flex items-center justify-center bg-accent/20">
+                      <Check size={20} class="text-accent" />
+                    </div>
+                  {/if}
+                </button>
+
+                <!-- Desktop hover trash icon -->
+                {#if $isDesktop}
+                  <button
+                    onclick={(e) => { e.stopPropagation(); uploadDeleteTarget = item.id; }}
+                    class="absolute right-1 top-1 hidden h-6 w-6 items-center justify-center rounded-md bg-black/60 text-white opacity-0 transition-opacity group-hover:flex group-hover:opacity-100"
+                    aria-label={m.common_delete()}
+                  >
+                    <Trash2 size={12} />
+                  </button>
                 {/if}
-              </button>
+              </div>
             {/each}
           </div>
 
@@ -370,3 +430,13 @@
     </div>
   </div>
 </div>
+
+{#if uploadDeleteTarget}
+  <ConfirmDeleteModal
+    title={m.upload_delete_title()}
+    message={m.upload_delete_confirm_text()}
+    isPending={deleteUploadMut.isPending}
+    onconfirm={confirmUploadDelete}
+    oncancel={() => (uploadDeleteTarget = null)}
+  />
+{/if}

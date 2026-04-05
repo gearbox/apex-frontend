@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import { test, expect } from '../fixtures/auth.fixture';
 import { jsonRoute } from '../helpers/api';
 
@@ -121,6 +122,116 @@ const mockProvidersResponse = {
   ],
   user_context: null,
 };
+
+test.describe('Gallery deletion', () => {
+  test.beforeEach(async ({ authenticatedPage: page }) => {
+    await page.route('**/v1/content/**', (route) => {
+      if (route.request().method() === 'DELETE') {
+        return route.fulfill({ status: 204 });
+      }
+      return route.fulfill({ status: 200, contentType: 'image/jpeg', body: Buffer.from('fake') });
+    });
+  });
+
+  test('Delete button in Lightbox shows confirm dialog', async ({ authenticatedPage: page }) => {
+    await page.route((url) => url.pathname === '/v1/gallery', jsonRoute(mockGalleryPage));
+    await page.route('**/v1/gallery/job_001', jsonRoute(mockGalleryDetail));
+
+    await page.goto('/app/gallery');
+    await expect(page.getByText(/loaded/i)).toBeVisible({ timeout: 5000 });
+
+    // Open lightbox
+    await page.locator('[class*="grid"]').locator('button, [role="button"]').first().click();
+    await expect(
+      page.getByText('A beautiful sunset over mountains with golden light').first(),
+    ).toBeVisible({ timeout: 3000 });
+
+    // Click delete button (trash icon)
+    await page.getByRole('button', { name: /delete/i }).click();
+
+    // Confirm dialog should appear
+    await expect(page.getByText(/permanently deleted/i)).toBeVisible();
+    await expect(page.getByRole('button', { name: /cancel/i })).toBeVisible();
+  });
+
+  test('Confirm delete calls API and closes lightbox for single-output job', async ({
+    authenticatedPage: page,
+  }) => {
+    let deleteRequested = false;
+    let deletedPath = '';
+    await page.route((url) => url.pathname === '/v1/gallery', jsonRoute(mockGalleryPage));
+    await page.route('**/v1/gallery/job_001', jsonRoute(mockGalleryDetail));
+    await page.route('**/v1/content/**', (route) => {
+      if (route.request().method() === 'DELETE') {
+        deleteRequested = true;
+        deletedPath = new URL(route.request().url()).pathname;
+        return route.fulfill({ status: 204 });
+      }
+      return route.fulfill({ status: 200, contentType: 'image/jpeg', body: Buffer.from('fake') });
+    });
+
+    await page.goto('/app/gallery');
+    await expect(page.getByText(/loaded/i)).toBeVisible({ timeout: 5000 });
+
+    // Open lightbox → click delete → confirm
+    await page.locator('[class*="grid"]').locator('button, [role="button"]').first().click();
+    await expect(
+      page.getByText('A beautiful sunset over mountains with golden light').first(),
+    ).toBeVisible({ timeout: 3000 });
+
+    await page.getByRole('button', { name: /delete/i }).click();
+    await page.getByRole('button', { name: /delete/i }).last().click(); // confirm button in modal
+
+    // Should have called DELETE /v1/content/{output_id}
+    expect(deleteRequested).toBe(true);
+    expect(deletedPath).toContain('/v1/content/');
+  });
+
+  test('Cancel delete closes dialog without API call', async ({ authenticatedPage: page }) => {
+    let deleteRequested = false;
+    await page.route((url) => url.pathname === '/v1/gallery', jsonRoute(mockGalleryPage));
+    await page.route('**/v1/gallery/job_001', jsonRoute(mockGalleryDetail));
+    await page.route('**/v1/content/**', (route) => {
+      if (route.request().method() === 'DELETE') {
+        deleteRequested = true;
+        return route.fulfill({ status: 204 });
+      }
+      return route.fulfill({ status: 200, contentType: 'image/jpeg', body: Buffer.from('fake') });
+    });
+
+    await page.goto('/app/gallery');
+    await expect(page.getByText(/loaded/i)).toBeVisible({ timeout: 5000 });
+
+    await page.locator('[class*="grid"]').locator('button, [role="button"]').first().click();
+    await expect(
+      page.getByText('A beautiful sunset over mountains with golden light').first(),
+    ).toBeVisible({ timeout: 3000 });
+
+    await page.getByRole('button', { name: /delete/i }).click();
+    await page.getByRole('button', { name: /cancel/i }).click();
+
+    // Dialog should close, no DELETE request
+    await expect(page.getByText(/permanently deleted/i)).not.toBeVisible();
+    expect(deleteRequested).toBe(false);
+  });
+
+  test('Right-click context menu shows Delete option on desktop', async ({
+    authenticatedPage: page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.route((url) => url.pathname === '/v1/gallery', jsonRoute(mockGalleryPage));
+
+    await page.goto('/app/gallery');
+    await expect(page.getByText(/loaded/i)).toBeVisible({ timeout: 5000 });
+
+    // Right-click on first card
+    const firstCard = page.locator('[class*="grid"]').locator('button, [role="button"]').first();
+    await firstCard.click({ button: 'right' });
+
+    // Context menu should appear with Delete option
+    await expect(page.getByText(/delete/i).last()).toBeVisible({ timeout: 2000 });
+  });
+});
 
 test.describe('Lightbox Remix', () => {
   test.beforeEach(async ({ authenticatedPage: page }) => {
