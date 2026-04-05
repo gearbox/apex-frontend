@@ -219,5 +219,5 @@
 
 <!-- Generate button (mobile sticky bar) -->
 <div class="fixed bottom-[calc(56px+env(safe-area-inset-bottom))] left-0 right-0 border-t border-border bg-bg p-4 md:hidden">
-  <GenerateButton onclick={handleGenerate} {submitting} />
+  <GenerateButton onclick={handleGenerate} {submitting} {estimatedCost} />
 </div>
