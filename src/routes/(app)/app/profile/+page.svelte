@@ -9,6 +9,7 @@
   import ChangePasswordModal from '$lib/components/profile/ChangePasswordModal.svelte';
   import LogoutAllModal from '$lib/components/profile/LogoutAllModal.svelte';
   import DeleteAccountModal from '$lib/components/profile/DeleteAccountModal.svelte';
+  import InstallAppButton from '$lib/components/pwa/InstallAppButton.svelte';
   import * as m from '$paraglide/messages';
 
   let loggingOut = $state(false);
@@ -47,6 +48,7 @@
 
   <!-- Actions -->
   <div class="actions">
+    <InstallAppButton />
     <button class="action-btn" onclick={() => (showChangePassword = true)}>{m.profile_change_password()}</button>
     <button class="action-btn" onclick={() => (showLogoutAll = true)}>{m.profile_logout_all()}</button>
     <button

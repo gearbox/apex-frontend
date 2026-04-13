@@ -3,6 +3,9 @@
   import { QueryClient, QueryClientProvider } from '@tanstack/svelte-query';
   import { initTheme, setTheme } from '$lib/stores/theme';
   import { productInfo } from '$lib/stores/product';
+  import { initNetworkListener } from '$lib/stores/network';
+  import { initPwaInstallListener } from '$lib/stores/pwaInstall';
+  import NetworkToastWatcher from '$lib/components/ui/NetworkToastWatcher.svelte';
   import { API_BASE_URL, STORAGE_KEYS } from '$lib/utils/constants';
   import { isBrowser } from '$lib/utils/env';
   import '../app.css';
@@ -23,7 +26,11 @@
   let appTitle = $derived($productInfo?.display_name ?? 'Apex');
 
   onMount(() => {
-    const cleanup = initTheme();
+    const cleanups: (() => void)[] = [];
+
+    cleanups.push(initTheme());
+    cleanups.push(initNetworkListener());
+    cleanups.push(initPwaInstallListener());
 
     // Fetch product info — public endpoint, no auth required (fire and forget)
     (async () => {
@@ -49,12 +56,13 @@
       }
     })();
 
-    return cleanup;
+    return () => cleanups.forEach((fn) => fn?.());
   });
 </script>
 
 <svelte:head>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -67,5 +75,6 @@
 </svelte:head>
 
 <QueryClientProvider client={queryClient}>
+  <NetworkToastWatcher />
   {@render children()}
 </QueryClientProvider>

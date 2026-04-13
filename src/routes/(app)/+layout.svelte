@@ -9,6 +9,8 @@
   import AppShell from '$lib/components/layout/AppShell.svelte';
   import ToastContainer from '$lib/components/ui/ToastContainer.svelte';
   import SystemBanner from '$lib/components/ui/SystemBanner.svelte';
+  import OfflineBanner from '$lib/components/ui/OfflineBanner.svelte';
+  import InstallPromptSheet from '$lib/components/pwa/InstallPromptSheet.svelte';
 
   let { children }: { children: Snippet } = $props();
   let checking = $state(true);
@@ -59,8 +61,10 @@
   </div>
 {:else}
   <SystemBanner />
+  <OfflineBanner />
   <AppShell>
     {@render children()}
   </AppShell>
   <ToastContainer />
+  <InstallPromptSheet />
 {/if}

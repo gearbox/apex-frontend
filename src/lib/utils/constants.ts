@@ -6,6 +6,7 @@ export const STORAGE_KEYS = {
   THEME_PREFS: 'apex-theme-prefs',
   REFRESH_TOKEN: 'apex-refresh-token',
   SIDEBAR_COLLAPSED: 'apex-sidebar-collapsed',
+  PWA_INSTALL_DISMISSED: 'apex-pwa-install-dismissed',
 } as const;
 
 /* ─── Breakpoints ─── */

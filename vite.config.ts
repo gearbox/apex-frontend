@@ -65,6 +65,8 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        navigateFallback: '/offline',
+        navigateFallbackDenylist: [/^\/v1\//, /^\/api\//, /^\/docs\//],
         runtimeCaching: [
           {
             urlPattern: /\/v1\/billing\/(packages|pricing)/,
