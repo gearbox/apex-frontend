@@ -13,3 +13,6 @@ build
 
 # Paraglide compiled output
 src/paraglide/
+
+# Wrangler
+.wrangler
