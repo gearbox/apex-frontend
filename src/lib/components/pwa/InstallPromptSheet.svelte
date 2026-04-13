@@ -1,12 +1,24 @@
 <script lang="ts">
-  import { Download } from 'lucide-svelte';
-  import { shouldShowInstallSheet, triggerInstall, dismissInstallSheet } from '$lib/stores/pwaInstall';
+  import { Download, Share, Plus } from 'lucide-svelte';
+  import {
+    shouldShowInstallSheet,
+    installPlatform,
+    triggerInstall,
+    dismissInstallSheet,
+  } from '$lib/stores/pwaInstall';
   import { productInfo } from '$lib/stores/product';
   import * as m from '$paraglide/messages';
 
   let installing = $state(false);
+  const appName = $derived($productInfo?.display_name ?? 'Apex');
+  const platform = $derived($installPlatform);
 
   async function handleInstall() {
+    if (platform === 'ios') {
+      // iOS: just dismiss — user follows the manual steps
+      dismissInstallSheet();
+      return;
+    }
     installing = true;
     const accepted = await triggerInstall();
     installing = false;
@@ -43,23 +55,50 @@
         <div class="sheet-icon">
           <Download size={28} strokeWidth={1.5} />
         </div>
-        <h2 class="sheet-title">
-          {m.pwa_install_sheet_title({ appName: $productInfo?.display_name ?? 'Apex' })}
-        </h2>
-        <p class="sheet-desc">{m.pwa_install_sheet_description()}</p>
 
-        <div class="sheet-actions">
-          <button class="btn-install" onclick={handleInstall} disabled={installing}>
-            {#if installing}
-              <span class="spinner"></span>
-            {:else}
-              {m.pwa_install_sheet_button()}
-            {/if}
-          </button>
-          <button class="btn-dismiss" onclick={handleDismiss}>
-            {m.pwa_install_sheet_dismiss()}
-          </button>
-        </div>
+        {#if platform === 'ios'}
+          <!-- iOS: manual instructions -->
+          <h2 class="sheet-title">{m.pwa_install_ios_title({ appName })}</h2>
+          <p class="sheet-desc">{m.pwa_install_ios_description()}</p>
+
+          <ol class="ios-steps">
+            <li>
+              <span class="step-icon"><Share size={16} strokeWidth={2} /></span>
+              <span>{m.pwa_install_ios_step1()}</span>
+            </li>
+            <li>
+              <span class="step-icon"><Plus size={16} strokeWidth={2} /></span>
+              <span>{m.pwa_install_ios_step2()}</span>
+            </li>
+            <li>
+              <span class="step-icon done-icon">✓</span>
+              <span>{m.pwa_install_ios_step3()}</span>
+            </li>
+          </ol>
+
+          <div class="sheet-actions">
+            <button class="btn-dismiss-full" onclick={handleDismiss}>
+              {m.pwa_install_sheet_dismiss()}
+            </button>
+          </div>
+        {:else}
+          <!-- Chromium: native prompt -->
+          <h2 class="sheet-title">{m.pwa_install_sheet_title({ appName })}</h2>
+          <p class="sheet-desc">{m.pwa_install_sheet_description()}</p>
+
+          <div class="sheet-actions">
+            <button class="btn-install" onclick={handleInstall} disabled={installing}>
+              {#if installing}
+                <span class="spinner"></span>
+              {:else}
+                {m.pwa_install_sheet_button()}
+              {/if}
+            </button>
+            <button class="btn-dismiss" onclick={handleDismiss}>
+              {m.pwa_install_sheet_dismiss()}
+            </button>
+          </div>
+        {/if}
       </div>
     </div>
   </div>
@@ -181,5 +220,54 @@
 
   @keyframes spin {
     to { transform: rotate(360deg); }
+  }
+
+  .ios-steps {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 20px;
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .ios-steps li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 14px;
+    color: var(--apex-text);
+    line-height: 1.4;
+  }
+
+  .step-icon {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: var(--apex-surface-hover);
+    color: var(--apex-accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .done-icon {
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  .btn-dismiss-full {
+    width: 100%;
+    padding: 14px;
+    border-radius: 12px;
+    border: 1px solid var(--apex-border);
+    background: transparent;
+    color: var(--apex-text-muted);
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
   }
 </style>

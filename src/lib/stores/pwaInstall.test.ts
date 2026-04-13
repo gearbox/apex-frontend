@@ -32,8 +32,13 @@ describe('pwaInstall store', () => {
   beforeEach(() => {
     localStorage.clear();
     mockMatchMedia(false);
-    // Reset modules so store state is fresh per test
     vi.resetModules();
+
+    // Mock platform detection to return 'chromium' by default for Chromium tests
+    vi.doMock('$lib/utils/platform', () => ({
+      getInstallPlatform: () => 'chromium' as const,
+      isStandalone: () => false,
+    }));
   });
 
   afterEach(() => {
@@ -55,7 +60,6 @@ describe('pwaInstall store', () => {
     window.dispatchEvent(mockEvent);
 
     expect(get(canInstall)).toBe(true);
-
     cleanup();
   });
 
@@ -63,7 +67,6 @@ describe('pwaInstall store', () => {
     const { canInstall, triggerInstall, initPwaInstallListener } = await import('./pwaInstall');
 
     const cleanup = initPwaInstallListener();
-
     const mockEvent = makeMockPromptEvent('accepted');
     window.dispatchEvent(mockEvent);
     expect(get(canInstall)).toBe(true);
@@ -71,9 +74,7 @@ describe('pwaInstall store', () => {
     const result = await triggerInstall();
     expect(mockEvent.prompt).toHaveBeenCalled();
     expect(result).toBe(true);
-    // After accepted, canInstall should be false (installed = true, prompt cleared)
     expect(get(canInstall)).toBe(false);
-
     cleanup();
   });
 
@@ -81,16 +82,13 @@ describe('pwaInstall store', () => {
     const { canInstall, triggerInstall, initPwaInstallListener } = await import('./pwaInstall');
 
     const cleanup = initPwaInstallListener();
-
     const mockEvent = makeMockPromptEvent('dismissed');
     window.dispatchEvent(mockEvent);
     expect(get(canInstall)).toBe(true);
 
     const result = await triggerInstall();
     expect(result).toBe(false);
-    // Prompt is still available (not cleared on dismiss)
     expect(get(canInstall)).toBe(true);
-
     cleanup();
   });
 
@@ -99,7 +97,6 @@ describe('pwaInstall store', () => {
       await import('./pwaInstall');
 
     const cleanup = initPwaInstallListener();
-
     const mockEvent = makeMockPromptEvent();
     window.dispatchEvent(mockEvent);
     expect(get(shouldShowInstallSheet)).toBe(true);
@@ -108,41 +105,62 @@ describe('pwaInstall store', () => {
 
     expect(get(shouldShowInstallSheet)).toBe(false);
     expect(localStorage.getItem(DISMISSED_KEY)).toBe('true');
-
     cleanup();
   });
 
-  it('appinstalled event sets installed to true and canInstall to false', async () => {
+  it('appinstalled event sets installed and clears canInstall', async () => {
     const { canInstall, initPwaInstallListener } = await import('./pwaInstall');
 
     const cleanup = initPwaInstallListener();
-
-    // First make it installable
     const mockEvent = makeMockPromptEvent();
     window.dispatchEvent(mockEvent);
     expect(get(canInstall)).toBe(true);
 
-    // Fire appinstalled
     window.dispatchEvent(new Event('appinstalled'));
     expect(get(canInstall)).toBe(false);
-
     cleanup();
   });
 
-  it('already-standalone mode sets installed to true', async () => {
+  it('already-standalone mode sets isAppInstalled to true', async () => {
+    vi.doMock('$lib/utils/platform', () => ({
+      getInstallPlatform: () => 'chromium' as const,
+      isStandalone: () => true,
+    }));
+
     mockMatchMedia(true);
 
-    const { canInstall, initPwaInstallListener } = await import('./pwaInstall');
+    const { isAppInstalled } = await import('./pwaInstall');
+    expect(get(isAppInstalled)).toBe(true);
+  });
+
+  it('shouldShowInstallButton is true on Chromium when prompt is available', async () => {
+    const { shouldShowInstallButton, initPwaInstallListener } = await import('./pwaInstall');
 
     const cleanup = initPwaInstallListener();
+    expect(get(shouldShowInstallButton)).toBe(false);
 
-    // Even after a beforeinstallprompt event, canInstall stays false
-    // because installed = true
-    const mockEvent = makeMockPromptEvent();
-    window.dispatchEvent(mockEvent);
-
-    expect(get(canInstall)).toBe(false);
-
+    window.dispatchEvent(makeMockPromptEvent());
+    expect(get(shouldShowInstallButton)).toBe(true);
     cleanup();
+  });
+
+  it('shouldShowInstallButton is true on iOS even without prompt', async () => {
+    vi.doMock('$lib/utils/platform', () => ({
+      getInstallPlatform: () => 'ios' as const,
+      isStandalone: () => false,
+    }));
+
+    const { shouldShowInstallButton } = await import('./pwaInstall');
+    expect(get(shouldShowInstallButton)).toBe(true);
+  });
+
+  it('shouldShowInstallButton is false on iOS when already installed', async () => {
+    vi.doMock('$lib/utils/platform', () => ({
+      getInstallPlatform: () => 'ios' as const,
+      isStandalone: () => true,
+    }));
+
+    const { shouldShowInstallButton } = await import('./pwaInstall');
+    expect(get(shouldShowInstallButton)).toBe(false);
   });
 });

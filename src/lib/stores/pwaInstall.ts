@@ -1,31 +1,65 @@
-import { writable, derived } from 'svelte/store';
+import { writable, derived, readable } from 'svelte/store';
 import { isBrowser } from '$lib/utils/env';
 import { STORAGE_KEYS } from '$lib/utils/constants';
+import { getInstallPlatform, isStandalone, type InstallPlatform } from '$lib/utils/platform';
+
+/* ─── Types ─── */
 
 interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 }
 
+/* ─── Internal State ─── */
+
 const deferredPrompt = writable<BeforeInstallPromptEvent | null>(null);
-const installed = writable(false);
+const installed = writable(isBrowser() ? isStandalone() : false);
 const dismissed = writable(
   isBrowser() ? localStorage.getItem(STORAGE_KEYS.PWA_INSTALL_DISMISSED) === 'true' : false,
 );
 
-/** True when the browser has offered an install prompt we can trigger. */
+/* ─── Public Stores ─── */
+
+/** The platform type for install UX branching. */
+export const installPlatform = readable<InstallPlatform>(
+  isBrowser() ? getInstallPlatform() : 'other',
+);
+
+/** True when the app is running as an installed PWA (any platform). */
+export const isAppInstalled = { subscribe: installed.subscribe };
+
+/** True when the Chromium browser has offered an install prompt we can trigger. */
 export const canInstall = derived(
   [deferredPrompt, installed],
   ([$prompt, $installed]) => $prompt !== null && !$installed,
 );
 
-/** True when the first-visit sheet should be shown (not yet dismissed, installable). */
-export const shouldShowInstallSheet = derived(
-  [canInstall, dismissed],
-  ([$canInstall, $dismissed]) => $canInstall && !$dismissed,
+/**
+ * True when the install button should be shown in the Profile page.
+ * Shows for both iOS (always, until installed) and Chromium (when prompt available).
+ */
+export const shouldShowInstallButton = derived(
+  [installPlatform, installed, canInstall],
+  ([$platform, $installed, $canInstall]) => {
+    if ($installed) return false;
+    if ($platform === 'ios') return true;
+    if ($platform === 'chromium') return $canInstall;
+    return false;
+  },
 );
 
-/** Trigger the native install prompt. Returns true if accepted. */
+/**
+ * True when the first-visit install sheet should be shown.
+ * Shows for both iOS (not dismissed, not installed) and Chromium (has prompt, not dismissed).
+ */
+export const shouldShowInstallSheet = derived(
+  [shouldShowInstallButton, dismissed],
+  ([$shouldShow, $dismissed]) => $shouldShow && !$dismissed,
+);
+
+/* ─── Actions ─── */
+
+/** Trigger the native Chromium install prompt. Returns true if accepted. No-op on iOS. */
 export async function triggerInstall(): Promise<boolean> {
   const prompt = getCurrentPrompt();
   if (!prompt) return false;
@@ -65,18 +99,22 @@ export function initPwaInstallListener(): () => void {
   window.addEventListener('beforeinstallprompt', onBeforeInstall);
   window.addEventListener('appinstalled', onAppInstalled);
 
-  // Detect if already running as installed PWA
-  if (window.matchMedia('(display-mode: standalone)').matches) {
-    installed.set(true);
-  }
+  // Listen for display-mode changes (e.g. user installs while page is open)
+  const mql = window.matchMedia('(display-mode: standalone)');
+  const onDisplayModeChange = (e: MediaQueryListEvent) => {
+    if (e.matches) installed.set(true);
+  };
+  mql.addEventListener('change', onDisplayModeChange);
 
   return () => {
     window.removeEventListener('beforeinstallprompt', onBeforeInstall);
     window.removeEventListener('appinstalled', onAppInstalled);
+    mql.removeEventListener('change', onDisplayModeChange);
   };
 }
 
-// Internal helper — gets current prompt value synchronously
+/* ─── Internal Helpers ─── */
+
 function getCurrentPrompt(): BeforeInstallPromptEvent | null {
   let current: BeforeInstallPromptEvent | null = null;
   deferredPrompt.subscribe((v) => (current = v))();
