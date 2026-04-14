@@ -8,6 +8,7 @@
   import type { components } from '$lib/api/types';
   import type { JobListFilters } from '$lib/queries/jobs';
   import { isSSEConnected } from '$lib/stores/eventStream';
+  import { productInfo } from '$lib/stores/product';
 
   type UnifiedJobResponse = components['schemas']['UnifiedJobResponse'];
 
@@ -29,6 +30,9 @@
   let nextCursor = $state<string | null>(null);
   let loadingMore = $state(false);
 
+  // Derive app title from productInfo for <title> tag
+  let appTitle = $derived($productInfo?.display_name ?? 'Apex');
+
   // ── Query — auto-refresh while any non-terminal job exists
   const hasActiveJobs = $derived(accumulatedItems.some((j) => NON_TERMINAL.includes(j.status)));
 
@@ -36,7 +40,7 @@
     ...jobsListQueryOptions(filters),
     // When SSE is connected, job status updates arrive in real-time.
     // Fall back to 5s polling only when SSE is down AND there are active jobs.
-    refetchInterval: $isSSEConnected ? false : (hasActiveJobs ? 5000 : false),
+    refetchInterval: $isSSEConnected ? false : hasActiveJobs ? 5000 : false,
   }));
 
   // Append or replace on new data
@@ -76,7 +80,7 @@
 <svelte:window onpointerdown={handleWindowPointerDown} />
 
 <svelte:head>
-  <title>Jobs — Apex</title>
+  <title>Jobs — {appTitle}</title>
 </svelte:head>
 
 <div class="space-y-4 p-4 md:p-0">
@@ -103,7 +107,6 @@
         <div class="h-18 animate-pulse rounded-xl bg-surface"></div>
       {/each}
     </div>
-
   {:else if query.isError}
     <!-- Error -->
     <div class="rounded-xl border border-danger/20 bg-danger/5 p-4 text-center">
@@ -115,10 +118,11 @@
         {m.common_retry()}
       </button>
     </div>
-
   {:else if accumulatedItems.length === 0}
     <!-- Empty state -->
-    <div class="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-20 text-center">
+    <div
+      class="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-20 text-center"
+    >
       <Inbox size={40} class="mb-3 text-text-dim opacity-40" />
       <p class="text-sm font-medium text-text">{m.jobs_empty()}</p>
       <p class="mt-1 text-xs text-text-muted">{m.jobs_empty_subtitle()}</p>
@@ -129,12 +133,16 @@
         {m.jobs_empty_cta()}
       </a>
     </div>
-
   {:else}
     <!-- Job list -->
     <div class="flex flex-col gap-2">
       {#each accumulatedItems as job (job.id)}
-        <JobCard {job} onDelete={handleDelete} menuOpen={openMenuJobId === job.id} onMenuToggle={(id) => (openMenuJobId = id)} />
+        <JobCard
+          {job}
+          onDelete={handleDelete}
+          menuOpen={openMenuJobId === job.id}
+          onMenuToggle={(id) => (openMenuJobId = id)}
+        />
       {/each}
     </div>
 
@@ -147,7 +155,9 @@
           class="flex items-center gap-2 rounded-lg border border-border bg-surface px-4 py-2 text-sm text-text-muted transition-colors hover:bg-surface-hover disabled:opacity-50"
         >
           {#if loadingMore || query.isFetching}
-            <div class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-accent border-t-transparent"></div>
+            <div
+              class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-accent border-t-transparent"
+            ></div>
             {m.jobs_loading()}
           {:else}
             {m.jobs_load_more()}

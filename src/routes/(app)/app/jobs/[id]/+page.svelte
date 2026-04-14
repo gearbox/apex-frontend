@@ -7,8 +7,12 @@
   import JobStatusBadge from '$lib/components/jobs/JobStatusBadge.svelte';
   import JobOutputGrid from '$lib/components/jobs/JobOutputGrid.svelte';
   import type { components } from '$lib/api/types';
+  import { productInfo } from '$lib/stores/product';
 
   type JobStatus = components['schemas']['JobStatus'];
+
+  // Derive app title from productInfo for <title> tag
+  let appTitle = $derived($productInfo?.display_name ?? 'Apex');
 
   const TERMINAL = new Set<JobStatus>(['completed', 'failed', 'cancelled', 'moderated']);
 
@@ -17,7 +21,9 @@
 
   const query = createQuery(() => ({
     ...jobDetailQueryOptions(jobId),
-    refetchInterval: (q: { state: { data: components['schemas']['UnifiedJobResponse'] | null | undefined } }) => {
+    refetchInterval: (q: {
+      state: { data: components['schemas']['UnifiedJobResponse'] | null | undefined };
+    }) => {
       const data = q.state.data;
       if (!data || TERMINAL.has(data.status)) return false;
       return 3000;
@@ -49,19 +55,16 @@
   }
 
   // ── Derived display values
-  const nonThumbnailOutputs = $derived(
-    (job?.outputs ?? []).filter((o) => !o.is_thumbnail),
-  );
+  const nonThumbnailOutputs = $derived((job?.outputs ?? []).filter((o) => !o.is_thumbnail));
   const hasOutputs = $derived(job?.status === 'completed' && nonThumbnailOutputs.length > 0);
   const canRetry = $derived(job?.status === 'failed' || job?.status === 'cancelled');
 </script>
 
 <svelte:head>
-  <title>{job?.name ?? 'Job'} — Apex</title>
+  <title>{job?.name ?? 'Job'} — {appTitle}</title>
 </svelte:head>
 
 <div class="mx-auto max-w-4xl space-y-5 p-4 md:p-6">
-
   <!-- Back button -->
   <button
     onclick={() => goto('/app/jobs')}
@@ -78,10 +81,11 @@
       <div class="h-24 animate-pulse rounded-xl bg-surface"></div>
       <div class="h-48 animate-pulse rounded-xl bg-surface"></div>
     </div>
-
   {:else if !job}
     <!-- Not found -->
-    <div class="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-20 text-center">
+    <div
+      class="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-20 text-center"
+    >
       <p class="text-sm font-medium text-text">Job not found</p>
       <p class="mt-1 text-xs text-text-muted">This job may have been deleted.</p>
       <button
@@ -91,7 +95,6 @@
         Back to Jobs
       </button>
     </div>
-
   {:else}
     <!-- Header -->
     <div class="flex flex-wrap items-start justify-between gap-3">
@@ -136,7 +139,8 @@
     <!-- Prompt -->
     <div>
       <p class="mb-1.5 text-xs font-semibold uppercase tracking-wide text-text-muted">Prompt</p>
-      <pre class="whitespace-pre-wrap wrap-break-word rounded-lg bg-surface p-3 font-mono text-sm text-text">{job.prompt}</pre>
+      <pre
+        class="whitespace-pre-wrap wrap-break-word rounded-lg bg-surface p-3 font-mono text-sm text-text">{job.prompt}</pre>
     </div>
 
     <!-- Parameters + Timing -->
@@ -155,7 +159,8 @@
             <div class="flex justify-between">
               <dt class="text-text-dim">Token cost</dt>
               <dd class="flex items-center gap-1 font-medium text-accent">
-                <Coins size={11} /> {job.token_cost}
+                <Coins size={11} />
+                {job.token_cost}
               </dd>
             </div>
           {/if}
@@ -185,7 +190,9 @@
           {#if job.started_at && job.completed_at}
             <div class="flex justify-between">
               <dt class="text-text-dim">Duration</dt>
-              <dd class="font-medium text-text">{formatDuration(job.started_at, job.completed_at)}</dd>
+              <dd class="font-medium text-text">
+                {formatDuration(job.started_at, job.completed_at)}
+              </dd>
             </div>
           {/if}
         </dl>
