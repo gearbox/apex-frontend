@@ -61,4 +61,18 @@ describe('adminKeys', () => {
       { active_only: true },
     ]);
   });
+
+  it('generates admins key', () => {
+    expect(adminKeys.admins()).toEqual(['admin', 'manage', 'admins']);
+  });
+
+  it('generates audit key', () => {
+    expect(adminKeys.audit()).toEqual(['admin', 'manage', 'audit', {}]);
+  });
+
+  it('generates audit key with target_user_id', () => {
+    expect(adminKeys.audit({ target_user_id: 'usr_001' })).toEqual([
+      'admin', 'manage', 'audit', { target_user_id: 'usr_001' },
+    ]);
+  });
 });

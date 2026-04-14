@@ -14,6 +14,12 @@ import {
   adjustAccountBalance,
   fetchAccountBalance,
   fetchAccountTransactions,
+  fetchAdminList,
+  grantRole,
+  revokeRole,
+  grantPermission,
+  revokePermission,
+  fetchAuditLog,
   type CreatePricingRuleRequest,
   type PatchPricingRuleRequest,
 } from '$lib/api/admin';
@@ -30,6 +36,8 @@ export const adminKeys = {
   accountBalance: (id: string) => ['admin', 'account-balance', id] as const,
   accountTransactions: (id: string, params?: object) =>
     ['admin', 'account-txns', id, params ?? {}] as const,
+  admins: () => ['admin', 'manage', 'admins'] as const,
+  audit: (params?: object) => ['admin', 'manage', 'audit', params ?? {}] as const,
 };
 
 /* ─── Query Options ─── */
@@ -186,6 +194,76 @@ export function adjustBalanceMutationOptions(
       queryClient.invalidateQueries({ queryKey: adminKeys.accountTransactions(accountId) });
       queryClient.invalidateQueries({ queryKey: adminKeys.users() });
       queryClient.invalidateQueries({ queryKey: adminKeys.orgs() });
+    },
+  };
+}
+
+/* ─── Admin Management (Superadmin only) ─── */
+
+export function adminListQueryOptions() {
+  return {
+    queryKey: adminKeys.admins(),
+    queryFn: () => fetchAdminList(),
+    staleTime: 30_000,
+    refetchOnWindowFocus: true,
+  };
+}
+
+export interface AuditLogFilters {
+  target_user_id?: string;
+  limit?: number;
+}
+
+export function auditLogQueryOptions(filters: AuditLogFilters = {}) {
+  return {
+    queryKey: adminKeys.audit(filters),
+    queryFn: () => fetchAuditLog(filters),
+    staleTime: 30_000,
+    refetchOnWindowFocus: true,
+  };
+}
+
+export function grantRoleMutationOptions(queryClient: QueryClient) {
+  return {
+    mutationFn: ({ userId, role }: { userId: string; role: 'admin' | 'superadmin' }) =>
+      grantRole(userId, role),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.admins() });
+      queryClient.invalidateQueries({ queryKey: adminKeys.users() });
+      queryClient.invalidateQueries({ queryKey: adminKeys.audit() });
+    },
+  };
+}
+
+export function revokeRoleMutationOptions(queryClient: QueryClient) {
+  return {
+    mutationFn: (userId: string) => revokeRole(userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.admins() });
+      queryClient.invalidateQueries({ queryKey: adminKeys.users() });
+      queryClient.invalidateQueries({ queryKey: adminKeys.audit() });
+    },
+  };
+}
+
+export function grantPermissionMutationOptions(queryClient: QueryClient) {
+  return {
+    mutationFn: ({ userId, permission }: { userId: string; permission: 'billing_adjust' }) =>
+      grantPermission(userId, permission),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.admins() });
+      queryClient.invalidateQueries({ queryKey: adminKeys.audit() });
+    },
+  };
+}
+
+export function revokePermissionMutationOptions(queryClient: QueryClient) {
+  return {
+    mutationFn: ({ userId, permission }: { userId: string; permission: 'billing_adjust' }) =>
+      revokePermission(userId, permission),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.admins() });
+      queryClient.invalidateQueries({ queryKey: adminKeys.audit() });
     },
   };
 }

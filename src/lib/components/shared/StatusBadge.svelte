@@ -19,6 +19,7 @@
     refunded: 'muted',
     cancelled: 'muted',
     // Role badges
+    superadmin: 'danger',
     admin: 'accent',
     user: 'neutral',
     system: 'neutral',

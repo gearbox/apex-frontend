@@ -15,6 +15,7 @@
 
   let { user, queryClient, onclose }: Props = $props();
 
+  const isSuperadminUser = untrack(() => user.role === 'superadmin');
   let role = $state(untrack(() => (user.role === 'admin' ? 'admin' : 'user')));
   let subscriptionTier = $state(untrack(() => user.subscription_tier));
   let isActive = $state(untrack(() => user.is_active));
@@ -56,9 +57,13 @@
     <div class="form-fields">
       <div class="field">
         <label class="field-label" for="edit-role">Role</label>
-        <select id="edit-role" class="field-select" bind:value={role}>
-          <option value="user">User</option>
-          <option value="admin">Admin</option>
+        <select id="edit-role" class="field-select" bind:value={role} disabled={isSuperadminUser}>
+          {#if isSuperadminUser}
+            <option value="superadmin">Superadmin</option>
+          {:else}
+            <option value="user">User</option>
+            <option value="admin">Admin</option>
+          {/if}
         </select>
       </div>
 

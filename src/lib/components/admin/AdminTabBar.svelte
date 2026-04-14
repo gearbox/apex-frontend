@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Users, Building2, Cpu, CreditCard, Coins } from 'lucide-svelte';
+  import { Users, Building2, Cpu, CreditCard, Coins, ShieldCheck } from 'lucide-svelte';
 
   interface TabDef {
     id: string;
@@ -10,17 +10,24 @@
   interface Props {
     activeTab: string;
     ontabchange: (id: string) => void;
+    showManageTab: boolean;
   }
 
-  let { activeTab, ontabchange }: Props = $props();
+  let { activeTab, ontabchange, showManageTab }: Props = $props();
 
-  const tabs: TabDef[] = [
+  const baseTabs: TabDef[] = [
     { id: 'users', label: 'Users', icon: Users },
     { id: 'orgs', label: 'Organizations', icon: Building2 },
     { id: 'models', label: 'Models', icon: Cpu },
     { id: 'payments', label: 'Payments', icon: CreditCard },
     { id: 'pricing', label: 'Pricing', icon: Coins },
   ];
+
+  const manageTabs: TabDef[] = [
+    { id: 'admins', label: 'Admins', icon: ShieldCheck },
+  ];
+
+  const tabs = $derived(showManageTab ? [...baseTabs, ...manageTabs] : baseTabs);
 </script>
 
 <div class="tab-bar" role="tablist" aria-label="Admin sections">
@@ -29,6 +36,7 @@
     <button
       role="tab"
       aria-selected={isActive}
+      aria-label={tab.label}
       class="tab-btn"
       class:active={isActive}
       onclick={() => ontabchange(tab.id)}

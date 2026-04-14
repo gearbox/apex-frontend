@@ -26,6 +26,12 @@ import {
   fetchAccountBalance,
   fetchAccountTransactions,
   adjustAccountBalance,
+  fetchAdminList,
+  grantRole,
+  revokeRole,
+  grantPermission,
+  revokePermission,
+  fetchAuditLog,
 } from './admin';
 
 const BASE = 'http://localhost:8000';
@@ -414,5 +420,159 @@ describe('adjustAccountBalance()', () => {
     await expect(
       adjustAccountBalance('acc_001', { amount: 100, description: 'test' }, 'dup-key'),
     ).rejects.toThrow('Conflict');
+  });
+});
+
+describe('fetchAdminList()', () => {
+  it('returns a list of admin users with permissions', async () => {
+    server.use(
+      http.get(`${BASE}/v1/admin/manage/admins`, () =>
+        HttpResponse.json([
+          {
+            id: 'usr_sa_001',
+            email: 'superadmin@example.com',
+            display_name: 'Super Admin',
+            role: 'superadmin',
+            permissions: [],
+            is_active: true,
+            created_at: '2025-01-01T00:00:00Z',
+            updated_at: '2025-01-01T00:00:00Z',
+          },
+          {
+            id: 'usr_a_001',
+            email: 'admin@example.com',
+            display_name: 'Regular Admin',
+            role: 'admin',
+            permissions: ['billing_adjust'],
+            is_active: true,
+            created_at: '2025-01-01T00:00:00Z',
+            updated_at: '2025-01-01T00:00:00Z',
+          },
+        ]),
+      ),
+    );
+    const result = await fetchAdminList();
+    expect(result).toHaveLength(2);
+    expect(result[0].role).toBe('superadmin');
+    expect(result[1].permissions).toContain('billing_adjust');
+  });
+});
+
+describe('grantRole()', () => {
+  it('returns success message', async () => {
+    server.use(
+      http.post(`${BASE}/v1/admin/manage/roles/:userId/grant`, () =>
+        HttpResponse.json({ message: 'Role granted.' }, { status: 201 }),
+      ),
+    );
+    const result = await grantRole('usr_002', 'admin');
+    expect(result.message).toBeTruthy();
+  });
+
+  it('throws 403 on self-modification', async () => {
+    server.use(
+      http.post(`${BASE}/v1/admin/manage/roles/:userId/grant`, () =>
+        HttpResponse.json(
+          { error: 'self_modification', message: 'Cannot modify own role', status_code: 403 },
+          { status: 403 },
+        ),
+      ),
+    );
+    await expect(grantRole('usr_self', 'admin')).rejects.toThrow();
+  });
+});
+
+describe('revokeRole()', () => {
+  it('returns success message', async () => {
+    server.use(
+      http.post(`${BASE}/v1/admin/manage/roles/:userId/revoke`, () =>
+        HttpResponse.json({ message: 'Role revoked.' }, { status: 201 }),
+      ),
+    );
+    const result = await revokeRole('usr_002');
+    expect(result.message).toBeTruthy();
+  });
+
+  it('throws 400 on last superadmin', async () => {
+    server.use(
+      http.post(`${BASE}/v1/admin/manage/roles/:userId/revoke`, () =>
+        HttpResponse.json(
+          { error: 'last_superadmin', message: 'Cannot revoke the last superadmin', status_code: 400 },
+          { status: 400 },
+        ),
+      ),
+    );
+    await expect(revokeRole('usr_last_sa')).rejects.toThrow();
+  });
+});
+
+describe('grantPermission()', () => {
+  it('returns success message', async () => {
+    server.use(
+      http.post(`${BASE}/v1/admin/manage/permissions/:userId/grant`, () =>
+        HttpResponse.json({ message: 'Permission granted.' }, { status: 201 }),
+      ),
+    );
+    const result = await grantPermission('usr_002', 'billing_adjust');
+    expect(result.message).toBeTruthy();
+  });
+
+  it('throws 400 when user is not an admin', async () => {
+    server.use(
+      http.post(`${BASE}/v1/admin/manage/permissions/:userId/grant`, () =>
+        HttpResponse.json(
+          { error: 'not_admin', message: 'User is not an admin', status_code: 400 },
+          { status: 400 },
+        ),
+      ),
+    );
+    await expect(grantPermission('usr_regular', 'billing_adjust')).rejects.toThrow();
+  });
+});
+
+describe('revokePermission()', () => {
+  it('returns success message', async () => {
+    server.use(
+      http.post(`${BASE}/v1/admin/manage/permissions/:userId/revoke`, () =>
+        HttpResponse.json({ message: 'Permission revoked.' }, { status: 201 }),
+      ),
+    );
+    const result = await revokePermission('usr_002', 'billing_adjust');
+    expect(result.message).toBeTruthy();
+  });
+});
+
+describe('fetchAuditLog()', () => {
+  it('returns a list of audit entries', async () => {
+    server.use(
+      http.get(`${BASE}/v1/admin/manage/audit`, () =>
+        HttpResponse.json([
+          {
+            id: 'audit_001',
+            actor_id: 'usr_sa_001',
+            target_user_id: 'usr_002',
+            action: 'role.grant',
+            detail: "Role changed from 'user' to 'admin'",
+            source: 'api',
+            created_at: '2025-06-01T12:00:00Z',
+          },
+        ]),
+      ),
+    );
+    const result = await fetchAuditLog();
+    expect(result).toHaveLength(1);
+    expect(result[0].action).toBe('role.grant');
+  });
+
+  it('passes target_user_id filter', async () => {
+    let capturedUrl = '';
+    server.use(
+      http.get(`${BASE}/v1/admin/manage/audit`, ({ request }) => {
+        capturedUrl = request.url;
+        return HttpResponse.json([]);
+      }),
+    );
+    await fetchAuditLog({ target_user_id: 'usr_002', limit: 10 });
+    expect(capturedUrl).toContain('target_user_id');
   });
 });

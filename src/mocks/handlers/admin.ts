@@ -7,6 +7,8 @@ import {
   makeBalanceResponse,
   makeTransactionResponse,
   makePricingRule,
+  makeAdminRoleResponse,
+  makeAuditLogEntry,
 } from '../factories/admin';
 import { MOCK_BASE_URL as BASE } from '../config';
 
@@ -179,6 +181,61 @@ export const adminHandlers = [
   http.delete(`${BASE}/v1/admin/pricing/:ruleId`, () =>
     HttpResponse.json({ message: 'Pricing rule deleted.' }),
   ),
+
+  // ─── Admin Management (Superadmin only) ───
+
+  // List admins
+  http.get(`${BASE}/v1/admin/manage/admins`, () =>
+    HttpResponse.json([
+      makeAdminRoleResponse({
+        id: 'usr_sa_001',
+        email: 'superadmin@example.com',
+        display_name: 'Super Admin',
+        role: 'superadmin',
+        permissions: [],
+      }),
+      makeAdminRoleResponse({
+        id: 'usr_a_001',
+        email: 'admin@example.com',
+        display_name: 'Regular Admin',
+        role: 'admin',
+        permissions: ['billing_adjust'],
+      }),
+    ]),
+  ),
+
+  // Grant role
+  http.post(`${BASE}/v1/admin/manage/roles/:userId/grant`, () =>
+    HttpResponse.json({ message: 'Role granted successfully.' }, { status: 201 }),
+  ),
+
+  // Revoke role
+  http.post(`${BASE}/v1/admin/manage/roles/:userId/revoke`, () =>
+    HttpResponse.json({ message: 'Role revoked successfully.' }, { status: 201 }),
+  ),
+
+  // Grant permission
+  http.post(`${BASE}/v1/admin/manage/permissions/:userId/grant`, () =>
+    HttpResponse.json({ message: 'Permission granted.' }, { status: 201 }),
+  ),
+
+  // Revoke permission
+  http.post(`${BASE}/v1/admin/manage/permissions/:userId/revoke`, () =>
+    HttpResponse.json({ message: 'Permission revoked.' }, { status: 201 }),
+  ),
+
+  // Audit log
+  http.get(`${BASE}/v1/admin/manage/audit`, () =>
+    HttpResponse.json([
+      makeAuditLogEntry({ id: 'audit_001', action: 'role.grant' }),
+      makeAuditLogEntry({
+        id: 'audit_002',
+        action: 'permission.grant',
+        detail: "Permission 'billing_adjust' granted",
+        created_at: '2025-06-02T12:00:00Z',
+      }),
+    ]),
+  ),
 ];
 
 // Named override handlers for negative-path tests
@@ -200,4 +257,20 @@ export const adminPricingCreateFailHandler = http.post(
 export const adminPricingDeleteFailHandler = http.delete(
   `${BASE}/v1/admin/pricing/:ruleId`,
   () => HttpResponse.json({ error: 'not_found', message: 'Pricing rule not found', status_code: 404 }, { status: 404 }),
+);
+
+export const adminGrantRoleSelfHandler = http.post(
+  `${BASE}/v1/admin/manage/roles/:userId/grant`,
+  () => HttpResponse.json(
+    { error: 'self_modification', message: 'Cannot modify own role', status_code: 403 },
+    { status: 403 },
+  ),
+);
+
+export const adminRevokeLastSuperadminHandler = http.post(
+  `${BASE}/v1/admin/manage/roles/:userId/revoke`,
+  () => HttpResponse.json(
+    { error: 'last_superadmin', message: 'Cannot revoke the last superadmin', status_code: 400 },
+    { status: 400 },
+  ),
 );

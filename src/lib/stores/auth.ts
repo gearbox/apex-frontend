@@ -33,7 +33,11 @@ let accessToken: string | null = null;
 export const currentUser = { subscribe: user.subscribe };
 export const currentAuthStatus = { subscribe: authStatus.subscribe };
 export const isAuthenticated = derived(authStatus, ($s) => $s === 'authenticated');
-export const isAdmin = derived(user, ($u) => $u?.role === 'admin');
+/** True when the user has superadmin role. */
+export const isSuperAdmin = derived(user, ($u) => $u?.role === 'superadmin');
+
+/** True when the user has any admin-level role (admin OR superadmin). */
+export const isAdmin = derived(user, ($u) => $u?.role === 'admin' || $u?.role === 'superadmin');
 
 /* ─── Token Access ─── */
 export function getAccessToken(): string | null {
