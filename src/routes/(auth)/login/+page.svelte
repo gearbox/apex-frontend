@@ -3,6 +3,8 @@
   import { page } from '$app/stores';
   import { login, AuthError } from '$lib/api/auth';
   import { rateLimitFor } from '$lib/stores/rateLimit';
+  import { locale } from '$lib/stores/locale';
+  import { updateUserLocale } from '$lib/api/user';
   import * as m from '$paraglide/messages';
 
   let email = $state('');
@@ -19,6 +21,14 @@
 
     try {
       await login(email, password);
+      // Fire-and-forget locale sync — never blocks login flow
+      void (async () => {
+        try {
+          await updateUserLocale($locale);
+        } catch {
+          // silently swallow — locale sync is best-effort
+        }
+      })();
       const redirect = $page.url.searchParams.get('redirect') ?? '/app/create';
       goto(redirect, { replaceState: true });
     } catch (err) {

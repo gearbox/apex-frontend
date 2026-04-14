@@ -172,5 +172,15 @@
   "common_copy": "Copy",
   "common_download": "Download",
   "common_delete": "Delete",
-  "common_confirm": "Confirm"
+  "common_confirm": "Confirm",
+  "language_selector_label": "Language",
+  "language_selector_title": "Select language",
+  "age_gate_title": "Age Verification",
+  "age_gate_subtitle": "This platform contains adult content. You must be 18 or older to continue.",
+  "age_gate_checkbox_label": "I confirm that I am 18 years of age or older.",
+  "age_gate_dob_label": "Date of Birth",
+  "age_gate_continue": "Continue",
+  "age_gate_error_checkbox": "You must confirm you are 18 years or older to continue.",
+  "age_gate_error_dob_missing": "Please enter your date of birth.",
+  "age_gate_error_underage": "You must be 18 or older to use this service."
 }

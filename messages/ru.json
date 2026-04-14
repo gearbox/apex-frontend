@@ -172,5 +172,15 @@
   "common_copy": "Копировать",
   "common_download": "Скачать",
   "common_delete": "Удалить",
-  "common_confirm": "Подтвердить"
+  "common_confirm": "Подтвердить",
+  "language_selector_label": "Язык",
+  "language_selector_title": "Выберите язык",
+  "age_gate_title": "Подтверждение возраста",
+  "age_gate_subtitle": "Эта платформа содержит материалы для взрослых. Вам должно быть 18 лет или больше для продолжения.",
+  "age_gate_checkbox_label": "Я подтверждаю, что мне 18 лет или больше.",
+  "age_gate_dob_label": "Дата рождения",
+  "age_gate_continue": "Продолжить",
+  "age_gate_error_checkbox": "Вы должны подтвердить, что вам 18 лет или больше, чтобы продолжить.",
+  "age_gate_error_dob_missing": "Пожалуйста, введите дату рождения.",
+  "age_gate_error_underage": "Вам должно быть 18 лет или больше для использования этого сервиса."
 }

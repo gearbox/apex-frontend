@@ -6,6 +6,7 @@
   import { initNetworkListener } from '$lib/stores/network';
   import { initPwaInstallListener } from '$lib/stores/pwaInstall';
   import NetworkToastWatcher from '$lib/components/ui/NetworkToastWatcher.svelte';
+  import { locale } from '$lib/stores/locale';
   import { API_BASE_URL, STORAGE_KEYS } from '$lib/utils/constants';
   import { isBrowser } from '$lib/utils/env';
   import '../app.css';
@@ -76,5 +77,7 @@
 
 <QueryClientProvider client={queryClient}>
   <NetworkToastWatcher />
-  {@render children()}
+  {#key $locale}
+    {@render children()}
+  {/key}
 </QueryClientProvider>

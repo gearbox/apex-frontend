@@ -3,6 +3,8 @@
   import { register, AuthError } from '$lib/api/auth';
   import { productInfo, requiresAgeGate } from '$lib/stores/product';
   import AgeGate from '$lib/components/AgeGate.svelte';
+  import { locale } from '$lib/stores/locale';
+  import { updateUserLocale } from '$lib/api/user';
   import * as m from '$paraglide/messages';
 
   let email = $state('');
@@ -37,6 +39,14 @@
 
     try {
       await register(email, password, displayName || undefined, ageConfirmed, dateOfBirth);
+      // Fire-and-forget locale sync — never blocks register flow
+      void (async () => {
+        try {
+          await updateUserLocale($locale);
+        } catch {
+          // silently swallow — locale sync is best-effort
+        }
+      })();
       goto('/app/create', { replaceState: true });
     } catch (err) {
       if (err instanceof AuthError) {

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import * as m from '$paraglide/messages';
+
   interface AgeGateResult {
     ageConfirmed?: boolean;
     dateOfBirth?: string;
@@ -22,8 +24,8 @@
     const birth = new Date(dob);
     const today = new Date();
     let age = today.getFullYear() - birth.getFullYear();
-    const m = today.getMonth() - birth.getMonth();
-    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+    const mo = today.getMonth() - birth.getMonth();
+    if (mo < 0 || (mo === 0 && today.getDate() < birth.getDate())) age--;
     return age >= 18;
   }
 
@@ -32,17 +34,17 @@
 
     if (ageGateMode === 'checkbox') {
       if (!checked) {
-        error = 'You must confirm you are 18 years or older to continue.';
+        error = m.age_gate_error_checkbox();
         return;
       }
       onConfirmed({ ageConfirmed: true });
     } else {
       if (!dateOfBirth) {
-        error = 'Please enter your date of birth.';
+        error = m.age_gate_error_dob_missing();
         return;
       }
       if (!validateAge(dateOfBirth)) {
-        error = 'You must be 18 or older to use this service.';
+        error = m.age_gate_error_underage();
         return;
       }
       onConfirmed({ dateOfBirth });
@@ -53,9 +55,9 @@
 <div class="flex min-h-dvh items-center justify-center bg-bg px-4">
   <div class="w-full max-w-sm">
     <div class="mb-8 text-center">
-      <h1 class="text-2xl font-bold text-accent">Age Verification</h1>
+      <h1 class="text-2xl font-bold text-accent">{m.age_gate_title()}</h1>
       <p class="mt-2 text-sm text-text-muted">
-        This platform contains adult content. You must be 18 or older to continue.
+        {m.age_gate_subtitle()}
       </p>
     </div>
 
@@ -68,11 +70,11 @@
     {#if ageGateMode === 'checkbox'}
       <label class="flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-surface p-4">
         <input type="checkbox" bind:checked class="mt-0.5 h-4 w-4 accent-accent" />
-        <span class="text-sm text-text">I confirm that I am 18 years of age or older.</span>
+        <span class="text-sm text-text">{m.age_gate_checkbox_label()}</span>
       </label>
     {:else}
       <label class="flex flex-col gap-1.5">
-        <span class="text-sm font-medium text-text">Date of Birth</span>
+        <span class="text-sm font-medium text-text">{m.age_gate_dob_label()}</span>
         <input
           type="date"
           bind:value={dateOfBirth}
@@ -86,7 +88,7 @@
       onclick={handleContinue}
       class="mt-4 w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
     >
-      Continue
+      {m.age_gate_continue()}
     </button>
   </div>
 </div>

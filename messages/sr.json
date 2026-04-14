@@ -172,5 +172,15 @@
   "common_copy": "Kopiraj",
   "common_download": "Preuzmi",
   "common_delete": "Obriši",
-  "common_confirm": "Potvrdi"
+  "common_confirm": "Potvrdi",
+  "language_selector_label": "Jezik",
+  "language_selector_title": "Izaberite jezik",
+  "age_gate_title": "Potvrda starosti",
+  "age_gate_subtitle": "Ova platforma sadrži sadržaj za odrasle. Morate imati 18 ili više godina da biste nastavili.",
+  "age_gate_checkbox_label": "Potvrđujem da imam 18 ili više godina.",
+  "age_gate_dob_label": "Datum rođenja",
+  "age_gate_continue": "Nastavi",
+  "age_gate_error_checkbox": "Morate potvrditi da imate 18 ili više godina da biste nastavili.",
+  "age_gate_error_dob_missing": "Molimo unesite datum rođenja.",
+  "age_gate_error_underage": "Morate imati 18 ili više godina da biste koristili ovu uslugu."
 }
