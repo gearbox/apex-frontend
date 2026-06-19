@@ -105,7 +105,10 @@
                 <td class="mono">{org.slug}</td>
                 <td class="mono truncated">{org.owner_id}</td>
                 <td>{org.member_count}</td>
-                <td class:balance-positive={org.token_balance > 0} class:balance-zero={org.token_balance === 0}>
+                <td
+                  class:balance-positive={org.token_balance > 0}
+                  class:balance-zero={org.token_balance === 0}
+                >
                   {formatBalance(org.token_balance)}
                 </td>
                 <td><StatusBadge status={org.is_active ? 'active' : 'inactive'} /></td>
@@ -190,7 +193,11 @@
     max-width: 200px;
   }
 
-  .skeleton-list { display: flex; flex-direction: column; gap: 8px; }
+  .skeleton-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
   .skeleton-row {
     height: 48px;
     background: var(--apex-surface);
@@ -198,8 +205,13 @@
     animation: pulse 1.5s ease-in-out infinite;
   }
   @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
   }
 
   .empty-state {
@@ -227,7 +239,9 @@
     overflow-x: auto;
   }
   @media (min-width: 768px) {
-    .table-wrap { display: block; }
+    .table-wrap {
+      display: block;
+    }
   }
 
   .data-table {
@@ -253,17 +267,40 @@
     vertical-align: middle;
   }
 
-  .name-cell { font-weight: 500; }
-  .mono { font-family: monospace; font-size: 12px; }
-  .truncated { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .date-cell { white-space: nowrap; }
+  .name-cell {
+    font-weight: 500;
+  }
+  .mono {
+    font-family: monospace;
+    font-size: 12px;
+  }
+  .truncated {
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .date-cell {
+    white-space: nowrap;
+  }
 
-  .balance-positive { color: var(--apex-success); font-weight: 600; }
-  .balance-zero { color: var(--apex-text-dim); }
+  .balance-positive {
+    color: var(--apex-success);
+    font-weight: 600;
+  }
+  .balance-zero {
+    color: var(--apex-text-dim);
+  }
 
-  .card-list { display: flex; flex-direction: column; gap: 10px; }
+  .card-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
   @media (min-width: 768px) {
-    .card-list { display: none; }
+    .card-list {
+      display: none;
+    }
   }
 
   .org-card {
@@ -330,7 +367,9 @@
     background: var(--apex-text-dim);
     flex-shrink: 0;
   }
-  .status-dot.active { background: var(--apex-success); }
+  .status-dot.active {
+    background: var(--apex-success);
+  }
 
   .icon-btn {
     display: flex;

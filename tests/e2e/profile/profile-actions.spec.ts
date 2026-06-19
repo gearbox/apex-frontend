@@ -16,7 +16,10 @@ test.describe('Profile actions', () => {
   });
 
   test('1. Change Password — happy path', async ({ authenticatedPage: page }) => {
-    await page.route('**/v1/users/me/password', jsonRoute({ message: 'Password changed successfully' }, 201));
+    await page.route(
+      '**/v1/users/me/password',
+      jsonRoute({ message: 'Password changed successfully' }, 201),
+    );
 
     await page.goto('/app/profile');
 
@@ -88,7 +91,10 @@ test.describe('Profile actions', () => {
   });
 
   test('5. Sign out all devices — redirects to /login', async ({ authenticatedPage: page }) => {
-    await page.route('**/v1/users/me/logout-all', jsonRoute({ message: 'All sessions revoked' }, 201));
+    await page.route(
+      '**/v1/users/me/logout-all',
+      jsonRoute({ message: 'All sessions revoked' }, 201),
+    );
 
     await page.goto('/app/profile');
 

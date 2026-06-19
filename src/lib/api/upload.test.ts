@@ -62,11 +62,13 @@ describe('uploadImage', () => {
 
   it('throws ApiRequestError with fallback when response body is not JSON', async () => {
     server.use(
-      http.post(UPLOAD_URL, () =>
-        new HttpResponse('Internal Server Error', {
-          status: 500,
-          headers: { 'Content-Type': 'text/plain' },
-        }),
+      http.post(
+        UPLOAD_URL,
+        () =>
+          new HttpResponse('Internal Server Error', {
+            status: 500,
+            headers: { 'Content-Type': 'text/plain' },
+          }),
       ),
     );
 

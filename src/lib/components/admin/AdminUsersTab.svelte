@@ -83,6 +83,7 @@
     />
     <select class="filter-select" onchange={onRoleChange}>
       <option value="">All Roles</option>
+      <option value="superadmin">Superadmin</option>
       <option value="admin">Admin</option>
       <option value="user">User</option>
     </select>
@@ -133,6 +134,7 @@
           <tbody>
             {#each items as user (user.id)}
               {@const isSelf = $currentUser?.id === user.id}
+              {@const isSuperadminTarget = user.role === 'superadmin'}
               <tr>
                 <td class="email-cell">{user.email}</td>
                 <td>{user.display_name ?? '—'}</td>
@@ -143,17 +145,17 @@
                 <td class="actions-cell">
                   <button
                     class="icon-btn"
-                    onclick={() => !isSelf && (editingUser = user)}
-                    disabled={isSelf}
-                    title={isSelf ? 'Cannot edit own account' : 'Edit user'}
+                    onclick={() => !isSelf && !isSuperadminTarget && (editingUser = user)}
+                    disabled={isSelf || isSuperadminTarget}
+                    title={isSelf
+                      ? 'Cannot edit own account'
+                      : isSuperadminTarget
+                        ? 'Use Admins tab to manage superadmins'
+                        : 'Edit user'}
                   >
                     <Pencil size={15} />
                   </button>
-                  <button
-                    class="icon-btn"
-                    onclick={() => openAdjust(user)}
-                    title="Adjust balance"
-                  >
+                  <button class="icon-btn" onclick={() => openAdjust(user)} title="Adjust balance">
                     <Wallet size={15} />
                   </button>
                 </td>
@@ -167,6 +169,7 @@
       <div class="card-list">
         {#each items as user (user.id)}
           {@const isSelf = $currentUser?.id === user.id}
+          {@const isSuperadminTarget = user.role === 'superadmin'}
           <div class="user-card">
             <div class="card-main">
               <span class="card-email">{user.email}</span>
@@ -180,9 +183,13 @@
             <div class="card-actions">
               <button
                 class="icon-btn"
-                onclick={() => !isSelf && (editingUser = user)}
-                disabled={isSelf}
-                title={isSelf ? 'Cannot edit own account' : 'Edit'}
+                onclick={() => !isSelf && !isSuperadminTarget && (editingUser = user)}
+                disabled={isSelf || isSuperadminTarget}
+                title={isSelf
+                  ? 'Cannot edit own account'
+                  : isSuperadminTarget
+                    ? 'Use Admins tab to manage superadmins'
+                    : 'Edit'}
               >
                 <Pencil size={15} />
               </button>
@@ -205,11 +212,7 @@
 </div>
 
 {#if editingUser}
-  <EditUserModal
-    user={editingUser}
-    {queryClient}
-    onclose={() => (editingUser = null)}
-  />
+  <EditUserModal user={editingUser} {queryClient} onclose={() => (editingUser = null)} />
 {/if}
 
 {#if adjustAccountId}
@@ -282,8 +285,13 @@
   }
 
   @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
   }
 
   /* Empty / Error */

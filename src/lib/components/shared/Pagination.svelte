@@ -30,11 +30,7 @@
     >
       Previous
     </button>
-    <button
-      class="page-btn"
-      disabled={!hasNext}
-      onclick={() => onpagechange(offset + limit)}
-    >
+    <button class="page-btn" disabled={!hasNext} onclick={() => onpagechange(offset + limit)}>
       Next
     </button>
   </div>

@@ -129,7 +129,9 @@
     <!-- Swipeable card content (first in DOM so selectors find the card button first) -->
     <div
       class="swipe-content"
-      style="transform: translateX({translateX}px); {isDragging ? 'will-change: transform;' : ''} transition: {isDragging ? 'none' : 'transform 0.25s ease'};"
+      style="transform: translateX({translateX}px); {isDragging
+        ? 'will-change: transform;'
+        : ''} transition: {isDragging ? 'none' : 'transform 0.25s ease'};"
       role="presentation"
       ontouchstart={handleTouchStart}
       ontouchmove={handleTouchMove}

@@ -3,6 +3,8 @@
   import { page } from '$app/stores';
   import { login, AuthError } from '$lib/api/auth';
   import { rateLimitFor } from '$lib/stores/rateLimit';
+  import { locale } from '$lib/stores/locale';
+  import { updateUserLocale } from '$lib/api/user';
   import * as m from '$paraglide/messages';
 
   let email = $state('');
@@ -19,6 +21,14 @@
 
     try {
       await login(email, password);
+      // Fire-and-forget locale sync — never blocks login flow
+      void (async () => {
+        try {
+          await updateUserLocale($locale);
+        } catch {
+          // silently swallow — locale sync is best-effort
+        }
+      })();
       const redirect = $page.url.searchParams.get('redirect') ?? '/app/create';
       goto(redirect, { replaceState: true });
     } catch (err) {
@@ -52,7 +62,9 @@
       {/if}
 
       {#if $loginRateLimit?.remaining !== undefined && $loginRateLimit.remaining <= 3}
-        <div class="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning">
+        <div
+          class="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning"
+        >
           {m.auth_login_attempts_remaining({ remaining: $loginRateLimit.remaining })}
         </div>
       {/if}
@@ -98,7 +110,9 @@
 
     <p class="mt-6 text-center text-sm text-text-muted">
       {m.auth_login_no_account()}
-      <a href="/register" class="font-medium text-accent hover:underline">{m.auth_login_register()}</a>
+      <a href="/register" class="font-medium text-accent hover:underline"
+        >{m.auth_login_register()}</a
+      >
     </p>
   </div>
 </div>

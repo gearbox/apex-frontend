@@ -15,11 +15,7 @@
 </div>
 
 <div class="fields">
-  {#each [
-    { label: 'Display Name', value: $currentUser?.display_name ?? '—' },
-    { label: 'Account Type', value: $currentUser?.subscription_tier ?? 'Personal' },
-    { label: 'Member Since', value: $currentUser?.created_at ? new Date($currentUser.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'Jan 2026' },
-  ] as field (field.label)}
+  {#each [{ label: 'Display Name', value: $currentUser?.display_name ?? '—' }, { label: 'Account Type', value: $currentUser?.subscription_tier ?? 'Personal' }, { label: 'Member Since', value: $currentUser?.created_at ? new Date($currentUser.created_at).toLocaleDateString( 'en-US', { month: 'short', year: 'numeric' }, ) : 'Jan 2026' }] as field (field.label)}
     <div class="field-row">
       <p class="field-label">{field.label}</p>
       <p class="field-value">{field.value}</p>

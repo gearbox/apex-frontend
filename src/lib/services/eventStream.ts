@@ -105,13 +105,19 @@ export class EventStreamService {
     const es = new EventSource(url);
 
     es.onopen = () => {
-      if (this.disposed) { es.close(); return; }
+      if (this.disposed) {
+        es.close();
+        return;
+      }
       this.consecutiveFailures = 0;
       setEventStreamStatus('connected');
     };
 
     es.onerror = () => {
-      if (this.disposed) { es.close(); return; }
+      if (this.disposed) {
+        es.close();
+        return;
+      }
       // EventSource auto-reconnect won't work because ticket is single-use.
       // Close and reconnect with a fresh ticket.
       this.closeEventSource();
@@ -315,16 +321,28 @@ export class EventStreamService {
   }
 
   private clearTimers(): void {
-    if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = null; }
-    if (this.fallbackRetryTimer) { clearTimeout(this.fallbackRetryTimer); this.fallbackRetryTimer = null; }
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    if (this.fallbackRetryTimer) {
+      clearTimeout(this.fallbackRetryTimer);
+      this.fallbackRetryTimer = null;
+    }
   }
 }
 
 /* ─── Custom Error Classes ─── */
 class SSEUnavailableError extends Error {
-  constructor(msg: string) { super(msg); this.name = 'SSEUnavailableError'; }
+  constructor(msg: string) {
+    super(msg);
+    this.name = 'SSEUnavailableError';
+  }
 }
 
 class SSERateLimitedError extends Error {
-  constructor(msg: string) { super(msg); this.name = 'SSERateLimitedError'; }
+  constructor(msg: string) {
+    super(msg);
+    this.name = 'SSERateLimitedError';
+  }
 }

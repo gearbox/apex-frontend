@@ -79,7 +79,9 @@
           {/if}
 
           <!-- Hover actions -->
-          <div class="absolute inset-x-0 bottom-0 flex justify-end gap-1.5 bg-linear-to-t from-black/60 to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+          <div
+            class="absolute inset-x-0 bottom-0 flex justify-end gap-1.5 bg-linear-to-t from-black/60 to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+          >
             <a
               href={output.url}
               download
@@ -128,7 +130,9 @@
 {#if videoModalUrl}
   <div
     class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
-    onclick={(e) => { if (e.target === e.currentTarget) videoModalUrl = null; }}
+    onclick={(e) => {
+      if (e.target === e.currentTarget) videoModalUrl = null;
+    }}
     onkeydown={(e) => e.key === 'Escape' && (videoModalUrl = null)}
     role="dialog"
     aria-modal="true"
@@ -136,13 +140,7 @@
   >
     <div class="w-full max-w-2xl">
       <!-- svelte-ignore a11y_media_has_caption -->
-      <video
-        src={videoModalUrl}
-        controls
-        autoplay
-        loop
-        class="w-full rounded-xl"
-      ></video>
+      <video src={videoModalUrl} controls autoplay loop class="w-full rounded-xl"></video>
     </div>
   </div>
 {/if}

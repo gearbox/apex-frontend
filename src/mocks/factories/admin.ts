@@ -1,5 +1,7 @@
 import type { components } from '$lib/api/types';
 
+type AdminRoleResponse = components['schemas']['AdminRoleResponse'];
+type AuditLogEntry = components['schemas']['AuditLogEntry'];
 type AdminUserResponse = components['schemas']['AdminUserResponse'];
 type AdminOrgResponse = components['schemas']['AdminOrgResponse'];
 type GenerationModelResponse = components['schemas']['GenerationModelResponse'];
@@ -85,7 +87,39 @@ export function makeTransactionResponse(
     balance_after: 500,
     description: 'Promotional credit',
     metadata: {},
+    job_id: null,
+    payment_id: null,
+    created_by: null,
     created_at: '2025-01-01T00:00:00Z',
+    ...overrides,
+  };
+}
+
+export function makeAdminRoleResponse(
+  overrides: Partial<AdminRoleResponse> = {},
+): AdminRoleResponse {
+  return {
+    id: 'usr_admin_001',
+    email: 'admin@example.com',
+    display_name: 'Admin User',
+    role: 'admin',
+    permissions: [],
+    is_active: true,
+    created_at: '2025-01-01T00:00:00Z',
+    updated_at: '2025-01-01T00:00:00Z',
+    ...overrides,
+  };
+}
+
+export function makeAuditLogEntry(overrides: Partial<AuditLogEntry> = {}): AuditLogEntry {
+  return {
+    id: 'audit_001',
+    actor_id: 'usr_sa_001',
+    target_user_id: 'usr_admin_001',
+    action: 'role.grant',
+    detail: "Role changed from 'user' to 'admin'",
+    source: 'api',
+    created_at: '2025-06-01T12:00:00Z',
     ...overrides,
   };
 }
@@ -95,9 +129,12 @@ export function makePricingRule(overrides: Partial<PricingRuleResponse> = {}): P
     id: 'rule_mock_001',
     provider: 'grok',
     generation_type: 't2i',
+    model: null,
     token_cost: 10,
     is_active: true,
     effective_from: '2025-01-01T00:00:00Z',
+    effective_until: null,
+    notes: null,
     ...overrides,
   };
 }

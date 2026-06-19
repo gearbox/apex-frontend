@@ -1,6 +1,9 @@
 <script lang="ts">
   import { createInfiniteQuery, createMutation, useQueryClient } from '@tanstack/svelte-query';
-  import { galleryListInfiniteQueryOptions, deleteContentMutationOptions } from '$lib/queries/gallery';
+  import {
+    galleryListInfiniteQueryOptions,
+    deleteContentMutationOptions,
+  } from '$lib/queries/gallery';
   import apiClient from '$lib/api/client';
   import GalleryGrid from '$lib/components/gallery/GalleryGrid.svelte';
   import GalleryFilters from '$lib/components/gallery/GalleryFilters.svelte';
@@ -10,6 +13,7 @@
   import { addToast } from '$lib/stores/toasts';
   import type { components } from '$lib/api/types';
   import type { GalleryMediaFilter } from '$lib/components/gallery/GalleryFilters.svelte';
+  import { productInfo } from '$lib/stores/product';
   import * as m from '$paraglide/messages';
 
   type GalleryGridItem = components['schemas']['GalleryGridItem'];
@@ -19,6 +23,9 @@
   let filter = $state<GalleryMediaFilter>('all');
   let lightboxItem = $state<GalleryGridItem | null>(null);
   let deleteTarget = $state<GalleryGridItem | null>(null);
+
+  // Derive app title from productInfo for <title> tag
+  let appTitle = $derived($productInfo?.display_name ?? 'Apex');
 
   // Map UI filter to API media_type param
   const mediaTypeParam = $derived<OutputMediaType | undefined>(
@@ -76,7 +83,7 @@
 </script>
 
 <svelte:head>
-  <title>Gallery — Apex</title>
+  <title>Gallery — {appTitle}</title>
 </svelte:head>
 
 <div class="flex flex-col gap-4 p-4 md:p-0">

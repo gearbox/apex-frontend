@@ -45,9 +45,9 @@ describe('isJobStatusPayload()', () => {
 
 describe('isJobProgressPayload()', () => {
   it('returns true for valid payload', () => {
-    expect(
-      isJobProgressPayload({ job_id: 'abc', progress_pct: 50, generation_type: 't2i' }),
-    ).toBe(true);
+    expect(isJobProgressPayload({ job_id: 'abc', progress_pct: 50, generation_type: 't2i' })).toBe(
+      true,
+    );
   });
 
   it('returns false when missing required fields', () => {

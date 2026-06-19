@@ -6,13 +6,16 @@ import { defineConfig } from 'vite';
 
 const productId = process.env.VITE_PRODUCT_ID || 'vex';
 
-const productManifests: Record<string, {
-  name: string;
-  short_name: string;
-  description: string;
-  theme_color: string;
-  background_color: string;
-}> = {
+const productManifests: Record<
+  string,
+  {
+    name: string;
+    short_name: string;
+    description: string;
+    theme_color: string;
+    background_color: string;
+  }
+> = {
   vex: {
     name: 'vex.pics',
     short_name: 'vex.pics',
@@ -65,6 +68,8 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        navigateFallback: '/offline',
+        navigateFallbackDenylist: [/^\/v1\//, /^\/api\//, /^\/docs\//],
         runtimeCaching: [
           {
             urlPattern: /\/v1\/billing\/(packages|pricing)/,

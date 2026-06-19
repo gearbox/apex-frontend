@@ -8,13 +8,11 @@ import {
 } from '../factories/gallery';
 
 // Exported failure variant for testing
-export const contentDeleteNotFoundHandler = http.delete(
-  `${BASE}/v1/content/:content_id`,
-  () =>
-    HttpResponse.json(
-      { error: 'not_found', message: 'Content not found', status_code: 404 },
-      { status: 404 },
-    ),
+export const contentDeleteNotFoundHandler = http.delete(`${BASE}/v1/content/:content_id`, () =>
+  HttpResponse.json(
+    { error: 'not_found', message: 'Content not found', status_code: 404 },
+    { status: 404 },
+  ),
 );
 
 export const galleryHandlers = [

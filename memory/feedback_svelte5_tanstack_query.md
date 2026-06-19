@@ -7,6 +7,7 @@ type: feedback
 Always use the Svelte 5 runes pattern with TanStack Svelte-query v5:
 
 1. `createQuery` and `createMutation` take an **accessor function**, not a plain object:
+
    ```ts
    // ✅ Correct
    const q = createQuery(() => myQueryOptions(params));
@@ -17,18 +18,19 @@ Always use the Svelte 5 runes pattern with TanStack Svelte-query v5:
    ```
 
 2. Query/mutation results are **reactive proxy objects** — access fields **without** the `$` prefix:
+
    ```svelte
    <!-- ✅ Correct -->
    {#if q.isPending}...{/if}
    {#if q.data}...{/if}
-   await m.mutateAsync(payload);
-   m.isPending
+   await m.mutateAsync(payload); m.isPending
 
    <!-- ❌ Wrong — $ prefix makes Svelte treat it as a store (breaks) -->
    {#if $q.isPending}...{/if}
    ```
 
 3. For reactive query params driven by `$state`, wrap with an accessor so reactivity flows:
+
    ```ts
    let filter = $state('');
    const q = createQuery(() => queryOptions({ queryKey: ['items', filter], ... }));

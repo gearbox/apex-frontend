@@ -1,6 +1,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { logout } from '$lib/api/auth';
+  import { productInfo } from '$lib/stores/product';
   import ProfileFields from '$lib/components/profile/ProfileFields.svelte';
   import ThemeSelector from '$lib/components/profile/ThemeSelector.svelte';
   import ModeSelector from '$lib/components/profile/ModeSelector.svelte';
@@ -9,12 +10,16 @@
   import ChangePasswordModal from '$lib/components/profile/ChangePasswordModal.svelte';
   import LogoutAllModal from '$lib/components/profile/LogoutAllModal.svelte';
   import DeleteAccountModal from '$lib/components/profile/DeleteAccountModal.svelte';
+  import InstallAppButton from '$lib/components/pwa/InstallAppButton.svelte';
   import * as m from '$paraglide/messages';
 
   let loggingOut = $state(false);
   let showChangePassword = $state(false);
   let showLogoutAll = $state(false);
   let showDeleteAccount = $state(false);
+
+  // Derive app title from productInfo for <title> tag
+  let appTitle = $derived($productInfo?.display_name ?? 'Apex');
 
   async function handleLogout() {
     loggingOut = true;
@@ -24,7 +29,7 @@
 </script>
 
 <svelte:head>
-  <title>Profile — Apex</title>
+  <title>Profile — {appTitle}</title>
 </svelte:head>
 
 <div class="profile-page">
@@ -47,16 +52,19 @@
 
   <!-- Actions -->
   <div class="actions">
-    <button class="action-btn" onclick={() => (showChangePassword = true)}>{m.profile_change_password()}</button>
-    <button class="action-btn" onclick={() => (showLogoutAll = true)}>{m.profile_logout_all()}</button>
-    <button
-      onclick={handleLogout}
-      disabled={loggingOut}
-      class="action-btn"
+    <InstallAppButton />
+    <button class="action-btn" onclick={() => (showChangePassword = true)}
+      >{m.profile_change_password()}</button
     >
+    <button class="action-btn" onclick={() => (showLogoutAll = true)}
+      >{m.profile_logout_all()}</button
+    >
+    <button onclick={handleLogout} disabled={loggingOut} class="action-btn">
       {loggingOut ? m.profile_signing_out() : m.profile_logout()}
     </button>
-    <button class="action-btn danger" onclick={() => (showDeleteAccount = true)}>{m.profile_delete_account()}</button>
+    <button class="action-btn danger" onclick={() => (showDeleteAccount = true)}
+      >{m.profile_delete_account()}</button
+    >
   </div>
 </div>
 
@@ -77,7 +85,9 @@
   }
 
   @media (min-width: 768px) {
-    .profile-page { padding: 0; }
+    .profile-page {
+      padding: 0;
+    }
   }
 
   .appearance-section {

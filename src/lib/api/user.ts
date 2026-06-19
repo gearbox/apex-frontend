@@ -1,6 +1,7 @@
 import apiClient from '$lib/api/client';
 import type { components } from '$lib/api/types';
 import { parseApiError, ApiRequestError } from '$lib/api/errors';
+import type { Locale } from '$lib/stores/locale';
 
 function throwApiError(error: unknown, fallbackMsg: string): never {
   const apiErr = parseApiError(error, 0);
@@ -36,4 +37,14 @@ export async function deleteAccount(): Promise<DeleteAccountResponse> {
   const { data, error } = await apiClient.DELETE('/v1/users/me');
   if (error || !data) throwApiError(error, 'Failed to delete account');
   return data;
+}
+
+/**
+ * Best-effort locale sync to backend.
+ * Requires a valid access token already stored in the auth store.
+ * Never throws — callers are expected to fire-and-forget.
+ */
+export async function updateUserLocale(locale: Locale): Promise<void> {
+  const { error } = await apiClient.PATCH('/v1/users/me', { body: { locale } });
+  if (error) throw error;
 }

@@ -7,17 +7,23 @@ function throwApiError(error: unknown, fallbackMsg: string): never {
   throw new ApiRequestError({ ...apiErr, message: apiErr.message || fallbackMsg });
 }
 
+export type AdminRoleResponse = components['schemas']['AdminRoleResponse'];
+export type AuditLogEntry = components['schemas']['AuditLogEntry'];
 export type AdminUserResponse = components['schemas']['AdminUserResponse'];
-export type AdminUserListResponse = components['schemas']['CursorPage_src.api.schemas.admin.AdminUserResponse_'];
+export type AdminUserListResponse =
+  components['schemas']['CursorPage_src.api.schemas.admin.AdminUserResponse_'];
 export type AdminOrgResponse = components['schemas']['AdminOrgResponse'];
-export type AdminOrgListResponse = components['schemas']['CursorPage_src.api.schemas.admin.AdminOrgResponse_'];
+export type AdminOrgListResponse =
+  components['schemas']['CursorPage_src.api.schemas.admin.AdminOrgResponse_'];
 export type GenerationModelResponse = components['schemas']['GenerationModelResponse'];
 export type ModelListResponse = components['schemas']['ModelListResponse'];
 export type PaymentResponse = components['schemas']['PaymentResponse'];
-export type PaymentListResponse = components['schemas']['CursorPage_src.api.schemas.billing.PaymentResponse_'];
+export type PaymentListResponse =
+  components['schemas']['CursorPage_src.api.schemas.billing.PaymentResponse_'];
 export type BalanceResponse = components['schemas']['BalanceResponse'];
 export type TransactionResponse = components['schemas']['TransactionResponse'];
-export type TransactionListResponse = components['schemas']['CursorPage_src.api.schemas.billing.TransactionResponse_'];
+export type TransactionListResponse =
+  components['schemas']['CursorPage_src.api.schemas.billing.TransactionResponse_'];
 export type AdminAdjustResponse = components['schemas']['AdminAdjustResponse'];
 export type PricingRuleResponse = components['schemas']['PricingRuleResponse'];
 export type CreatePricingRuleRequest = components['schemas']['CreatePricingRuleRequest'];
@@ -142,12 +148,9 @@ export async function fetchAccountTransactions(
   accountId: string,
   params?: { limit?: number; offset?: number; type?: string },
 ): Promise<TransactionListResponse> {
-  const { data, error } = await apiClient.GET(
-    '/v1/admin/accounts/{account_id}/transactions',
-    {
-      params: { path: { account_id: accountId }, query: params },
-    },
-  );
+  const { data, error } = await apiClient.GET('/v1/admin/accounts/{account_id}/transactions', {
+    params: { path: { account_id: accountId }, query: params },
+  });
   if (error || !data) throwApiError(error, 'Failed to fetch account transactions');
   return data;
 }
@@ -190,6 +193,69 @@ export async function deletePricingRule(ruleId: string): Promise<{ message: stri
   });
   if (error || !data) throwApiError(error, 'Failed to delete pricing rule');
   return data as { message: string };
+}
+
+/* ─── Admin Management (Superadmin only) ─── */
+
+export async function fetchAdminList(): Promise<AdminRoleResponse[]> {
+  const { data, error } = await apiClient.GET('/v1/admin/manage/admins');
+  if (error || !data) throwApiError(error, 'Failed to fetch admin list');
+  return data as AdminRoleResponse[];
+}
+
+export async function grantRole(
+  userId: string,
+  role: 'admin' | 'superadmin',
+): Promise<{ message: string }> {
+  const { data, error } = await apiClient.POST('/v1/admin/manage/roles/{user_id}/grant', {
+    params: { path: { user_id: userId } },
+    body: { role } as components['schemas']['GrantRoleRequest'],
+  });
+  if (error || !data) throwApiError(error, 'Failed to grant role');
+  return data as { message: string };
+}
+
+export async function revokeRole(userId: string): Promise<{ message: string }> {
+  const { data, error } = await apiClient.POST('/v1/admin/manage/roles/{user_id}/revoke', {
+    params: { path: { user_id: userId } },
+  });
+  if (error || !data) throwApiError(error, 'Failed to revoke role');
+  return data as { message: string };
+}
+
+export async function grantPermission(
+  userId: string,
+  permission: 'billing_adjust',
+): Promise<{ message: string }> {
+  const { data, error } = await apiClient.POST('/v1/admin/manage/permissions/{user_id}/grant', {
+    params: { path: { user_id: userId } },
+    body: { permission } as components['schemas']['GrantPermissionRequest'],
+  });
+  if (error || !data) throwApiError(error, 'Failed to grant permission');
+  return data as { message: string };
+}
+
+export async function revokePermission(
+  userId: string,
+  permission: 'billing_adjust',
+): Promise<{ message: string }> {
+  const { data, error } = await apiClient.POST('/v1/admin/manage/permissions/{user_id}/revoke', {
+    params: { path: { user_id: userId } },
+    body: { permission } as components['schemas']['GrantPermissionRequest'],
+  });
+  if (error || !data) throwApiError(error, 'Failed to revoke permission');
+  return data as { message: string };
+}
+
+export async function fetchAuditLog(params?: {
+  target_user_id?: string;
+  limit?: number;
+}): Promise<AuditLogEntry[]> {
+  const { data, error } = await apiClient.GET('/v1/admin/manage/audit', {
+    params: { query: params },
+  });
+  if (error || !data) throwApiError(error, 'Failed to fetch audit log');
+  return data as AuditLogEntry[];
 }
 
 export async function adjustAccountBalance(

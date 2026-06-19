@@ -76,17 +76,20 @@ test.describe('Generate page', () => {
         body: JSON.stringify(mockGenerateResponse),
       });
     });
-    await page.route('**/v1/jobs/**', jsonRoute({
-      id: 'job_e2e_001',
-      status: 'running',
-      name: 'E2E generation',
-      provider: 'aisha',
-      model: 'aisha-image',
-      generation_type: 't2i',
-      prompt: 'A beautiful test image',
-      created_at: '2025-01-01T00:00:00Z',
-      outputs: [],
-    }));
+    await page.route(
+      '**/v1/jobs/**',
+      jsonRoute({
+        id: 'job_e2e_001',
+        status: 'running',
+        name: 'E2E generation',
+        provider: 'aisha',
+        model: 'aisha-image',
+        generation_type: 't2i',
+        prompt: 'A beautiful test image',
+        created_at: '2025-01-01T00:00:00Z',
+        outputs: [],
+      }),
+    );
 
     // Navigate with ?prompt= pre-populated — avoids synthetic input event issues
     // in Svelte 5 production builds where CDP key events don't trigger oninput handlers.
@@ -101,7 +104,9 @@ test.describe('Generate page', () => {
     await expect(page.getByRole('button', { name: /Submitting|Generating/i })).toBeVisible();
   });
 
-  test('4. Mobile layout: sticky Generate button is present at 375px', async ({ authenticatedPage: page }) => {
+  test('4. Mobile layout: sticky Generate button is present at 375px', async ({
+    authenticatedPage: page,
+  }) => {
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto('/app/create');
 

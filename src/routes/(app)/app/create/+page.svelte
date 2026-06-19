@@ -9,6 +9,7 @@
   import { addToast } from '$lib/stores/toasts';
   import { lookupCost } from '$lib/utils/pricing';
   import { createJobPoller } from '$lib/services/jobPoller';
+  import { productInfo } from '$lib/stores/product';
   import ModelSelector from '$lib/components/create/ModelSelector.svelte';
   import TypeSelector from '$lib/components/create/TypeSelector.svelte';
   import ImageUpload from '$lib/components/create/ImageUpload.svelte';
@@ -61,9 +62,17 @@
   // Derived estimated cost (per unit — imageCount multiplier applied in CostPreview)
   const estimatedCost = $derived(
     pricingQuery.data && currentModelInfo
-      ? lookupCost(pricingQuery.data, currentModelInfo.provider, $generationStore.model, $generationStore.mode)
+      ? lookupCost(
+          pricingQuery.data,
+          currentModelInfo.provider,
+          $generationStore.model,
+          $generationStore.mode,
+        )
       : 0,
   );
+
+  // Derive app title from productInfo for <title> tag
+  let appTitle = $derived($productInfo?.display_name ?? 'Apex');
 
   // ── Job polling
   let stopPoller: (() => void) | null = null;
@@ -72,15 +81,25 @@
   function handleJobError(error: unknown): void {
     const apiErr = parseApiError(error, 0);
     if (apiErr.error === 'insufficient_balance') {
-      addToast({ type: 'error', message: 'Not enough tokens.', action: { label: 'Buy more →', href: '/app/billing' } });
+      addToast({
+        type: 'error',
+        message: 'Not enough tokens.',
+        action: { label: 'Buy more →', href: '/app/billing' },
+      });
     } else if (apiErr.error === 'idempotency_conflict') {
-      addToast({ type: 'warning', message: 'Request already in progress. Please wait a moment and try again.' });
+      addToast({
+        type: 'warning',
+        message: 'Request already in progress. Please wait a moment and try again.',
+      });
     } else if (apiErr.error === 'service_unavailable') {
       addToast({ type: 'warning', message: 'AI provider temporarily unavailable' });
     } else if (apiErr.error === 'moderation') {
       addToast({ type: 'warning', message: apiErr.message });
     } else {
-      addToast({ type: 'error', message: apiErr.message || 'Failed to start generation. Please try again.' });
+      addToast({
+        type: 'error',
+        message: apiErr.message || 'Failed to start generation. Please try again.',
+      });
     }
   }
 
@@ -152,7 +171,10 @@
         },
       });
 
-      if (error) { handleJobError(error); return; }
+      if (error) {
+        handleJobError(error);
+        return;
+      }
 
       const jobId = data && 'job_id' in data ? (data as { job_id: string }).job_id : undefined;
       if (!jobId) {
@@ -174,20 +196,21 @@
   });
 
   const showImageUpload = $derived(
-    $generationStore.mode === 'i2i' || $generationStore.mode === 'i2v' || $generationStore.mode === 'flf2v',
+    $generationStore.mode === 'i2i' ||
+      $generationStore.mode === 'i2v' ||
+      $generationStore.mode === 'flf2v',
   );
   const showSkeleton = $derived($isGenerating);
 </script>
 
 <svelte:head>
-  <title>Create — Apex</title>
+  <title>Create — {appTitle}</title>
 </svelte:head>
 
 <!-- Desktop: side-by-side panels. Mobile: single-column scroll. -->
 <div class="flex flex-col md:h-full md:flex-row md:gap-6">
   <!-- Controls column -->
   <div class="flex flex-col gap-4 p-4 pb-24 md:w-100 md:shrink-0 md:overflow-y-auto md:p-0 md:pb-5">
-
     <ModelSelector models={allModels} />
 
     <TypeSelector modelInfo={currentModelInfo ?? null} />
@@ -202,7 +225,7 @@
 
     <!-- Results (mobile: inline below form) -->
     <div class="md:hidden">
-      <ResultsPanel showSkeleton={showSkeleton} />
+      <ResultsPanel {showSkeleton} />
     </div>
 
     <!-- Generate button (desktop, inline at bottom of controls) -->
@@ -213,11 +236,13 @@
 
   <!-- Results panel (desktop only) -->
   <div class="hidden flex-1 overflow-y-auto md:block">
-    <ResultsPanel showSkeleton={showSkeleton} />
+    <ResultsPanel {showSkeleton} />
   </div>
 </div>
 
 <!-- Generate button (mobile sticky bar) -->
-<div class="fixed bottom-[calc(56px+env(safe-area-inset-bottom))] left-0 right-0 border-t border-border bg-bg p-4 md:hidden">
+<div
+  class="fixed bottom-[calc(56px+env(safe-area-inset-bottom))] left-0 right-0 border-t border-border bg-bg p-4 md:hidden"
+>
   <GenerateButton onclick={handleGenerate} {submitting} {estimatedCost} />
 </div>

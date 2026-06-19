@@ -61,7 +61,9 @@
         class:collapsed={$sidebarCollapsed}
         title={$sidebarCollapsed ? item.label() : undefined}
       >
-        <span class="nav-icon">{#if Icon}<Icon size={18} strokeWidth={isActive ? 2 : 1.75} />{/if}</span>
+        <span class="nav-icon"
+          >{#if Icon}<Icon size={18} strokeWidth={isActive ? 2 : 1.75} />{/if}</span
+        >
         {#if !$sidebarCollapsed}
           <span class="nav-label">{item.label()}</span>
         {/if}
@@ -79,7 +81,9 @@
         class:collapsed={$sidebarCollapsed}
         title={$sidebarCollapsed ? adminItem.label() : undefined}
       >
-        <span class="nav-icon">{#if AdminIcon}<AdminIcon size={18} strokeWidth={adminActive ? 2 : 1.75} />{/if}</span>
+        <span class="nav-icon"
+          >{#if AdminIcon}<AdminIcon size={18} strokeWidth={adminActive ? 2 : 1.75} />{/if}</span
+        >
         {#if !$sidebarCollapsed}
           <span class="nav-label">{adminItem.label()}</span>
         {/if}
@@ -99,7 +103,12 @@
         class:collapsed={$sidebarCollapsed}
         title={$sidebarCollapsed ? profileItem.label() : undefined}
       >
-        <span class="nav-icon">{#if ProfileIcon}<ProfileIcon size={18} strokeWidth={profileActive ? 2 : 1.75} />{/if}</span>
+        <span class="nav-icon"
+          >{#if ProfileIcon}<ProfileIcon
+              size={18}
+              strokeWidth={profileActive ? 2 : 1.75}
+            />{/if}</span
+        >
         {#if !$sidebarCollapsed}
           <span class="nav-label">{profileItem.label()}</span>
         {/if}

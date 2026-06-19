@@ -3,7 +3,9 @@
 
   type JobOutputItem = components['schemas']['JobOutputItem'];
 
-  let { outputs }: {
+  let {
+    outputs,
+  }: {
     outputs: JobOutputItem[];
     generationType?: string;
   } = $props();

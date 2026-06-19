@@ -18,7 +18,7 @@
   let initials = $derived(
     $currentUser?.display_name
       ? $currentUser.display_name.charAt(0).toUpperCase()
-      : $currentUser?.email?.charAt(0).toUpperCase() ?? 'M',
+      : ($currentUser?.email?.charAt(0).toUpperCase() ?? 'M'),
   );
 </script>
 
@@ -50,7 +50,9 @@
 
   /* Desktop: slightly more padding */
   @media (min-width: 768px) {
-    .topbar { padding: 12px 24px; }
+    .topbar {
+      padding: 12px 24px;
+    }
   }
 
   .topbar-left {

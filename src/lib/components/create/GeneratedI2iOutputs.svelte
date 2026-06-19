@@ -27,9 +27,7 @@
   const detailQuery = createQuery(() => galleryDetailQueryOptions(item.job_id));
 
   const imageOutputs = $derived(
-    (detailQuery.data?.outputs ?? []).filter(
-      (o: GalleryOutputItem) => o.media_type === 'image',
-    ),
+    (detailQuery.data?.outputs ?? []).filter((o: GalleryOutputItem) => o.media_type === 'image'),
   );
 </script>
 

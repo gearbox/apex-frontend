@@ -24,8 +24,14 @@ test.describe('Login page', () => {
     await page.route('**/v1/auth/login', jsonRoute(mockTokenResponse));
     await page.route('**/v1/auth/refresh', jsonRoute(mockTokenResponse));
     await page.route('**/v1/users/me', jsonRoute(mockUserProfile));
-    await page.route('**/v1/billing/balance', jsonRoute({ account_id: 'acc_001', account_type: 'personal', balance: 500 }));
-    await page.route('**/v1/grok', jsonRoute({ provider: 'grok', name: 'xAI Grok', available: true, models: [] }));
+    await page.route(
+      '**/v1/billing/balance',
+      jsonRoute({ account_id: 'acc_001', account_type: 'personal', balance: 500 }),
+    );
+    await page.route(
+      '**/v1/grok',
+      jsonRoute({ provider: 'grok', name: 'xAI Grok', available: true, models: [] }),
+    );
     await page.route('**/v1/billing/pricing', jsonRoute([]));
 
     await page.goto('/login');
@@ -38,10 +44,13 @@ test.describe('Login page', () => {
   });
 
   test('2. Invalid credentials shows error message on form', async ({ page }) => {
-    await page.route('**/v1/auth/login', jsonRoute(
-      { error: 'invalid_credentials', message: 'Invalid email or password', status_code: 401 },
-      401,
-    ));
+    await page.route(
+      '**/v1/auth/login',
+      jsonRoute(
+        { error: 'invalid_credentials', message: 'Invalid email or password', status_code: 401 },
+        401,
+      ),
+    );
 
     await page.goto('/login');
 
@@ -53,21 +62,28 @@ test.describe('Login page', () => {
     await expect(page.locator('.text-danger')).toContainText('Invalid email or password');
   });
 
-  test('3. Unauthenticated redirect: navigating to /app/create without a session', async ({ page }) => {
+  test('3. Unauthenticated redirect: navigating to /app/create without a session', async ({
+    page,
+  }) => {
     // Ensure no refresh token is planted
     await page.goto('/app/create');
 
     await expect(page).toHaveURL(/\/login/);
   });
 
-  test('4. Redirect preservation: logs in and lands on originally requested page', async ({ page }) => {
+  test('4. Redirect preservation: logs in and lands on originally requested page', async ({
+    page,
+  }) => {
     // Set up all mocks upfront before any navigation.
     // After login, (app)/+layout.svelte mounts and calls initAuth() with the new refresh token;
     // the refresh mock must succeed so auth stays valid and the redirect is not undone.
     await page.route('**/v1/auth/login', jsonRoute(mockTokenResponse));
     await page.route('**/v1/auth/refresh', jsonRoute(mockTokenResponse));
     await page.route('**/v1/users/me', jsonRoute(mockUserProfile));
-    await page.route('**/v1/billing/balance', jsonRoute({ account_id: 'acc_001', account_type: 'personal', balance: 500 }));
+    await page.route(
+      '**/v1/billing/balance',
+      jsonRoute({ account_id: 'acc_001', account_type: 'personal', balance: 500 }),
+    );
     await page.route(
       '**/v1/gallery*',
       jsonRoute({ items: [], limit: 20, has_more: false, next_cursor: null }),

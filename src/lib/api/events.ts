@@ -62,12 +62,7 @@ export function isJobStatusPayload(data: unknown): data is JobStatusPayload {
 }
 
 export function isJobProgressPayload(data: unknown): data is JobProgressPayload {
-  return (
-    typeof data === 'object' &&
-    data !== null &&
-    'job_id' in data &&
-    'progress_pct' in data
-  );
+  return typeof data === 'object' && data !== null && 'job_id' in data && 'progress_pct' in data;
 }
 
 export function isBalanceUpdatedPayload(data: unknown): data is BalanceUpdatedPayload {

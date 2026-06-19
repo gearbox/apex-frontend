@@ -26,9 +26,9 @@ const mockJob = {
   token_cost: 10,
 };
 
-const mockListResponse = { items: [mockJob], total: 1, limit: 20, offset: 0 };
+const mockListResponse = { items: [mockJob], limit: 20, has_more: false, next_cursor: null };
 
-// Use URL predicate to match /v1/jobs with any query params (e.g. ?limit=20&offset=0)
+// Use URL predicate to match /v1/jobs with any query params (e.g. ?limit=20&cursor=...)
 const isJobsList = (url: URL) => url.pathname === '/v1/jobs';
 const isJobDetail = (id: string) => (url: URL) => url.pathname === `/v1/jobs/${id}`;
 
@@ -43,7 +43,10 @@ test.describe('Jobs list page', () => {
   });
 
   test('2. Empty state is shown when no jobs', async ({ authenticatedPage: page }) => {
-    await page.route(isJobsList, jsonRoute({ items: [], total: 0, limit: 20, offset: 0 }));
+    await page.route(
+      isJobsList,
+      jsonRoute({ items: [], limit: 20, has_more: false, next_cursor: null }),
+    );
     await page.goto('/app/jobs');
 
     await expect(page.getByText('No jobs yet')).toBeVisible({ timeout: 5000 });
@@ -61,7 +64,9 @@ test.describe('Jobs list page', () => {
 });
 
 test.describe('Job detail page', () => {
-  test('4. Detail page renders all sections for a completed job', async ({ authenticatedPage: page }) => {
+  test('4. Detail page renders all sections for a completed job', async ({
+    authenticatedPage: page,
+  }) => {
     await page.route(isJobDetail('job_e2e_001'), jsonRoute(mockJob));
     await page.goto('/app/jobs/job_e2e_001');
 
@@ -81,7 +86,9 @@ test.describe('Job detail page', () => {
     await expect(page.getByText('Job not found')).toBeVisible({ timeout: 5000 });
   });
 
-  test('6. "Try again" button pre-fills create page prompt for failed job', async ({ authenticatedPage: page }) => {
+  test('6. "Try again" button pre-fills create page prompt for failed job', async ({
+    authenticatedPage: page,
+  }) => {
     const failedJob = { ...mockJob, status: 'failed', error: 'Provider timeout', outputs: [] };
     await page.route(isJobDetail('job_e2e_001'), jsonRoute(failedJob));
     await page.goto('/app/jobs/job_e2e_001');

@@ -65,7 +65,9 @@
     <form onsubmit={handleSubmit}>
       <div class="form-fields">
         <div class="field">
-          <label class="field-label" for="current-password">{m.profile_change_password_current()}</label>
+          <label class="field-label" for="current-password"
+            >{m.profile_change_password_current()}</label
+          >
           <input
             id="current-password"
             type="password"
@@ -91,7 +93,9 @@
         </div>
 
         <div class="field">
-          <label class="field-label" for="confirm-password">{m.profile_change_password_confirm()}</label>
+          <label class="field-label" for="confirm-password"
+            >{m.profile_change_password_confirm()}</label
+          >
           <input
             id="confirm-password"
             type="password"
@@ -113,7 +117,9 @@
       <div class="modal-actions">
         <button type="button" class="btn-cancel" onclick={onclose}>{m.common_cancel()}</button>
         <button type="submit" class="btn-submit" disabled={!canSubmit}>
-          {mutation.isPending ? m.profile_change_password_updating() : m.profile_change_password_submit()}
+          {mutation.isPending
+            ? m.profile_change_password_updating()
+            : m.profile_change_password_submit()}
         </button>
       </div>
     </form>
@@ -171,7 +177,9 @@
     color: var(--apex-text-muted);
     cursor: pointer;
   }
-  .close-btn:hover { background: var(--apex-surface-hover); }
+  .close-btn:hover {
+    background: var(--apex-surface-hover);
+  }
 
   .form-fields {
     display: flex;
@@ -202,8 +210,12 @@
     outline: none;
     transition: border-color 0.15s;
   }
-  .field-input:focus { border-color: var(--apex-border-active); }
-  .field-input--error { border-color: var(--apex-danger); }
+  .field-input:focus {
+    border-color: var(--apex-border-active);
+  }
+  .field-input--error {
+    border-color: var(--apex-danger);
+  }
 
   .field-error {
     font-size: 12px;
@@ -238,7 +250,9 @@
     font-family: inherit;
     transition: all 0.15s;
   }
-  .btn-cancel:hover { background: var(--apex-surface-hover); }
+  .btn-cancel:hover {
+    background: var(--apex-surface-hover);
+  }
 
   .btn-submit {
     padding: 9px 20px;
@@ -252,5 +266,8 @@
     font-family: inherit;
     transition: opacity 0.15s;
   }
-  .btn-submit:disabled { opacity: 0.6; cursor: not-allowed; }
+  .btn-submit:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
 </style>

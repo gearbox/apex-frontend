@@ -1,14 +1,19 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { currentUser, isAdmin } from '$lib/stores/auth';
+  import { currentUser, isAdmin, isSuperAdmin } from '$lib/stores/auth';
+  import { productInfo } from '$lib/stores/product';
   import AdminTabBar from '$lib/components/admin/AdminTabBar.svelte';
   import AdminUsersTab from '$lib/components/admin/AdminUsersTab.svelte';
   import AdminOrgsTab from '$lib/components/admin/AdminOrgsTab.svelte';
   import AdminModelsTab from '$lib/components/admin/AdminModelsTab.svelte';
   import AdminPaymentsTab from '$lib/components/admin/AdminPaymentsTab.svelte';
   import AdminPricingTab from '$lib/components/admin/AdminPricingTab.svelte';
+  import AdminManageTab from '$lib/components/admin/AdminManageTab.svelte';
 
   let activeTab = $state('users');
+
+  // Derive app title from productInfo for <title> tag
+  let appTitle = $derived($productInfo?.display_name ?? 'Apex');
 
   // Redirect non-admin users immediately
   $effect(() => {
@@ -19,11 +24,11 @@
 </script>
 
 <svelte:head>
-  <title>Admin — Apex</title>
+  <title>Admin — {appTitle}</title>
 </svelte:head>
 
 <div class="admin-page">
-  <AdminTabBar {activeTab} ontabchange={(id) => (activeTab = id)} />
+  <AdminTabBar {activeTab} ontabchange={(id) => (activeTab = id)} showManageTab={$isSuperAdmin} />
 
   <div class="admin-content">
     {#if activeTab === 'users'}
@@ -36,6 +41,8 @@
       <AdminPaymentsTab />
     {:else if activeTab === 'pricing'}
       <AdminPricingTab />
+    {:else if activeTab === 'admins' && $isSuperAdmin}
+      <AdminManageTab />
     {/if}
   </div>
 </div>

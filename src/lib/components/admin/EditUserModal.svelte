@@ -15,6 +15,7 @@
 
   let { user, queryClient, onclose }: Props = $props();
 
+  const isSuperadminUser = untrack(() => user.role === 'superadmin');
   let role = $state(untrack(() => (user.role === 'admin' ? 'admin' : 'user')));
   let subscriptionTier = $state(untrack(() => user.subscription_tier));
   let isActive = $state(untrack(() => user.is_active));
@@ -42,7 +43,14 @@
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
-<div class="modal-overlay" onclick={handleBackdropClick} role="dialog" tabindex="-1" aria-modal="true" aria-label="Edit user">
+<div
+  class="modal-overlay"
+  onclick={handleBackdropClick}
+  role="dialog"
+  tabindex="-1"
+  aria-modal="true"
+  aria-label="Edit user"
+>
   <div class="modal-card">
     <div class="modal-header">
       <h2 class="modal-title">Edit User</h2>
@@ -56,9 +64,13 @@
     <div class="form-fields">
       <div class="field">
         <label class="field-label" for="edit-role">Role</label>
-        <select id="edit-role" class="field-select" bind:value={role}>
-          <option value="user">User</option>
-          <option value="admin">Admin</option>
+        <select id="edit-role" class="field-select" bind:value={role} disabled={isSuperadminUser}>
+          {#if isSuperadminUser}
+            <option value="superadmin">Superadmin</option>
+          {:else}
+            <option value="user">User</option>
+            <option value="admin">Admin</option>
+          {/if}
         </select>
       </div>
 
@@ -84,11 +96,7 @@
 
     <div class="modal-actions">
       <button class="btn-cancel" onclick={onclose}>Cancel</button>
-      <button
-        class="btn-save"
-        onclick={handleSave}
-        disabled={mutation.isPending}
-      >
+      <button class="btn-save" onclick={handleSave} disabled={mutation.isPending}>
         {mutation.isPending ? 'Saving…' : 'Save'}
       </button>
     </div>
@@ -145,7 +153,9 @@
     color: var(--apex-text-muted);
     cursor: pointer;
   }
-  .close-btn:hover { background: var(--apex-surface-hover); }
+  .close-btn:hover {
+    background: var(--apex-surface-hover);
+  }
 
   .modal-subtitle {
     font-size: 13px;
@@ -215,7 +225,9 @@
     font-family: inherit;
     transition: all 0.15s;
   }
-  .btn-cancel:hover { background: var(--apex-surface-hover); }
+  .btn-cancel:hover {
+    background: var(--apex-surface-hover);
+  }
 
   .btn-save {
     padding: 9px 20px;
@@ -229,5 +241,8 @@
     font-family: inherit;
     transition: opacity 0.15s;
   }
-  .btn-save:disabled { opacity: 0.6; cursor: not-allowed; }
+  .btn-save:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
 </style>

@@ -9,6 +9,7 @@ import {
   currentUser,
   isAuthenticated,
   isAdmin,
+  isSuperAdmin,
   currentAuthStatus,
 } from './auth';
 import { makeUserProfile } from '../../mocks/factories/user';
@@ -113,23 +114,44 @@ describe('getRefreshToken()', () => {
 });
 
 describe('isAdmin', () => {
-  it('returns false when user is null', () => {
+  it('is false when unauthenticated', () => {
     expect(getStoreValue(isAdmin)).toBe(false);
   });
 
-  it('returns false for a regular user', () => {
+  it('is false for regular users', () => {
     setAuth(mockTokens, makeUserProfile({ role: 'user' }));
     expect(getStoreValue(isAdmin)).toBe(false);
   });
 
-  it('returns true for an admin user', () => {
+  it('is true for admin role', () => {
     setAuth(mockTokens, makeUserProfile({ role: 'admin' }));
     expect(getStoreValue(isAdmin)).toBe(true);
   });
 
-  it('returns false after clearAuth', () => {
-    setAuth(mockTokens, makeUserProfile({ role: 'admin' }));
+  it('is true for superadmin role', () => {
+    setAuth(mockTokens, makeUserProfile({ role: 'superadmin' }));
+    expect(getStoreValue(isAdmin)).toBe(true);
+  });
+
+  it('resets to false after clearAuth()', () => {
+    setAuth(mockTokens, makeUserProfile({ role: 'superadmin' }));
     clearAuth();
     expect(getStoreValue(isAdmin)).toBe(false);
+  });
+});
+
+describe('isSuperAdmin', () => {
+  it('is false when unauthenticated', () => {
+    expect(getStoreValue(isSuperAdmin)).toBe(false);
+  });
+
+  it('is false for regular admin', () => {
+    setAuth(mockTokens, makeUserProfile({ role: 'admin' }));
+    expect(getStoreValue(isSuperAdmin)).toBe(false);
+  });
+
+  it('is true for superadmin', () => {
+    setAuth(mockTokens, makeUserProfile({ role: 'superadmin' }));
+    expect(getStoreValue(isSuperAdmin)).toBe(true);
   });
 });

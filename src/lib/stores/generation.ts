@@ -114,7 +114,13 @@ function createGenerationStore() {
     },
 
     startJob(jobId: string) {
-      update((s) => ({ ...s, activeJobId: jobId, jobStatus: 'pending', completedJob: null, progress: null }));
+      update((s) => ({
+        ...s,
+        activeJobId: jobId,
+        jobStatus: 'pending',
+        completedJob: null,
+        progress: null,
+      }));
     },
 
     setStatus(status: JobStatus) {
@@ -163,7 +169,12 @@ export const generationStore = createGenerationStore();
 
 export const isGenerating = derived(
   generationStore,
-  ($s) => $s.jobStatus !== null && $s.jobStatus !== 'completed' && $s.jobStatus !== 'failed' && $s.jobStatus !== 'cancelled' && $s.jobStatus !== 'moderated',
+  ($s) =>
+    $s.jobStatus !== null &&
+    $s.jobStatus !== 'completed' &&
+    $s.jobStatus !== 'failed' &&
+    $s.jobStatus !== 'cancelled' &&
+    $s.jobStatus !== 'moderated',
 );
 
 export const canGenerate = derived(

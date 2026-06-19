@@ -14,11 +14,7 @@
     {#each themeOpts as t (t.id)}
       {@const active = $themePrefs.theme === t.id}
       {@const def = themes[t.id]}
-      <button
-        onclick={() => setTheme(t.id)}
-        class="theme-card"
-        class:active
-      >
+      <button onclick={() => setTheme(t.id)} class="theme-card" class:active>
         <div class="swatches">
           <span class="swatch" style="background: {def.light.bg}"></span>
           <span class="swatch" style="background: {def.light.accent}"></span>
@@ -33,7 +29,9 @@
 </div>
 
 <style>
-  .section { margin-bottom: 18px; }
+  .section {
+    margin-bottom: 18px;
+  }
   .label {
     font-size: 12px;
     color: var(--apex-text-dim);
@@ -41,7 +39,10 @@
     margin: 0 0 8px;
   }
 
-  .theme-grid { display: flex; gap: 8px; }
+  .theme-grid {
+    display: flex;
+    gap: 8px;
+  }
 
   .theme-card {
     flex: 1;
@@ -77,7 +78,9 @@
     color: var(--apex-text);
     margin: 0 0 1px;
   }
-  .theme-name.active { color: var(--apex-accent); }
+  .theme-name.active {
+    color: var(--apex-accent);
+  }
 
   .theme-desc {
     font-size: 10px;
