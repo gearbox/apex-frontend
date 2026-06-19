@@ -4,12 +4,14 @@ import {
   clearAuth,
   updateTokens,
   setAuthStatus,
+  setUser,
   getAccessToken,
   getRefreshToken,
   currentUser,
   isAuthenticated,
   isAdmin,
   isSuperAdmin,
+  isAgeVerified,
   currentAuthStatus,
 } from './auth';
 import { makeUserProfile } from '../../mocks/factories/user';
@@ -153,5 +155,34 @@ describe('isSuperAdmin', () => {
   it('is true for superadmin', () => {
     setAuth(mockTokens, makeUserProfile({ role: 'superadmin' }));
     expect(getStoreValue(isSuperAdmin)).toBe(true);
+  });
+});
+
+describe('isAgeVerified', () => {
+  it('is false when user is null', () => {
+    expect(getStoreValue(isAgeVerified)).toBe(false);
+  });
+
+  it('is false when age_verified is false', () => {
+    setAuth(mockTokens, makeUserProfile({ age_verified: false }));
+    expect(getStoreValue(isAgeVerified)).toBe(false);
+  });
+
+  it('is true after setUser with age_verified: true', () => {
+    setAuth(mockTokens, makeUserProfile({ age_verified: false }));
+    setUser(
+      makeUserProfile({
+        age_verified: true,
+        age_verified_at: '2026-01-01T00:00:00Z',
+        date_of_birth: '2000-01-01',
+      }),
+    );
+    expect(getStoreValue(isAgeVerified)).toBe(true);
+  });
+
+  it('resets to false after clearAuth()', () => {
+    setAuth(mockTokens, makeUserProfile({ age_verified: true }));
+    clearAuth();
+    expect(getStoreValue(isAgeVerified)).toBe(false);
   });
 });

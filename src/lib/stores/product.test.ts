@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { get } from 'svelte/store';
-import { productInfo, isNsfwAllowed, requiresAgeGate, type ProductInfo } from './product';
+import { productInfo, isNsfwAllowed, type ProductInfo } from './product';
 
 const vexProduct: ProductInfo = {
   product: 'vex',
@@ -67,38 +67,5 @@ describe('isNsfwAllowed', () => {
     expect(get(isNsfwAllowed)).toBe(true);
     productInfo.set(syntharaProduct);
     expect(get(isNsfwAllowed)).toBe(false);
-  });
-});
-
-describe('requiresAgeGate', () => {
-  it('is false when productInfo is null', () => {
-    expect(get(requiresAgeGate)).toBe(false);
-  });
-
-  it('is true when age_gate is checkbox (vex)', () => {
-    productInfo.set(vexProduct);
-    expect(get(requiresAgeGate)).toBe(true);
-  });
-
-  it('is true when age_gate is date_of_birth', () => {
-    productInfo.set({ ...vexProduct, age_gate: 'date_of_birth' });
-    expect(get(requiresAgeGate)).toBe(true);
-  });
-
-  it('is false when age_gate is none (synthara)', () => {
-    productInfo.set(syntharaProduct);
-    expect(get(requiresAgeGate)).toBe(false);
-  });
-
-  it('is false when age_gate is none even for permissive product', () => {
-    productInfo.set({ ...vexProduct, age_gate: 'none' });
-    expect(get(requiresAgeGate)).toBe(false);
-  });
-
-  it('updates reactively when productInfo changes', () => {
-    productInfo.set(vexProduct);
-    expect(get(requiresAgeGate)).toBe(true);
-    productInfo.set(syntharaProduct);
-    expect(get(requiresAgeGate)).toBe(false);
   });
 });

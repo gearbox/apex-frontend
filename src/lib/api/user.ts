@@ -2,6 +2,7 @@ import apiClient from '$lib/api/client';
 import type { components } from '$lib/api/types';
 import { parseApiError, ApiRequestError } from '$lib/api/errors';
 import type { Locale } from '$lib/stores/locale';
+import type { UserProfile } from '$lib/stores/auth';
 
 function throwApiError(error: unknown, fallbackMsg: string): never {
   const apiErr = parseApiError(error, 0);
@@ -37,6 +38,19 @@ export async function deleteAccount(): Promise<DeleteAccountResponse> {
   const { data, error } = await apiClient.DELETE('/v1/users/me');
   if (error || !data) throwApiError(error, 'Failed to delete account');
   return data;
+}
+
+/**
+ * Capture date of birth and verify age. Returns the updated profile.
+ * NOTE: DOB is write-once server-side; sending a different value later → 400.
+ * (Alternative: for checkbox-based products send { age_confirmed: true } instead of DOB.)
+ */
+export async function verifyAge(dateOfBirth: string): Promise<UserProfile> {
+  const { data, error } = await apiClient.PATCH('/v1/users/me', {
+    body: { date_of_birth: dateOfBirth },
+  });
+  if (error || !data) throwApiError(error, 'Failed to verify age');
+  return data as unknown as UserProfile;
 }
 
 /**

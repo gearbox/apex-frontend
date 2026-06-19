@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { server } from '../../mocks/server';
-import { fetchUserStats, changePassword, logoutAllDevices, deleteAccount } from './user';
+import { fetchUserStats, changePassword, logoutAllDevices, deleteAccount, verifyAge } from './user';
 import { ApiRequestError } from './errors';
 
 const BASE = 'http://localhost:8000';
@@ -121,6 +121,66 @@ describe('logoutAllDevices()', () => {
       ),
     );
     await expect(logoutAllDevices()).rejects.toThrow(ApiRequestError);
+  });
+});
+
+describe('verifyAge()', () => {
+  it('sends date_of_birth and returns updated profile with age_verified: true', async () => {
+    server.use(
+      http.patch(`${BASE}/v1/users/me`, () =>
+        HttpResponse.json({
+          id: 'usr_001',
+          email: 'test@example.com',
+          display_name: 'Test',
+          role: 'user',
+          subscription_tier: 'free',
+          email_verified: true,
+          created_at: '2025-01-01T00:00:00Z',
+          updated_at: '2026-06-19T00:00:00Z',
+          age_verified: true,
+          age_verified_at: '2026-06-19T00:00:00Z',
+          date_of_birth: '2000-01-01',
+        }),
+      ),
+    );
+    const profile = await verifyAge('2000-01-01');
+    expect(profile.age_verified).toBe(true);
+    expect(profile.date_of_birth).toBe('2000-01-01');
+  });
+
+  it('throws ApiRequestError on 400 (underage or write-once)', async () => {
+    server.use(
+      http.patch(`${BASE}/v1/users/me`, () =>
+        HttpResponse.json(
+          { error: 'validation_error', message: 'You must be 18 or older.', status_code: 400 },
+          { status: 400 },
+        ),
+      ),
+    );
+    await expect(verifyAge('2020-01-01')).rejects.toThrow(ApiRequestError);
+  });
+
+  it('surfaces the server error message on ApiRequestError', async () => {
+    server.use(
+      http.patch(`${BASE}/v1/users/me`, () =>
+        HttpResponse.json(
+          {
+            error: 'validation_error',
+            message: 'Date of birth has already been set.',
+            status_code: 400,
+          },
+          { status: 400 },
+        ),
+      ),
+    );
+    let caught: unknown;
+    try {
+      await verifyAge('2000-01-01');
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(ApiRequestError);
+    expect((caught as ApiRequestError).message).toBe('Date of birth has already been set.');
   });
 });
 

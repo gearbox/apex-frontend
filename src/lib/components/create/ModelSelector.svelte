@@ -1,11 +1,16 @@
 <script lang="ts">
-  import { generationStore } from '$lib/stores/generation';
   import type { components } from '$lib/api/types';
 
   type ModelType = components['schemas']['ModelType'];
   type ModelInfo = components['schemas']['ModelInfo'];
 
-  let { models = [] }: { models: ModelInfo[] } = $props();
+  interface Props {
+    models: ModelInfo[];
+    selectedModel: ModelType;
+    onSelect: (key: ModelType) => void;
+  }
+
+  let { models = [], selectedModel, onSelect }: Props = $props();
 
   const MODEL_META: Record<ModelType, { label: string; icon: string }> = {
     'grok-imagine-image': { label: 'Grok Imagine', icon: '✦' },
@@ -30,9 +35,9 @@
   <div class="flex gap-1.5">
     {#each availableModels as modelId (modelId)}
       {@const meta = MODEL_META[modelId]}
-      {@const isActive = $generationStore.model === modelId}
+      {@const isActive = selectedModel === modelId}
       <button
-        onclick={() => generationStore.setModel(modelId)}
+        onclick={() => onSelect(modelId)}
         class="flex flex-1 flex-col items-center gap-1 rounded-2.5 border py-2.5 text-xs font-medium transition-all
           {isActive
           ? 'border-accent-dim bg-accent-glow text-accent'
