@@ -30,7 +30,9 @@
 </div>
 
 <style>
-  .section { margin-bottom: 0; }
+  .section {
+    margin-bottom: 0;
+  }
   .label {
     font-size: 12px;
     color: var(--apex-text-dim);
@@ -61,7 +63,9 @@
     border-right: 1px solid var(--apex-border);
     transition: all 0.2s;
   }
-  .mode-btn.last { border-right: none; }
+  .mode-btn.last {
+    border-right: none;
+  }
   .mode-btn.active {
     background: var(--apex-accent-glow);
     color: var(--apex-accent);

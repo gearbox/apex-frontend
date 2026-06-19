@@ -4,7 +4,10 @@
   import { X, Check, Trash2 } from 'lucide-svelte';
   import apiClient from '$lib/api/client';
   import { uploadsInfiniteQueryOptions } from '$lib/queries/storage';
-  import { galleryListInfiniteQueryOptions, deleteContentMutationOptions } from '$lib/queries/gallery';
+  import {
+    galleryListInfiniteQueryOptions,
+    deleteContentMutationOptions,
+  } from '$lib/queries/gallery';
   import { addToast } from '$lib/stores/toasts';
   import { isDesktop } from '$lib/utils/breakpoints';
   import type { components } from '$lib/api/types';
@@ -213,7 +216,6 @@
     aria-label="Choose from library"
     tabindex="-1"
   >
-
     <!-- Header -->
     <div class="flex shrink-0 items-center justify-between border-b border-border px-5 py-4">
       <h2 class="text-sm font-semibold text-text">Choose from Library</h2>
@@ -256,12 +258,15 @@
         {:else if uploadItems.length === 0}
           <div class="flex flex-col items-center justify-center py-12 text-center">
             <p class="text-sm text-text-dim">No uploads yet</p>
-            <p class="mt-1 text-xs text-text-muted">Upload an image using the drag & drop zone above</p>
+            <p class="mt-1 text-xs text-text-muted">
+              Upload an image using the drag & drop zone above
+            </p>
           </div>
         {:else}
           <div class="grid grid-cols-3 gap-2 md:grid-cols-4">
             {#each uploadItems as item (item.id)}
-              {@const isSelected = selectedItem?.id === item.id && selectedItem?.source === 'upload'}
+              {@const isSelected =
+                selectedItem?.id === item.id && selectedItem?.source === 'upload'}
               <div
                 class="group relative aspect-square overflow-hidden rounded-lg border-2 transition-colors
                   {isSelected ? 'border-accent' : 'border-transparent hover:border-border-active'}"
@@ -270,8 +275,14 @@
                   onclick={() =>
                     (selectedItem = isSelected
                       ? null
-                      : { id: item.id, source: 'upload', previewUrl: getUploadThumbnailUrl(item.id) })}
-                  ontouchstart={() => { if (!$isDesktop) startLongPress(item.id); }}
+                      : {
+                          id: item.id,
+                          source: 'upload',
+                          previewUrl: getUploadThumbnailUrl(item.id),
+                        })}
+                  ontouchstart={() => {
+                    if (!$isDesktop) startLongPress(item.id);
+                  }}
                   ontouchend={cancelLongPress}
                   ontouchmove={cancelLongPress}
                   ontouchcancel={cancelLongPress}
@@ -295,7 +306,10 @@
                 <!-- Desktop hover trash icon -->
                 {#if $isDesktop}
                   <button
-                    onclick={(e) => { e.stopPropagation(); uploadDeleteTarget = item.id; }}
+                    onclick={(e) => {
+                      e.stopPropagation();
+                      uploadDeleteTarget = item.id;
+                    }}
                     class="absolute right-1 top-1 hidden h-6 w-6 items-center justify-center rounded-md bg-black/60 text-white opacity-0 transition-opacity group-hover:flex group-hover:opacity-100"
                     aria-label={m.common_delete()}
                   >
@@ -317,11 +331,12 @@
 
           {#if uploadsQuery.isFetchingNextPage}
             <div class="flex justify-center py-3">
-              <div class="h-4 w-4 animate-spin rounded-full border-2 border-accent border-t-transparent"></div>
+              <div
+                class="h-4 w-4 animate-spin rounded-full border-2 border-accent border-t-transparent"
+              ></div>
             </div>
           {/if}
         {/if}
-
       {:else}
         <!-- Generated tab -->
         {#if generatedQuery.isLoading}
@@ -372,7 +387,9 @@
                           prompt: item.prompt_snippet,
                         })}
                   class="group relative aspect-square overflow-hidden rounded-lg border-2 transition-colors
-                    {isSelected ? 'border-accent' : 'border-transparent hover:border-border-active'}"
+                    {isSelected
+                    ? 'border-accent'
+                    : 'border-transparent hover:border-border-active'}"
                   aria-pressed={isSelected}
                   aria-label="Generated: {item.prompt_snippet}"
                 >
@@ -408,7 +425,9 @@
 
           {#if generatedQuery.isFetchingNextPage}
             <div class="flex justify-center py-3">
-              <div class="h-4 w-4 animate-spin rounded-full border-2 border-accent border-t-transparent"></div>
+              <div
+                class="h-4 w-4 animate-spin rounded-full border-2 border-accent border-t-transparent"
+              ></div>
             </div>
           {/if}
         {/if}
@@ -422,8 +441,8 @@
         disabled={!selectedItem || confirming}
         class="w-full rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors
           {selectedItem && !confirming
-            ? 'bg-accent text-white hover:bg-accent/90'
-            : 'cursor-not-allowed bg-surface text-text-dim'}"
+          ? 'bg-accent text-white hover:bg-accent/90'
+          : 'cursor-not-allowed bg-surface text-text-dim'}"
       >
         {confirming ? 'Loading…' : 'Use Selected Image'}
       </button>

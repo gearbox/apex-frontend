@@ -180,7 +180,10 @@ test.describe('Gallery deletion', () => {
     ).toBeVisible({ timeout: 3000 });
 
     await page.getByRole('button', { name: /delete/i }).click();
-    await page.getByRole('button', { name: /delete/i }).last().click(); // confirm button in modal
+    await page
+      .getByRole('button', { name: /delete/i })
+      .last()
+      .click(); // confirm button in modal
 
     // Should have called DELETE /v1/content/{output_id}
     expect(deleteRequested).toBe(true);
@@ -246,7 +249,10 @@ test.describe('Lightbox Remix', () => {
     await page.route((url) => url.pathname === '/v1/gallery', jsonRoute(mockGalleryPage));
     await page.route('**/v1/gallery/job_001', jsonRoute(mockGalleryDetail));
     await page.route('**/v1/providers', jsonRoute(mockProvidersResponse));
-    await page.route('**/v1/billing/balance', jsonRoute({ account_id: 'acc_001', account_type: 'personal', balance: 1000 }));
+    await page.route(
+      '**/v1/billing/balance',
+      jsonRoute({ account_id: 'acc_001', account_type: 'personal', balance: 1000 }),
+    );
     await page.route('**/v1/billing/pricing', jsonRoute([]));
 
     await page.goto('/app/gallery');
@@ -278,7 +284,9 @@ test.describe('Lightbox Remix', () => {
     await expect(page.getByText('From generated')).toBeVisible();
   });
 
-  test('9. Re-Generate button shown for video outputs (T2I fallback)', async ({ authenticatedPage: page }) => {
+  test('9. Re-Generate button shown for video outputs (T2I fallback)', async ({
+    authenticatedPage: page,
+  }) => {
     const videoDetail = {
       ...mockGalleryDetail,
       job_id: 'job_003',
@@ -299,12 +307,15 @@ test.describe('Lightbox Remix', () => {
       ],
     };
 
-    await page.route((url) => url.pathname === '/v1/gallery', jsonRoute({
-      items: [mockGalleryItems[2]],
-      limit: 20,
-      has_more: false,
-      next_cursor: null,
-    }));
+    await page.route(
+      (url) => url.pathname === '/v1/gallery',
+      jsonRoute({
+        items: [mockGalleryItems[2]],
+        limit: 20,
+        has_more: false,
+        next_cursor: null,
+      }),
+    );
     await page.route('**/v1/gallery/job_003', jsonRoute(videoDetail));
 
     await page.goto('/app/gallery');

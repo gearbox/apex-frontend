@@ -9,6 +9,7 @@ MSW (Mock Service Worker), Vitest unit tests, and Playwright E2E tests were impl
 **Why:** No tests existed previously; CLAUDE.md mandates tests for all new features.
 
 **How to apply:** When adding new features, follow the patterns established:
+
 - Add MSW handlers to `src/mocks/handlers/` for new API endpoints
 - Add factories to `src/mocks/factories/` for new data shapes
 - Add unit tests alongside source files as `*.test.ts`

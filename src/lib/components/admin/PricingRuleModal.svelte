@@ -84,8 +84,7 @@
       }
       onclose();
     } catch (e) {
-      errorMsg =
-        e instanceof ApiRequestError ? e.message : 'Unexpected error. Please try again.';
+      errorMsg = e instanceof ApiRequestError ? e.message : 'Unexpected error. Please try again.';
     }
   }
 
@@ -116,12 +115,7 @@
       <div class="field">
         <label class="field-label" for="pricing-provider">Provider</label>
         {#if isEdit}
-          <input
-            id="pricing-provider"
-            class="field-input"
-            value={rule?.provider}
-            disabled
-          />
+          <input id="pricing-provider" class="field-input" value={rule?.provider} disabled />
         {:else}
           <select id="pricing-provider" class="field-select" bind:value={provider}>
             <option value="" disabled>Select provider…</option>
@@ -140,12 +134,7 @@
       <div class="field">
         <label class="field-label" for="pricing-gen-type">Generation Type</label>
         {#if isEdit}
-          <input
-            id="pricing-gen-type"
-            class="field-input"
-            value={rule?.generation_type}
-            disabled
-          />
+          <input id="pricing-gen-type" class="field-input" value={rule?.generation_type} disabled />
         {:else}
           <select id="pricing-gen-type" class="field-select" bind:value={generationType}>
             {#each GENERATION_TYPES as gt (gt)}
@@ -178,13 +167,7 @@
       <!-- Token Cost -->
       <div class="field">
         <label class="field-label" for="pricing-cost">Token Cost</label>
-        <input
-          id="pricing-cost"
-          class="field-input"
-          type="number"
-          min="1"
-          bind:value={tokenCost}
-        />
+        <input id="pricing-cost" class="field-input" type="number" min="1" bind:value={tokenCost} />
       </div>
 
       <!-- Effective Until (edit only) -->
@@ -280,7 +263,9 @@
     color: var(--apex-text-muted);
     cursor: pointer;
   }
-  .close-btn:hover { background: var(--apex-surface-hover); }
+  .close-btn:hover {
+    background: var(--apex-surface-hover);
+  }
 
   .form-fields {
     display: flex;
@@ -356,7 +341,9 @@
     font-family: inherit;
     transition: all 0.15s;
   }
-  .btn-cancel:hover { background: var(--apex-surface-hover); }
+  .btn-cancel:hover {
+    background: var(--apex-surface-hover);
+  }
 
   .btn-save {
     padding: 9px 20px;
@@ -370,5 +357,8 @@
     font-family: inherit;
     transition: opacity 0.15s;
   }
-  .btn-save:disabled { opacity: 0.6; cursor: not-allowed; }
+  .btn-save:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
 </style>

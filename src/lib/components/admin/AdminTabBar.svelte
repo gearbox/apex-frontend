@@ -23,9 +23,7 @@
     { id: 'pricing', label: 'Pricing', icon: Coins },
   ];
 
-  const manageTabs: TabDef[] = [
-    { id: 'admins', label: 'Admins', icon: ShieldCheck },
-  ];
+  const manageTabs: TabDef[] = [{ id: 'admins', label: 'Admins', icon: ShieldCheck }];
 
   const tabs = $derived(showManageTab ? [...baseTabs, ...manageTabs] : baseTabs);
 </script>
@@ -77,7 +75,9 @@
     cursor: pointer;
     font-family: inherit;
     white-space: nowrap;
-    transition: color 0.15s, border-color 0.15s;
+    transition:
+      color 0.15s,
+      border-color 0.15s;
     margin-bottom: -1px;
   }
 

@@ -35,7 +35,9 @@
 
     {#if status === 'verifying'}
       <div class="flex flex-col items-center gap-3">
-        <div class="h-6 w-6 animate-spin rounded-full border-2 border-accent border-t-transparent"></div>
+        <div
+          class="h-6 w-6 animate-spin rounded-full border-2 border-accent border-t-transparent"
+        ></div>
         <p class="text-sm text-text-muted">Verifying your email…</p>
       </div>
     {:else if status === 'success'}

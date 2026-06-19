@@ -31,12 +31,12 @@
   let successMsg = $state('');
 
   const balanceQuery = createQuery(() => accountBalanceQueryOptions(aid));
-  const txnsQuery = createQuery(() =>
-    accountTransactionsQueryOptions(aid, { limit: 5 }),
-  );
+  const txnsQuery = createQuery(() => accountTransactionsQueryOptions(aid, { limit: 5 }));
   const mutation = createMutation(() => adjustBalanceMutationOptions(qc, aid));
 
-  const canSubmit = $derived(amount !== '' && !isNaN(Number(amount)) && description.trim().length > 0);
+  const canSubmit = $derived(
+    amount !== '' && !isNaN(Number(amount)) && description.trim().length > 0,
+  );
 
   async function handleSubmit() {
     errorMsg = '';
@@ -47,7 +47,10 @@
         description: description.trim(),
       });
       successMsg = `Done! New balance: ${result.new_balance.toLocaleString()} tokens.`;
-      addToast({ type: 'success', message: `Balance adjusted. New balance: ${result.new_balance.toLocaleString()} tokens.` });
+      addToast({
+        type: 'success',
+        message: `Balance adjusted. New balance: ${result.new_balance.toLocaleString()} tokens.`,
+      });
       amount = '';
       description = '';
       setTimeout(() => onclose(), 1500);
@@ -76,7 +79,14 @@
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
-<div class="modal-overlay" onclick={handleBackdropClick} role="dialog" tabindex="-1" aria-modal="true" aria-label="Adjust account balance">
+<div
+  class="modal-overlay"
+  onclick={handleBackdropClick}
+  role="dialog"
+  tabindex="-1"
+  aria-modal="true"
+  aria-label="Adjust account balance"
+>
   <div class="modal-card">
     <div class="modal-header">
       <h2 class="modal-title">Adjust Balance</h2>
@@ -137,7 +147,11 @@
           {#each txnsQuery.data.items as txn (txn.id)}
             <div class="txn-row">
               <span class="txn-type">{txn.transaction_type}</span>
-              <span class="txn-amount" class:positive={txn.amount > 0} class:negative={txn.amount < 0}>
+              <span
+                class="txn-amount"
+                class:positive={txn.amount > 0}
+                class:negative={txn.amount < 0}
+              >
                 {txn.amount > 0 ? '+' : ''}{txn.amount.toLocaleString()}
               </span>
               <span class="txn-desc">{txn.description ?? '—'}</span>
@@ -150,11 +164,7 @@
 
     <div class="modal-actions">
       <button class="btn-cancel" onclick={onclose}>Cancel</button>
-      <button
-        class="btn-save"
-        onclick={handleSubmit}
-        disabled={!canSubmit || mutation.isPending}
-      >
+      <button class="btn-save" onclick={handleSubmit} disabled={!canSubmit || mutation.isPending}>
         {mutation.isPending ? 'Applying…' : 'Apply Adjustment'}
       </button>
     </div>
@@ -213,7 +223,9 @@
     color: var(--apex-text-muted);
     cursor: pointer;
   }
-  .close-btn:hover { background: var(--apex-surface-hover); }
+  .close-btn:hover {
+    background: var(--apex-surface-hover);
+  }
 
   .modal-subtitle {
     font-size: 13px;
@@ -252,8 +264,13 @@
   }
 
   @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
   }
 
   .form-fields {
@@ -338,7 +355,9 @@
     padding: 6px 0;
     border-bottom: 1px solid var(--apex-border);
   }
-  .txn-row:last-child { border-bottom: none; }
+  .txn-row:last-child {
+    border-bottom: none;
+  }
 
   .txn-type {
     background: var(--apex-surface-hover);
@@ -353,8 +372,12 @@
     font-weight: 600;
     text-align: center;
   }
-  .txn-amount.positive { color: var(--apex-success); }
-  .txn-amount.negative { color: var(--apex-danger); }
+  .txn-amount.positive {
+    color: var(--apex-success);
+  }
+  .txn-amount.negative {
+    color: var(--apex-danger);
+  }
 
   .txn-desc {
     color: var(--apex-text-muted);
@@ -386,7 +409,9 @@
     font-family: inherit;
     transition: all 0.15s;
   }
-  .btn-cancel:hover { background: var(--apex-surface-hover); }
+  .btn-cancel:hover {
+    background: var(--apex-surface-hover);
+  }
 
   .btn-save {
     padding: 9px 20px;
@@ -400,5 +425,8 @@
     font-family: inherit;
     transition: opacity 0.15s;
   }
-  .btn-save:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-save:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 </style>

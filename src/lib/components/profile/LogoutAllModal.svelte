@@ -61,11 +61,7 @@
 
     <div class="modal-actions">
       <button class="btn-cancel" onclick={onclose}>{m.common_cancel()}</button>
-      <button
-        class="btn-danger"
-        onclick={handleSubmit}
-        disabled={mutation.isPending}
-      >
+      <button class="btn-danger" onclick={handleSubmit} disabled={mutation.isPending}>
         {mutation.isPending ? m.profile_logout_all_submitting() : m.profile_logout_all_submit()}
       </button>
     </div>
@@ -129,7 +125,9 @@
     color: var(--apex-text-muted);
     cursor: pointer;
   }
-  .close-btn:hover { background: var(--apex-surface-hover); }
+  .close-btn:hover {
+    background: var(--apex-surface-hover);
+  }
 
   .confirm-text {
     font-size: 14px;
@@ -164,7 +162,9 @@
     font-family: inherit;
     transition: all 0.15s;
   }
-  .btn-cancel:hover { background: var(--apex-surface-hover); }
+  .btn-cancel:hover {
+    background: var(--apex-surface-hover);
+  }
 
   .btn-danger {
     padding: 9px 20px;
@@ -178,5 +178,8 @@
     font-family: inherit;
     transition: opacity 0.15s;
   }
-  .btn-danger:disabled { opacity: 0.6; cursor: not-allowed; }
+  .btn-danger:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
 </style>

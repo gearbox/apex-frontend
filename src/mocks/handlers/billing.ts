@@ -20,8 +20,24 @@ export const billingHandlers = [
 
   http.get(`${BASE}/v1/billing/pricing`, () =>
     HttpResponse.json([
-      { id: 'rule_001', provider: 'grok', generation_type: 't2i', model: 'aisha', token_cost: 5, is_active: true, effective_from: '2025-01-01T00:00:00Z' },
-      { id: 'rule_002', provider: 'grok', generation_type: 't2v', model: null, token_cost: 20, is_active: true, effective_from: '2025-01-01T00:00:00Z' },
+      {
+        id: 'rule_001',
+        provider: 'grok',
+        generation_type: 't2i',
+        model: 'aisha',
+        token_cost: 5,
+        is_active: true,
+        effective_from: '2025-01-01T00:00:00Z',
+      },
+      {
+        id: 'rule_002',
+        provider: 'grok',
+        generation_type: 't2v',
+        model: null,
+        token_cost: 20,
+        is_active: true,
+        effective_from: '2025-01-01T00:00:00Z',
+      },
     ]),
   ),
 ];

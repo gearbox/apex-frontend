@@ -10,16 +10,20 @@ function throwApiError(error: unknown, fallbackMsg: string): never {
 export type AdminRoleResponse = components['schemas']['AdminRoleResponse'];
 export type AuditLogEntry = components['schemas']['AuditLogEntry'];
 export type AdminUserResponse = components['schemas']['AdminUserResponse'];
-export type AdminUserListResponse = components['schemas']['CursorPage_src.api.schemas.admin.AdminUserResponse_'];
+export type AdminUserListResponse =
+  components['schemas']['CursorPage_src.api.schemas.admin.AdminUserResponse_'];
 export type AdminOrgResponse = components['schemas']['AdminOrgResponse'];
-export type AdminOrgListResponse = components['schemas']['CursorPage_src.api.schemas.admin.AdminOrgResponse_'];
+export type AdminOrgListResponse =
+  components['schemas']['CursorPage_src.api.schemas.admin.AdminOrgResponse_'];
 export type GenerationModelResponse = components['schemas']['GenerationModelResponse'];
 export type ModelListResponse = components['schemas']['ModelListResponse'];
 export type PaymentResponse = components['schemas']['PaymentResponse'];
-export type PaymentListResponse = components['schemas']['CursorPage_src.api.schemas.billing.PaymentResponse_'];
+export type PaymentListResponse =
+  components['schemas']['CursorPage_src.api.schemas.billing.PaymentResponse_'];
 export type BalanceResponse = components['schemas']['BalanceResponse'];
 export type TransactionResponse = components['schemas']['TransactionResponse'];
-export type TransactionListResponse = components['schemas']['CursorPage_src.api.schemas.billing.TransactionResponse_'];
+export type TransactionListResponse =
+  components['schemas']['CursorPage_src.api.schemas.billing.TransactionResponse_'];
 export type AdminAdjustResponse = components['schemas']['AdminAdjustResponse'];
 export type PricingRuleResponse = components['schemas']['PricingRuleResponse'];
 export type CreatePricingRuleRequest = components['schemas']['CreatePricingRuleRequest'];
@@ -144,12 +148,9 @@ export async function fetchAccountTransactions(
   accountId: string,
   params?: { limit?: number; offset?: number; type?: string },
 ): Promise<TransactionListResponse> {
-  const { data, error } = await apiClient.GET(
-    '/v1/admin/accounts/{account_id}/transactions',
-    {
-      params: { path: { account_id: accountId }, query: params },
-    },
-  );
+  const { data, error } = await apiClient.GET('/v1/admin/accounts/{account_id}/transactions', {
+    params: { path: { account_id: accountId }, query: params },
+  });
   if (error || !data) throwApiError(error, 'Failed to fetch account transactions');
   return data;
 }

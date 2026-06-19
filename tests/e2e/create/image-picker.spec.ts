@@ -231,9 +231,7 @@ test.describe('Image Picker', () => {
     await expect(page.getByText('From uploads')).toBeVisible();
   });
 
-  test('6. Selecting a generated output auto-fills prompt', async ({
-    authenticatedPage: page,
-  }) => {
+  test('6. Selecting a generated output auto-fills prompt', async ({ authenticatedPage: page }) => {
     await page.goto('/app/create');
     await page.getByRole('button', { name: 'Image → Image' }).click();
 

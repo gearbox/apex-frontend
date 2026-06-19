@@ -68,7 +68,10 @@
           role="option"
           aria-selected={$locale === tag}
           onclick={() => select(tag)}
-          class="flex w-full items-center px-3 py-2 text-left text-sm transition-colors hover:bg-surface-hover {$locale === tag ? 'font-semibold text-accent' : 'text-text'}"
+          class="flex w-full items-center px-3 py-2 text-left text-sm transition-colors hover:bg-surface-hover {$locale ===
+          tag
+            ? 'font-semibold text-accent'
+            : 'text-text'}"
         >
           {LOCALE_LABELS[tag]()}
         </button>

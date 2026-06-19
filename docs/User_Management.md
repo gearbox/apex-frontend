@@ -4,32 +4,32 @@
 
 ### Authentication (Public)
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/v1/auth/register` | Register new user |
-| POST | `/api/v1/auth/login` | Login and get tokens |
-| POST | `/api/v1/auth/refresh` | Refresh access token |
-| POST | `/api/v1/auth/logout` | Revoke refresh token |
-| POST | `/api/v1/auth/verify-email` | Verify email with token from link (24 h, single-use) |
-| POST | `/api/v1/auth/forgot-password` | Request password reset email (always 200) |
-| POST | `/api/v1/auth/reset-password` | Consume reset token and update password (30 min, single-use) |
+| Method | Endpoint                       | Description                                                  |
+| ------ | ------------------------------ | ------------------------------------------------------------ |
+| POST   | `/api/v1/auth/register`        | Register new user                                            |
+| POST   | `/api/v1/auth/login`           | Login and get tokens                                         |
+| POST   | `/api/v1/auth/refresh`         | Refresh access token                                         |
+| POST   | `/api/v1/auth/logout`          | Revoke refresh token                                         |
+| POST   | `/api/v1/auth/verify-email`    | Verify email with token from link (24 h, single-use)         |
+| POST   | `/api/v1/auth/forgot-password` | Request password reset email (always 200)                    |
+| POST   | `/api/v1/auth/reset-password`  | Consume reset token and update password (30 min, single-use) |
 
 ### Email Verification (Authenticated)
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/v1/auth/resend-verification` | Resend verification email to current user |
+| Method | Endpoint                           | Description                               |
+| ------ | ---------------------------------- | ----------------------------------------- |
+| POST   | `/api/v1/auth/resend-verification` | Resend verification email to current user |
 
 ### User Profile (Authenticated)
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v1/users/me` | Get profile |
-| PATCH | `/api/v1/users/me` | Update profile |
-| POST | `/api/v1/users/me/password` | Change password |
-| DELETE | `/api/v1/users/me` | Soft delete account |
-| GET | `/api/v1/users/me/stats` | Get usage statistics |
-| POST | `/api/v1/users/me/logout-all` | Logout all devices |
+| Method | Endpoint                      | Description          |
+| ------ | ----------------------------- | -------------------- |
+| GET    | `/api/v1/users/me`            | Get profile          |
+| PATCH  | `/api/v1/users/me`            | Update profile       |
+| POST   | `/api/v1/users/me/password`   | Change password      |
+| DELETE | `/api/v1/users/me`            | Soft delete account  |
+| GET    | `/api/v1/users/me/stats`      | Get usage statistics |
+| POST   | `/api/v1/users/me/logout-all` | Logout all devices   |
 
 ## Usage Examples
 
@@ -83,7 +83,7 @@ from src.api.security import auth_guard
 
 class MyController(Controller):
     guards = [auth_guard]
-    
+
     @get("/protected")
     async def protected_route(self, request: Request) -> ...:
         user_id = request.state["user_id"]  # UUID from token
@@ -123,9 +123,9 @@ CREATE TABLE refresh_tokens (
 
 ## Future Enhancements
 
-- [X] Add FK constraints from existing tables to users (see migration comments)
-- [X] Add email verification (`POST /api/v1/auth/verify-email`, `POST /api/v1/auth/resend-verification`; single-use 24 h tokens, stored as SHA-256 hashes)
-- [X] Add account recovery flow (`POST /api/v1/auth/forgot-password`, `POST /api/v1/auth/reset-password`; single-use 30 min tokens, revokes all refresh tokens on success)
+- [x] Add FK constraints from existing tables to users (see migration comments)
+- [x] Add email verification (`POST /api/v1/auth/verify-email`, `POST /api/v1/auth/resend-verification`; single-use 24 h tokens, stored as SHA-256 hashes)
+- [x] Add account recovery flow (`POST /api/v1/auth/forgot-password`, `POST /api/v1/auth/reset-password`; single-use 30 min tokens, revokes all refresh tokens on success)
 - [ ] Implement background task for expired token cleanup (`email_verification_tokens`, `password_reset_tokens`, `refresh_tokens`)
-- [ ] Add rate limiting for auth endpoints (register, login, forgot-password, resend-verification)
+- [x] Add rate limiting for auth endpoints (register, login, forgot-password, resend-verification)
 - [ ] Implement PKCE flow for OAuth2 clients

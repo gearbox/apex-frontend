@@ -3,7 +3,11 @@
   import CostPreview from './CostPreview.svelte';
   import * as m from '$paraglide/messages';
 
-  let { onclick, submitting = false, estimatedCost = 0 }: { onclick: () => void; submitting?: boolean; estimatedCost?: number } = $props();
+  let {
+    onclick,
+    submitting = false,
+    estimatedCost = 0,
+  }: { onclick: () => void; submitting?: boolean; estimatedCost?: number } = $props();
 
   const isPolling = $derived(
     $generationStore.jobStatus !== null &&
@@ -13,9 +17,7 @@
       $generationStore.jobStatus !== 'moderated',
   );
 
-  const disabled = $derived(
-    !$generationStore.prompt.trim() || submitting || isPolling,
-  );
+  const disabled = $derived(!$generationStore.prompt.trim() || submitting || isPolling);
 
   const label = $derived(
     submitting ? m.create_submitting() : isPolling ? m.create_generating() : m.create_generate(),
@@ -39,7 +41,10 @@
     ></span>
   {:else if isPolling}
     <!-- Animated shimmer fallback when no progress data -->
-    <span class="absolute inset-0 animate-pulse opacity-20" style="background: linear-gradient(90deg, transparent, white, transparent); background-size: 200% 100%;"></span>
+    <span
+      class="absolute inset-0 animate-pulse opacity-20"
+      style="background: linear-gradient(90deg, transparent, white, transparent); background-size: 200% 100%;"
+    ></span>
   {/if}
   <span>{label}</span>
   <CostPreview {estimatedCost} />

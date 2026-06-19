@@ -76,16 +76,10 @@ export async function register(
   email: string,
   password: string,
   displayName?: string,
-  ageConfirmed?: boolean,
-  dateOfBirth?: string,
 ): Promise<void> {
-  const body: Record<string, unknown> = { email, password, display_name: displayName };
-  if (ageConfirmed !== undefined) body.age_confirmed = ageConfirmed;
-  if (dateOfBirth !== undefined) body.date_of_birth = dateOfBirth;
-
   const authRes = await fetchJson<AuthResponse>('/v1/auth/register', {
     method: 'POST',
-    body: JSON.stringify(body),
+    body: JSON.stringify({ email, password, display_name: displayName }),
   });
 
   const tokens = toTokens(authRes);

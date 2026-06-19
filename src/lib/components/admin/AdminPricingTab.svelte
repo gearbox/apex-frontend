@@ -25,8 +25,7 @@
     try {
       await patchMutation.mutateAsync({ ruleId: rule.id, body: { is_active: !rule.is_active } });
     } catch (e) {
-      const msg =
-        e instanceof ApiRequestError ? e.message : 'Failed to update pricing rule.';
+      const msg = e instanceof ApiRequestError ? e.message : 'Failed to update pricing rule.';
       addToast({ type: 'error', message: msg });
     } finally {
       togglingIds = new Set([...togglingIds].filter((id) => id !== rule.id));
@@ -179,10 +178,7 @@
                 <Pencil size={14} />
                 Edit
               </button>
-              <button
-                class="action-btn action-btn--danger"
-                onclick={() => (deletingRule = rule)}
-              >
+              <button class="action-btn action-btn--danger" onclick={() => (deletingRule = rule)}>
                 <Trash2 size={14} />
                 Delete
               </button>
@@ -195,26 +191,15 @@
 </div>
 
 {#if showCreateModal}
-  <PricingRuleModal
-    {queryClient}
-    onclose={() => (showCreateModal = false)}
-  />
+  <PricingRuleModal {queryClient} onclose={() => (showCreateModal = false)} />
 {/if}
 
 {#if editingRule}
-  <PricingRuleModal
-    rule={editingRule}
-    {queryClient}
-    onclose={() => (editingRule = null)}
-  />
+  <PricingRuleModal rule={editingRule} {queryClient} onclose={() => (editingRule = null)} />
 {/if}
 
 {#if deletingRule}
-  <DeletePricingConfirm
-    rule={deletingRule}
-    {queryClient}
-    onclose={() => (deletingRule = null)}
-  />
+  <DeletePricingConfirm rule={deletingRule} {queryClient} onclose={() => (deletingRule = null)} />
 {/if}
 
 <style>
@@ -222,7 +207,9 @@
     padding: 16px;
   }
   @media (min-width: 768px) {
-    .tab-content { padding: 24px; }
+    .tab-content {
+      padding: 24px;
+    }
   }
 
   .filters {
@@ -269,11 +256,19 @@
     justify-content: center;
   }
   @media (min-width: 768px) {
-    .add-btn { width: auto; }
+    .add-btn {
+      width: auto;
+    }
   }
-  .add-btn:hover { opacity: 0.9; }
+  .add-btn:hover {
+    opacity: 0.9;
+  }
 
-  .skeleton-list { display: flex; flex-direction: column; gap: 8px; }
+  .skeleton-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
   .skeleton-row {
     height: 48px;
     background: var(--apex-surface);
@@ -281,8 +276,13 @@
     animation: pulse 1.5s ease-in-out infinite;
   }
   @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
   }
 
   .empty-state {
@@ -305,8 +305,15 @@
   }
 
   /* Desktop table */
-  .table-wrap { display: none; overflow-x: auto; }
-  @media (min-width: 768px) { .table-wrap { display: block; } }
+  .table-wrap {
+    display: none;
+    overflow-x: auto;
+  }
+  @media (min-width: 768px) {
+    .table-wrap {
+      display: block;
+    }
+  }
 
   .data-table {
     width: 100%;
@@ -331,8 +338,14 @@
     vertical-align: middle;
   }
 
-  .date-cell { white-space: nowrap; font-size: 12px; color: var(--apex-text-muted); }
-  .cost-cell { font-weight: 600; }
+  .date-cell {
+    white-space: nowrap;
+    font-size: 12px;
+    color: var(--apex-text-muted);
+  }
+  .cost-cell {
+    font-weight: 600;
+  }
 
   .notes-col {
     max-width: 180px;
@@ -390,15 +403,32 @@
     font-size: 12px;
     cursor: pointer;
     font-family: inherit;
-    transition: background 0.15s, color 0.15s;
+    transition:
+      background 0.15s,
+      color 0.15s;
   }
-  .action-btn:hover { background: var(--apex-surface-hover); color: var(--apex-text); }
-  .action-btn--danger { color: var(--apex-danger); }
-  .action-btn--danger:hover { background: color-mix(in srgb, var(--apex-danger) 10%, transparent); }
+  .action-btn:hover {
+    background: var(--apex-surface-hover);
+    color: var(--apex-text);
+  }
+  .action-btn--danger {
+    color: var(--apex-danger);
+  }
+  .action-btn--danger:hover {
+    background: color-mix(in srgb, var(--apex-danger) 10%, transparent);
+  }
 
   /* Mobile card list */
-  .card-list { display: flex; flex-direction: column; gap: 12px; }
-  @media (min-width: 768px) { .card-list { display: none; } }
+  .card-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  @media (min-width: 768px) {
+    .card-list {
+      display: none;
+    }
+  }
 
   .pricing-card {
     background: var(--apex-surface);

@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { get } from 'svelte/store';
-import { eventStreamStatus, isSSEConnected, isSSEFallback, setEventStreamStatus } from './eventStream';
+import {
+  eventStreamStatus,
+  isSSEConnected,
+  isSSEFallback,
+  setEventStreamStatus,
+} from './eventStream';
 
 function getValue<T>(store: { subscribe: (fn: (v: T) => void) => () => void }): T {
   let value!: T;

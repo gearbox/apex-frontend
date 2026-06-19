@@ -31,6 +31,12 @@ export default ts.config(
     },
   },
   {
-    ignores: ['build/', '.svelte-kit/', 'node_modules/', 'public/mockServiceWorker.js', 'src/paraglide/'],
+    ignores: [
+      'build/',
+      '.svelte-kit/',
+      'node_modules/',
+      'public/mockServiceWorker.js',
+      'src/paraglide/',
+    ],
   },
 );

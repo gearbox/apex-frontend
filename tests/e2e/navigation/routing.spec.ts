@@ -3,7 +3,10 @@ import { test, expect as baseExpect } from '@playwright/test';
 import { jsonRoute } from '../helpers/api';
 
 const mockProviderInfo = {
-  provider: 'grok', name: 'xAI Grok', available: true, models: [],
+  provider: 'grok',
+  name: 'xAI Grok',
+  available: true,
+  models: [],
 };
 
 test.describe('Navigation routing', () => {
@@ -46,20 +49,26 @@ authTest.describe('Navigation routing (authenticated)', () => {
     await expect(page.locator('.desktop-shell')).not.toBeVisible();
   });
 
-  authTest('3. More sheet opens on mobile when tapping More', async ({ authenticatedPage: page }) => {
-    await page.setViewportSize({ width: 375, height: 812 });
-    await page.goto('/app/create');
+  authTest(
+    '3. More sheet opens on mobile when tapping More',
+    async ({ authenticatedPage: page }) => {
+      await page.setViewportSize({ width: 375, height: 812 });
+      await page.goto('/app/create');
 
-    // Tap the "More" tab
-    await page.getByRole('button', { name: /more/i }).click();
+      // Tap the "More" tab
+      await page.getByRole('button', { name: /more/i }).click();
 
-    // MobileMoreSheet should appear
-    await expect(page.getByText(/billing|profile|jobs/i).first()).toBeVisible({ timeout: 3000 });
-  });
+      // MobileMoreSheet should appear
+      await expect(page.getByText(/billing|profile|jobs/i).first()).toBeVisible({ timeout: 3000 });
+    },
+  );
 
-  authTest('4b. Root / (authenticated) redirects to /app/create', async ({ authenticatedPage: page }) => {
-    await page.goto('/');
+  authTest(
+    '4b. Root / (authenticated) redirects to /app/create',
+    async ({ authenticatedPage: page }) => {
+      await page.goto('/');
 
-    await expect(page).toHaveURL(/\/app\/create/, { timeout: 5000 });
-  });
+      await expect(page).toHaveURL(/\/app\/create/, { timeout: 5000 });
+    },
+  );
 });

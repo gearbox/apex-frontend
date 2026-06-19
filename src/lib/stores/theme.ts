@@ -21,9 +21,10 @@ function loadPrefs(): ThemePrefs {
     const parsed = JSON.parse(raw) as Partial<ThemePrefs>;
     return {
       theme: parsed.theme && parsed.theme in themes ? parsed.theme : DEFAULT_PREFS.theme,
-      mode: parsed.mode && ['light', 'dark', 'system'].includes(parsed.mode)
-        ? parsed.mode
-        : DEFAULT_PREFS.mode,
+      mode:
+        parsed.mode && ['light', 'dark', 'system'].includes(parsed.mode)
+          ? parsed.mode
+          : DEFAULT_PREFS.mode,
     };
   } catch {
     return DEFAULT_PREFS;
@@ -46,14 +47,11 @@ const systemPrefersDark = writable(getSystemPrefersDark());
 export const themePrefs = writable<ThemePrefs>(loadPrefs());
 
 /** The currently resolved color set. */
-export const currentColors = derived(
-  [themePrefs, systemPrefersDark],
-  ([$prefs, $systemDark]) => {
-    const def = themes[$prefs.theme];
-    const variant = resolveVariant($prefs.mode, $systemDark);
-    return def[variant];
-  },
-);
+export const currentColors = derived([themePrefs, systemPrefersDark], ([$prefs, $systemDark]) => {
+  const def = themes[$prefs.theme];
+  const variant = resolveVariant($prefs.mode, $systemDark);
+  return def[variant];
+});
 
 /** Current resolved variant for conditional logic. */
 export const isDark = derived(

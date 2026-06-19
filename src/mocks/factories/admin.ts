@@ -87,6 +87,9 @@ export function makeTransactionResponse(
     balance_after: 500,
     description: 'Promotional credit',
     metadata: {},
+    job_id: null,
+    payment_id: null,
+    created_by: null,
     created_at: '2025-01-01T00:00:00Z',
     ...overrides,
   };
@@ -126,9 +129,12 @@ export function makePricingRule(overrides: Partial<PricingRuleResponse> = {}): P
     id: 'rule_mock_001',
     provider: 'grok',
     generation_type: 't2i',
+    model: null,
     token_cost: 10,
     is_active: true,
     effective_from: '2025-01-01T00:00:00Z',
+    effective_until: null,
+    notes: null,
     ...overrides,
   };
 }

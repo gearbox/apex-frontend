@@ -5,13 +5,13 @@ import { parseApiError, ApiRequestError } from '$lib/api/errors';
 
 type JobStatus = components['schemas']['JobStatus'];
 type GenerationType = components['schemas']['GenerationType'];
+type Provider = components['schemas']['Provider'];
 
 export interface JobListFilters {
   status?: JobStatus | null;
-  provider?: string | null;
+  provider?: Provider | null;
   generation_type?: GenerationType | GenerationType[] | null;
   limit?: number;
-  offset?: number;
   cursor?: string | null;
 }
 
@@ -29,8 +29,12 @@ export function jobsListQueryOptions(filters: JobListFilters) {
 
       if (Array.isArray(types) && types.length > 1) {
         // Parallel calls for each type, then merge and sort by created_at desc.
-        // Cursor-based paging is not supported when merging multiple types — fall back to offset.
-        const baseQuery = { status: filters.status, provider: filters.provider, limit: filters.limit, offset: filters.offset };
+        // Cursor-based paging is not supported when merging multiple types — non-paginating.
+        const baseQuery = {
+          status: filters.status,
+          provider: filters.provider,
+          limit: filters.limit,
+        };
         const results = await Promise.all(
           types.map((t) =>
             apiClient.GET('/v1/jobs', { params: { query: { ...baseQuery, generation_type: t } } }),
@@ -45,9 +49,17 @@ export function jobsListQueryOptions(filters: JobListFilters) {
         return { items, limit: filters.limit ?? 20, has_more: false, next_cursor: null };
       }
 
-      const singleType = Array.isArray(types) ? types[0] ?? null : types;
+      const singleType = Array.isArray(types) ? (types[0] ?? null) : types;
       const { data, error } = await apiClient.GET('/v1/jobs', {
-        params: { query: { ...filters, generation_type: singleType } },
+        params: {
+          query: {
+            status: filters.status,
+            provider: filters.provider,
+            generation_type: singleType,
+            limit: filters.limit,
+            cursor: filters.cursor,
+          },
+        },
       });
       if (error || !data) throw new ApiRequestError(parseApiError(error, 0));
       return data;

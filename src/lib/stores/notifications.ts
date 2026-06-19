@@ -15,18 +15,19 @@ const { subscribe, update, set } = writable<SystemNotification[]>([]);
 export const notifications = { subscribe };
 
 /** Active (non-expired) notifications, most critical first */
-export const activeNotifications = derived(
-  { subscribe },
-  ($all) => {
-    const now = new Date();
-    return $all
-      .filter((n) => !n.expires_at || n.expires_at > now)
-      .sort((a, b) => {
-        const levelOrder: Record<SystemNotificationLevel, number> = { critical: 0, warning: 1, info: 2 };
-        return levelOrder[a.level] - levelOrder[b.level];
-      });
-  },
-);
+export const activeNotifications = derived({ subscribe }, ($all) => {
+  const now = new Date();
+  return $all
+    .filter((n) => !n.expires_at || n.expires_at > now)
+    .sort((a, b) => {
+      const levelOrder: Record<SystemNotificationLevel, number> = {
+        critical: 0,
+        warning: 1,
+        info: 2,
+      };
+      return levelOrder[a.level] - levelOrder[b.level];
+    });
+});
 
 export function addNotification(payload: SystemNotificationPayload): void {
   const notification: SystemNotification = {

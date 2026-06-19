@@ -132,7 +132,9 @@
 </script>
 
 <div class="flex flex-col gap-2">
-  <span class="text-[11px] font-semibold uppercase tracking-wider text-text-muted">Source Image</span>
+  <span class="text-[11px] font-semibold uppercase tracking-wider text-text-muted"
+    >Source Image</span
+  >
 
   {#if pickerSelection}
     <!-- Picker selection preview -->
@@ -179,14 +181,22 @@
       type="button"
       class="flex flex-col items-center gap-2 rounded-2.5 border-2 border-dashed p-5 transition-colors
         {dragOver ? 'border-accent bg-accent-glow' : 'border-border hover:border-border-active'}"
-      ondragover={(e) => { e.preventDefault(); dragOver = true; }}
+      ondragover={(e) => {
+        e.preventDefault();
+        dragOver = true;
+      }}
       ondragleave={() => (dragOver = false)}
-      ondrop={(e) => { e.preventDefault(); handleDrop(e); }}
+      ondrop={(e) => {
+        e.preventDefault();
+        handleDrop(e);
+      }}
       onclick={() => fileInput.click()}
     >
       <ImageIcon size={24} class="text-text-dim" />
       <div class="text-center">
-        <p class="text-xs font-medium text-text-muted">Drop image here or <span class="text-accent">browse</span></p>
+        <p class="text-xs font-medium text-text-muted">
+          Drop image here or <span class="text-accent">browse</span>
+        </p>
         <p class="text-[11px] text-text-dim">PNG, JPEG, WebP · Max 20 MB</p>
       </div>
     </button>

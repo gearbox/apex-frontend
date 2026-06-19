@@ -35,9 +35,7 @@
 
   const searchQuery = createQuery(() =>
     adminUsersQueryOptions(
-      debouncedSearch.length >= 2
-        ? { email: debouncedSearch, limit: 5 }
-        : { limit: 0 },
+      debouncedSearch.length >= 2 ? { email: debouncedSearch, limit: 5 } : { limit: 0 },
     ),
   );
 
@@ -67,7 +65,14 @@
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
-<div class="modal-overlay" onclick={handleBackdropClick} role="dialog" tabindex="-1" aria-modal="true" aria-label="Grant admin role">
+<div
+  class="modal-overlay"
+  onclick={handleBackdropClick}
+  role="dialog"
+  tabindex="-1"
+  aria-modal="true"
+  aria-label="Grant admin role"
+>
   <div class="modal-card">
     <div class="modal-header">
       <h2 class="modal-title">Add Admin</h2>
@@ -107,7 +112,10 @@
                     class:selected={selectedUserId === u.id}
                     class:dimmed={alreadyAdmin}
                     disabled={alreadyAdmin}
-                    onclick={() => { selectedUserId = u.id; selectedEmail = u.email; }}
+                    onclick={() => {
+                      selectedUserId = u.id;
+                      selectedEmail = u.email;
+                    }}
                   >
                     <span class="result-email">{u.email}</span>
                     <StatusBadge status={u.role} />
@@ -195,7 +203,9 @@
     color: var(--apex-text-muted);
     cursor: pointer;
   }
-  .close-btn:hover { background: var(--apex-surface-hover); }
+  .close-btn:hover {
+    background: var(--apex-surface-hover);
+  }
 
   .form-fields {
     display: flex;
@@ -314,7 +324,9 @@
     font-family: inherit;
     transition: all 0.15s;
   }
-  .btn-cancel:hover { background: var(--apex-surface-hover); }
+  .btn-cancel:hover {
+    background: var(--apex-surface-hover);
+  }
 
   .btn-save {
     padding: 9px 20px;
@@ -328,5 +340,8 @@
     font-family: inherit;
     transition: opacity 0.15s;
   }
-  .btn-save:disabled { opacity: 0.6; cursor: not-allowed; }
+  .btn-save:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
 </style>

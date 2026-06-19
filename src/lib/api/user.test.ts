@@ -45,14 +45,19 @@ describe('fetchUserStats()', () => {
 describe('changePassword()', () => {
   it('returns message on success', async () => {
     server.use(
-      http.post(`${BASE}/v1/users/me/password`, () =>
-        new HttpResponse(JSON.stringify({ message: 'Password changed successfully' }), {
-          status: 201,
-          headers: { 'Content-Type': 'application/json' },
-        }),
+      http.post(
+        `${BASE}/v1/users/me/password`,
+        () =>
+          new HttpResponse(JSON.stringify({ message: 'Password changed successfully' }), {
+            status: 201,
+            headers: { 'Content-Type': 'application/json' },
+          }),
       ),
     );
-    const result = await changePassword({ current_password: 'old-pass', new_password: 'new-pass-123' });
+    const result = await changePassword({
+      current_password: 'old-pass',
+      new_password: 'new-pass-123',
+    });
     expect(result.message).toBe('Password changed successfully');
   });
 
@@ -93,11 +98,13 @@ describe('changePassword()', () => {
 describe('logoutAllDevices()', () => {
   it('returns message on success', async () => {
     server.use(
-      http.post(`${BASE}/v1/users/me/logout-all`, () =>
-        new HttpResponse(JSON.stringify({ message: 'All sessions revoked' }), {
-          status: 201,
-          headers: { 'Content-Type': 'application/json' },
-        }),
+      http.post(
+        `${BASE}/v1/users/me/logout-all`,
+        () =>
+          new HttpResponse(JSON.stringify({ message: 'All sessions revoked' }), {
+            status: 201,
+            headers: { 'Content-Type': 'application/json' },
+          }),
       ),
     );
     const result = await logoutAllDevices();

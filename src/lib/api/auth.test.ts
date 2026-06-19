@@ -3,8 +3,12 @@ import { http, HttpResponse } from 'msw';
 import { server } from '../../mocks/server';
 import { makeTokenResponse } from '../../mocks/factories/auth';
 import { makeUserProfile } from '../../mocks/factories/user';
-import { failedRefreshHandler, rateLimitedLoginHandler, rateLimitWarningLoginHandler } from '../../mocks/handlers/auth';
-import { login, logout, silentRefresh, initAuth, AuthError } from './auth';
+import {
+  failedRefreshHandler,
+  rateLimitedLoginHandler,
+  rateLimitWarningLoginHandler,
+} from '../../mocks/handlers/auth';
+import { login, logout, silentRefresh, initAuth, register, AuthError } from './auth';
 import { clearAuth, getAccessToken, getRefreshToken } from '$lib/stores/auth';
 import { clearRateLimits, getRateLimitState } from '$lib/stores/rateLimit';
 import { STORAGE_KEYS } from '$lib/utils/constants';
@@ -16,6 +20,77 @@ beforeEach(() => {
   clearRateLimits();
   localStorage.clear();
   vi.restoreAllMocks();
+});
+
+describe('register()', () => {
+  it('sends only email, password, display_name — no age fields', async () => {
+    const tokenRes = makeTokenResponse();
+    const profile = makeUserProfile();
+    let capturedBody: Record<string, unknown> = {};
+
+    server.use(
+      http.post(`${BASE}/v1/auth/register`, async ({ request }) => {
+        capturedBody = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(tokenRes, { status: 201 });
+      }),
+      http.get(`${BASE}/v1/users/me`, () => HttpResponse.json(profile)),
+    );
+
+    await register('new@example.com', 'password123', 'Jane Doe');
+
+    expect(capturedBody).toEqual({
+      email: 'new@example.com',
+      password: 'password123',
+      display_name: 'Jane Doe',
+    });
+    expect(capturedBody).not.toHaveProperty('age_confirmed');
+    expect(capturedBody).not.toHaveProperty('date_of_birth');
+    expect(getAccessToken()).toBe(tokenRes.access_token);
+  });
+
+  it('omits display_name when not provided', async () => {
+    const tokenRes = makeTokenResponse();
+    const profile = makeUserProfile();
+    let capturedBody: Record<string, unknown> = {};
+
+    server.use(
+      http.post(`${BASE}/v1/auth/register`, async ({ request }) => {
+        capturedBody = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(tokenRes, { status: 201 });
+      }),
+      http.get(`${BASE}/v1/users/me`, () => HttpResponse.json(profile)),
+    );
+
+    await register('new@example.com', 'password123');
+
+    expect(capturedBody).toEqual({
+      email: 'new@example.com',
+      password: 'password123',
+      display_name: undefined,
+    });
+    expect(capturedBody).not.toHaveProperty('age_confirmed');
+    expect(capturedBody).not.toHaveProperty('date_of_birth');
+  });
+
+  it('failure (400 email_exists): throws AuthError with email_exists code', async () => {
+    server.use(
+      http.post(`${BASE}/v1/auth/register`, () =>
+        HttpResponse.json(
+          {
+            error: 'email_exists',
+            message: 'An account with this email already exists.',
+            status_code: 400,
+          },
+          { status: 400 },
+        ),
+      ),
+    );
+
+    const err = await register('existing@example.com', 'password123').catch((e) => e);
+    expect(err).toBeInstanceOf(AuthError);
+    expect(err.error).toBe('email_exists');
+    expect(err.status_code).toBe(400);
+  });
 });
 
 describe('login()', () => {

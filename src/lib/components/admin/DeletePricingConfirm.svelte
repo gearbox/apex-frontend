@@ -26,8 +26,7 @@
       addToast({ type: 'success', message: 'Pricing rule deleted.' });
       onclose();
     } catch (e) {
-      errorMsg =
-        e instanceof ApiRequestError ? e.message : 'Unexpected error. Please try again.';
+      errorMsg = e instanceof ApiRequestError ? e.message : 'Unexpected error. Please try again.';
     }
   }
 
@@ -69,11 +68,7 @@
 
     <div class="modal-actions">
       <button class="btn-cancel" onclick={onclose}>Cancel</button>
-      <button
-        class="btn-delete"
-        onclick={handleDelete}
-        disabled={deleteMutation.isPending}
-      >
+      <button class="btn-delete" onclick={handleDelete} disabled={deleteMutation.isPending}>
         {deleteMutation.isPending ? 'Deleting…' : 'Delete'}
       </button>
     </div>
@@ -137,7 +132,9 @@
     color: var(--apex-text-muted);
     cursor: pointer;
   }
-  .close-btn:hover { background: var(--apex-surface-hover); }
+  .close-btn:hover {
+    background: var(--apex-surface-hover);
+  }
 
   .confirm-text {
     font-size: 14px;
@@ -182,7 +179,9 @@
     font-family: inherit;
     transition: all 0.15s;
   }
-  .btn-cancel:hover { background: var(--apex-surface-hover); }
+  .btn-cancel:hover {
+    background: var(--apex-surface-hover);
+  }
 
   .btn-delete {
     padding: 9px 20px;
@@ -196,5 +195,8 @@
     font-family: inherit;
     transition: opacity 0.15s;
   }
-  .btn-delete:disabled { opacity: 0.6; cursor: not-allowed; }
+  .btn-delete:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
 </style>
