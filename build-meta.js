@@ -13,4 +13,4 @@ export const APP_VERSION = pkg.version;
  * Cloudflare Pages injects CF_PAGES_COMMIT_SHA automatically during builds.
  * Falls back to "dev" for local builds / previews.
  */
-export const BUILD_SHA = (process.env.CF_PAGES_COMMIT_SHA ?? 'dev').slice(0, 7);
+export const BUILD_SHA = (process.env.CF_PAGES_COMMIT_SHA || 'dev').slice(0, 7);

@@ -68,7 +68,7 @@ test('shows the build version badge above the admin tabs', async ({ authenticate
 
   const badge = page.getByTestId('app-version');
   await expect(badge).toBeVisible();
-  await expect(badge).toHaveText(/^v\d+\.\d+\.\d+ · \w+$/);
+  await expect(badge).toHaveText(/^v\d+\.\d+\.\d+ · ([a-f0-9]{7}|dev)$/i);
 });
 
 test.describe('Admin Management Tab', () => {
