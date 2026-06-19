@@ -4,5653 +4,5372 @@
  */
 
 export interface paths {
-  '/health/live': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Liveness */
-    get: operations['HealthLiveLiveness'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/health/ready': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Readiness */
-    get: operations['HealthReadyReadiness'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/admin/health': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Detailed */
-    get: operations['V1AdminHealthDetailed'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/admin/health/history': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** History */
-    get: operations['V1AdminHealthHistoryHistory'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/admin/health/stream': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Stream */
-    get: operations['V1AdminHealthStreamStream'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/auth/forgot-password': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** ForgotPassword */
-    post: operations['V1AuthForgotPasswordForgotPassword'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/auth/login': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Login */
-    post: operations['V1AuthLoginLogin'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/auth/logout': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Logout */
-    post: operations['V1AuthLogoutLogout'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/auth/product-info': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** ProductInfo */
-    get: operations['V1AuthProductInfoProductInfo'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/auth/refresh': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** RefreshTokens */
-    post: operations['V1AuthRefreshRefreshTokens'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/auth/register': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Register */
-    post: operations['V1AuthRegisterRegister'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/auth/resend-verification': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** ResendVerification */
-    post: operations['V1AuthResendVerificationResendVerification'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/auth/reset-password': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** ResetPassword */
-    post: operations['V1AuthResetPasswordResetPassword'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/auth/verify-email': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** VerifyEmail */
-    post: operations['V1AuthVerifyEmailVerifyEmail'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/users/me/password': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** ChangePassword */
-    post: operations['V1UsersMePasswordChangePassword'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/users/me': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GetProfile */
-    get: operations['V1UsersMeGetProfile'];
-    put?: never;
-    post?: never;
-    /** DeleteAccount */
-    delete: operations['V1UsersMeDeleteAccount'];
-    options?: never;
-    head?: never;
-    /** UpdateProfile */
-    patch: operations['V1UsersMeUpdateProfile'];
-    trace?: never;
-  };
-  '/v1/users/me/stats': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GetStats */
-    get: operations['V1UsersMeStatsGetStats'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/users/me/logout-all': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** LogoutAll */
-    post: operations['V1UsersMeLogoutAllLogoutAll'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/billing/balance': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GetBalance */
-    get: operations['V1BillingBalanceGetBalance'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/billing/account': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GetBillingAccount */
-    get: operations['V1BillingAccountGetBillingAccount'];
-    put?: never;
-    /** SetBillingAccount */
-    post: operations['V1BillingAccountSetBillingAccount'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/billing/packages': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GetPackages */
-    get: operations['V1BillingPackagesGetPackages'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/billing/pricing': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GetPricing */
-    get: operations['V1BillingPricingGetPricing'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/billing/transactions': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GetTransactions */
-    get: operations['V1BillingTransactionsGetTransactions'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/billing/topup/nowpayments': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** TopupNowpayments */
-    post: operations['V1BillingTopupNowpaymentsTopupNowpayments'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/billing/topup/stripe': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** TopupStripe */
-    post: operations['V1BillingTopupStripeTopupStripe'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/billing/webhooks/nowpayments': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** NowpaymentsWebhook */
-    post: operations['V1BillingWebhooksNowpaymentsNowpaymentsWebhook'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/billing/webhooks/stripe': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** StripeWebhook */
-    post: operations['V1BillingWebhooksStripeStripeWebhook'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/organizations/{org_id}/members': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** ListMembers */
-    get: operations['V1OrganizationsOrgIdMembersListMembers'];
-    put?: never;
-    /** AddMember */
-    post: operations['V1OrganizationsOrgIdMembersAddMember'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/organizations/{org_id}/members/{user_id}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    post?: never;
-    /** RemoveMember */
-    delete: operations['V1OrganizationsOrgIdMembersUserIdRemoveMember'];
-    options?: never;
-    head?: never;
-    /** ChangeMemberRole */
-    patch: operations['V1OrganizationsOrgIdMembersUserIdChangeMemberRole'];
-    trace?: never;
-  };
-  '/v1/organizations': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** CreateOrganization */
-    post: operations['V1OrganizationsCreateOrganization'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/organizations/{org_id}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GetOrganization */
-    get: operations['V1OrganizationsOrgIdGetOrganization'];
-    put?: never;
-    post?: never;
-    /** DeleteOrganization */
-    delete: operations['V1OrganizationsOrgIdDeleteOrganization'];
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/organizations/me': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GetMyOrganization */
-    get: operations['V1OrganizationsMeGetMyOrganization'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/admin/accounts/{account_id}/adjust': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** AdjustAccount */
-    post: operations['V1AdminAccountsAccountIdAdjustAdjustAccount'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/admin/broadcast': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** BroadcastNotification */
-    post: operations['V1AdminBroadcastBroadcastNotification'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/admin/pricing': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** ListPricingRules */
-    get: operations['V1AdminPricingListPricingRules'];
-    put?: never;
-    /** CreatePricingRule */
-    post: operations['V1AdminPricingCreatePricingRule'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/admin/pricing/{rule_id}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    post?: never;
-    /** DeactivatePricingRule */
-    delete: operations['V1AdminPricingRuleIdDeactivatePricingRule'];
-    options?: never;
-    head?: never;
-    /** UpdatePricingRule */
-    patch: operations['V1AdminPricingRuleIdUpdatePricingRule'];
-    trace?: never;
-  };
-  '/v1/admin/accounts/{account_id}/balance': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GetAccountBalance */
-    get: operations['V1AdminAccountsAccountIdBalanceGetAccountBalance'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/admin/accounts/{account_id}/transactions': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GetAccountTransactions */
-    get: operations['V1AdminAccountsAccountIdTransactionsGetAccountTransactions'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/admin/organizations/{org_id}/account': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GetOrgAccount */
-    get: operations['V1AdminOrganizationsOrgIdAccountGetOrgAccount'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/admin/payments/{payment_id}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GetPayment */
-    get: operations['V1AdminPaymentsPaymentIdGetPayment'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/admin/users/{user_id}/account': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GetUserAccount */
-    get: operations['V1AdminUsersUserIdAccountGetUserAccount'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/admin/models': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** ListModels */
-    get: operations['V1AdminModelsListModels'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/admin/organizations': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** ListOrganizations */
-    get: operations['V1AdminOrganizationsListOrganizations'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/admin/payments': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** ListPayments */
-    get: operations['V1AdminPaymentsListPayments'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/admin/users': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** ListUsers */
-    get: operations['V1AdminUsersListUsers'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/admin/users/{user_id}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    /** PatchUser */
-    patch: operations['V1AdminUsersUserIdPatchUser'];
-    trace?: never;
-  };
-  '/v1/admin/models/{model_key}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    /** ToggleModel */
-    patch: operations['V1AdminModelsModelKeyToggleModel'];
-    trace?: never;
-  };
-  '/v1/admin/manage/audit': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GetAuditLog */
-    get: operations['V1AdminManageAuditGetAuditLog'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/admin/manage/permissions/{user_id}/grant': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** GrantPermission */
-    post: operations['V1AdminManagePermissionsUserIdGrantGrantPermission'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/admin/manage/roles/{user_id}/grant': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** GrantRole */
-    post: operations['V1AdminManageRolesUserIdGrantGrantRole'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/admin/manage/admins': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** ListAdmins */
-    get: operations['V1AdminManageAdminsListAdmins'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/admin/manage/permissions/{user_id}/revoke': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** RevokePermission */
-    post: operations['V1AdminManagePermissionsUserIdRevokeRevokePermission'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/admin/manage/roles/{user_id}/revoke': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** RevokeRole */
-    post: operations['V1AdminManageRolesUserIdRevokeRevokeRole'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/generate': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Generate */
-    post: operations['V1GenerateGenerate'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/providers': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** ListProviders */
-    get: operations['V1ProvidersListProviders'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/sessions/{session_id}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GetSession */
-    get: operations['V1SessionsSessionIdGetSession'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/sessions': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** ListSessions */
-    get: operations['V1SessionsListSessions'];
-    put?: never;
-    /** Start */
-    post: operations['V1SessionsStart'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/sessions/{session_id}/pause': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Pause */
-    post: operations['V1SessionsSessionIdPausePause'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/sessions/{session_id}/resume': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Resume */
-    post: operations['V1SessionsSessionIdResumeResume'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/sessions/{session_id}/stop': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Stop */
-    post: operations['V1SessionsSessionIdStopStop'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/internal/gpu-sessions/{session_id}/provisioning': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** ProvisioningCallback */
-    post: operations['V1InternalGpuSessionsSessionIdProvisioningProvisioningCallback'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/storage/outputs/{output_id}/download': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** DownloadOutput */
-    get: operations['V1StorageOutputsOutputIdDownloadDownloadOutput'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/storage/uploads/{image_id}/download': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** DownloadUpload */
-    get: operations['V1StorageUploadsImageIdDownloadDownloadUpload'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/storage/outputs/{output_id}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GetOutputAccess */
-    get: operations['V1StorageOutputsOutputIdGetOutputAccess'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/storage/stats': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GetStorageStats */
-    get: operations['V1StorageStatsGetStorageStats'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/storage/uploads/{image_id}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GetUploadAccess */
-    get: operations['V1StorageUploadsImageIdGetUploadAccess'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/storage/jobs/{job_id}/outputs': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** ListJobOutputs */
-    get: operations['V1StorageJobsJobIdOutputsListJobOutputs'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/storage/outputs': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** ListOutputs */
-    get: operations['V1StorageOutputsListOutputs'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/storage/uploads': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** ListUploads */
-    get: operations['V1StorageUploadsListUploads'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/storage/upload': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** UploadImage */
-    post: operations['V1StorageUploadUploadImage'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/jobs/{job_id}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GetJob */
-    get: operations['V1JobsJobIdGetJob'];
-    put?: never;
-    post?: never;
-    /** DeleteJob */
-    delete: operations['V1JobsJobIdDeleteJob'];
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/jobs': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** ListJobs */
-    get: operations['V1JobsListJobs'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/events/sse-ticket': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** CreateSseTicket */
-    post: operations['V1EventsSseTicketCreateSseTicket'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/events/stream': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Stream */
-    get: operations['V1EventsStreamStream'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/gallery/{job_id}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GetGalleryDetail */
-    get: operations['V1GalleryJobIdGetGalleryDetail'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/gallery': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** ListGallery */
-    get: operations['V1GalleryListGallery'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/content/{content_id}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    post?: never;
-    /** DeleteContent */
-    delete: operations['V1ContentContentIdDeleteContent'];
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/content/outputs/{output_id}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** ProxyOutput */
-    get: operations['V1ContentOutputsOutputIdProxyOutput'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/content/uploads/{image_id}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** ProxyUpload */
-    get: operations['V1ContentUploadsImageIdProxyUpload'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
+    "/health/live": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Liveness */
+        get: operations["HealthLiveLiveness"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/health/ready": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Readiness */
+        get: operations["HealthReadyReadiness"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Detailed */
+        get: operations["V1AdminHealthDetailed"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/health/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** History */
+        get: operations["V1AdminHealthHistoryHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/health/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Stream */
+        get: operations["V1AdminHealthStreamStream"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/forgot-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** ForgotPassword */
+        post: operations["V1AuthForgotPasswordForgotPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Login */
+        post: operations["V1AuthLoginLogin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Logout */
+        post: operations["V1AuthLogoutLogout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/product-info": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ProductInfo */
+        get: operations["V1AuthProductInfoProductInfo"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** RefreshTokens */
+        post: operations["V1AuthRefreshRefreshTokens"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Register */
+        post: operations["V1AuthRegisterRegister"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/resend-verification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** ResendVerification */
+        post: operations["V1AuthResendVerificationResendVerification"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/reset-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** ResetPassword */
+        post: operations["V1AuthResetPasswordResetPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/verify-email": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** VerifyEmail */
+        post: operations["V1AuthVerifyEmailVerifyEmail"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/users/me/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** ChangePassword */
+        post: operations["V1UsersMePasswordChangePassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/users/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetProfile */
+        get: operations["V1UsersMeGetProfile"];
+        put?: never;
+        post?: never;
+        /** DeleteAccount */
+        delete: operations["V1UsersMeDeleteAccount"];
+        options?: never;
+        head?: never;
+        /** UpdateProfile */
+        patch: operations["V1UsersMeUpdateProfile"];
+        trace?: never;
+    };
+    "/v1/users/me/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetStats */
+        get: operations["V1UsersMeStatsGetStats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/users/me/logout-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** LogoutAll */
+        post: operations["V1UsersMeLogoutAllLogoutAll"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/billing/balance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetBalance */
+        get: operations["V1BillingBalanceGetBalance"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/billing/account": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetBillingAccount */
+        get: operations["V1BillingAccountGetBillingAccount"];
+        put?: never;
+        /** SetBillingAccount */
+        post: operations["V1BillingAccountSetBillingAccount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/billing/packages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetPackages */
+        get: operations["V1BillingPackagesGetPackages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/billing/pricing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetPricing */
+        get: operations["V1BillingPricingGetPricing"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/billing/transactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetTransactions */
+        get: operations["V1BillingTransactionsGetTransactions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/billing/topup/nowpayments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** TopupNowpayments */
+        post: operations["V1BillingTopupNowpaymentsTopupNowpayments"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/billing/topup/stripe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** TopupStripe */
+        post: operations["V1BillingTopupStripeTopupStripe"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/billing/webhooks/nowpayments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** NowpaymentsWebhook */
+        post: operations["V1BillingWebhooksNowpaymentsNowpaymentsWebhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/billing/webhooks/stripe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** StripeWebhook */
+        post: operations["V1BillingWebhooksStripeStripeWebhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/organizations/{org_id}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListMembers */
+        get: operations["V1OrganizationsOrgIdMembersListMembers"];
+        put?: never;
+        /** AddMember */
+        post: operations["V1OrganizationsOrgIdMembersAddMember"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/organizations/{org_id}/members/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** RemoveMember */
+        delete: operations["V1OrganizationsOrgIdMembersUserIdRemoveMember"];
+        options?: never;
+        head?: never;
+        /** ChangeMemberRole */
+        patch: operations["V1OrganizationsOrgIdMembersUserIdChangeMemberRole"];
+        trace?: never;
+    };
+    "/v1/organizations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** CreateOrganization */
+        post: operations["V1OrganizationsCreateOrganization"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/organizations/{org_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetOrganization */
+        get: operations["V1OrganizationsOrgIdGetOrganization"];
+        put?: never;
+        post?: never;
+        /** DeleteOrganization */
+        delete: operations["V1OrganizationsOrgIdDeleteOrganization"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/organizations/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetMyOrganization */
+        get: operations["V1OrganizationsMeGetMyOrganization"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/accounts/{account_id}/adjust": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** AdjustAccount */
+        post: operations["V1AdminAccountsAccountIdAdjustAdjustAccount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/broadcast": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** BroadcastNotification */
+        post: operations["V1AdminBroadcastBroadcastNotification"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/pricing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListPricingRules */
+        get: operations["V1AdminPricingListPricingRules"];
+        put?: never;
+        /** CreatePricingRule */
+        post: operations["V1AdminPricingCreatePricingRule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/pricing/{rule_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** DeactivatePricingRule */
+        delete: operations["V1AdminPricingRuleIdDeactivatePricingRule"];
+        options?: never;
+        head?: never;
+        /** UpdatePricingRule */
+        patch: operations["V1AdminPricingRuleIdUpdatePricingRule"];
+        trace?: never;
+    };
+    "/v1/admin/accounts/{account_id}/balance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetAccountBalance */
+        get: operations["V1AdminAccountsAccountIdBalanceGetAccountBalance"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/accounts/{account_id}/transactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetAccountTransactions */
+        get: operations["V1AdminAccountsAccountIdTransactionsGetAccountTransactions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/organizations/{org_id}/account": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetOrgAccount */
+        get: operations["V1AdminOrganizationsOrgIdAccountGetOrgAccount"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/payments/{payment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetPayment */
+        get: operations["V1AdminPaymentsPaymentIdGetPayment"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/users/{user_id}/account": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetUserAccount */
+        get: operations["V1AdminUsersUserIdAccountGetUserAccount"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListModels */
+        get: operations["V1AdminModelsListModels"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/organizations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListOrganizations */
+        get: operations["V1AdminOrganizationsListOrganizations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListPayments */
+        get: operations["V1AdminPaymentsListPayments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListUsers */
+        get: operations["V1AdminUsersListUsers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/users/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** PatchUser */
+        patch: operations["V1AdminUsersUserIdPatchUser"];
+        trace?: never;
+    };
+    "/v1/admin/models/{model_key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** ToggleModel */
+        patch: operations["V1AdminModelsModelKeyToggleModel"];
+        trace?: never;
+    };
+    "/v1/admin/manage/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetAuditLog */
+        get: operations["V1AdminManageAuditGetAuditLog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/manage/permissions/{user_id}/grant": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** GrantPermission */
+        post: operations["V1AdminManagePermissionsUserIdGrantGrantPermission"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/manage/roles/{user_id}/grant": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** GrantRole */
+        post: operations["V1AdminManageRolesUserIdGrantGrantRole"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/manage/admins": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListAdmins */
+        get: operations["V1AdminManageAdminsListAdmins"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/manage/permissions/{user_id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** RevokePermission */
+        post: operations["V1AdminManagePermissionsUserIdRevokeRevokePermission"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/manage/roles/{user_id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** RevokeRole */
+        post: operations["V1AdminManageRolesUserIdRevokeRevokeRole"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Generate */
+        post: operations["V1GenerateGenerate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListProviders */
+        get: operations["V1ProvidersListProviders"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/sessions/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetSession */
+        get: operations["V1SessionsSessionIdGetSession"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListSessions */
+        get: operations["V1SessionsListSessions"];
+        put?: never;
+        /** Start */
+        post: operations["V1SessionsStart"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/sessions/{session_id}/pause": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Pause */
+        post: operations["V1SessionsSessionIdPausePause"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/sessions/{session_id}/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Resume */
+        post: operations["V1SessionsSessionIdResumeResume"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/sessions/{session_id}/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Stop */
+        post: operations["V1SessionsSessionIdStopStop"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/internal/gpu-sessions/{session_id}/provisioning": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** ProvisioningCallback */
+        post: operations["V1InternalGpuSessionsSessionIdProvisioningProvisioningCallback"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/storage/outputs/{output_id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** DownloadOutput */
+        get: operations["V1StorageOutputsOutputIdDownloadDownloadOutput"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/storage/uploads/{image_id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** DownloadUpload */
+        get: operations["V1StorageUploadsImageIdDownloadDownloadUpload"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/storage/outputs/{output_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetOutputAccess */
+        get: operations["V1StorageOutputsOutputIdGetOutputAccess"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/storage/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetStorageStats */
+        get: operations["V1StorageStatsGetStorageStats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/storage/uploads/{image_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetUploadAccess */
+        get: operations["V1StorageUploadsImageIdGetUploadAccess"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/storage/jobs/{job_id}/outputs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListJobOutputs */
+        get: operations["V1StorageJobsJobIdOutputsListJobOutputs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/storage/outputs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListOutputs */
+        get: operations["V1StorageOutputsListOutputs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/storage/uploads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListUploads */
+        get: operations["V1StorageUploadsListUploads"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/storage/upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** UploadImage */
+        post: operations["V1StorageUploadUploadImage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/jobs/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetJob */
+        get: operations["V1JobsJobIdGetJob"];
+        put?: never;
+        post?: never;
+        /** DeleteJob */
+        delete: operations["V1JobsJobIdDeleteJob"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListJobs */
+        get: operations["V1JobsListJobs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/events/sse-ticket": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** CreateSseTicket */
+        post: operations["V1EventsSseTicketCreateSseTicket"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/events/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Stream */
+        get: operations["V1EventsStreamStream"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/gallery/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetGalleryDetail */
+        get: operations["V1GalleryJobIdGetGalleryDetail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/gallery": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListGallery */
+        get: operations["V1GalleryListGallery"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/content/{content_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** DeleteContent */
+        delete: operations["V1ContentContentIdDeleteContent"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/content/outputs/{output_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ProxyOutput */
+        get: operations["V1ContentOutputsOutputIdProxyOutput"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/content/uploads/{image_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ProxyUpload */
+        get: operations["V1ContentUploadsImageIdProxyUpload"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
-  schemas: {
-    /** AccountSummary */
-    AccountSummary: {
-      /** Format: uuid */
-      account_id: string;
-      account_type: string;
-      balance: number;
-    };
-    /**
-     * AccountType
-     * @description Token account types.
-     * @enum {string}
-     */
-    AccountType: 'personal' | 'enterprise';
-    /** AddMemberRequest */
-    AddMemberRequest: {
-      /** Format: uuid */
-      user_id: string;
-      role: string;
-    };
-    /** AdminAdjustRequest */
-    AdminAdjustRequest: {
-      amount: number;
-      description: string;
-    };
-    /** AdminAdjustResponse */
-    AdminAdjustResponse: {
-      transaction: components['schemas']['TransactionResponse'];
-      new_balance: number;
-    };
-    /** AdminOrgResponse */
-    AdminOrgResponse: {
-      /** Format: uuid */
-      id: string;
-      name: string;
-      slug: string;
-      /** Format: uuid */
-      owner_id: string;
-      is_active: boolean;
-      member_count: number;
-      token_balance: number;
-      /** Format: date-time */
-      created_at: string;
-    };
-    /** AdminPatchUserRequest */
-    AdminPatchUserRequest: {
-      role?: components['schemas']['UserRole'] | null;
-      subscription_tier?: components['schemas']['SubscriptionTier'] | null;
-      is_active?: boolean | null;
-      locale?: components['schemas']['SupportedLocale'] | null;
-    };
-    /**
-     * AdminPermission
-     * @description Granular permissions grantable to admin-role users by superadmins.
-     *
-     *     BILLING_ADJUST — allows use of POST /v1/admin/accounts/{id}/adjust.
-     * @enum {string}
-     */
-    AdminPermission: 'billing_adjust';
-    /** AdminRoleResponse */
-    AdminRoleResponse: {
-      /** Format: uuid */
-      id: string;
-      email: string;
-      display_name: string | null;
-      role: string;
-      permissions: string[];
-      is_active: boolean;
-      /** Format: date-time */
-      created_at: string;
-      /** Format: date-time */
-      updated_at: string;
-    };
-    /** AdminUserResponse */
-    AdminUserResponse: {
-      /** Format: uuid */
-      id: string;
-      email: string;
-      display_name: string | null;
-      role: string;
-      subscription_tier: string;
-      is_active: boolean;
-      email_verified_at: string | null;
-      /** Format: date-time */
-      created_at: string;
-      /** Format: date-time */
-      updated_at: string;
-    };
-    /**
-     * AspectRatio
-     * @description Supported aspect ratios.
-     * @default 1:1
-     * @enum {string}
-     */
-    AspectRatio: '2:3' | '3:2' | '1:1' | '9:16' | '16:9' | '3:4' | '4:3';
-    /** AuditLogEntry */
-    AuditLogEntry: {
-      /** Format: uuid */
-      id: string;
-      /** Format: uuid */
-      actor_id: string;
-      /** Format: uuid */
-      target_user_id: string;
-      action: string;
-      detail: string;
-      source: string;
-      /** Format: date-time */
-      created_at: string;
-    };
-    /** BalanceResponse */
-    BalanceResponse: {
-      /** Format: uuid */
-      account_id: string;
-      account_type: string;
-      balance: number;
-      organization_name?: string | null;
-    };
-    /** BillingAccountResponse */
-    BillingAccountResponse: {
-      preferred_account: string | null;
-      message: string;
-    };
-    /** CategoryHealthResponse */
-    CategoryHealthResponse: {
-      status: string;
-      components: components['schemas']['ComponentHealthResponse'][];
-    };
-    /** ChangeMemberRoleRequest */
-    ChangeMemberRoleRequest: {
-      role: string;
-    };
-    /** ChangePasswordRequest */
-    ChangePasswordRequest: {
-      current_password: string;
-      new_password: string;
-    };
-    /** ComponentHealthResponse */
-    ComponentHealthResponse: {
-      name: string;
-      status: string;
-      latency_ms: number;
-      /** @default  */
-      message: string;
-      metadata?: {
-        [key: string]: unknown;
-      };
-    };
-    /** CreateOrganizationRequest */
-    CreateOrganizationRequest: {
-      name: string;
-    };
-    /** CreatePricingRuleRequest */
-    CreatePricingRuleRequest: {
-      provider: string;
-      generation_type: string;
-      model?: string | null;
-      token_cost: number;
-      notes?: string | null;
-    };
-    /** CursorPage[AdminOrgResponse] */
-    'CursorPage_src.api.schemas.admin.AdminOrgResponse_': {
-      items: components['schemas']['AdminOrgResponse'][];
-      limit: number;
-      has_more: boolean;
-      next_cursor?: string | null;
-    };
-    /** CursorPage[AdminUserResponse] */
-    'CursorPage_src.api.schemas.admin.AdminUserResponse_': {
-      items: components['schemas']['AdminUserResponse'][];
-      limit: number;
-      has_more: boolean;
-      next_cursor?: string | null;
-    };
-    /** CursorPage[PaymentResponse] */
-    'CursorPage_src.api.schemas.billing.PaymentResponse_': {
-      items: components['schemas']['PaymentResponse'][];
-      limit: number;
-      has_more: boolean;
-      next_cursor?: string | null;
-    };
-    /** CursorPage[TransactionResponse] */
-    'CursorPage_src.api.schemas.billing.TransactionResponse_': {
-      items: components['schemas']['TransactionResponse'][];
-      limit: number;
-      has_more: boolean;
-      next_cursor?: string | null;
-    };
-    /** CursorPage[GalleryGridItem] */
-    'CursorPage_src.api.schemas.gallery.GalleryGridItem_': {
-      items: components['schemas']['GalleryGridItem'][];
-      limit: number;
-      has_more: boolean;
-      next_cursor?: string | null;
-    };
-    /** CursorPage[UnifiedJobResponse] */
-    'CursorPage_src.api.schemas.jobs.UnifiedJobResponse_': {
-      items: components['schemas']['UnifiedJobResponse'][];
-      limit: number;
-      has_more: boolean;
-      next_cursor?: string | null;
-    };
-    /** CursorPage[ImageListItem] */
-    'CursorPage_src.api.schemas.storage.ImageListItem_': {
-      items: components['schemas']['ImageListItem'][];
-      limit: number;
-      has_more: boolean;
-      next_cursor?: string | null;
-    };
-    /** CursorPage[OutputListItem] */
-    'CursorPage_src.api.schemas.storage.OutputListItem_': {
-      items: components['schemas']['OutputListItem'][];
-      limit: number;
-      has_more: boolean;
-      next_cursor?: string | null;
-    };
-    /** DeleteAccountResponse */
-    DeleteAccountResponse: {
-      message: string;
-      /** Format: date-time */
-      deactivated_at: string;
-    };
-    /** DetailedHealthResponse */
-    DetailedHealthResponse: {
-      status: string;
-      checked_at: string;
-      infrastructure: components['schemas']['CategoryHealthResponse'];
-      platform_apis: components['schemas']['CategoryHealthResponse'];
-      cloud_providers: {
-        [key: string]: components['schemas']['CategoryHealthResponse'];
-      };
-      gpu_sessions: components['schemas']['GpuSessionHealthResponse'];
-    };
-    /** DownloadProgressBody */
-    DownloadProgressBody: {
-      bytes_done: number;
-      bytes_total: number;
-      files_done: number;
-      files_total: number;
-    };
-    /** ErrorEnvelope */
-    ErrorEnvelope: {
-      error: string;
-      message: string;
-      status_code: number;
-      detail?: {
-        [key: string]: unknown;
-      } | null;
-    };
-    /** ForgotPasswordRequest */
-    ForgotPasswordRequest: {
-      email: string;
-    };
-    /**
-     * GalleryBadge
-     * @description Badge type for gallery grid — describes the input source.
-     * @enum {string}
-     */
-    GalleryBadge: 'image' | 'prompt';
-    /** GalleryGridItem */
-    GalleryGridItem: {
-      /** Format: uuid */
-      job_id: string;
-      cover_url: string;
-      video_url?: string | null;
-      badge: components['schemas']['GalleryBadge'];
-      media_type: components['schemas']['OutputMediaType'];
-      output_count: number;
-      generation_type: components['schemas']['GenerationType'];
-      model?: string | null;
-      aspect_ratio?: string | null;
-      prompt_snippet: string;
-      /** Format: date-time */
-      created_at: string;
-    };
-    /** GalleryGroupDetail */
-    GalleryGroupDetail: {
-      /** Format: uuid */
-      job_id: string;
-      badge: components['schemas']['GalleryBadge'];
-      input_image_url?: string | null;
-      prompt: string;
-      negative_prompt?: string | null;
-      outputs: components['schemas']['GalleryOutputItem'][];
-      media_type: components['schemas']['OutputMediaType'];
-      model?: string | null;
-      provider: string;
-      generation_type: components['schemas']['GenerationType'];
-      aspect_ratio?: string | null;
-      token_cost?: number | null;
-      /** Format: date-time */
-      created_at: string;
-      completed_at?: string | null;
-      lineage?: components['schemas']['GalleryLineage'] | null;
-    };
-    /** GalleryLineage */
-    GalleryLineage: {
-      source_type: components['schemas']['GallerySourceType'];
-      source_upload_id?: string | null;
-      source_job_id?: string | null;
-      source_job_name?: string | null;
-      source_output_id?: string | null;
-    };
-    /** GalleryOutputItem */
-    GalleryOutputItem: {
-      /** Format: uuid */
-      id: string;
-      url: string;
-      thumbnail_url?: string | null;
-      content_type: string;
-      media_type: components['schemas']['OutputMediaType'];
-      format: string;
-      size_bytes: number;
-      output_index: number;
-      /** Format: date-time */
-      created_at: string;
-    };
-    /**
-     * GallerySourceType
-     * @description Type of input source for lineage display.
-     * @enum {string}
-     */
-    GallerySourceType: 'upload' | 'generation';
-    /** GenerationModelResponse */
-    GenerationModelResponse: {
-      model_key: string;
-      provider: string;
-      name: string;
-      description: string;
-      is_enabled: boolean;
-      /** Format: date-time */
-      created_at: string;
-      /** Format: date-time */
-      updated_at: string;
-    };
-    /**
-     * GenerationType
-     * @description Generation type - text-to-image or image-to-image.
-     * @enum {string}
-     */
-    GenerationType: 't2i' | 'i2i' | 't2v' | 'i2v' | 'v2v' | 'flf2v';
-    /** GpuSessionHealthResponse */
-    GpuSessionHealthResponse: {
-      status: string;
-      total: number;
-      healthy: number;
-      stale: number;
-      /** @default  */
-      message: string;
-    };
-    /** GpuSessionResponse */
-    GpuSessionResponse: {
-      /** Format: uuid */
-      id: string;
-      /** Format: uuid */
-      user_id: string;
-      product_id: string;
-      status: string;
-      model_type: string;
-      bundle_name: string;
-      bundle_version: string | null;
-      tunnel_hostname: string | null;
-      vastai_gpu_name: string | null;
-      vastai_cost_per_hour_micros: number | null;
-      /** Format: date-time */
-      created_at: string;
-      started_at?: string | null;
-      paused_at?: string | null;
-      resumed_at?: string | null;
-      stopped_at?: string | null;
-      error_message?: string | null;
-      /** @default 0 */
-      in_flight_job_count: number;
-      provisioning_phase?: string | null;
-      provisioning_progress?: {
-        [key: string]: unknown;
-      } | null;
-    };
-    /** GrantPermissionRequest */
-    GrantPermissionRequest: {
-      permission: components['schemas']['AdminPermission'];
-    };
-    /** GrantRoleRequest */
-    GrantRoleRequest: {
-      role: components['schemas']['UserRole'];
-    };
-    /** HealthSnapshotResponse */
-    HealthSnapshotResponse: {
-      checked_at: string;
-      overall_status: string;
-      snapshot_data: Record<string, never>;
-    };
-    /** ImageAccessResponse */
-    ImageAccessResponse: {
-      id: string;
-      storage_key: string;
-      presigned_url: string;
-      content_type: string;
-      size_bytes: number;
-      expires_in_seconds: number;
-    };
-    /** ImageConstraints */
-    ImageConstraints: {
-      min_height?: number | null;
-      max_height?: number | null;
-      default_height?: number | null;
-      output_resolutions?: string[] | null;
-      supported_tiers?: string[] | null;
-      default_tier?: string | null;
-      tier_megapixels?: {
-        [key: string]: number;
-      } | null;
-    };
-    /** ImageListItem */
-    ImageListItem: {
-      id: string;
-      filename: string;
-      content_type: string;
-      size_bytes: number;
-      /** Format: date-time */
-      created_at: string;
-      /** Format: date-time */
-      expires_at: string;
-    };
-    /** JobCreatedResponse */
-    JobCreatedResponse: {
-      /** Format: uuid */
-      job_id: string;
-      status: components['schemas']['JobStatus'];
-      name: string;
-      model: string;
-      generation_type: components['schemas']['GenerationType'];
-      /** Format: date-time */
-      created_at: string;
-      message?: string | null;
-      tokens_charged?: number | null;
-      balance_remaining?: number | null;
-    };
-    /** JobOutputItem */
-    JobOutputItem: {
-      /** Format: uuid */
-      id: string;
-      url: string;
-      content_type: string;
-      format: string;
-      size_bytes: number;
-      output_index: number;
-      thumbnail_url?: string | null;
-      /** @default false */
-      is_thumbnail: boolean;
-    };
-    /**
-     * JobStatus
-     * @description Job execution status.
-     * @enum {string}
-     */
-    JobStatus:
-      | 'pending'
-      | 'queued'
-      | 'running'
-      | 'completed'
-      | 'failed'
-      | 'cancelled'
-      | 'moderated';
-    /** ListSessionsResponse */
-    ListSessionsResponse: {
-      sessions: components['schemas']['GpuSessionResponse'][];
-    };
-    /** LivenessResponse */
-    LivenessResponse: {
-      status: string;
-    };
-    /** LoginRequest */
-    LoginRequest: {
-      email: string;
-      password: string;
-    };
-    /** MemberResponse */
-    MemberResponse: {
-      /** Format: uuid */
-      id: string;
-      /** Format: uuid */
-      user_id: string;
-      role: string;
-      /** Format: date-time */
-      joined_at: string;
-    };
-    /** MessageResponse */
-    MessageResponse: {
-      message: string;
-    };
-    /** ModelInfo */
-    ModelInfo: {
-      model_key: string;
-      name: string;
-      description: string;
-      capabilities: string[];
-      is_enabled: boolean;
-      max_images: number;
-      max_prompt_length: number;
-      supports_negative_prompt: boolean;
-      aspect_ratios: string[];
-      /** @default false */
-      requires_age_verification: boolean;
-      image?: components['schemas']['ImageConstraints'] | null;
-      video?: components['schemas']['VideoConstraints'] | null;
-      session_state?: string | null;
-    };
-    /** ModelListResponse */
-    ModelListResponse: {
-      items: components['schemas']['GenerationModelResponse'][];
-      total: number;
-    };
-    /**
-     * ModelType
-     * @description Available model types.
-     * @enum {string}
-     */
-    ModelType:
-      | 'aisha-image'
-      | 'aisha-video'
-      | 'grok-imagine-image'
-      | 'grok-2-image-1212'
-      | 'grok-imagine-video';
-    /** NowPaymentsInvoiceResponse */
-    NowPaymentsInvoiceResponse: {
-      invoice_url: string;
-      /** Format: uuid */
-      payment_id: string;
-    };
-    /** OrgCreateResponse */
-    OrgCreateResponse: {
-      organization: components['schemas']['OrgResponse'];
-      account: components['schemas']['AccountSummary'];
-      membership: components['schemas']['MemberResponse'];
-    };
-    /** OrgDetailResponse */
-    OrgDetailResponse: {
-      organization: components['schemas']['OrgResponse'];
-      role: string;
-      balance: number;
-    };
-    /** OrgResponse */
-    OrgResponse: {
-      /** Format: uuid */
-      id: string;
-      name: string;
-      slug: string;
-      /** Format: uuid */
-      owner_id: string;
-      is_active: boolean;
-      /** Format: date-time */
-      created_at: string;
-    };
-    /** OutputListItem */
-    OutputListItem: {
-      id: string;
-      job_id: string;
-      content_type: string;
-      size_bytes: number;
-      output_index: number;
-      /** Format: date-time */
-      created_at: string;
-      /** Format: date-time */
-      expires_at: string;
-    };
-    /**
-     * OutputMediaType
-     * @description Media type classification for gallery filtering.
-     * @enum {string}
-     */
-    OutputMediaType: 'image' | 'video';
-    /** PatchPricingRuleRequest */
-    PatchPricingRuleRequest: {
-      token_cost?: number | null;
-      is_active?: boolean | null;
-      effective_until?: string | null;
-      notes?: string | null;
-    };
-    /** PaymentResponse */
-    PaymentResponse: {
-      /** Format: uuid */
-      id: string;
-      payment_provider: string;
-      status: string;
-      amount_usd: string;
-      tokens_granted: number;
-      currency: string;
-      /** Format: date-time */
-      created_at: string;
-      completed_at: string | null;
-    };
-    /** PricingRuleResponse */
-    PricingRuleResponse: {
-      /** Format: uuid */
-      id: string;
-      provider: string;
-      generation_type: string;
-      model: string | null;
-      token_cost: number;
-      is_active: boolean;
-      /** Format: date-time */
-      effective_from: string;
-      effective_until: string | null;
-      notes: string | null;
-    };
-    /** ProductInfoResponse */
-    ProductInfoResponse: {
-      product: string;
-      display_name: string;
-      age_gate: string;
-      allowed_auth_methods: string[];
-      content_rating: string;
-      payment_providers: string[];
-    };
-    /**
-     * Provider
-     * @description Generation provider.
-     * @enum {string}
-     */
-    Provider: 'aisha' | 'grok';
-    /** ProviderInfo */
-    ProviderInfo: {
-      provider: string;
-      name: string;
-      available: boolean;
-      provisioning_mode: string;
-      models: components['schemas']['ModelInfo'][];
-    };
-    /** ProvidersResponse */
-    ProvidersResponse: {
-      providers: components['schemas']['ProviderInfo'][];
-      user_context?: components['schemas']['UserContext'] | null;
-    };
-    /** ProvisioningCallbackBody */
-    ProvisioningCallbackBody: {
-      /** Format: uuid */
-      session_id: string;
-      phase: string;
-      /** @default  */
-      message: string;
-      download?: components['schemas']['DownloadProgressBody'] | null;
-      /** @default 0 */
-      elapsed_seconds: number;
-      error?: string | null;
-      /** Format: date-time */
-      ts: string;
-    };
-    /** ReadinessResponse */
-    ReadinessResponse: {
-      status: string;
-      checks: {
-        [key: string]: string;
-      };
-    };
-    /** RefreshTokenRequest */
-    RefreshTokenRequest: {
-      refresh_token: string;
-    };
-    /** RegisterRequest */
-    RegisterRequest: {
-      email: string;
-      password: string;
-      display_name?: string | null;
-    };
-    /** ResetPasswordRequest */
-    ResetPasswordRequest: {
-      token: string;
-      new_password: string;
-    };
-    /**
-     * Resolution
-     * @description Image quality tier (maps to a target megapixel budget; see core.resolution).
-     * @enum {string}
-     */
-    Resolution: 'draft' | 'standard' | 'high' | 'ultra';
-    /** SSETicketResponse */
-    SSETicketResponse: {
-      ticket: string;
-    };
-    /**
-     * Sampler
-     * @description ComfyUI sampler names (common subset).
-     * @enum {string}
-     */
-    Sampler:
-      | 'euler'
-      | 'euler_ancestral'
-      | 'euler_cfg_pp'
-      | 'heun'
-      | 'dpm_2'
-      | 'dpm_2_ancestral'
-      | 'lms'
-      | 'dpmpp_2s_ancestral'
-      | 'dpmpp_sde'
-      | 'dpmpp_2m'
-      | 'dpmpp_2m_sde'
-      | 'dpmpp_3m_sde'
-      | 'ddim'
-      | 'uni_pc'
-      | 'uni_pc_bh2'
-      | 'lcm'
-      | 'res_multistep';
-    /**
-     * Scheduler
-     * @description ComfyUI scheduler names (common subset).
-     * @enum {string}
-     */
-    Scheduler:
-      | 'normal'
-      | 'karras'
-      | 'exponential'
-      | 'sgm_uniform'
-      | 'simple'
-      | 'ddim_uniform'
-      | 'beta'
-      | 'linear_quadratic'
-      | 'kl_optimal';
-    /** SetBillingAccountRequest */
-    SetBillingAccountRequest: {
-      account: components['schemas']['AccountType'];
-    };
-    /** SetModelEnabledRequest */
-    SetModelEnabledRequest: {
-      is_enabled: boolean;
-    };
-    /** StartSessionRequest */
-    StartSessionRequest: {
-      model: components['schemas']['ModelType'];
-      bundle_override?: string | null;
-    };
-    /** StopConfirmationResponse */
-    StopConfirmationResponse: {
-      /** Format: uuid */
-      session_id: string;
-      model_type: string;
-      bundle_name: string;
-      vastai_gpu_name: string | null;
-      vastai_cost_per_hour_micros: number | null;
-      active_duration_seconds: number;
-      paused_duration_seconds: number;
-      estimated_final_tokens: number;
-      message: string;
-    };
-    /** StopSessionRequest */
-    StopSessionRequest: {
-      /** @default false */
-      confirmed: boolean;
-    };
-    /** StorageStatsResponse */
-    StorageStatsResponse: {
-      upload_count: number;
-      output_count: number;
-      total_bytes: number;
-      total_mb: number;
-    };
-    /** StripeCheckoutResponse */
-    StripeCheckoutResponse: {
-      checkout_url: string;
-      session_id: string;
-      /** Format: uuid */
-      payment_id: string;
-    };
-    /**
-     * SubscriptionTier
-     * @description User subscription tiers.
-     * @enum {string}
-     */
-    SubscriptionTier: 'free' | 'basic' | 'pro' | 'enterprise';
-    /**
-     * SupportedLocale
-     * @description Supported UI/email locales.
-     *
-     *     Add new locales here AND create corresponding email template directories simultaneously.
-     * @enum {string}
-     */
-    SupportedLocale: 'en' | 'ru' | 'sr';
-    /** SystemBroadcastRequest */
-    SystemBroadcastRequest: {
-      level: string;
-      title: string;
-      message: string;
-      expires_at?: string | null;
-    };
-    /** TokenPackageResponse */
-    TokenPackageResponse: {
-      id: string;
-      name: string;
-      tokens: number;
-      bonus_tokens: number;
-      total_tokens: number;
-      price_usd: string;
-    };
-    /** TokenResponse */
-    TokenResponse: {
-      access_token: string;
-      refresh_token: string;
-      /** @default bearer */
-      token_type: string;
-      expires_in: number;
-      /** Format: date-time */
-      expires_at: string;
-    };
-    /** TopUpNowPaymentsRequest */
-    TopUpNowPaymentsRequest: {
-      package_id: string;
-      pay_currency: string;
-    };
-    /** TopUpStripeRequest */
-    TopUpStripeRequest: {
-      package_id: string;
-    };
-    /** TransactionResponse */
-    TransactionResponse: {
-      /** Format: uuid */
-      id: string;
-      transaction_type: string;
-      amount: number;
-      balance_after: number;
-      description: string | null;
-      metadata: {
-        [key: string]: unknown;
-      };
-      job_id: string | null;
-      payment_id: string | null;
-      /** Format: date-time */
-      created_at: string;
-      created_by: string | null;
-    };
-    /** UnifiedGenerationRequest */
-    UnifiedGenerationRequest: {
-      prompt: string;
-      generation_type: components['schemas']['GenerationType'];
-      model: components['schemas']['ModelType'];
-      input_image_id?: string | null;
-      source_output_id?: string | null;
-      input_video_url?: string | null;
-      negative_prompt?: string | null;
-      aspect_ratio?: components['schemas']['AspectRatio'];
-      /** @default 1 */
-      n: number;
-      name?: string | null;
-      /** @default 5 */
-      duration: number;
-      resolution?: components['schemas']['VideoResolution'];
-      image_resolution?: components['schemas']['Resolution'] | null;
-      width?: number | null;
-      height?: number | null;
-      seed?: number | null;
-      steps?: number | null;
-      cfg?: number | null;
-      sampler?: components['schemas']['Sampler'] | null;
-      scheduler?: components['schemas']['Scheduler'] | null;
-      denoise?: number | null;
-    };
-    /** UnifiedJobResponse */
-    UnifiedJobResponse: {
-      /** Format: uuid */
-      id: string;
-      name: string;
-      status: components['schemas']['JobStatus'];
-      provider: string;
-      model?: string | null;
-      generation_type: components['schemas']['GenerationType'];
-      prompt: string;
-      negative_prompt?: string | null;
-      aspect_ratio?: string | null;
-      token_cost?: number | null;
-      /** Format: date-time */
-      created_at: string;
-      started_at?: string | null;
-      completed_at?: string | null;
-      outputs?: components['schemas']['JobOutputItem'][];
-      thumbnail_url?: string | null;
-      error?: string | null;
-    };
-    /** UpdateProfileRequest */
-    UpdateProfileRequest: {
-      display_name?: string | null;
-      email?: string | null;
-      locale?: components['schemas']['SupportedLocale'] | null;
-      age_confirmed?: boolean | null;
-      date_of_birth?: string | null;
-    };
-    /** UploadForm */
-    UploadForm: {
-      /** Format: binary */
-      data: string;
-    };
-    /** UploadResponse */
-    UploadResponse: {
-      id: string;
-      storage_key: string;
-      filename: string;
-      content_type: string;
-      size_bytes: number;
-      /** Format: date-time */
-      created_at: string;
-      /** Format: date-time */
-      expires_at: string;
-    };
-    /** UserContext */
-    UserContext: {
-      subscription_tier: string;
-    };
-    /** UserProfileResponse */
-    UserProfileResponse: {
-      id: string;
-      email: string;
-      display_name: string | null;
-      subscription_tier: string;
-      locale: string;
-      role: string;
-      is_active: boolean;
-      /** Format: date-time */
-      created_at: string;
-      /** Format: date-time */
-      updated_at: string;
-      age_verified: boolean;
-      age_verified_at?: string | null;
-      date_of_birth?: string | null;
-    };
-    /**
-     * UserRole
-     * @description User account roles.
-     *
-     *     SYSTEM     — internal sentinel user (seeded by migration, cannot authenticate).
-     *     SUPERADMIN — full administrative access including role management.
-     *     ADMIN      — administrative access to the platform (no role escalation).
-     *     USER       — standard authenticated user (default for all registrations).
-     * @enum {string}
-     */
-    UserRole: 'system' | 'superadmin' | 'admin' | 'user';
-    /** UserStatsResponse */
-    UserStatsResponse: {
-      total_jobs: number;
-      completed_jobs: number;
-      failed_jobs: number;
-      total_outputs: number;
-      total_uploads: number;
-      storage_used_bytes: number;
-    };
-    /** VerifyEmailRequest */
-    VerifyEmailRequest: {
-      token: string;
-    };
-    /** VideoConstraints */
-    VideoConstraints: {
-      max_duration: number;
-      resolutions: string[];
-    };
-    /**
-     * VideoResolution
-     * @description Supported video resolutions for Grok.
-     * @default 720p
-     * @enum {string}
-     */
-    VideoResolution: '480p' | '720p';
-  };
-  responses: never;
-  parameters: never;
-  requestBodies: never;
-  headers: never;
-  pathItems: never;
+    schemas: {
+        /** AccountSummary */
+        AccountSummary: {
+            /** Format: uuid */
+            account_id: string;
+            account_type: string;
+            balance: number;
+        };
+        /**
+         * AccountType
+         * @description Token account types.
+         * @enum {string}
+         */
+        AccountType: "personal" | "enterprise";
+        /** AddMemberRequest */
+        AddMemberRequest: {
+            /** Format: uuid */
+            user_id: string;
+            role: string;
+        };
+        /** AdminAdjustRequest */
+        AdminAdjustRequest: {
+            amount: number;
+            description: string;
+        };
+        /** AdminAdjustResponse */
+        AdminAdjustResponse: {
+            transaction: components["schemas"]["TransactionResponse"];
+            new_balance: number;
+        };
+        /** AdminOrgResponse */
+        AdminOrgResponse: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            slug: string;
+            /** Format: uuid */
+            owner_id: string;
+            is_active: boolean;
+            member_count: number;
+            token_balance: number;
+            /** Format: date-time */
+            created_at: string;
+        };
+        /** AdminPatchUserRequest */
+        AdminPatchUserRequest: {
+            role?: components["schemas"]["UserRole"] | null;
+            subscription_tier?: components["schemas"]["SubscriptionTier"] | null;
+            is_active?: boolean | null;
+            locale?: components["schemas"]["SupportedLocale"] | null;
+        };
+        /**
+         * AdminPermission
+         * @description Granular permissions grantable to admin-role users by superadmins.
+         *
+         *     BILLING_ADJUST — allows use of POST /v1/admin/accounts/{id}/adjust.
+         * @enum {string}
+         */
+        AdminPermission: "billing_adjust";
+        /** AdminRoleResponse */
+        AdminRoleResponse: {
+            /** Format: uuid */
+            id: string;
+            email: string;
+            display_name: string | null;
+            role: string;
+            permissions: string[];
+            is_active: boolean;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        /** AdminUserResponse */
+        AdminUserResponse: {
+            /** Format: uuid */
+            id: string;
+            email: string;
+            display_name: string | null;
+            role: string;
+            subscription_tier: string;
+            is_active: boolean;
+            email_verified_at: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        /**
+         * AspectRatio
+         * @description Supported aspect ratios.
+         * @default 1:1
+         * @enum {string}
+         */
+        AspectRatio: "2:3" | "3:2" | "1:1" | "9:16" | "16:9" | "3:4" | "4:3";
+        /** AuditLogEntry */
+        AuditLogEntry: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            actor_id: string;
+            /** Format: uuid */
+            target_user_id: string;
+            action: string;
+            detail: string;
+            source: string;
+            /** Format: date-time */
+            created_at: string;
+        };
+        /** BalanceResponse */
+        BalanceResponse: {
+            /** Format: uuid */
+            account_id: string;
+            account_type: string;
+            balance: number;
+            organization_name?: string | null;
+        };
+        /** BillingAccountResponse */
+        BillingAccountResponse: {
+            preferred_account: string | null;
+            message: string;
+        };
+        /** CategoryHealthResponse */
+        CategoryHealthResponse: {
+            status: string;
+            components: components["schemas"]["ComponentHealthResponse"][];
+        };
+        /** ChangeMemberRoleRequest */
+        ChangeMemberRoleRequest: {
+            role: string;
+        };
+        /** ChangePasswordRequest */
+        ChangePasswordRequest: {
+            current_password: string;
+            new_password: string;
+        };
+        /** ComponentHealthResponse */
+        ComponentHealthResponse: {
+            name: string;
+            status: string;
+            latency_ms: number;
+            /** @default  */
+            message: string;
+            metadata?: {
+                [key: string]: unknown;
+            };
+        };
+        /** CreateOrganizationRequest */
+        CreateOrganizationRequest: {
+            name: string;
+        };
+        /** CreatePricingRuleRequest */
+        CreatePricingRuleRequest: {
+            provider: string;
+            generation_type: string;
+            model?: string | null;
+            token_cost: number;
+            notes?: string | null;
+        };
+        /** CursorPage[AdminOrgResponse] */
+        "CursorPage_src.api.schemas.admin.AdminOrgResponse_": {
+            items: components["schemas"]["AdminOrgResponse"][];
+            limit: number;
+            has_more: boolean;
+            next_cursor?: string | null;
+        };
+        /** CursorPage[AdminUserResponse] */
+        "CursorPage_src.api.schemas.admin.AdminUserResponse_": {
+            items: components["schemas"]["AdminUserResponse"][];
+            limit: number;
+            has_more: boolean;
+            next_cursor?: string | null;
+        };
+        /** CursorPage[PaymentResponse] */
+        "CursorPage_src.api.schemas.billing.PaymentResponse_": {
+            items: components["schemas"]["PaymentResponse"][];
+            limit: number;
+            has_more: boolean;
+            next_cursor?: string | null;
+        };
+        /** CursorPage[TransactionResponse] */
+        "CursorPage_src.api.schemas.billing.TransactionResponse_": {
+            items: components["schemas"]["TransactionResponse"][];
+            limit: number;
+            has_more: boolean;
+            next_cursor?: string | null;
+        };
+        /** CursorPage[GalleryGridItem] */
+        "CursorPage_src.api.schemas.gallery.GalleryGridItem_": {
+            items: components["schemas"]["GalleryGridItem"][];
+            limit: number;
+            has_more: boolean;
+            next_cursor?: string | null;
+        };
+        /** CursorPage[UnifiedJobResponse] */
+        "CursorPage_src.api.schemas.jobs.UnifiedJobResponse_": {
+            items: components["schemas"]["UnifiedJobResponse"][];
+            limit: number;
+            has_more: boolean;
+            next_cursor?: string | null;
+        };
+        /** CursorPage[ImageListItem] */
+        "CursorPage_src.api.schemas.storage.ImageListItem_": {
+            items: components["schemas"]["ImageListItem"][];
+            limit: number;
+            has_more: boolean;
+            next_cursor?: string | null;
+        };
+        /** CursorPage[OutputListItem] */
+        "CursorPage_src.api.schemas.storage.OutputListItem_": {
+            items: components["schemas"]["OutputListItem"][];
+            limit: number;
+            has_more: boolean;
+            next_cursor?: string | null;
+        };
+        /** DeleteAccountResponse */
+        DeleteAccountResponse: {
+            message: string;
+            /** Format: date-time */
+            deactivated_at: string;
+        };
+        /** DetailedHealthResponse */
+        DetailedHealthResponse: {
+            status: string;
+            checked_at: string;
+            infrastructure: components["schemas"]["CategoryHealthResponse"];
+            platform_apis: components["schemas"]["CategoryHealthResponse"];
+            cloud_providers: {
+                [key: string]: components["schemas"]["CategoryHealthResponse"];
+            };
+            gpu_sessions: components["schemas"]["GpuSessionHealthResponse"];
+        };
+        /** DownloadProgressBody */
+        DownloadProgressBody: {
+            bytes_done: number;
+            bytes_total: number;
+            files_done: number;
+            files_total: number;
+        };
+        /** ErrorEnvelope */
+        ErrorEnvelope: {
+            error: string;
+            message: string;
+            status_code: number;
+            detail?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** ForgotPasswordRequest */
+        ForgotPasswordRequest: {
+            email: string;
+        };
+        /**
+         * GalleryBadge
+         * @description Badge type for gallery grid — describes the input source.
+         * @enum {string}
+         */
+        GalleryBadge: "image" | "prompt";
+        /** GalleryGridItem */
+        GalleryGridItem: {
+            /** Format: uuid */
+            job_id: string;
+            cover_url: string;
+            video_url?: string | null;
+            badge: components["schemas"]["GalleryBadge"];
+            media_type: components["schemas"]["OutputMediaType"];
+            output_count: number;
+            generation_type: components["schemas"]["GenerationType"];
+            model?: string | null;
+            aspect_ratio?: string | null;
+            prompt_snippet: string;
+            /** Format: date-time */
+            created_at: string;
+        };
+        /** GalleryGroupDetail */
+        GalleryGroupDetail: {
+            /** Format: uuid */
+            job_id: string;
+            badge: components["schemas"]["GalleryBadge"];
+            input_image_url?: string | null;
+            prompt: string;
+            negative_prompt?: string | null;
+            outputs: components["schemas"]["GalleryOutputItem"][];
+            media_type: components["schemas"]["OutputMediaType"];
+            model?: string | null;
+            provider: string;
+            generation_type: components["schemas"]["GenerationType"];
+            aspect_ratio?: string | null;
+            token_cost?: number | null;
+            /** Format: date-time */
+            created_at: string;
+            completed_at?: string | null;
+            lineage?: components["schemas"]["GalleryLineage"] | null;
+        };
+        /** GalleryLineage */
+        GalleryLineage: {
+            source_type: components["schemas"]["GallerySourceType"];
+            source_upload_id?: string | null;
+            source_job_id?: string | null;
+            source_job_name?: string | null;
+            source_output_id?: string | null;
+        };
+        /** GalleryOutputItem */
+        GalleryOutputItem: {
+            /** Format: uuid */
+            id: string;
+            url: string;
+            thumbnail_url?: string | null;
+            content_type: string;
+            media_type: components["schemas"]["OutputMediaType"];
+            format: string;
+            size_bytes: number;
+            output_index: number;
+            /** Format: date-time */
+            created_at: string;
+        };
+        /**
+         * GallerySourceType
+         * @description Type of input source for lineage display.
+         * @enum {string}
+         */
+        GallerySourceType: "upload" | "generation";
+        /** GenerationModelResponse */
+        GenerationModelResponse: {
+            model_key: string;
+            provider: string;
+            name: string;
+            description: string;
+            is_enabled: boolean;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        /**
+         * GenerationType
+         * @description Generation type - text-to-image or image-to-image.
+         * @enum {string}
+         */
+        GenerationType: "t2i" | "i2i" | "t2v" | "i2v" | "v2v" | "flf2v";
+        /** GpuSessionHealthResponse */
+        GpuSessionHealthResponse: {
+            status: string;
+            total: number;
+            healthy: number;
+            stale: number;
+            /** @default  */
+            message: string;
+        };
+        /** GpuSessionResponse */
+        GpuSessionResponse: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            user_id: string;
+            product_id: string;
+            status: string;
+            model_type: string;
+            bundle_name: string;
+            bundle_version: string | null;
+            tunnel_hostname: string | null;
+            vastai_gpu_name: string | null;
+            vastai_cost_per_hour_micros: number | null;
+            /** Format: date-time */
+            created_at: string;
+            started_at?: string | null;
+            paused_at?: string | null;
+            resumed_at?: string | null;
+            stopped_at?: string | null;
+            error_message?: string | null;
+            /** @default 0 */
+            in_flight_job_count: number;
+            provisioning_phase?: string | null;
+            provisioning_progress?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** GrantPermissionRequest */
+        GrantPermissionRequest: {
+            permission: components["schemas"]["AdminPermission"];
+        };
+        /** GrantRoleRequest */
+        GrantRoleRequest: {
+            role: components["schemas"]["UserRole"];
+        };
+        /** HealthSnapshotResponse */
+        HealthSnapshotResponse: {
+            checked_at: string;
+            overall_status: string;
+            snapshot_data: Record<string, never>;
+        };
+        /** ImageAccessResponse */
+        ImageAccessResponse: {
+            id: string;
+            storage_key: string;
+            presigned_url: string;
+            content_type: string;
+            size_bytes: number;
+            expires_in_seconds: number;
+        };
+        /** ImageConstraints */
+        ImageConstraints: {
+            min_height?: number | null;
+            max_height?: number | null;
+            default_height?: number | null;
+            output_resolutions?: string[] | null;
+            supported_tiers?: string[] | null;
+            default_tier?: string | null;
+            tier_megapixels?: {
+                [key: string]: number;
+            } | null;
+        };
+        /** ImageListItem */
+        ImageListItem: {
+            id: string;
+            filename: string;
+            content_type: string;
+            size_bytes: number;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            expires_at: string;
+        };
+        /** JobCreatedResponse */
+        JobCreatedResponse: {
+            /** Format: uuid */
+            job_id: string;
+            status: components["schemas"]["JobStatus"];
+            name: string;
+            model: string;
+            generation_type: components["schemas"]["GenerationType"];
+            /** Format: date-time */
+            created_at: string;
+            message?: string | null;
+            tokens_charged?: number | null;
+            balance_remaining?: number | null;
+        };
+        /** JobOutputItem */
+        JobOutputItem: {
+            /** Format: uuid */
+            id: string;
+            url: string;
+            content_type: string;
+            format: string;
+            size_bytes: number;
+            output_index: number;
+            thumbnail_url?: string | null;
+            /** @default false */
+            is_thumbnail: boolean;
+        };
+        /**
+         * JobStatus
+         * @description Job execution status.
+         * @enum {string}
+         */
+        JobStatus: "pending" | "queued" | "running" | "completed" | "failed" | "cancelled" | "moderated";
+        /** ListSessionsResponse */
+        ListSessionsResponse: {
+            sessions: components["schemas"]["GpuSessionResponse"][];
+        };
+        /** LivenessResponse */
+        LivenessResponse: {
+            status: string;
+        };
+        /** LoginRequest */
+        LoginRequest: {
+            email: string;
+            password: string;
+        };
+        /** MemberResponse */
+        MemberResponse: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            user_id: string;
+            role: string;
+            /** Format: date-time */
+            joined_at: string;
+        };
+        /** MessageResponse */
+        MessageResponse: {
+            message: string;
+        };
+        /** ModelInfo */
+        ModelInfo: {
+            model_key: string;
+            name: string;
+            description: string;
+            capabilities: string[];
+            is_enabled: boolean;
+            max_images: number;
+            max_prompt_length: number;
+            supports_negative_prompt: boolean;
+            aspect_ratios: string[];
+            /** @default false */
+            requires_age_verification: boolean;
+            image?: components["schemas"]["ImageConstraints"] | null;
+            video?: components["schemas"]["VideoConstraints"] | null;
+            session_state?: string | null;
+        };
+        /** ModelListResponse */
+        ModelListResponse: {
+            items: components["schemas"]["GenerationModelResponse"][];
+            total: number;
+        };
+        /**
+         * ModelType
+         * @description Available model types.
+         * @enum {string}
+         */
+        ModelType: "aisha-image" | "aisha-video" | "grok-imagine-image" | "grok-2-image-1212" | "grok-imagine-video";
+        /** NowPaymentsInvoiceResponse */
+        NowPaymentsInvoiceResponse: {
+            invoice_url: string;
+            /** Format: uuid */
+            payment_id: string;
+        };
+        /** OrgCreateResponse */
+        OrgCreateResponse: {
+            organization: components["schemas"]["OrgResponse"];
+            account: components["schemas"]["AccountSummary"];
+            membership: components["schemas"]["MemberResponse"];
+        };
+        /** OrgDetailResponse */
+        OrgDetailResponse: {
+            organization: components["schemas"]["OrgResponse"];
+            role: string;
+            balance: number;
+        };
+        /** OrgResponse */
+        OrgResponse: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            slug: string;
+            /** Format: uuid */
+            owner_id: string;
+            is_active: boolean;
+            /** Format: date-time */
+            created_at: string;
+        };
+        /** OutputListItem */
+        OutputListItem: {
+            id: string;
+            job_id: string;
+            content_type: string;
+            size_bytes: number;
+            output_index: number;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            expires_at: string;
+        };
+        /**
+         * OutputMediaType
+         * @description Media type classification for gallery filtering.
+         * @enum {string}
+         */
+        OutputMediaType: "image" | "video";
+        /** PatchPricingRuleRequest */
+        PatchPricingRuleRequest: {
+            token_cost?: number | null;
+            is_active?: boolean | null;
+            effective_until?: string | null;
+            notes?: string | null;
+        };
+        /** PaymentResponse */
+        PaymentResponse: {
+            /** Format: uuid */
+            id: string;
+            payment_provider: string;
+            status: string;
+            amount_usd: string;
+            tokens_granted: number;
+            currency: string;
+            /** Format: date-time */
+            created_at: string;
+            completed_at: string | null;
+        };
+        /** PricingRuleResponse */
+        PricingRuleResponse: {
+            /** Format: uuid */
+            id: string;
+            provider: string;
+            generation_type: string;
+            model: string | null;
+            token_cost: number;
+            is_active: boolean;
+            /** Format: date-time */
+            effective_from: string;
+            effective_until: string | null;
+            notes: string | null;
+        };
+        /** ProductInfoResponse */
+        ProductInfoResponse: {
+            product: string;
+            display_name: string;
+            age_gate: string;
+            allowed_auth_methods: string[];
+            content_rating: string;
+            payment_providers: string[];
+        };
+        /**
+         * Provider
+         * @description Generation provider.
+         * @enum {string}
+         */
+        Provider: "aisha" | "grok";
+        /** ProviderInfo */
+        ProviderInfo: {
+            provider: string;
+            name: string;
+            available: boolean;
+            provisioning_mode: string;
+            models: components["schemas"]["ModelInfo"][];
+        };
+        /** ProvidersResponse */
+        ProvidersResponse: {
+            providers: components["schemas"]["ProviderInfo"][];
+            user_context?: components["schemas"]["UserContext"] | null;
+        };
+        /** ProvisioningCallbackBody */
+        ProvisioningCallbackBody: {
+            /** Format: uuid */
+            session_id: string;
+            phase: string;
+            /** @default  */
+            message: string;
+            download?: components["schemas"]["DownloadProgressBody"] | null;
+            /** @default 0 */
+            elapsed_seconds: number;
+            error?: string | null;
+            /** Format: date-time */
+            ts: string;
+        };
+        /** ReadinessResponse */
+        ReadinessResponse: {
+            status: string;
+            checks: {
+                [key: string]: string;
+            };
+        };
+        /** RefreshTokenRequest */
+        RefreshTokenRequest: {
+            refresh_token: string;
+        };
+        /** RegisterRequest */
+        RegisterRequest: {
+            email: string;
+            password: string;
+            display_name?: string | null;
+        };
+        /** ResetPasswordRequest */
+        ResetPasswordRequest: {
+            token: string;
+            new_password: string;
+        };
+        /**
+         * Resolution
+         * @description Image quality tier (maps to a target megapixel budget; see core.resolution).
+         * @enum {string}
+         */
+        Resolution: "draft" | "standard" | "high" | "ultra";
+        /** SSETicketResponse */
+        SSETicketResponse: {
+            ticket: string;
+        };
+        /**
+         * Sampler
+         * @description ComfyUI sampler names (common subset).
+         * @enum {string}
+         */
+        Sampler: "euler" | "euler_ancestral" | "euler_cfg_pp" | "heun" | "dpm_2" | "dpm_2_ancestral" | "lms" | "dpmpp_2s_ancestral" | "dpmpp_sde" | "dpmpp_2m" | "dpmpp_2m_sde" | "dpmpp_3m_sde" | "ddim" | "uni_pc" | "uni_pc_bh2" | "lcm" | "res_multistep";
+        /**
+         * Scheduler
+         * @description ComfyUI scheduler names (common subset).
+         * @enum {string}
+         */
+        Scheduler: "normal" | "karras" | "exponential" | "sgm_uniform" | "simple" | "ddim_uniform" | "beta" | "linear_quadratic" | "kl_optimal";
+        /** SetBillingAccountRequest */
+        SetBillingAccountRequest: {
+            account: components["schemas"]["AccountType"];
+        };
+        /** SetModelEnabledRequest */
+        SetModelEnabledRequest: {
+            is_enabled: boolean;
+        };
+        /** StartSessionRequest */
+        StartSessionRequest: {
+            model: components["schemas"]["ModelType"];
+            bundle_override?: string | null;
+        };
+        /** StopConfirmationResponse */
+        StopConfirmationResponse: {
+            /** Format: uuid */
+            session_id: string;
+            model_type: string;
+            bundle_name: string;
+            vastai_gpu_name: string | null;
+            vastai_cost_per_hour_micros: number | null;
+            active_duration_seconds: number;
+            paused_duration_seconds: number;
+            estimated_final_tokens: number;
+            message: string;
+        };
+        /** StopSessionRequest */
+        StopSessionRequest: {
+            /** @default false */
+            confirmed: boolean;
+        };
+        /** StorageStatsResponse */
+        StorageStatsResponse: {
+            upload_count: number;
+            output_count: number;
+            total_bytes: number;
+            total_mb: number;
+        };
+        /** StripeCheckoutResponse */
+        StripeCheckoutResponse: {
+            checkout_url: string;
+            session_id: string;
+            /** Format: uuid */
+            payment_id: string;
+        };
+        /**
+         * SubscriptionTier
+         * @description User subscription tiers.
+         * @enum {string}
+         */
+        SubscriptionTier: "free" | "basic" | "pro" | "enterprise";
+        /**
+         * SupportedLocale
+         * @description Supported UI/email locales.
+         *
+         *     Add new locales here AND create corresponding email template directories simultaneously.
+         * @enum {string}
+         */
+        SupportedLocale: "en" | "ru" | "sr";
+        /** SystemBroadcastRequest */
+        SystemBroadcastRequest: {
+            level: string;
+            title: string;
+            message: string;
+            expires_at?: string | null;
+        };
+        /** TokenPackageResponse */
+        TokenPackageResponse: {
+            id: string;
+            name: string;
+            tokens: number;
+            bonus_tokens: number;
+            total_tokens: number;
+            price_usd: string;
+        };
+        /** TokenResponse */
+        TokenResponse: {
+            access_token: string;
+            refresh_token: string;
+            /** @default bearer */
+            token_type: string;
+            expires_in: number;
+            /** Format: date-time */
+            expires_at: string;
+        };
+        /** TopUpNowPaymentsRequest */
+        TopUpNowPaymentsRequest: {
+            package_id: string;
+            pay_currency: string;
+        };
+        /** TopUpStripeRequest */
+        TopUpStripeRequest: {
+            package_id: string;
+        };
+        /** TransactionResponse */
+        TransactionResponse: {
+            /** Format: uuid */
+            id: string;
+            transaction_type: string;
+            amount: number;
+            balance_after: number;
+            description: string | null;
+            metadata: {
+                [key: string]: unknown;
+            };
+            job_id: string | null;
+            payment_id: string | null;
+            /** Format: date-time */
+            created_at: string;
+            created_by: string | null;
+        };
+        /** UnifiedGenerationRequest */
+        UnifiedGenerationRequest: {
+            prompt: string;
+            generation_type: components["schemas"]["GenerationType"];
+            model: components["schemas"]["ModelType"];
+            input_image_id?: string | null;
+            source_output_id?: string | null;
+            input_video_url?: string | null;
+            negative_prompt?: string | null;
+            aspect_ratio?: components["schemas"]["AspectRatio"];
+            /** @default 1 */
+            n: number;
+            name?: string | null;
+            /** @default 5 */
+            duration: number;
+            resolution?: components["schemas"]["VideoResolution"];
+            image_resolution?: components["schemas"]["Resolution"] | null;
+            width?: number | null;
+            height?: number | null;
+            seed?: number | null;
+            steps?: number | null;
+            cfg?: number | null;
+            sampler?: components["schemas"]["Sampler"] | null;
+            scheduler?: components["schemas"]["Scheduler"] | null;
+            denoise?: number | null;
+        };
+        /** UnifiedJobResponse */
+        UnifiedJobResponse: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            status: components["schemas"]["JobStatus"];
+            provider: string;
+            model?: string | null;
+            generation_type: components["schemas"]["GenerationType"];
+            prompt: string;
+            negative_prompt?: string | null;
+            aspect_ratio?: string | null;
+            token_cost?: number | null;
+            /** Format: date-time */
+            created_at: string;
+            started_at?: string | null;
+            completed_at?: string | null;
+            outputs?: components["schemas"]["JobOutputItem"][];
+            thumbnail_url?: string | null;
+            error?: string | null;
+        };
+        /** UpdateProfileRequest */
+        UpdateProfileRequest: {
+            display_name?: string | null;
+            email?: string | null;
+            locale?: components["schemas"]["SupportedLocale"] | null;
+            age_confirmed?: boolean | null;
+            date_of_birth?: string | null;
+        };
+        /** UploadForm */
+        UploadForm: {
+            /** Format: binary */
+            data: string;
+        };
+        /** UploadResponse */
+        UploadResponse: {
+            id: string;
+            storage_key: string;
+            filename: string;
+            content_type: string;
+            size_bytes: number;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            expires_at: string;
+        };
+        /** UserContext */
+        UserContext: {
+            subscription_tier: string;
+        };
+        /** UserProfileResponse */
+        UserProfileResponse: {
+            id: string;
+            email: string;
+            display_name: string | null;
+            subscription_tier: string;
+            locale: string;
+            role: string;
+            is_active: boolean;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+            age_verified: boolean;
+            age_verified_at?: string | null;
+            date_of_birth?: string | null;
+        };
+        /**
+         * UserRole
+         * @description User account roles.
+         *
+         *     SYSTEM     — internal sentinel user (seeded by migration, cannot authenticate).
+         *     SUPERADMIN — full administrative access including role management.
+         *     ADMIN      — administrative access to the platform (no role escalation).
+         *     USER       — standard authenticated user (default for all registrations).
+         * @enum {string}
+         */
+        UserRole: "system" | "superadmin" | "admin" | "user";
+        /** UserStatsResponse */
+        UserStatsResponse: {
+            total_jobs: number;
+            completed_jobs: number;
+            failed_jobs: number;
+            total_outputs: number;
+            total_uploads: number;
+            storage_used_bytes: number;
+        };
+        /** VerifyEmailRequest */
+        VerifyEmailRequest: {
+            token: string;
+        };
+        /** VideoConstraints */
+        VideoConstraints: {
+            max_duration: number;
+            resolutions: string[];
+        };
+        /**
+         * VideoResolution
+         * @description Supported video resolutions for Grok.
+         * @default 720p
+         * @enum {string}
+         */
+        VideoResolution: "480p" | "720p";
+    };
+    responses: never;
+    parameters: never;
+    requestBodies: never;
+    headers: never;
+    pathItems: never;
 }
 export type $defs = Record<string, never>;
 export interface operations {
-  HealthLiveLiveness: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['LivenessResponse'];
-        };
-      };
-    };
-  };
-  HealthReadyReadiness: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ReadinessResponse'];
-        };
-      };
-    };
-  };
-  V1AdminHealthDetailed: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['DetailedHealthResponse'];
-        };
-      };
-    };
-  };
-  V1AdminHealthHistoryHistory: {
-    parameters: {
-      query?: {
-        after?: string | null;
-        before?: string | null;
-        limit?: number;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HealthSnapshotResponse'][];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1AdminHealthStreamStream: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': unknown;
-        };
-      };
-    };
-  };
-  V1AuthForgotPasswordForgotPassword: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['ForgotPasswordRequest'];
-      };
-    };
-    responses: {
-      /** @description Document created, URL follows */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['MessageResponse'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1AuthLoginLogin: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['LoginRequest'];
-      };
-    };
-    responses: {
-      /** @description Document created, URL follows */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json':
-            | components['schemas']['TokenResponse']
-            | components['schemas']['ErrorEnvelope'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1AuthLogoutLogout: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['RefreshTokenRequest'];
-      };
-    };
-    responses: {
-      /** @description Document created, URL follows */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['MessageResponse'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1AuthProductInfoProductInfo: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ProductInfoResponse'];
-        };
-      };
-    };
-  };
-  V1AuthRefreshRefreshTokens: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['RefreshTokenRequest'];
-      };
-    };
-    responses: {
-      /** @description Document created, URL follows */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json':
-            | components['schemas']['TokenResponse']
-            | components['schemas']['ErrorEnvelope'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1AuthRegisterRegister: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['RegisterRequest'];
-      };
-    };
-    responses: {
-      /** @description Document created, URL follows */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json':
-            | components['schemas']['TokenResponse']
-            | components['schemas']['ErrorEnvelope'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1AuthResendVerificationResendVerification: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Document created, URL follows */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json':
-            | components['schemas']['MessageResponse']
-            | components['schemas']['ErrorEnvelope'];
-        };
-      };
-    };
-  };
-  V1AuthResetPasswordResetPassword: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['ResetPasswordRequest'];
-      };
-    };
-    responses: {
-      /** @description Document created, URL follows */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json':
-            | components['schemas']['MessageResponse']
-            | components['schemas']['ErrorEnvelope'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1AuthVerifyEmailVerifyEmail: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['VerifyEmailRequest'];
-      };
-    };
-    responses: {
-      /** @description Document created, URL follows */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json':
-            | components['schemas']['MessageResponse']
-            | components['schemas']['ErrorEnvelope'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1UsersMePasswordChangePassword: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['ChangePasswordRequest'];
-      };
-    };
-    responses: {
-      /** @description Document created, URL follows */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json':
-            | components['schemas']['MessageResponse']
-            | components['schemas']['ErrorEnvelope'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1UsersMeGetProfile: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json':
-            | components['schemas']['UserProfileResponse']
-            | components['schemas']['ErrorEnvelope'];
-        };
-      };
-    };
-  };
-  V1UsersMeDeleteAccount: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['DeleteAccountResponse'];
-        };
-      };
-    };
-  };
-  V1UsersMeUpdateProfile: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['UpdateProfileRequest'];
-      };
-    };
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json':
-            | components['schemas']['UserProfileResponse']
-            | components['schemas']['ErrorEnvelope'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1UsersMeStatsGetStats: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['UserStatsResponse'];
-        };
-      };
-    };
-  };
-  V1UsersMeLogoutAllLogoutAll: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Document created, URL follows */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['MessageResponse'];
-        };
-      };
-    };
-  };
-  V1BillingBalanceGetBalance: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['BalanceResponse'];
-        };
-      };
-    };
-  };
-  V1BillingAccountGetBillingAccount: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['BillingAccountResponse'];
-        };
-      };
-    };
-  };
-  V1BillingAccountSetBillingAccount: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['SetBillingAccountRequest'];
-      };
-    };
-    responses: {
-      /** @description Document created, URL follows */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['BillingAccountResponse'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1BillingPackagesGetPackages: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['TokenPackageResponse'][];
-        };
-      };
-    };
-  };
-  V1BillingPricingGetPricing: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['PricingRuleResponse'][];
-        };
-      };
-    };
-  };
-  V1BillingTransactionsGetTransactions: {
-    parameters: {
-      query?: {
-        limit?: number;
-        type?: string | null;
-        cursor?: string | null;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['CursorPage_src.api.schemas.billing.TransactionResponse_'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1BillingTopupNowpaymentsTopupNowpayments: {
-    parameters: {
-      query?: never;
-      header: {
-        /** @description Unique key for request deduplication (max 64 chars). Repeated requests with the same key return the cached response. */
-        'Idempotency-Key': string;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['TopUpNowPaymentsRequest'];
-      };
-    };
-    responses: {
-      /** @description Document created, URL follows */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['NowPaymentsInvoiceResponse'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1BillingTopupStripeTopupStripe: {
-    parameters: {
-      query?: never;
-      header: {
-        /** @description Unique key for request deduplication (max 64 chars). Repeated requests with the same key return the cached response. */
-        'Idempotency-Key': string;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['TopUpStripeRequest'];
-      };
-    };
-    responses: {
-      /** @description Document created, URL follows */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['StripeCheckoutResponse'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1BillingWebhooksNowpaymentsNowpaymentsWebhook: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Document created, URL follows */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            [key: string]: unknown;
-          };
-        };
-      };
-    };
-  };
-  V1BillingWebhooksStripeStripeWebhook: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Document created, URL follows */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            [key: string]: unknown;
-          };
-        };
-      };
-    };
-  };
-  V1OrganizationsOrgIdMembersListMembers: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        org_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['MemberResponse'][];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1OrganizationsOrgIdMembersAddMember: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        org_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['AddMemberRequest'];
-      };
-    };
-    responses: {
-      /** @description Document created, URL follows */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['MemberResponse'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1OrganizationsOrgIdMembersUserIdRemoveMember: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        org_id: string;
-        user_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            [key: string]: unknown;
-          };
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1OrganizationsOrgIdMembersUserIdChangeMemberRole: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        org_id: string;
-        user_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['ChangeMemberRoleRequest'];
-      };
-    };
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['MemberResponse'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1OrganizationsCreateOrganization: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['CreateOrganizationRequest'];
-      };
-    };
-    responses: {
-      /** @description Document created, URL follows */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['OrgCreateResponse'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1OrganizationsOrgIdGetOrganization: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        org_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['OrgResponse'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1OrganizationsOrgIdDeleteOrganization: {
-    parameters: {
-      query?: {
-        force_delete?: boolean;
-      };
-      header?: never;
-      path: {
-        org_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            [key: string]: unknown;
-          };
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1OrganizationsMeGetMyOrganization: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['OrgDetailResponse'];
-        };
-      };
-    };
-  };
-  V1AdminAccountsAccountIdAdjustAdjustAccount: {
-    parameters: {
-      query?: never;
-      header: {
-        /** @description Unique key for request deduplication (max 64 chars). Repeated requests with the same key return the cached response. */
-        'Idempotency-Key': string;
-      };
-      path: {
-        account_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['AdminAdjustRequest'];
-      };
-    };
-    responses: {
-      /** @description Document created, URL follows */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['AdminAdjustResponse'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1AdminBroadcastBroadcastNotification: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['SystemBroadcastRequest'];
-      };
-    };
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            [key: string]: string;
-          };
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1AdminPricingListPricingRules: {
-    parameters: {
-      query?: {
-        active_only?: boolean;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['PricingRuleResponse'][];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1AdminPricingCreatePricingRule: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['CreatePricingRuleRequest'];
-      };
-    };
-    responses: {
-      /** @description Document created, URL follows */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['PricingRuleResponse'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1AdminPricingRuleIdDeactivatePricingRule: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        rule_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            [key: string]: unknown;
-          };
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1AdminPricingRuleIdUpdatePricingRule: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        rule_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['PatchPricingRuleRequest'];
-      };
-    };
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['PricingRuleResponse'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1AdminAccountsAccountIdBalanceGetAccountBalance: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        account_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['BalanceResponse'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1AdminAccountsAccountIdTransactionsGetAccountTransactions: {
-    parameters: {
-      query?: {
-        limit?: number;
-        type?: string | null;
-        cursor?: string | null;
-      };
-      header?: never;
-      path: {
-        account_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['CursorPage_src.api.schemas.billing.TransactionResponse_'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1AdminOrganizationsOrgIdAccountGetOrgAccount: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        org_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['BalanceResponse'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1AdminPaymentsPaymentIdGetPayment: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        payment_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['PaymentResponse'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1AdminUsersUserIdAccountGetUserAccount: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        user_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['BalanceResponse'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1AdminModelsListModels: {
-    parameters: {
-      query?: {
-        enabled_only?: boolean;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ModelListResponse'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1AdminOrganizationsListOrganizations: {
-    parameters: {
-      query?: {
-        is_active?: boolean | null;
-        limit?: number;
-        cursor?: string | null;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['CursorPage_src.api.schemas.admin.AdminOrgResponse_'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1AdminPaymentsListPayments: {
-    parameters: {
-      query?: {
-        status?: string | null;
-        payment_provider?: string | null;
-        limit?: number;
-        cursor?: string | null;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['CursorPage_src.api.schemas.billing.PaymentResponse_'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1AdminUsersListUsers: {
-    parameters: {
-      query?: {
-        is_active?: boolean | null;
-        role?: string | null;
-        email?: string | null;
-        limit?: number;
-        cursor?: string | null;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['CursorPage_src.api.schemas.admin.AdminUserResponse_'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1AdminUsersUserIdPatchUser: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        user_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['AdminPatchUserRequest'];
-      };
-    };
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['AdminUserResponse'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1AdminModelsModelKeyToggleModel: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        model_key: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['SetModelEnabledRequest'];
-      };
-    };
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['GenerationModelResponse'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1AdminManageAuditGetAuditLog: {
-    parameters: {
-      query?: {
-        target_user_id?: string | null;
-        limit?: number;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['AuditLogEntry'][];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1AdminManagePermissionsUserIdGrantGrantPermission: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        user_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['GrantPermissionRequest'];
-      };
-    };
-    responses: {
-      /** @description Document created, URL follows */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            [key: string]: string;
-          };
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1AdminManageRolesUserIdGrantGrantRole: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        user_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['GrantRoleRequest'];
-      };
-    };
-    responses: {
-      /** @description Document created, URL follows */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            [key: string]: string;
-          };
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1AdminManageAdminsListAdmins: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['AdminRoleResponse'][];
-        };
-      };
-    };
-  };
-  V1AdminManagePermissionsUserIdRevokeRevokePermission: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        user_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['GrantPermissionRequest'];
-      };
-    };
-    responses: {
-      /** @description Document created, URL follows */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            [key: string]: string;
-          };
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1AdminManageRolesUserIdRevokeRevokeRole: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        user_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Document created, URL follows */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            [key: string]: string;
-          };
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1GenerateGenerate: {
-    parameters: {
-      query?: never;
-      header: {
-        /** @description Unique key for request deduplication (max 64 chars). Repeated requests with the same key return the cached response. */
-        'Idempotency-Key': string;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['UnifiedGenerationRequest'];
-      };
-    };
-    responses: {
-      /** @description Document created, URL follows */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json':
-            | components['schemas']['JobCreatedResponse']
-            | components['schemas']['ErrorEnvelope'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1ProvidersListProviders: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ProvidersResponse'];
-        };
-      };
-    };
-  };
-  V1SessionsSessionIdGetSession: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        session_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['GpuSessionResponse'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1SessionsListSessions: {
-    parameters: {
-      query?: {
-        include_terminal?: boolean;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ListSessionsResponse'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1SessionsStart: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['StartSessionRequest'];
-      };
-    };
-    responses: {
-      /** @description Document created, URL follows */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json':
-            | components['schemas']['GpuSessionResponse']
-            | components['schemas']['ErrorEnvelope'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1SessionsSessionIdPausePause: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        session_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Document created, URL follows */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json':
-            | components['schemas']['GpuSessionResponse']
-            | components['schemas']['ErrorEnvelope'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1SessionsSessionIdResumeResume: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        session_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Document created, URL follows */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json':
-            | components['schemas']['GpuSessionResponse']
-            | components['schemas']['ErrorEnvelope'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1SessionsSessionIdStopStop: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        session_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['StopSessionRequest'];
-      };
-    };
-    responses: {
-      /** @description Document created, URL follows */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json':
-            | components['schemas']['GpuSessionResponse']
-            | components['schemas']['StopConfirmationResponse']
-            | components['schemas']['ErrorEnvelope'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1InternalGpuSessionsSessionIdProvisioningProvisioningCallback: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        session_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['ProvisioningCallbackBody'];
-      };
-    };
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            [key: string]: unknown;
-          };
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1StorageOutputsOutputIdDownloadDownloadOutput: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        output_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': string | components['schemas']['ErrorEnvelope'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1StorageUploadsImageIdDownloadDownloadUpload: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        image_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': string | components['schemas']['ErrorEnvelope'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1StorageOutputsOutputIdGetOutputAccess: {
-    parameters: {
-      query?: {
-        /** @description URL validity in seconds */
-        expires_in?: number;
-      };
-      header?: never;
-      path: {
-        output_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json':
-            | components['schemas']['ImageAccessResponse']
-            | components['schemas']['ErrorEnvelope'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1StorageStatsGetStorageStats: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['StorageStatsResponse'];
-        };
-      };
-    };
-  };
-  V1StorageUploadsImageIdGetUploadAccess: {
-    parameters: {
-      query?: {
-        /** @description URL validity in seconds (1 min to 24 hours) */
-        expires_in?: number;
-      };
-      header?: never;
-      path: {
-        image_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json':
-            | components['schemas']['ImageAccessResponse']
-            | components['schemas']['ErrorEnvelope'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1StorageJobsJobIdOutputsListJobOutputs: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        job_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json':
-            | components['schemas']['CursorPage_src.api.schemas.storage.OutputListItem_']
-            | components['schemas']['ErrorEnvelope'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1StorageOutputsListOutputs: {
-    parameters: {
-      query?: {
-        limit?: number;
-        cursor?: string | null;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['CursorPage_src.api.schemas.storage.OutputListItem_'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1StorageUploadsListUploads: {
-    parameters: {
-      query?: {
-        limit?: number;
-        cursor?: string | null;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['CursorPage_src.api.schemas.storage.ImageListItem_'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1StorageUploadUploadImage: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'multipart/form-data': components['schemas']['UploadForm'];
-      };
-    };
-    responses: {
-      /** @description Document created, URL follows */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json':
-            | components['schemas']['UploadResponse']
-            | components['schemas']['ErrorEnvelope'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1JobsJobIdGetJob: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        job_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['UnifiedJobResponse'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1JobsJobIdDeleteJob: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        job_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, nothing follows */
-      204: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1JobsListJobs: {
-    parameters: {
-      query?: {
-        status?: components['schemas']['JobStatus'] | null;
-        provider?: components['schemas']['Provider'] | null;
-        generation_type?: components['schemas']['GenerationType'] | null;
-        limit?: number;
-        cursor?: string | null;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['CursorPage_src.api.schemas.jobs.UnifiedJobResponse_'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1EventsSseTicketCreateSseTicket: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Document created, URL follows */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['SSETicketResponse'] | unknown;
-        };
-      };
-    };
-  };
-  V1EventsStreamStream: {
-    parameters: {
-      query: {
-        ticket: string;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': unknown;
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1GalleryJobIdGetGalleryDetail: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        job_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json':
-            | components['schemas']['GalleryGroupDetail']
-            | components['schemas']['ErrorEnvelope'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1GalleryListGallery: {
-    parameters: {
-      query?: {
-        limit?: number;
-        cursor?: string | null;
-        media_type?: components['schemas']['OutputMediaType'] | null;
-        generation_type?: components['schemas']['GenerationType'] | null;
-        model?: string | null;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['CursorPage_src.api.schemas.gallery.GalleryGridItem_'];
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1ContentContentIdDeleteContent: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        content_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, nothing follows */
-      204: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1ContentOutputsOutputIdProxyOutput: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        output_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': unknown;
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
-  V1ContentUploadsImageIdProxyUpload: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        image_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Request fulfilled, document follows */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': unknown;
-        };
-      };
-      /** @description Bad request syntax or unsupported method */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            status_code: number;
-            detail: string;
-            extra?:
-              | null
-              | {
-                  [key: string]: unknown;
-                }
-              | unknown[];
-          };
-        };
-      };
-    };
-  };
+    HealthLiveLiveness: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LivenessResponse"];
+                };
+            };
+        };
+    };
+    HealthReadyReadiness: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadinessResponse"];
+                };
+            };
+        };
+    };
+    V1AdminHealthDetailed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DetailedHealthResponse"];
+                };
+            };
+        };
+    };
+    V1AdminHealthHistoryHistory: {
+        parameters: {
+            query?: {
+                after?: string | null;
+                before?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HealthSnapshotResponse"][];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1AdminHealthStreamStream: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    V1AuthForgotPasswordForgotPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ForgotPasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1AuthLoginLogin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginRequest"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenResponse"] | components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1AuthLogoutLogout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefreshTokenRequest"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1AuthProductInfoProductInfo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductInfoResponse"];
+                };
+            };
+        };
+    };
+    V1AuthRefreshRefreshTokens: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefreshTokenRequest"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenResponse"] | components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1AuthRegisterRegister: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterRequest"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenResponse"] | components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1AuthResendVerificationResendVerification: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"] | components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1AuthResetPasswordResetPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResetPasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"] | components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1AuthVerifyEmailVerifyEmail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerifyEmailRequest"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"] | components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1UsersMePasswordChangePassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangePasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"] | components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1UsersMeGetProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserProfileResponse"] | components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1UsersMeDeleteAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeleteAccountResponse"];
+                };
+            };
+        };
+    };
+    V1UsersMeUpdateProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateProfileRequest"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserProfileResponse"] | components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1UsersMeStatsGetStats: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserStatsResponse"];
+                };
+            };
+        };
+    };
+    V1UsersMeLogoutAllLogoutAll: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+        };
+    };
+    V1BillingBalanceGetBalance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BalanceResponse"];
+                };
+            };
+        };
+    };
+    V1BillingAccountGetBillingAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingAccountResponse"];
+                };
+            };
+        };
+    };
+    V1BillingAccountSetBillingAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetBillingAccountRequest"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingAccountResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1BillingPackagesGetPackages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenPackageResponse"][];
+                };
+            };
+        };
+    };
+    V1BillingPricingGetPricing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PricingRuleResponse"][];
+                };
+            };
+        };
+    };
+    V1BillingTransactionsGetTransactions: {
+        parameters: {
+            query?: {
+                limit?: number;
+                type?: string | null;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CursorPage_src.api.schemas.billing.TransactionResponse_"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1BillingTopupNowpaymentsTopupNowpayments: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Unique key for request deduplication (max 64 chars). Repeated requests with the same key return the cached response. */
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TopUpNowPaymentsRequest"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NowPaymentsInvoiceResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1BillingTopupStripeTopupStripe: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Unique key for request deduplication (max 64 chars). Repeated requests with the same key return the cached response. */
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TopUpStripeRequest"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StripeCheckoutResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1BillingWebhooksNowpaymentsNowpaymentsWebhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    V1BillingWebhooksStripeStripeWebhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    V1OrganizationsOrgIdMembersListMembers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberResponse"][];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1OrganizationsOrgIdMembersAddMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddMemberRequest"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1OrganizationsOrgIdMembersUserIdRemoveMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org_id: string;
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1OrganizationsOrgIdMembersUserIdChangeMemberRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org_id: string;
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangeMemberRoleRequest"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1OrganizationsCreateOrganization: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateOrganizationRequest"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgCreateResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1OrganizationsOrgIdGetOrganization: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1OrganizationsOrgIdDeleteOrganization: {
+        parameters: {
+            query?: {
+                force_delete?: boolean;
+            };
+            header?: never;
+            path: {
+                org_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1OrganizationsMeGetMyOrganization: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgDetailResponse"];
+                };
+            };
+        };
+    };
+    V1AdminAccountsAccountIdAdjustAdjustAccount: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Unique key for request deduplication (max 64 chars). Repeated requests with the same key return the cached response. */
+                "Idempotency-Key": string;
+            };
+            path: {
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminAdjustRequest"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAdjustResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1AdminBroadcastBroadcastNotification: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SystemBroadcastRequest"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1AdminPricingListPricingRules: {
+        parameters: {
+            query?: {
+                active_only?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PricingRuleResponse"][];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1AdminPricingCreatePricingRule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePricingRuleRequest"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PricingRuleResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1AdminPricingRuleIdDeactivatePricingRule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                rule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1AdminPricingRuleIdUpdatePricingRule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                rule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatchPricingRuleRequest"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PricingRuleResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1AdminAccountsAccountIdBalanceGetAccountBalance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BalanceResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1AdminAccountsAccountIdTransactionsGetAccountTransactions: {
+        parameters: {
+            query?: {
+                limit?: number;
+                type?: string | null;
+                cursor?: string | null;
+            };
+            header?: never;
+            path: {
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CursorPage_src.api.schemas.billing.TransactionResponse_"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1AdminOrganizationsOrgIdAccountGetOrgAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BalanceResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1AdminPaymentsPaymentIdGetPayment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                payment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1AdminUsersUserIdAccountGetUserAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BalanceResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1AdminModelsListModels: {
+        parameters: {
+            query?: {
+                enabled_only?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelListResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1AdminOrganizationsListOrganizations: {
+        parameters: {
+            query?: {
+                is_active?: boolean | null;
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CursorPage_src.api.schemas.admin.AdminOrgResponse_"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1AdminPaymentsListPayments: {
+        parameters: {
+            query?: {
+                status?: string | null;
+                payment_provider?: string | null;
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CursorPage_src.api.schemas.billing.PaymentResponse_"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1AdminUsersListUsers: {
+        parameters: {
+            query?: {
+                is_active?: boolean | null;
+                role?: string | null;
+                email?: string | null;
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CursorPage_src.api.schemas.admin.AdminUserResponse_"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1AdminUsersUserIdPatchUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminPatchUserRequest"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUserResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1AdminModelsModelKeyToggleModel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                model_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetModelEnabledRequest"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GenerationModelResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1AdminManageAuditGetAuditLog: {
+        parameters: {
+            query?: {
+                target_user_id?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditLogEntry"][];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1AdminManagePermissionsUserIdGrantGrantPermission: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GrantPermissionRequest"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1AdminManageRolesUserIdGrantGrantRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GrantRoleRequest"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1AdminManageAdminsListAdmins: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminRoleResponse"][];
+                };
+            };
+        };
+    };
+    V1AdminManagePermissionsUserIdRevokeRevokePermission: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GrantPermissionRequest"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1AdminManageRolesUserIdRevokeRevokeRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1GenerateGenerate: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Unique key for request deduplication (max 64 chars). Repeated requests with the same key return the cached response. */
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UnifiedGenerationRequest"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobCreatedResponse"] | components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1ProvidersListProviders: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProvidersResponse"];
+                };
+            };
+        };
+    };
+    V1SessionsSessionIdGetSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GpuSessionResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1SessionsListSessions: {
+        parameters: {
+            query?: {
+                include_terminal?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListSessionsResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1SessionsStart: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StartSessionRequest"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GpuSessionResponse"] | components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1SessionsSessionIdPausePause: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GpuSessionResponse"] | components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1SessionsSessionIdResumeResume: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GpuSessionResponse"] | components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1SessionsSessionIdStopStop: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StopSessionRequest"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GpuSessionResponse"] | components["schemas"]["StopConfirmationResponse"] | components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1InternalGpuSessionsSessionIdProvisioningProvisioningCallback: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProvisioningCallbackBody"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1StorageOutputsOutputIdDownloadDownloadOutput: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                output_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string | components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1StorageUploadsImageIdDownloadDownloadUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                image_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string | components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1StorageOutputsOutputIdGetOutputAccess: {
+        parameters: {
+            query?: {
+                /** @description URL validity in seconds */
+                expires_in?: number;
+            };
+            header?: never;
+            path: {
+                output_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImageAccessResponse"] | components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1StorageStatsGetStorageStats: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StorageStatsResponse"];
+                };
+            };
+        };
+    };
+    V1StorageUploadsImageIdGetUploadAccess: {
+        parameters: {
+            query?: {
+                /** @description URL validity in seconds (1 min to 24 hours) */
+                expires_in?: number;
+            };
+            header?: never;
+            path: {
+                image_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImageAccessResponse"] | components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1StorageJobsJobIdOutputsListJobOutputs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CursorPage_src.api.schemas.storage.OutputListItem_"] | components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1StorageOutputsListOutputs: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CursorPage_src.api.schemas.storage.OutputListItem_"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1StorageUploadsListUploads: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CursorPage_src.api.schemas.storage.ImageListItem_"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1StorageUploadUploadImage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["UploadForm"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadResponse"] | components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1JobsJobIdGetJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnifiedJobResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1JobsJobIdDeleteJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, nothing follows */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1JobsListJobs: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["JobStatus"] | null;
+                provider?: components["schemas"]["Provider"] | null;
+                generation_type?: components["schemas"]["GenerationType"] | null;
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CursorPage_src.api.schemas.jobs.UnifiedJobResponse_"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1EventsSseTicketCreateSseTicket: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SSETicketResponse"] | unknown;
+                };
+            };
+        };
+    };
+    V1EventsStreamStream: {
+        parameters: {
+            query: {
+                ticket: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1GalleryJobIdGetGalleryDetail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GalleryGroupDetail"] | components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1GalleryListGallery: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursor?: string | null;
+                media_type?: components["schemas"]["OutputMediaType"] | null;
+                generation_type?: components["schemas"]["GenerationType"] | null;
+                model?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CursorPage_src.api.schemas.gallery.GalleryGridItem_"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1ContentContentIdDeleteContent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                content_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, nothing follows */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1ContentOutputsOutputIdProxyOutput: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                output_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1ContentUploadsImageIdProxyUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                image_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
 }
