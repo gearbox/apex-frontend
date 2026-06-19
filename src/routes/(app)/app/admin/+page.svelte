@@ -9,6 +9,7 @@
   import AdminPaymentsTab from '$lib/components/admin/AdminPaymentsTab.svelte';
   import AdminPricingTab from '$lib/components/admin/AdminPricingTab.svelte';
   import AdminManageTab from '$lib/components/admin/AdminManageTab.svelte';
+  import AppVersionBadge from '$lib/components/shared/AppVersionBadge.svelte';
 
   let activeTab = $state('users');
 
@@ -28,6 +29,8 @@
 </svelte:head>
 
 <div class="admin-page">
+  <AppVersionBadge />
+
   <AdminTabBar {activeTab} ontabchange={(id) => (activeTab = id)} showManageTab={$isSuperAdmin} />
 
   <div class="admin-content">
