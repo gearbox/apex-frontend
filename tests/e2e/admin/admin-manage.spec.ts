@@ -58,6 +58,19 @@ const adminProfile = {
   updated_at: '2025-01-01T00:00:00Z',
 };
 
+test('shows the build version badge above the admin tabs', async ({ authenticatedPage: page }) => {
+  await page.route('**/v1/users/me', jsonRoute(superadminProfile));
+  await page.route('**/v1/admin/manage/admins', jsonRoute(mockAdmins));
+  await page.route('**/v1/admin/manage/audit', jsonRoute(mockAuditLog));
+
+  await page.goto('/app/admin');
+  await page.waitForLoadState('networkidle');
+
+  const badge = page.getByTestId('app-version');
+  await expect(badge).toBeVisible();
+  await expect(badge).toHaveText(/^v\d+\.\d+\.\d+ · ([a-f0-9]{7}|dev)$/i);
+});
+
 test.describe('Admin Management Tab', () => {
   test('is not visible to regular admins', async ({ authenticatedPage: page }) => {
     // Override profile to admin (not superadmin)

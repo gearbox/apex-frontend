@@ -3,6 +3,7 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import tailwindcss from '@tailwindcss/vite';
 import { SvelteKitPWA } from '@vite-pwa/sveltekit';
 import { defineConfig } from 'vite';
+import { APP_VERSION, BUILD_SHA } from './build-meta.js';
 
 const productId = process.env.VITE_PRODUCT_ID || 'vex';
 
@@ -35,6 +36,10 @@ const productManifests: Record<
 const manifest = productManifests[productId] ?? productManifests.vex;
 
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(APP_VERSION),
+    __BUILD_SHA__: JSON.stringify(BUILD_SHA),
+  },
   build: {
     rollupOptions: {
       output: {
