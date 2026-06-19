@@ -22,8 +22,8 @@
       onclick={() => onchange(f.key)}
       class="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors
         {filter === f.key
-          ? 'bg-accent/15 text-accent'
-          : 'border border-border text-text-muted hover:text-text'}"
+        ? 'bg-accent/15 text-accent'
+        : 'border border-border text-text-muted hover:text-text'}"
     >
       {f.label}
     </button>

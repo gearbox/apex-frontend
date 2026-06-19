@@ -43,7 +43,14 @@
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
-<div class="modal-overlay" onclick={handleBackdropClick} role="dialog" tabindex="-1" aria-modal="true" aria-label="Edit user">
+<div
+  class="modal-overlay"
+  onclick={handleBackdropClick}
+  role="dialog"
+  tabindex="-1"
+  aria-modal="true"
+  aria-label="Edit user"
+>
   <div class="modal-card">
     <div class="modal-header">
       <h2 class="modal-title">Edit User</h2>
@@ -89,11 +96,7 @@
 
     <div class="modal-actions">
       <button class="btn-cancel" onclick={onclose}>Cancel</button>
-      <button
-        class="btn-save"
-        onclick={handleSave}
-        disabled={mutation.isPending}
-      >
+      <button class="btn-save" onclick={handleSave} disabled={mutation.isPending}>
         {mutation.isPending ? 'Saving…' : 'Save'}
       </button>
     </div>
@@ -150,7 +153,9 @@
     color: var(--apex-text-muted);
     cursor: pointer;
   }
-  .close-btn:hover { background: var(--apex-surface-hover); }
+  .close-btn:hover {
+    background: var(--apex-surface-hover);
+  }
 
   .modal-subtitle {
     font-size: 13px;
@@ -220,7 +225,9 @@
     font-family: inherit;
     transition: all 0.15s;
   }
-  .btn-cancel:hover { background: var(--apex-surface-hover); }
+  .btn-cancel:hover {
+    background: var(--apex-surface-hover);
+  }
 
   .btn-save {
     padding: 9px 20px;
@@ -234,5 +241,8 @@
     font-family: inherit;
     transition: opacity 0.15s;
   }
-  .btn-save:disabled { opacity: 0.6; cursor: not-allowed; }
+  .btn-save:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
 </style>

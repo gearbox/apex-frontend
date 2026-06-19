@@ -56,25 +56,14 @@
   }
 </script>
 
-<svelte:document
-  onclick={handleDocumentClick}
-  onkeydown={handleDocumentKeydown}
-/>
+<svelte:document onclick={handleDocumentClick} onkeydown={handleDocumentKeydown} />
 
-<div
-  oncontextmenu={handleContextMenu}
-  role="presentation"
->
+<div oncontextmenu={handleContextMenu} role="presentation">
   {@render children()}
 </div>
 
 {#if menuVisible && $isDesktop}
-  <div
-    bind:this={menuEl}
-    class="context-menu"
-    style="left: {menuX}px; top: {menuY}px;"
-    role="menu"
-  >
+  <div bind:this={menuEl} class="context-menu" style="left: {menuX}px; top: {menuY}px;" role="menu">
     {#each items as item (item.label)}
       <button
         class="context-menu-item {item.variant === 'danger' ? 'danger' : ''}"

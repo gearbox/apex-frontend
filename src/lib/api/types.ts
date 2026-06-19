@@ -947,7 +947,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/images/upload": {
+    "/v1/sessions/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetSession */
+        get: operations["V1SessionsSessionIdGetSession"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListSessions */
+        get: operations["V1SessionsListSessions"];
+        put?: never;
+        /** Start */
+        post: operations["V1SessionsStart"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/sessions/{session_id}/pause": {
         parameters: {
             query?: never;
             header?: never;
@@ -956,8 +991,59 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** UploadImage */
-        post: operations["V1ImagesUploadUploadImage"];
+        /** Pause */
+        post: operations["V1SessionsSessionIdPausePause"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/sessions/{session_id}/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Resume */
+        post: operations["V1SessionsSessionIdResumeResume"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/sessions/{session_id}/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Stop */
+        post: operations["V1SessionsSessionIdStopStop"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/internal/gpu-sessions/{session_id}/provisioning": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** ProvisioningCallback */
+        post: operations["V1InternalGpuSessionsSessionIdProvisioningProvisioningCallback"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1338,7 +1424,7 @@ export interface components {
             /** Format: uuid */
             id: string;
             email: string;
-            display_name?: string | null;
+            display_name: string | null;
             role: string;
             permissions: string[];
             is_active: boolean;
@@ -1352,11 +1438,11 @@ export interface components {
             /** Format: uuid */
             id: string;
             email: string;
-            display_name?: string | null;
+            display_name: string | null;
             role: string;
             subscription_tier: string;
             is_active: boolean;
-            email_verified_at?: string | null;
+            email_verified_at: string | null;
             /** Format: date-time */
             created_at: string;
             /** Format: date-time */
@@ -1393,7 +1479,7 @@ export interface components {
         };
         /** BillingAccountResponse */
         BillingAccountResponse: {
-            preferred_account?: string | null;
+            preferred_account: string | null;
             message: string;
         };
         /** CategoryHealthResponse */
@@ -1506,6 +1592,13 @@ export interface components {
             };
             gpu_sessions: components["schemas"]["GpuSessionHealthResponse"];
         };
+        /** DownloadProgressBody */
+        DownloadProgressBody: {
+            bytes_done: number;
+            bytes_total: number;
+            files_done: number;
+            files_total: number;
+        };
         /** ErrorEnvelope */
         ErrorEnvelope: {
             error: string;
@@ -1616,6 +1709,34 @@ export interface components {
             /** @default  */
             message: string;
         };
+        /** GpuSessionResponse */
+        GpuSessionResponse: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            user_id: string;
+            product_id: string;
+            status: string;
+            model_type: string;
+            bundle_name: string;
+            bundle_version: string | null;
+            tunnel_hostname: string | null;
+            vastai_gpu_name: string | null;
+            vastai_cost_per_hour_micros: number | null;
+            /** Format: date-time */
+            created_at: string;
+            started_at?: string | null;
+            paused_at?: string | null;
+            resumed_at?: string | null;
+            stopped_at?: string | null;
+            error_message?: string | null;
+            /** @default 0 */
+            in_flight_job_count: number;
+            provisioning_phase?: string | null;
+            provisioning_progress?: {
+                [key: string]: unknown;
+            } | null;
+        };
         /** GrantPermissionRequest */
         GrantPermissionRequest: {
             permission: components["schemas"]["AdminPermission"];
@@ -1645,6 +1766,11 @@ export interface components {
             max_height?: number | null;
             default_height?: number | null;
             output_resolutions?: string[] | null;
+            supported_tiers?: string[] | null;
+            default_tier?: string | null;
+            tier_megapixels?: {
+                [key: string]: number;
+            } | null;
         };
         /** ImageListItem */
         ImageListItem: {
@@ -1656,17 +1782,6 @@ export interface components {
             created_at: string;
             /** Format: date-time */
             expires_at: string;
-        };
-        /** ImageUploadResponse */
-        ImageUploadResponse: {
-            filename: string;
-            /** @default  */
-            subfolder: string;
-            /**
-             * @default input
-             * @enum {string}
-             */
-            type: "input" | "temp";
         };
         /** JobCreatedResponse */
         JobCreatedResponse: {
@@ -1691,6 +1806,7 @@ export interface components {
             format: string;
             size_bytes: number;
             output_index: number;
+            thumbnail_url?: string | null;
             /** @default false */
             is_thumbnail: boolean;
         };
@@ -1700,6 +1816,10 @@ export interface components {
          * @enum {string}
          */
         JobStatus: "pending" | "queued" | "running" | "completed" | "failed" | "cancelled" | "moderated";
+        /** ListSessionsResponse */
+        ListSessionsResponse: {
+            sessions: components["schemas"]["GpuSessionResponse"][];
+        };
         /** LivenessResponse */
         LivenessResponse: {
             status: string;
@@ -1734,8 +1854,11 @@ export interface components {
             max_prompt_length: number;
             supports_negative_prompt: boolean;
             aspect_ratios: string[];
+            /** @default false */
+            requires_age_verification: boolean;
             image?: components["schemas"]["ImageConstraints"] | null;
             video?: components["schemas"]["VideoConstraints"] | null;
+            session_state?: string | null;
         };
         /** ModelListResponse */
         ModelListResponse: {
@@ -1814,7 +1937,7 @@ export interface components {
             currency: string;
             /** Format: date-time */
             created_at: string;
-            completed_at?: string | null;
+            completed_at: string | null;
         };
         /** PricingRuleResponse */
         PricingRuleResponse: {
@@ -1822,13 +1945,13 @@ export interface components {
             id: string;
             provider: string;
             generation_type: string;
-            model?: string | null;
+            model: string | null;
             token_cost: number;
             is_active: boolean;
             /** Format: date-time */
             effective_from: string;
-            effective_until?: string | null;
-            notes?: string | null;
+            effective_until: string | null;
+            notes: string | null;
         };
         /** ProductInfoResponse */
         ProductInfoResponse: {
@@ -1839,17 +1962,38 @@ export interface components {
             content_rating: string;
             payment_providers: string[];
         };
+        /**
+         * Provider
+         * @description Generation provider.
+         * @enum {string}
+         */
+        Provider: "aisha" | "grok";
         /** ProviderInfo */
         ProviderInfo: {
             provider: string;
             name: string;
             available: boolean;
+            provisioning_mode: string;
             models: components["schemas"]["ModelInfo"][];
         };
         /** ProvidersResponse */
         ProvidersResponse: {
             providers: components["schemas"]["ProviderInfo"][];
             user_context?: components["schemas"]["UserContext"] | null;
+        };
+        /** ProvisioningCallbackBody */
+        ProvisioningCallbackBody: {
+            /** Format: uuid */
+            session_id: string;
+            phase: string;
+            /** @default  */
+            message: string;
+            download?: components["schemas"]["DownloadProgressBody"] | null;
+            /** @default 0 */
+            elapsed_seconds: number;
+            error?: string | null;
+            /** Format: date-time */
+            ts: string;
         };
         /** ReadinessResponse */
         ReadinessResponse: {
@@ -1873,10 +2017,28 @@ export interface components {
             token: string;
             new_password: string;
         };
+        /**
+         * Resolution
+         * @description Image quality tier (maps to a target megapixel budget; see core.resolution).
+         * @enum {string}
+         */
+        Resolution: "draft" | "standard" | "high" | "ultra";
         /** SSETicketResponse */
         SSETicketResponse: {
             ticket: string;
         };
+        /**
+         * Sampler
+         * @description ComfyUI sampler names (common subset).
+         * @enum {string}
+         */
+        Sampler: "euler" | "euler_ancestral" | "euler_cfg_pp" | "heun" | "dpm_2" | "dpm_2_ancestral" | "lms" | "dpmpp_2s_ancestral" | "dpmpp_sde" | "dpmpp_2m" | "dpmpp_2m_sde" | "dpmpp_3m_sde" | "ddim" | "uni_pc" | "uni_pc_bh2" | "lcm" | "res_multistep";
+        /**
+         * Scheduler
+         * @description ComfyUI scheduler names (common subset).
+         * @enum {string}
+         */
+        Scheduler: "normal" | "karras" | "exponential" | "sgm_uniform" | "simple" | "ddim_uniform" | "beta" | "linear_quadratic" | "kl_optimal";
         /** SetBillingAccountRequest */
         SetBillingAccountRequest: {
             account: components["schemas"]["AccountType"];
@@ -1884,6 +2046,29 @@ export interface components {
         /** SetModelEnabledRequest */
         SetModelEnabledRequest: {
             is_enabled: boolean;
+        };
+        /** StartSessionRequest */
+        StartSessionRequest: {
+            model: components["schemas"]["ModelType"];
+            bundle_override?: string | null;
+        };
+        /** StopConfirmationResponse */
+        StopConfirmationResponse: {
+            /** Format: uuid */
+            session_id: string;
+            model_type: string;
+            bundle_name: string;
+            vastai_gpu_name: string | null;
+            vastai_cost_per_hour_micros: number | null;
+            active_duration_seconds: number;
+            paused_duration_seconds: number;
+            estimated_final_tokens: number;
+            message: string;
+        };
+        /** StopSessionRequest */
+        StopSessionRequest: {
+            /** @default false */
+            confirmed: boolean;
         };
         /** StorageStatsResponse */
         StorageStatsResponse: {
@@ -1955,15 +2140,15 @@ export interface components {
             transaction_type: string;
             amount: number;
             balance_after: number;
-            description?: string | null;
+            description: string | null;
             metadata: {
                 [key: string]: unknown;
             };
-            job_id?: string | null;
-            payment_id?: string | null;
+            job_id: string | null;
+            payment_id: string | null;
             /** Format: date-time */
             created_at: string;
-            created_by?: string | null;
+            created_by: string | null;
         };
         /** UnifiedGenerationRequest */
         UnifiedGenerationRequest: {
@@ -1981,9 +2166,15 @@ export interface components {
             /** @default 5 */
             duration: number;
             resolution?: components["schemas"]["VideoResolution"];
+            image_resolution?: components["schemas"]["Resolution"] | null;
+            width?: number | null;
             height?: number | null;
             seed?: number | null;
             steps?: number | null;
+            cfg?: number | null;
+            sampler?: components["schemas"]["Sampler"] | null;
+            scheduler?: components["schemas"]["Scheduler"] | null;
+            denoise?: number | null;
         };
         /** UnifiedJobResponse */
         UnifiedJobResponse: {
@@ -2011,6 +2202,8 @@ export interface components {
             display_name?: string | null;
             email?: string | null;
             locale?: components["schemas"]["SupportedLocale"] | null;
+            age_confirmed?: boolean | null;
+            date_of_birth?: string | null;
         };
         /** UploadForm */
         UploadForm: {
@@ -2037,7 +2230,7 @@ export interface components {
         UserProfileResponse: {
             id: string;
             email: string;
-            display_name?: string | null;
+            display_name: string | null;
             subscription_tier: string;
             locale: string;
             role: string;
@@ -2046,6 +2239,9 @@ export interface components {
             created_at: string;
             /** Format: date-time */
             updated_at: string;
+            age_verified: boolean;
+            age_verified_at?: string | null;
+            date_of_birth?: string | null;
         };
         /**
          * UserRole
@@ -4222,7 +4418,81 @@ export interface operations {
             };
         };
     };
-    V1ImagesUploadUploadImage: {
+    V1SessionsSessionIdGetSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GpuSessionResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1SessionsListSessions: {
+        parameters: {
+            query?: {
+                include_terminal?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListSessionsResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1SessionsStart: {
         parameters: {
             query?: never;
             header?: never;
@@ -4231,10 +4501,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "multipart/form-data": {
-                    /** Format: binary */
-                    file?: string;
-                };
+                "application/json": components["schemas"]["StartSessionRequest"];
             };
         };
         responses: {
@@ -4244,7 +4511,165 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ImageUploadResponse"];
+                    "application/json": components["schemas"]["GpuSessionResponse"] | components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1SessionsSessionIdPausePause: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GpuSessionResponse"] | components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1SessionsSessionIdResumeResume: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GpuSessionResponse"] | components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1SessionsSessionIdStopStop: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StopSessionRequest"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GpuSessionResponse"] | components["schemas"]["StopConfirmationResponse"] | components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1InternalGpuSessionsSessionIdProvisioningProvisioningCallback: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProvisioningCallbackBody"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -4666,7 +5091,7 @@ export interface operations {
         parameters: {
             query?: {
                 status?: components["schemas"]["JobStatus"] | null;
-                provider?: string | null;
+                provider?: components["schemas"]["Provider"] | null;
                 generation_type?: components["schemas"]["GenerationType"] | null;
                 limit?: number;
                 cursor?: string | null;

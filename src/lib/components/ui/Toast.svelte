@@ -20,7 +20,9 @@
 </script>
 
 <div
-  class="flex items-start gap-3 rounded-xl border px-4 py-3 shadow-lg backdrop-blur-sm {colors[toast.type]}"
+  class="flex items-start gap-3 rounded-xl border px-4 py-3 shadow-lg backdrop-blur-sm {colors[
+    toast.type
+  ]}"
   style="background: color-mix(in srgb, var(--apex-surface) 90%, transparent);"
   role="alert"
 >
@@ -32,13 +34,16 @@
         <a
           href={toast.action.href}
           class="mt-0.5 block text-xs font-semibold underline"
-          onclick={() => removeToast(toast.id)}
-        >{toast.action.label}</a>
+          onclick={() => removeToast(toast.id)}>{toast.action.label}</a
+        >
       {:else}
         <button
           class="mt-0.5 text-xs font-semibold underline"
-          onclick={() => { toast.action?.onClick?.(); removeToast(toast.id); }}
-        >{toast.action.label}</button>
+          onclick={() => {
+            toast.action?.onClick?.();
+            removeToast(toast.id);
+          }}>{toast.action.label}</button
+        >
       {/if}
     {/if}
   </div>

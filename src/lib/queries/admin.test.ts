@@ -72,7 +72,10 @@ describe('adminKeys', () => {
 
   it('generates audit key with target_user_id', () => {
     expect(adminKeys.audit({ target_user_id: 'usr_001' })).toEqual([
-      'admin', 'manage', 'audit', { target_user_id: 'usr_001' },
+      'admin',
+      'manage',
+      'audit',
+      { target_user_id: 'usr_001' },
     ]);
   });
 });

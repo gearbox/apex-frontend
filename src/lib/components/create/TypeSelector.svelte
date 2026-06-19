@@ -45,8 +45,8 @@
         onclick={() => generationStore.setMode(modeOpt.value)}
         class="flex-1 rounded-lg border py-2 text-center text-xs font-medium transition-all
           {isActive
-            ? 'border-accent-dim bg-accent-glow text-accent'
-            : 'border-border text-text-muted hover:border-border-active hover:text-text'}"
+          ? 'border-accent-dim bg-accent-glow text-accent'
+          : 'border-border text-text-muted hover:border-border-active hover:text-text'}"
       >
         {modeOpt.label}
       </button>

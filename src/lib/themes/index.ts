@@ -136,10 +136,7 @@ export function applyThemeColors(el: HTMLElement, colors: ThemeColors): void {
 }
 
 /** Resolve which color variant to use given a mode and OS preference. */
-export function resolveVariant(
-  mode: ThemeMode,
-  systemPrefersDark: boolean,
-): 'light' | 'dark' {
+export function resolveVariant(mode: ThemeMode, systemPrefersDark: boolean): 'light' | 'dark' {
   if (mode === 'system') return systemPrefersDark ? 'dark' : 'light';
   return mode;
 }

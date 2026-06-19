@@ -62,13 +62,17 @@
     </div>
 
     {#if error}
-      <div class="mb-4 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+      <div
+        class="mb-4 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger"
+      >
         {error}
       </div>
     {/if}
 
     {#if ageGateMode === 'checkbox'}
-      <label class="flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-surface p-4">
+      <label
+        class="flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-surface p-4"
+      >
         <input type="checkbox" bind:checked class="mt-0.5 h-4 w-4 accent-accent" />
         <span class="text-sm text-text">{m.age_gate_checkbox_label()}</span>
       </label>

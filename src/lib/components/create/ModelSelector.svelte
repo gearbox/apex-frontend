@@ -17,7 +17,10 @@
 
   const availableModels = $derived(
     models.length > 0
-      ? models.filter((m) => m.is_enabled).map((m) => m.model_key).filter((m): m is ModelType => m in MODEL_META)
+      ? models
+          .filter((m) => m.is_enabled)
+          .map((m) => m.model_key)
+          .filter((m): m is ModelType => m in MODEL_META)
       : (['grok-imagine-image', 'grok-2-image-1212', 'aisha-image'] as ModelType[]),
   );
 </script>
@@ -32,8 +35,8 @@
         onclick={() => generationStore.setModel(modelId)}
         class="flex flex-1 flex-col items-center gap-1 rounded-2.5 border py-2.5 text-xs font-medium transition-all
           {isActive
-            ? 'border-accent-dim bg-accent-glow text-accent'
-            : 'border-border bg-surface text-text-muted hover:border-border-active hover:text-text'}"
+          ? 'border-accent-dim bg-accent-glow text-accent'
+          : 'border-border bg-surface text-text-muted hover:border-border-active hover:text-text'}"
       >
         <span class="text-base leading-none">{meta.icon}</span>
         <span>{meta.label}</span>

@@ -147,7 +147,9 @@
     padding: 16px;
   }
   @media (min-width: 768px) {
-    .tab-content { padding: 24px; }
+    .tab-content {
+      padding: 24px;
+    }
   }
 
   .filters {
@@ -157,7 +159,9 @@
     margin-bottom: 20px;
   }
   @media (min-width: 768px) {
-    .filters { flex-direction: row; }
+    .filters {
+      flex-direction: row;
+    }
   }
 
   .filter-select {
@@ -172,7 +176,11 @@
     max-width: 200px;
   }
 
-  .skeleton-list { display: flex; flex-direction: column; gap: 8px; }
+  .skeleton-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
   .skeleton-row {
     height: 48px;
     background: var(--apex-surface);
@@ -180,8 +188,13 @@
     animation: pulse 1.5s ease-in-out infinite;
   }
   @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
   }
 
   .empty-state {
@@ -203,8 +216,15 @@
     font-family: inherit;
   }
 
-  .table-wrap { display: none; overflow-x: auto; }
-  @media (min-width: 768px) { .table-wrap { display: block; } }
+  .table-wrap {
+    display: none;
+    overflow-x: auto;
+  }
+  @media (min-width: 768px) {
+    .table-wrap {
+      display: block;
+    }
+  }
 
   .data-table {
     width: 100%;
@@ -229,12 +249,28 @@
     vertical-align: middle;
   }
 
-  .mono { font-family: monospace; font-size: 12px; }
-  .date-cell { white-space: nowrap; font-size: 12px; }
-  .amount-cell { font-weight: 600; }
+  .mono {
+    font-family: monospace;
+    font-size: 12px;
+  }
+  .date-cell {
+    white-space: nowrap;
+    font-size: 12px;
+  }
+  .amount-cell {
+    font-weight: 600;
+  }
 
-  .card-list { display: flex; flex-direction: column; gap: 10px; }
-  @media (min-width: 768px) { .card-list { display: none; } }
+  .card-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  @media (min-width: 768px) {
+    .card-list {
+      display: none;
+    }
+  }
 
   .payment-card {
     background: var(--apex-surface);

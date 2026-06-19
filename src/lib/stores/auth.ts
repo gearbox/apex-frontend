@@ -62,7 +62,9 @@ export function setAuth(tokens: AuthTokens, profile: UserProfile): void {
   }
 }
 
-export function updateTokens(tokens: Omit<AuthTokens, 'refreshToken'> & { refreshToken: string }): void {
+export function updateTokens(
+  tokens: Omit<AuthTokens, 'refreshToken'> & { refreshToken: string },
+): void {
   accessToken = tokens.accessToken;
   if (isBrowser()) {
     localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, tokens.refreshToken);

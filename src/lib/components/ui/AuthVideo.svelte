@@ -43,10 +43,21 @@
   $effect(() => {
     if (src !== prevSrc) {
       prevSrc = src;
-      if (objectUrl) { URL.revokeObjectURL(objectUrl); objectUrl = null; }
-      if (posterObjectUrl) { URL.revokeObjectURL(posterObjectUrl); posterObjectUrl = null; }
-      loadWithAuth(src).then((u) => { objectUrl = u; });
-      if (posterSrc) loadWithAuth(posterSrc).then((u) => { posterObjectUrl = u; });
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+        objectUrl = null;
+      }
+      if (posterObjectUrl) {
+        URL.revokeObjectURL(posterObjectUrl);
+        posterObjectUrl = null;
+      }
+      loadWithAuth(src).then((u) => {
+        objectUrl = u;
+      });
+      if (posterSrc)
+        loadWithAuth(posterSrc).then((u) => {
+          posterObjectUrl = u;
+        });
     }
   });
 

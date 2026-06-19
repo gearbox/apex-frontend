@@ -94,10 +94,14 @@ test.describe('Admin Management Tab', () => {
     // Use :visible + exact regex to avoid substring matches (e.g. "admin" matching "superadmin")
     // and to avoid strict-mode violations from multiple rows in the list
     await expect(
-      page.locator('td.email-cell:visible, span.card-email:visible').filter({ hasText: /^superadmin@example\.com$/ })
+      page
+        .locator('td.email-cell:visible, span.card-email:visible')
+        .filter({ hasText: /^superadmin@example\.com$/ }),
     ).toBeVisible({ timeout: 5000 });
     await expect(
-      page.locator('td.email-cell:visible, span.card-email:visible').filter({ hasText: /^admin@example\.com$/ })
+      page
+        .locator('td.email-cell:visible, span.card-email:visible')
+        .filter({ hasText: /^admin@example\.com$/ }),
     ).toBeVisible();
   });
 
@@ -112,6 +116,8 @@ test.describe('Admin Management Tab', () => {
     await page.getByRole('tab', { name: 'Admins' }).click();
     await page.getByRole('button', { name: /add admin/i }).click();
 
-    await expect(page.getByRole('dialog', { name: /grant admin role/i })).toBeVisible({ timeout: 3000 });
+    await expect(page.getByRole('dialog', { name: /grant admin role/i })).toBeVisible({
+      timeout: 3000,
+    });
   });
 });

@@ -14,7 +14,13 @@
 {#if $moreSheetOpen}
   <div class="sheet-backdrop" onclick={closeMoreSheet} role="presentation">
     <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <div class="sheet-panel" onclick={(e) => e.stopPropagation()} role="dialog" aria-label="More navigation" tabindex="-1">
+    <div
+      class="sheet-panel"
+      onclick={(e) => e.stopPropagation()}
+      role="dialog"
+      aria-label="More navigation"
+      tabindex="-1"
+    >
       <!-- Handle bar -->
       <div class="sheet-handle"></div>
 
@@ -56,8 +62,12 @@
 
 <style>
   @keyframes slideUp {
-    from { transform: translateY(100%); }
-    to { transform: translateY(0); }
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: translateY(0);
+    }
   }
 
   .sheet-backdrop {
@@ -102,16 +112,27 @@
     text-decoration: none;
     text-align: left;
   }
-  .sheet-item-icon { color: var(--apex-text-muted); display: flex; flex-shrink: 0; }
-  .sheet-item-label { flex: 1; }
-  .sheet-item-chevron { color: var(--apex-text-dim); display: flex; }
+  .sheet-item-icon {
+    color: var(--apex-text-muted);
+    display: flex;
+    flex-shrink: 0;
+  }
+  .sheet-item-label {
+    flex: 1;
+  }
+  .sheet-item-chevron {
+    color: var(--apex-text-dim);
+    display: flex;
+  }
 
   .sheet-admin-divider {
     border-top: 1px solid var(--apex-border);
     margin: 4px 24px;
   }
 
-  .sheet-cancel-wrap { padding: 8px 24px 0; }
+  .sheet-cancel-wrap {
+    padding: 8px 24px 0;
+  }
   .sheet-cancel {
     width: 100%;
     padding: 12px 0;

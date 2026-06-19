@@ -9,8 +9,12 @@
 
 <div class="flex flex-col gap-2">
   <div class="flex items-baseline justify-between">
-    <span class="text-[11px] font-semibold uppercase tracking-wider text-text-muted">{m.create_prompt_label()}</span>
-    <span class="font-mono text-[11px] {nearLimit ? 'text-warning' : 'text-text-dim'}">{charCount}/{MAX_PROMPT_LENGTH}</span>
+    <span class="text-[11px] font-semibold uppercase tracking-wider text-text-muted"
+      >{m.create_prompt_label()}</span
+    >
+    <span class="font-mono text-[11px] {nearLimit ? 'text-warning' : 'text-text-dim'}"
+      >{charCount}/{MAX_PROMPT_LENGTH}</span
+    >
   </div>
   <textarea
     value={$generationStore.prompt}

@@ -24,7 +24,8 @@
 </script>
 
 <div class="flex flex-col gap-2">
-  <span class="text-[11px] font-semibold uppercase tracking-wider text-text-muted">Aspect Ratio</span
+  <span class="text-[11px] font-semibold uppercase tracking-wider text-text-muted"
+    >Aspect Ratio</span
   >
   <div class="flex gap-1 overflow-x-auto">
     {#each RATIOS as ratio (ratio)}

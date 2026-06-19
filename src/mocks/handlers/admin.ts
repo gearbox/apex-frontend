@@ -40,9 +40,7 @@ export const adminHandlers = [
 
   // User account
   http.get(`${BASE}/v1/admin/users/:userId/account`, ({ params }) =>
-    HttpResponse.json(
-      makeBalanceResponse({ account_id: `acc_${params.userId}` }),
-    ),
+    HttpResponse.json(makeBalanceResponse({ account_id: `acc_${params.userId}` })),
   ),
 
   // List organizations
@@ -58,9 +56,7 @@ export const adminHandlers = [
 
   // Org account
   http.get(`${BASE}/v1/admin/organizations/:orgId/account`, ({ params }) =>
-    HttpResponse.json(
-      makeBalanceResponse({ account_id: `acc_${params.orgId}` }),
-    ),
+    HttpResponse.json(makeBalanceResponse({ account_id: `acc_${params.orgId}` })),
   ),
 
   // List models
@@ -239,38 +235,42 @@ export const adminHandlers = [
 ];
 
 // Named override handlers for negative-path tests
-export const adminUserPatchFailHandler = http.patch(
-  `${BASE}/v1/admin/users/:userId`,
-  () => HttpResponse.json({ error: 'Forbidden' }, { status: 403 }),
+export const adminUserPatchFailHandler = http.patch(`${BASE}/v1/admin/users/:userId`, () =>
+  HttpResponse.json({ error: 'Forbidden' }, { status: 403 }),
 );
 
-export const adminAdjustFailHandler = http.post(
-  `${BASE}/v1/admin/accounts/:accountId/adjust`,
-  () => HttpResponse.json({ error: 'Bad Request' }, { status: 400 }),
+export const adminAdjustFailHandler = http.post(`${BASE}/v1/admin/accounts/:accountId/adjust`, () =>
+  HttpResponse.json({ error: 'Bad Request' }, { status: 400 }),
 );
 
-export const adminPricingCreateFailHandler = http.post(
-  `${BASE}/v1/admin/pricing`,
-  () => HttpResponse.json({ error: 'Forbidden', message: 'Insufficient permissions', status_code: 403 }, { status: 403 }),
-);
-
-export const adminPricingDeleteFailHandler = http.delete(
-  `${BASE}/v1/admin/pricing/:ruleId`,
-  () => HttpResponse.json({ error: 'not_found', message: 'Pricing rule not found', status_code: 404 }, { status: 404 }),
-);
-
-export const adminGrantRoleSelfHandler = http.post(
-  `${BASE}/v1/admin/manage/roles/:userId/grant`,
-  () => HttpResponse.json(
-    { error: 'self_modification', message: 'Cannot modify own role', status_code: 403 },
+export const adminPricingCreateFailHandler = http.post(`${BASE}/v1/admin/pricing`, () =>
+  HttpResponse.json(
+    { error: 'Forbidden', message: 'Insufficient permissions', status_code: 403 },
     { status: 403 },
   ),
 );
 
+export const adminPricingDeleteFailHandler = http.delete(`${BASE}/v1/admin/pricing/:ruleId`, () =>
+  HttpResponse.json(
+    { error: 'not_found', message: 'Pricing rule not found', status_code: 404 },
+    { status: 404 },
+  ),
+);
+
+export const adminGrantRoleSelfHandler = http.post(
+  `${BASE}/v1/admin/manage/roles/:userId/grant`,
+  () =>
+    HttpResponse.json(
+      { error: 'self_modification', message: 'Cannot modify own role', status_code: 403 },
+      { status: 403 },
+    ),
+);
+
 export const adminRevokeLastSuperadminHandler = http.post(
   `${BASE}/v1/admin/manage/roles/:userId/revoke`,
-  () => HttpResponse.json(
-    { error: 'last_superadmin', message: 'Cannot revoke the last superadmin', status_code: 400 },
-    { status: 400 },
-  ),
+  () =>
+    HttpResponse.json(
+      { error: 'last_superadmin', message: 'Cannot revoke the last superadmin', status_code: 400 },
+      { status: 400 },
+    ),
 );

@@ -77,7 +77,8 @@
         addToast({ type: 'success', message: `billing_adjust granted to ${admin.email}.` });
       }
     } catch (e) {
-      const msg = e instanceof ApiRequestError && e.message ? e.message : 'Failed to update permission.';
+      const msg =
+        e instanceof ApiRequestError && e.message ? e.message : 'Failed to update permission.';
       addToast({ type: 'error', message: msg });
     }
   }
@@ -178,7 +179,9 @@
                         class="action-btn perm"
                         class:active={admin.permissions.includes('billing_adjust')}
                         onclick={() => toggleBillingAdjust(admin)}
-                        title={admin.permissions.includes('billing_adjust') ? 'Revoke billing_adjust' : 'Grant billing_adjust'}
+                        title={admin.permissions.includes('billing_adjust')
+                          ? 'Revoke billing_adjust'
+                          : 'Grant billing_adjust'}
                       >
                         billing_adjust
                       </button>
@@ -392,7 +395,9 @@
     transition: opacity 0.15s;
     flex-shrink: 0;
   }
-  .btn-add:hover { opacity: 0.85; }
+  .btn-add:hover {
+    opacity: 0.85;
+  }
 
   /* Skeleton */
   .skeleton-list {
@@ -409,8 +414,13 @@
   }
 
   @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
   }
 
   /* Empty / error */
@@ -442,7 +452,9 @@
   }
 
   @media (min-width: 768px) {
-    .table-wrap { display: block; }
+    .table-wrap {
+      display: block;
+    }
   }
 
   .data-table {
@@ -503,7 +515,9 @@
   }
 
   @media (min-width: 768px) {
-    .card-list { display: none; }
+    .card-list {
+      display: none;
+    }
   }
 
   .admin-card {

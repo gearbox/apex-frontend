@@ -147,15 +147,15 @@
                     class="icon-btn"
                     onclick={() => !isSelf && !isSuperadminTarget && (editingUser = user)}
                     disabled={isSelf || isSuperadminTarget}
-                    title={isSelf ? 'Cannot edit own account' : isSuperadminTarget ? 'Use Admins tab to manage superadmins' : 'Edit user'}
+                    title={isSelf
+                      ? 'Cannot edit own account'
+                      : isSuperadminTarget
+                        ? 'Use Admins tab to manage superadmins'
+                        : 'Edit user'}
                   >
                     <Pencil size={15} />
                   </button>
-                  <button
-                    class="icon-btn"
-                    onclick={() => openAdjust(user)}
-                    title="Adjust balance"
-                  >
+                  <button class="icon-btn" onclick={() => openAdjust(user)} title="Adjust balance">
                     <Wallet size={15} />
                   </button>
                 </td>
@@ -185,7 +185,11 @@
                 class="icon-btn"
                 onclick={() => !isSelf && !isSuperadminTarget && (editingUser = user)}
                 disabled={isSelf || isSuperadminTarget}
-                title={isSelf ? 'Cannot edit own account' : isSuperadminTarget ? 'Use Admins tab to manage superadmins' : 'Edit'}
+                title={isSelf
+                  ? 'Cannot edit own account'
+                  : isSuperadminTarget
+                    ? 'Use Admins tab to manage superadmins'
+                    : 'Edit'}
               >
                 <Pencil size={15} />
               </button>
@@ -208,11 +212,7 @@
 </div>
 
 {#if editingUser}
-  <EditUserModal
-    user={editingUser}
-    {queryClient}
-    onclose={() => (editingUser = null)}
-  />
+  <EditUserModal user={editingUser} {queryClient} onclose={() => (editingUser = null)} />
 {/if}
 
 {#if adjustAccountId}
@@ -285,8 +285,13 @@
   }
 
   @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
   }
 
   /* Empty / Error */

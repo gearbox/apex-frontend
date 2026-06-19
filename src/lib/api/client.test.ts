@@ -77,7 +77,12 @@ describe('auth middleware', () => {
 
     const hrefSetter = vi.fn();
     Object.defineProperty(window, 'location', {
-      value: { ...window.location, set href(v: string) { hrefSetter(v); } },
+      value: {
+        ...window.location,
+        set href(v: string) {
+          hrefSetter(v);
+        },
+      },
       writable: true,
     });
 

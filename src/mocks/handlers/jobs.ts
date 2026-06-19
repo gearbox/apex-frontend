@@ -11,6 +11,7 @@ export const jobHandlers = [
           provider: 'grok',
           name: 'xAI Grok',
           available: true,
+          provisioning_mode: 'always_on',
           models: [
             {
               model_key: 'grok-imagine-image',
@@ -57,6 +58,7 @@ export const jobHandlers = [
           provider: 'aisha',
           name: 'Aisha',
           available: true,
+          provisioning_mode: 'on_demand',
           models: [
             {
               model_key: 'aisha-image',
@@ -88,7 +90,12 @@ export const jobHandlers = [
 
   // Job list
   http.get(`${BASE}/v1/jobs`, () =>
-    HttpResponse.json({ items: [makeUnifiedJobResponse()], total: 1, limit: 20, offset: 0 }),
+    HttpResponse.json({
+      items: [makeUnifiedJobResponse()],
+      limit: 20,
+      has_more: false,
+      next_cursor: null,
+    }),
   ),
 
   // Job delete
@@ -100,7 +107,6 @@ export const jobNotFoundHandler = http.get(
   () => new HttpResponse(null, { status: 404 }),
 );
 
-export const jobDeleteFailHandler = http.delete(
-  `${BASE}/v1/jobs/:job_id`,
-  () => HttpResponse.json({ status_code: 500, detail: 'Internal error' }, { status: 500 }),
+export const jobDeleteFailHandler = http.delete(`${BASE}/v1/jobs/:job_id`, () =>
+  HttpResponse.json({ status_code: 500, detail: 'Internal error' }, { status: 500 }),
 );

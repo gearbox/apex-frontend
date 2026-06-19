@@ -10,18 +10,18 @@ The app lets users generate AI images/videos, browse their gallery, manage token
 
 ## Tech Stack
 
-| Layer | Choice | Notes |
-|-------|--------|-------|
-| Framework | SvelteKit 2.x | Static adapter (`@sveltejs/adapter-static`) |
-| Language | TypeScript | Strict mode, no `any` |
-| Styling | Tailwind CSS 4.x | Utility-first, theme via CSS variables |
-| State | Svelte stores + `@tanstack/svelte-query` | Server-state cache with auto revalidation |
-| API Client | `openapi-fetch` | Type-safe, generated from backend OpenAPI schema |
-| PWA | `@vite-pwa/sveltekit` | Service worker, manifest, offline caching |
-| Icons | `lucide-svelte` | Tree-shakeable SVG icons |
-| Package Manager | pnpm | Lockfile committed |
-| Linting | ESLint + Prettier + `eslint-plugin-svelte` | Enforced in CI |
-| Hosting | Cloudflare Pages | Pure static, no server functions needed |
+| Layer           | Choice                                     | Notes                                            |
+| --------------- | ------------------------------------------ | ------------------------------------------------ |
+| Framework       | SvelteKit 2.x                              | Static adapter (`@sveltejs/adapter-static`)      |
+| Language        | TypeScript                                 | Strict mode, no `any`                            |
+| Styling         | Tailwind CSS 4.x                           | Utility-first, theme via CSS variables           |
+| State           | Svelte stores + `@tanstack/svelte-query`   | Server-state cache with auto revalidation        |
+| API Client      | `openapi-fetch`                            | Type-safe, generated from backend OpenAPI schema |
+| PWA             | `@vite-pwa/sveltekit`                      | Service worker, manifest, offline caching        |
+| Icons           | `lucide-svelte`                            | Tree-shakeable SVG icons                         |
+| Package Manager | pnpm                                       | Lockfile committed                               |
+| Linting         | ESLint + Prettier + `eslint-plugin-svelte` | Enforced in CI                                   |
+| Hosting         | Cloudflare Pages                           | Pure static, no server functions needed          |
 
 ---
 
@@ -164,16 +164,17 @@ Routes (Pages)  →  Components (UI)  →  Stores (State)  →  API Client (Netw
 
 ### Two Named Themes × Light/Dark Variants
 
-| Theme | Light accent | Dark accent | Vibe |
-|-------|-------------|-------------|------|
-| **Slate** | `#b45309` (amber) | `#d97706` (amber) | Warm earth tones |
-| **Frost** | `#6366f1` (indigo) | `#818cf8` (indigo) | Cool blue tones |
+| Theme     | Light accent       | Dark accent        | Vibe             |
+| --------- | ------------------ | ------------------ | ---------------- |
+| **Slate** | `#b45309` (amber)  | `#d97706` (amber)  | Warm earth tones |
+| **Frost** | `#6366f1` (indigo) | `#818cf8` (indigo) | Cool blue tones  |
 
 Each theme defines 14 color tokens: `bg`, `surface`, `surfaceHover`, `border`, `borderActive`, `text`, `textMuted`, `textDim`, `accent`, `accentDim`, `accentGlow`, `success`, `warning`, `danger`.
 
 ### Storage
 
 Persisted in `localStorage` key `apex-theme-prefs`:
+
 ```json
 { "theme": "slate", "mode": "dark" }
 ```
@@ -194,9 +195,9 @@ Colors are applied as CSS custom properties on `<body>`. Tailwind references the
 
 ### Breakpoints
 
-| Width | Layout |
-|-------|--------|
-| `< 768px` | Mobile: bottom tab bar + full-width content |
+| Width     | Layout                                             |
+| --------- | -------------------------------------------------- |
+| `< 768px` | Mobile: bottom tab bar + full-width content        |
 | `≥ 768px` | Desktop: collapsible sidebar + side-by-side panels |
 
 Retina devices report CSS logical pixels (iPhone 15 Pro = 393px → hits mobile layout).
@@ -204,9 +205,11 @@ Retina devices report CSS logical pixels (iPhone 15 Pro = 393px → hits mobile 
 ### Mobile Navigation
 
 **Bottom tab bar** — 3 items (extensible `TAB_ITEMS` array):
+
 - Create, Gallery, More
 
 **"More" bottom sheet** — secondary items (extensible `MORE_ITEMS` array):
+
 - Billing & Tokens, Job History, Profile & Settings
 
 Includes `env(safe-area-inset-bottom)` for iPhone home indicator.
@@ -237,6 +240,7 @@ Collapsible: 220px expanded ↔ 60px icon-only. All nav items visible. Collapse 
 ### Auth Guard
 
 `(app)/+layout.svelte` checks auth on mount:
+
 1. Has access token? → proceed
 2. Has refresh token in localStorage? → attempt silent refresh
 3. Neither? → redirect to `/login`
@@ -273,10 +277,10 @@ The gallery uses purpose-built endpoints, not the jobs list. Data source changed
 
 ### Endpoints
 
-| Endpoint | Returns | Used by |
-|----------|---------|---------|
-| `GET /v1/gallery` | `CursorPage<GalleryGridItem>` | Gallery page (infinite scroll) |
-| `GET /v1/gallery/{job_id}` | `GalleryGroupDetail` | Lightbox (detail view) |
+| Endpoint                   | Returns                       | Used by                        |
+| -------------------------- | ----------------------------- | ------------------------------ |
+| `GET /v1/gallery`          | `CursorPage<GalleryGridItem>` | Gallery page (infinite scroll) |
+| `GET /v1/gallery/{job_id}` | `GalleryGroupDetail`          | Lightbox (detail view)         |
 
 ### Key Schema Types
 
@@ -313,7 +317,7 @@ Users can re-use a generated image as the source for a new I2I generation via tw
 
 The Lightbox metadata panel has a single accent-styled **Re-Generate** button (replaces the old separate Remix + Re-generate pair). Clicking it calls `handleRemix`, which:
 
-- **Image outputs**: calls `generationStore.prefill(...)` with the original prompt, model, aspect ratio, and negative prompt in `i2i` mode, then calls `generationStore.setSourceOutputId(output.id, output.url)` *after* prefill (prefill would otherwise reset image source fields). Navigates to `/app/create` with the image pre-loaded in I2I mode.
+- **Image outputs**: calls `generationStore.prefill(...)` with the original prompt, model, aspect ratio, and negative prompt in `i2i` mode, then calls `generationStore.setSourceOutputId(output.id, output.url)` _after_ prefill (prefill would otherwise reset image source fields). Navigates to `/app/create` with the image pre-loaded in I2I mode.
 - **Video outputs**: falls back to `handleRegenerate` — copies prompt + model only and navigates to `/app/create` in T2I mode.
 
 The button is always visible regardless of output type.
@@ -321,6 +325,7 @@ The button is always visible regardless of output type.
 ### ResultsPanel — "Use as I2I input" Hover Action
 
 Each image output thumbnail in the ResultsPanel has a third hover action button (Repeat2 icon) that:
+
 1. Calls `generationStore.setMode('i2i')`
 2. Calls `generationStore.setSourceOutputId(output.id, output.url)`
 
@@ -356,12 +361,12 @@ A single `deleteContentMutationOptions(queryClient)` in `src/lib/queries/gallery
 
 ### UX Entry Points
 
-| Surface | Interaction | Scope |
-|---------|-------------|-------|
-| **Gallery Card** (mobile) | Swipe left → red "Delete" action | Single-output jobs: confirm dialog; multi-output: opens Lightbox |
-| **Gallery Card** (desktop) | Right-click context menu | Same as above |
-| **Lightbox** metadata panel | Trash icon button next to Re-Generate | Deletes currently viewed output |
-| **Image Picker** uploads tab | Hover trash icon (desktop) / long-press 500ms (mobile) | Deletes the upload |
+| Surface                      | Interaction                                            | Scope                                                            |
+| ---------------------------- | ------------------------------------------------------ | ---------------------------------------------------------------- |
+| **Gallery Card** (mobile)    | Swipe left → red "Delete" action                       | Single-output jobs: confirm dialog; multi-output: opens Lightbox |
+| **Gallery Card** (desktop)   | Right-click context menu                               | Same as above                                                    |
+| **Lightbox** metadata panel  | Trash icon button next to Re-Generate                  | Deletes currently viewed output                                  |
+| **Image Picker** uploads tab | Hover trash icon (desktop) / long-press 500ms (mobile) | Deletes the upload                                               |
 
 ### Shared Components
 
@@ -381,9 +386,9 @@ Triggered from `ImageUpload.svelte` via a **"Choose from library"** button shown
 
 ### Tabs
 
-| Tab | Endpoint | Key field |
-|-----|----------|-----------|
-| **Uploads** | `GET /v1/storage/uploads` | `id` → `input_image_id` |
+| Tab           | Endpoint                           | Key field                            |
+| ------------- | ---------------------------------- | ------------------------------------ |
+| **Uploads**   | `GET /v1/storage/uploads`          | `id` → `input_image_id`              |
 | **Generated** | `GET /v1/gallery?media_type=image` | image output ID → `source_output_id` |
 
 ### Generated Tab — i2i vs t2i distinction
@@ -404,10 +409,10 @@ The picker emits an `ImagePickerSelection` (`source: 'upload' | 'output'`, `id`,
 
 ### Store Fields (GenerationState)
 
-| Field | Type | Purpose |
-|-------|------|---------|
-| `uploadedImageId` | `string \| null` | maps to `input_image_id` in the API request |
-| `sourceOutputId` | `string \| null` | maps to `source_output_id` in the API request |
+| Field                     | Type             | Purpose                                           |
+| ------------------------- | ---------------- | ------------------------------------------------- |
+| `uploadedImageId`         | `string \| null` | maps to `input_image_id` in the API request       |
+| `sourceOutputId`          | `string \| null` | maps to `source_output_id` in the API request     |
 | `selectedImagePreviewUrl` | `string \| null` | content proxy URL used for picker preview display |
 
 ### Query Layer
@@ -435,16 +440,17 @@ Connection states: disconnected → connecting → connected
 
 ### Event Flow
 
-| SSE Event | Store Update | Query Cache Action |
-|-----------|-------------|-------------------|
-| `job.status_changed` | `generationStore`, `activeJobStore` | Optimistic `setQueryData` on detail, `invalidateQueries` on terminal |
-| `job.progress` | `generationStore.setProgress()` | — |
-| `balance.updated` | — | Optimistic `setQueryData(['balance'])`, `invalidateQueries(['transactions'])` |
-| `system.notification` | `notifications` store | — |
+| SSE Event             | Store Update                        | Query Cache Action                                                            |
+| --------------------- | ----------------------------------- | ----------------------------------------------------------------------------- |
+| `job.status_changed`  | `generationStore`, `activeJobStore` | Optimistic `setQueryData` on detail, `invalidateQueries` on terminal          |
+| `job.progress`        | `generationStore.setProgress()`     | —                                                                             |
+| `balance.updated`     | —                                   | Optimistic `setQueryData(['balance'])`, `invalidateQueries(['transactions'])` |
+| `system.notification` | `notifications` store               | —                                                                             |
 
 ### Fallback Behavior
 
 When SSE is unavailable or fails:
+
 - `BalancePill` resumes 30s polling
 - Jobs page resumes 5s polling for active jobs
 - `createJobPoller` continues as before
@@ -452,13 +458,13 @@ When SSE is unavailable or fails:
 
 ### Key Files
 
-| File | Purpose |
-|------|---------|
-| `src/lib/api/events.ts` | SSE payload types + type guards |
-| `src/lib/services/eventStream.ts` | SSE connection service |
-| `src/lib/stores/eventStream.ts` | Connection status store |
-| `src/lib/stores/notifications.ts` | System notification store |
-| `src/lib/components/ui/SystemBanner.svelte` | Notification banner UI |
+| File                                        | Purpose                         |
+| ------------------------------------------- | ------------------------------- |
+| `src/lib/api/events.ts`                     | SSE payload types + type guards |
+| `src/lib/services/eventStream.ts`           | SSE connection service          |
+| `src/lib/stores/eventStream.ts`             | Connection status store         |
+| `src/lib/stores/notifications.ts`           | System notification store       |
+| `src/lib/components/ui/SystemBanner.svelte` | Notification banner UI          |
 
 ---
 
@@ -513,11 +519,11 @@ VITE_API_BASE_URL=https://api.apex.example.com
 
 ### Frameworks
 
-| Layer | Tool | Command |
-|-------|------|---------|
-| Unit + component | Vitest + `@testing-library/svelte` | `pnpm test:unit` |
-| API mocking | MSW (Mock Service Worker) | (used inside Vitest & E2E) |
-| E2E | Playwright | `pnpm test:e2e` |
+| Layer            | Tool                               | Command                    |
+| ---------------- | ---------------------------------- | -------------------------- |
+| Unit + component | Vitest + `@testing-library/svelte` | `pnpm test:unit`           |
+| API mocking      | MSW (Mock Service Worker)          | (used inside Vitest & E2E) |
+| E2E              | Playwright                         | `pnpm test:e2e`            |
 
 ### Rules — Non-Negotiable
 
@@ -564,12 +570,12 @@ pnpm test:all           # Unit + E2E (use before pushing)
 
 ### Coverage Targets
 
-| Area | Target |
-|------|--------|
-| Auth store (`src/lib/stores/auth.ts`) | 100% |
-| API auth functions (`src/lib/api/auth.ts`) | 100% |
-| API client middleware (`src/lib/api/client.ts`) | 100% |
-| Critical E2E journeys | login, auth guard, token refresh, generate, gallery |
+| Area                                            | Target                                              |
+| ----------------------------------------------- | --------------------------------------------------- |
+| Auth store (`src/lib/stores/auth.ts`)           | 100%                                                |
+| API auth functions (`src/lib/api/auth.ts`)      | 100%                                                |
+| API client middleware (`src/lib/api/client.ts`) | 100%                                                |
+| Critical E2E journeys                           | login, auth guard, token refresh, generate, gallery |
 
 ---
 

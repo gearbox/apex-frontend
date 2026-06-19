@@ -16,7 +16,8 @@ export function lookupCost(
 ): number {
   // Most specific match first: provider + model + generation_type
   const specific = pricing.find(
-    (r) => r.is_active && r.provider === provider && r.model === model && r.generation_type === mode,
+    (r) =>
+      r.is_active && r.provider === provider && r.model === model && r.generation_type === mode,
   );
   if (specific) return specific.token_cost;
 

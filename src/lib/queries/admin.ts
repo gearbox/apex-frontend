@@ -114,7 +114,11 @@ export function accountBalanceQueryOptions(accountId: string) {
 export function accountTransactionsQueryOptions(accountId: string, params?: object) {
   return {
     queryKey: adminKeys.accountTransactions(accountId, params),
-    queryFn: () => fetchAccountTransactions(accountId, params as { limit?: number; offset?: number; type?: string }),
+    queryFn: () =>
+      fetchAccountTransactions(
+        accountId,
+        params as { limit?: number; offset?: number; type?: string },
+      ),
     staleTime: 30_000,
   };
 }
@@ -123,8 +127,13 @@ export function accountTransactionsQueryOptions(accountId: string, params?: obje
 
 export function patchAdminUserMutationOptions(queryClient: QueryClient) {
   return {
-    mutationFn: ({ userId, body }: { userId: string; body: { role?: string; subscription_tier?: string; is_active?: boolean } }) =>
-      patchAdminUser(userId, body),
+    mutationFn: ({
+      userId,
+      body,
+    }: {
+      userId: string;
+      body: { role?: string; subscription_tier?: string; is_active?: boolean };
+    }) => patchAdminUser(userId, body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: adminKeys.users() });
     },
@@ -182,10 +191,7 @@ export function deletePricingRuleMutationOptions(queryClient: QueryClient) {
   };
 }
 
-export function adjustBalanceMutationOptions(
-  queryClient: QueryClient,
-  accountId: string,
-) {
+export function adjustBalanceMutationOptions(queryClient: QueryClient, accountId: string) {
   return {
     mutationFn: (body: { amount: number; description: string }) =>
       adjustAccountBalance(accountId, body, generateIdempotencyKey()),

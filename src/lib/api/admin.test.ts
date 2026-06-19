@@ -229,8 +229,18 @@ describe('fetchAdminPricing()', () => {
     server.use(
       http.get(`${BASE}/v1/admin/pricing`, () =>
         HttpResponse.json([
-          makePricingRule({ id: 'rule_001', provider: 'grok', generation_type: 't2i', token_cost: 10 }),
-          makePricingRule({ id: 'rule_002', generation_type: 't2v', token_cost: 50, is_active: false }),
+          makePricingRule({
+            id: 'rule_001',
+            provider: 'grok',
+            generation_type: 't2i',
+            token_cost: 10,
+          }),
+          makePricingRule({
+            id: 'rule_002',
+            generation_type: 't2v',
+            token_cost: 50,
+            is_active: false,
+          }),
         ]),
       ),
     );
@@ -366,10 +376,14 @@ describe('adjustAccountBalance()', () => {
         });
       }),
     );
-    const result = await adjustAccountBalance('acc_001', {
-      amount: 100,
-      description: 'Test credit',
-    }, 'test-idem-key');
+    const result = await adjustAccountBalance(
+      'acc_001',
+      {
+        amount: 100,
+        description: 'Test credit',
+      },
+      'test-idem-key',
+    );
     expect(result).toHaveProperty('new_balance');
     expect(result).toHaveProperty('transaction');
   });
@@ -497,7 +511,11 @@ describe('revokeRole()', () => {
     server.use(
       http.post(`${BASE}/v1/admin/manage/roles/:userId/revoke`, () =>
         HttpResponse.json(
-          { error: 'last_superadmin', message: 'Cannot revoke the last superadmin', status_code: 400 },
+          {
+            error: 'last_superadmin',
+            message: 'Cannot revoke the last superadmin',
+            status_code: 400,
+          },
           { status: 400 },
         ),
       ),

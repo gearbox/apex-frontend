@@ -38,10 +38,7 @@
   <!-- Filter -->
   <div class="filters">
     <label class="filter-toggle">
-      <input
-        type="checkbox"
-        bind:checked={enabledOnly}
-      />
+      <input type="checkbox" bind:checked={enabledOnly} />
       <span>Enabled only</span>
     </label>
   </div>
@@ -96,7 +93,9 @@
     padding: 16px;
   }
   @media (min-width: 768px) {
-    .tab-content { padding: 24px; }
+    .tab-content {
+      padding: 24px;
+    }
   }
 
   .filters {
@@ -134,8 +133,13 @@
     animation: pulse 1.5s ease-in-out infinite;
   }
   @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
   }
 
   .empty-state {

@@ -62,7 +62,9 @@
       {/if}
 
       {#if $loginRateLimit?.remaining !== undefined && $loginRateLimit.remaining <= 3}
-        <div class="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning">
+        <div
+          class="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning"
+        >
           {m.auth_login_attempts_remaining({ remaining: $loginRateLimit.remaining })}
         </div>
       {/if}
@@ -108,7 +110,9 @@
 
     <p class="mt-6 text-center text-sm text-text-muted">
       {m.auth_login_no_account()}
-      <a href="/register" class="font-medium text-accent hover:underline">{m.auth_login_register()}</a>
+      <a href="/register" class="font-medium text-accent hover:underline"
+        >{m.auth_login_register()}</a
+      >
     </p>
   </div>
 </div>

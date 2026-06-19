@@ -79,11 +79,7 @@
 
     <div class="modal-actions">
       <button class="btn-cancel" onclick={onclose}>{m.common_cancel()}</button>
-      <button
-        class="btn-delete"
-        onclick={handleSubmit}
-        disabled={!canSubmit}
-      >
+      <button class="btn-delete" onclick={handleSubmit} disabled={!canSubmit}>
         {mutation.isPending ? m.profile_delete_deleting() : m.profile_delete_submit()}
       </button>
     </div>
@@ -147,7 +143,9 @@
     color: var(--apex-text-muted);
     cursor: pointer;
   }
-  .close-btn:hover { background: var(--apex-surface-hover); }
+  .close-btn:hover {
+    background: var(--apex-surface-hover);
+  }
 
   .confirm-text {
     font-size: 14px;
@@ -182,7 +180,9 @@
     outline: none;
     transition: border-color 0.15s;
   }
-  .field-input:focus { border-color: var(--apex-border-active); }
+  .field-input:focus {
+    border-color: var(--apex-border-active);
+  }
 
   .error-msg {
     font-size: 13px;
@@ -211,7 +211,9 @@
     font-family: inherit;
     transition: all 0.15s;
   }
-  .btn-cancel:hover { background: var(--apex-surface-hover); }
+  .btn-cancel:hover {
+    background: var(--apex-surface-hover);
+  }
 
   .btn-delete {
     padding: 9px 20px;
@@ -225,5 +227,8 @@
     font-family: inherit;
     transition: opacity 0.15s;
   }
-  .btn-delete:disabled { opacity: 0.6; cursor: not-allowed; }
+  .btn-delete:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
 </style>

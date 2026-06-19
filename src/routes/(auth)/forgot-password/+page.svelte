@@ -44,7 +44,9 @@
     {:else}
       <form onsubmit={handleSubmit} class="flex flex-col gap-4">
         {#if error}
-          <div class="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+          <div
+            class="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger"
+          >
             {error}
           </div>
         {/if}
