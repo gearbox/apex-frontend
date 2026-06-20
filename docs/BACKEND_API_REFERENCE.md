@@ -1,6 +1,6 @@
 # Backend API Reference — Apex REST API
 
-> _Last updated: 2026-06-18 — adds provider provisioning mode + per-user session state to the model catalog: `provisioning_mode` on `ProviderInfo`, `session_state` on `ModelInfo`, new `ProvisioningMode` and `ModelSessionState` enums (§5, §17). `available` now reflects configured-provider registry membership (no longer hardcoded). Prior: per-model age-verification gate (§3, §4, §5, §17, §18)._
+> _Last updated: 2026-06-20 — vex age gate switched from `checkbox` to `date_of_birth` (§3, §16); DOB point-of-use capture flow documented in §3 PATCH /v1/users/me. Prior: provider provisioning mode + per-user session state (§5, §17)._
 >
 > _Prior (2026-06-17): synced the doc with `master` after a long gap — Aisha generation parameter system (§4), quality-tier capabilities (§5), per-output `thumbnail_url` (§6), GPU-session provisioning fields + internal callback (§7), corrected billing public-endpoint behaviour (§11), corrected model-capability matrix and new enums (§17), corrected `POST /v1/auth/register` contract (§2)._
 
@@ -32,10 +32,10 @@ Four mutation endpoints require an `Idempotency-Key` header to prevent duplicate
 
 ### Error responses
 
-| Status | Error code             | Meaning                                                                                                                                                                    |
-| ------ | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `400`  | `validation_error`     | `Idempotency-Key` header missing or exceeds 64 characters                                                                                                                  |
-| `409`  | `idempotency_conflict` | Same key is currently being processed (concurrent request in-flight) or was reused with a different request body. Retry after 1 second (`Retry-After: 1` header included). |
+| Status | Error code | Meaning |
+|--------|------------|---------|
+| `400` | `validation_error` | `Idempotency-Key` header missing or exceeds 64 characters |
+| `409` | `idempotency_conflict` | Same key is currently being processed (concurrent request in-flight) or was reused with a different request body. Retry after 1 second (`Retry-After: 1` header included). |
 
 ---
 
@@ -46,9 +46,9 @@ All list endpoints return a **unified `CursorPage<T>`** shape:
 ```typescript
 interface CursorPage<T> {
   items: T[];
-  limit: number; // echoed page size
-  has_more: boolean; // true when there are additional pages
-  next_cursor: string | null; // opaque cursor token for the next page; null if none
+  limit: number;               // echoed page size
+  has_more: boolean;           // true when there are additional pages
+  next_cursor: string | null;  // opaque cursor token for the next page; null if none
 }
 ```
 
@@ -74,15 +74,14 @@ Response: { items: [...], limit: 20, has_more: false, next_cursor: null }
 
 The backend serves two distinct products from the same codebase:
 
-| Product      | Slug       | Domains                                                | Audience              | Content                                    |
-| ------------ | ---------- | ------------------------------------------------------ | --------------------- | ------------------------------------------ |
-| **vex.pics** | `vex`      | `vex.pics`, `www.vex.pics`, `app.vex.pics`             | Consumer / creator    | Permissive — NSFW-capable models available |
-| **Synthara** | `synthara` | `synthara.app`, `www.synthara.app`, `app.synthara.app` | Enterprise / business | SFW only, professional                     |
+| Product | Slug | Domains | Audience | Content |
+|---------|------|---------|----------|---------|
+| **vex.pics** | `vex` | `vex.pics`, `www.vex.pics`, `app.vex.pics` | Consumer / creator | Permissive — NSFW-capable models available |
+| **Synthara** | `synthara` | `synthara.app`, `www.synthara.app`, `app.synthara.app` | Enterprise / business | SFW only, professional |
 
 ### Product Resolution
 
 Every request is resolved to a product via:
-
 1. `Origin` header domain (preferred)
 2. `Host` header domain
 3. `X-Product-Id` header (`vex` or `synthara`) — dev fallback
@@ -199,7 +198,7 @@ Response: { message: string }
 Errors:   400 (invalid_token | expired)
 ```
 
-#### `POST /v1/auth/resend-verification` _(authenticated)_
+#### `POST /v1/auth/resend-verification` *(authenticated)*
 
 ```
 Response: { message: string }
@@ -238,15 +237,16 @@ Request:  {
   display_name?: string | null,
   email?: string,
   locale?: SupportedLocale,
-  age_confirmed?: bool,        // "I am 18+" checkbox — for CHECKBOX-policy products (e.g. vex)
-  date_of_birth?: date         // for DATE_OF_BIRTH-policy products
+  age_confirmed?: bool,        // "I am 18+" checkbox — for CHECKBOX-policy products
+  date_of_birth?: date         // for DATE_OF_BIRTH-policy products (e.g. vex)
 }
 Response: same as GET /v1/users/me
 Errors:   400 (email_exists | validation_error)
 Note:     Age capture is policy-driven by the active product's age_gate (see GET /v1/auth/product-info):
             • Omitting both age fields is a no-op — ordinary profile edits never touch age state.
             • CHECKBOX product: age_confirmed=true sets age_verified_at=now(); age_confirmed=false → 400 validation_error.
-            • DATE_OF_BIRTH product: a DOB computing to ≥18 verifies; <18 → 400 validation_error.
+            • DATE_OF_BIRTH product (vex): a DOB computing to ≥18 verifies; <18 → 400 validation_error.
+              DOB is captured at point of use — never at registration — when POST /v1/generate returns 403 age_verification_required.
           Verification is monotonic: once age_verified_at is set it is never cleared, and re-confirming
           is an idempotent 200 (the original timestamp is preserved).
           date_of_birth is write-once: submitting a different value once one is stored → 400 validation_error
@@ -295,7 +295,7 @@ Response: { message: string }
 
 ---
 
-## 4. Generation _(authenticated)_
+## 4. Generation *(authenticated)*
 
 ### Unified Endpoint (primary)
 
@@ -378,7 +378,7 @@ Note:     source_output_id enables "remix from gallery" — the backend resolves
 
 ---
 
-## 5. Providers _(auth-optional)_
+## 5. Providers *(auth-optional)*
 
 #### `GET /v1/providers`
 
@@ -467,7 +467,7 @@ Body: {
 
 ---
 
-## 6. Jobs _(authenticated)_
+## 6. Jobs *(authenticated)*
 
 #### `GET /v1/jobs`
 
@@ -533,7 +533,7 @@ JobOutputItem: {
 
 ---
 
-## 7. GPU Sessions _(authenticated)_
+## 7. GPU Sessions *(authenticated)*
 
 Aisha (ComfyUI) models run on per-user, per-model GPU instances provisioned on Vast.ai. Before submitting an Aisha generation, the user must start a session for that model; sessions are billed by uptime (active + minimum-session floor) and can be paused (storage-only) or stopped (full teardown).
 
@@ -728,14 +728,15 @@ await api.post(`/v1/sessions/${session.id}/pause`);
 await api.post(`/v1/sessions/${session.id}/resume`);
 
 // Two-call stop:
-const preview = await api.post<StopConfirmationResponse>(`/v1/sessions/${session.id}/stop`, {
-  confirmed: false,
-});
+const preview = await api.post<StopConfirmationResponse>(
+  `/v1/sessions/${session.id}/stop`,
+  { confirmed: false },
+);
 // ...show preview to user, get confirmation...
 await api.post(`/v1/sessions/${session.id}/stop`, { confirmed: true });
 ```
 
-### Internal — GPU node provisioning callback _(node-to-backend; not for frontend use)_
+### Internal — GPU node provisioning callback *(node-to-backend; not for frontend use)*
 
 GPU nodes (Aisha's `ProvisioningReporter`) push provisioning progress to the backend over this internal endpoint. It is **not** part of the authenticated frontend surface and is documented here only for completeness — the frontend observes provisioning progress via the `provisioning_phase` / `provisioning_progress` fields on `GpuSessionResponse` (poll `GET /v1/sessions/{id}` or react to the `gpu_session.status_changed` SSE event).
 
@@ -771,7 +772,7 @@ Errors:   401 unauthorized (missing / empty / invalid Bearer token),
 
 ---
 
-## 8. Storage _(authenticated)_
+## 8. Storage *(authenticated)*
 
 ### Uploads
 
@@ -887,7 +888,7 @@ Response: {
 
 ---
 
-## 9. Content Proxy _(authenticated)_
+## 9. Content Proxy *(authenticated)*
 
 Provides stable, non-expiring authenticated URLs for user content. The server resolves ownership, checks product scoping, then streams bytes directly from R2. **No presigned URLs are exposed** — the client only ever sees `/v1/content/...` paths.
 
@@ -896,7 +897,6 @@ Provides stable, non-expiring authenticated URLs for user content. The server re
 ### Response Headers
 
 All successful responses include:
-
 - `Content-Type` — from R2 object metadata
 - `Content-Length` — from R2 object metadata
 - `Cache-Control: private, max-age=10800, immutable` — 3-hour client cache (default; configurable via `CONTENT_URL_TTL`)
@@ -936,7 +936,7 @@ Note:     Permanently deletes the file from R2 and removes the DB record.
 
 ---
 
-## 10. Gallery _(authenticated)_
+## 10. Gallery *(authenticated)*
 
 Gallery presents completed generation jobs as a visual grid. Each **gallery item** is one `GenerationJob` (a "group") with its cover image/video, metadata, and output list.
 
@@ -969,16 +969,16 @@ Errors:   404 not_found (job not completed, wrong user, or wrong product)
 ```typescript
 interface GalleryGridItem {
   job_id: UUID;
-  cover_url: string; // "/v1/content/outputs/{id}" or "/v1/content/uploads/{id}"
+  cover_url: string;        // "/v1/content/outputs/{id}" or "/v1/content/uploads/{id}"
   video_url: string | null; // present for video generation types; autoplay source
-  badge: GalleryBadge; // "prompt" (t2i/t2v) or "image" (i2i/i2v/flf2v/v2v)
+  badge: GalleryBadge;      // "prompt" (t2i/t2v) or "image" (i2i/i2v/flf2v/v2v)
   media_type: OutputMediaType; // "image" or "video"
-  output_count: number; // non-thumbnail outputs in this group
+  output_count: number;     // non-thumbnail outputs in this group
   generation_type: GenerationType;
   model: string | null;
   aspect_ratio: string | null; // e.g. "16:9"
-  prompt_snippet: string; // first 100 chars of the prompt
-  created_at: string; // ISO datetime
+  prompt_snippet: string;   // first 100 chars of the prompt
+  created_at: string;       // ISO datetime
 }
 
 interface GalleryGroupDetail {
@@ -989,7 +989,7 @@ interface GalleryGroupDetail {
   prompt: string;
   negative_prompt: string | null;
   // Outputs
-  outputs: GalleryOutputItem[]; // non-thumbnail outputs, ordered by output_index
+  outputs: GalleryOutputItem[];   // non-thumbnail outputs, ordered by output_index
   // Metadata
   media_type: OutputMediaType;
   model: string | null;
@@ -1005,46 +1005,46 @@ interface GalleryGroupDetail {
 
 interface GalleryOutputItem {
   id: UUID;
-  url: string; // "/v1/content/outputs/{id}"
+  url: string;              // "/v1/content/outputs/{id}"
   thumbnail_url: string | null; // video poster frame URL (if applicable)
-  content_type: string; // "image/jpeg", "video/mp4", etc.
+  content_type: string;     // "image/jpeg", "video/mp4", etc.
   media_type: OutputMediaType;
-  format: string; // "jpeg", "webp", "mp4"
+  format: string;           // "jpeg", "webp", "mp4"
   size_bytes: number;
-  output_index: number; // 0-based
+  output_index: number;     // 0-based
   created_at: string;
 }
 
 interface GalleryLineage {
-  source_type: GallerySourceType; // "upload" or "generation"
-  source_upload_id: UUID | null; // set when source_type == "upload"
-  source_job_id: UUID | null; // set when source_type == "generation"
-  source_job_name: string | null; // human-readable name of the source job
-  source_output_id: UUID | null; // specific output used as input
+  source_type: GallerySourceType;    // "upload" or "generation"
+  source_upload_id: UUID | null;     // set when source_type == "upload"
+  source_job_id: UUID | null;        // set when source_type == "generation"
+  source_job_name: string | null;    // human-readable name of the source job
+  source_output_id: UUID | null;     // specific output used as input
 }
 ```
 
 ### Cover URL Resolution
 
-| Generation type | `cover_url` source                         | `video_url`  |
-| --------------- | ------------------------------------------ | ------------ |
-| `t2i`           | Last generated output                      | `null`       |
-| `t2v`           | Video thumbnail (poster frame)             | Video output |
-| `i2i`           | Source output → input upload → last output | `null`       |
-| `i2v`           | Source output → input upload → last output | Video output |
-| `flf2v`         | Source output → input upload → last output | Video output |
-| `v2v`           | Source output → thumbnail → last output    | Video output |
+| Generation type | `cover_url` source | `video_url` |
+|----------------|-------------------|-------------|
+| `t2i` | Last generated output | `null` |
+| `t2v` | Video thumbnail (poster frame) | Video output |
+| `i2i` | Source output → input upload → last output | `null` |
+| `i2v` | Source output → input upload → last output | Video output |
+| `flf2v` | Source output → input upload → last output | Video output |
+| `v2v` | Source output → thumbnail → last output | Video output |
 
 ### Gallery Badge Logic
 
-| Badge value | Generation types                                 |
-| ----------- | ------------------------------------------------ |
-| `"prompt"`  | `t2i`, `t2v` — text-only input                   |
-| `"image"`   | `i2i`, `i2v`, `flf2v`, `v2v` — image/video input |
+| Badge value | Generation types |
+|-------------|-----------------|
+| `"prompt"` | `t2i`, `t2v` — text-only input |
+| `"image"` | `i2i`, `i2v`, `flf2v`, `v2v` — image/video input |
 
 ---
 
-## 11. Billing _(authenticated)_
+## 11. Billing *(authenticated)*
 
 #### `GET /v1/billing/balance`
 
@@ -1177,7 +1177,7 @@ Note:     Internal endpoint for NowPayments events
 
 ---
 
-## 12. Organizations _(authenticated)_
+## 12. Organizations *(authenticated)*
 
 #### `POST /v1/organizations/`
 
@@ -1268,15 +1268,15 @@ MemberResponse: {
 
 ---
 
-## 13. Admin _(authenticated — ADMIN or SUPERADMIN role)_
+## 13. Admin *(authenticated — ADMIN or SUPERADMIN role)*
 
 ### Role Hierarchy
 
-| Role         | Access              | Billing Adjust                                 | Role Management                       |
-| ------------ | ------------------- | ---------------------------------------------- | ------------------------------------- |
-| `superadmin` | All admin endpoints | Inherent                                       | Can grant/revoke ADMIN and SUPERADMIN |
-| `admin`      | All admin endpoints | Only with explicit `billing_adjust` permission | None                                  |
-| `user`       | No admin endpoints  | —                                              | —                                     |
+| Role | Access | Billing Adjust | Role Management |
+|------|--------|----------------|-----------------|
+| `superadmin` | All admin endpoints | Inherent | Can grant/revoke ADMIN and SUPERADMIN |
+| `admin` | All admin endpoints | Only with explicit `billing_adjust` permission | None |
+| `user` | No admin endpoints | — | — |
 
 ### User Management
 
@@ -1469,7 +1469,7 @@ Errors:   404
 
 ---
 
-## 14. Admin Management _(authenticated — SUPERADMIN only)_
+## 14. Admin Management *(authenticated — SUPERADMIN only)*
 
 All endpoints under `/v1/admin/manage` require the **SUPERADMIN** role. An ADMIN attempting to call these endpoints receives `401 Unauthorized`.
 
@@ -1576,7 +1576,7 @@ The backend supports real-time event streaming via **Server-Sent Events (SSE)** 
 
 ### Auth & Ticket
 
-#### `POST /v1/events/sse-ticket` _(authenticated)_
+#### `POST /v1/events/sse-ticket` *(authenticated)*
 
 ```
 Response: { ticket: string }   // opaque URL-safe token
@@ -1618,55 +1618,55 @@ data: <JSON-encoded inner payload>
 
 ### Event Types
 
-| `event` field                | Description                                                                                                            | Payload type                |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------- | --------------------------- |
-| `job.status_changed`         | Job moved to a new status                                                                                              | `JobStatusPayload`          |
-| `job.progress`               | Job progress update                                                                                                    | `JobProgressPayload`        |
-| `gpu_session.status_changed` | GPU session moved to a new status (e.g. provisioning → active, active → paused, paused → resuming → active, → stopped) | `GpuSessionStatusPayload`   |
-| `balance.updated`            | Token balance changed (debit, credit, refund)                                                                          | `BalanceUpdatedPayload`     |
-| `system.notification`        | Broadcast system message (maintenance, outage)                                                                         | `SystemNotificationPayload` |
+| `event` field | Description | Payload type |
+|---------------|-------------|--------------|
+| `job.status_changed` | Job moved to a new status | `JobStatusPayload` |
+| `job.progress` | Job progress update | `JobProgressPayload` |
+| `gpu_session.status_changed` | GPU session moved to a new status (e.g. provisioning → active, active → paused, paused → resuming → active, → stopped) | `GpuSessionStatusPayload` |
+| `balance.updated` | Token balance changed (debit, credit, refund) | `BalanceUpdatedPayload` |
+| `system.notification` | Broadcast system message (maintenance, outage) | `SystemNotificationPayload` |
 
 ### Event Payload Schemas
 
 ```typescript
 // job.status_changed
 interface JobStatusPayload {
-  job_id: string; // UUID
-  status: JobStatus; // new status
-  previous_status: string; // previous status (or "none" on first publish)
-  generation_type: string; // e.g. "t2v"
-  provider: string; // e.g. "grok"
+  job_id: string;           // UUID
+  status: JobStatus;        // new status
+  previous_status: string;  // previous status (or "none" on first publish)
+  generation_type: string;  // e.g. "t2v"
+  provider: string;         // e.g. "grok"
 }
 
 // job.progress
 interface JobProgressPayload {
   job_id: string;
-  progress_pct: number; // 0–100
+  progress_pct: number;     // 0–100
   generation_type: string;
 }
 
 // gpu_session.status_changed
 interface GpuSessionStatusPayload {
-  session_id: string; // UUID
-  status: GpuSessionStatus; // new status
-  previous_status: string; // previous status
-  model_type: string; // e.g. "aisha-image"
+  session_id: string;            // UUID
+  status: GpuSessionStatus;      // new status
+  previous_status: string;       // previous status
+  model_type: string;            // e.g. "aisha-image"
   bundle_name: string;
   tunnel_hostname: string | null;
-  error_message: string | null; // populated when status == "failed"
+  error_message: string | null;  // populated when status == "failed"
 }
 
 // balance.updated
 interface BalanceUpdatedPayload {
-  account_id: string; // UUID
-  balance: number; // new balance (tokens)
-  delta: number; // change (negative = debit)
+  account_id: string;       // UUID
+  balance: number;          // new balance (tokens)
+  delta: number;            // change (negative = debit)
   transaction_type: string; // "debit" | "credit" | "refund" | "admin_adjustment"
 }
 
 // system.notification
 interface SystemNotificationPayload {
-  level: string; // "info" | "warning" | "critical"
+  level: string;            // "info" | "warning" | "critical"
   title: string;
   message: string;
   expires_at: string | null; // ISO datetime
@@ -1675,10 +1675,10 @@ interface SystemNotificationPayload {
 
 ### Channel Topology
 
-| Channel            | Subscribers           | Events                                                                                |
-| ------------------ | --------------------- | ------------------------------------------------------------------------------------- |
-| `user:{user_id}`   | Per-user              | `job.status_changed`, `job.progress`, `gpu_session.status_changed`, `balance.updated` |
-| `system:broadcast` | All connected clients | `system.notification`                                                                 |
+| Channel | Subscribers | Events |
+|---------|-------------|--------|
+| `user:{user_id}` | Per-user | `job.status_changed`, `job.progress`, `gpu_session.status_changed`, `balance.updated` |
+| `system:broadcast` | All connected clients | `system.notification` |
 
 Each SSE connection subscribes to both the per-user channel and `system:broadcast`.
 
@@ -1686,18 +1686,18 @@ Each SSE connection subscribes to both the per-user channel and `system:broadcas
 
 Events are automatically published by the backend at:
 
-| Event                        | Published when                                                                                 |
-| ---------------------------- | ---------------------------------------------------------------------------------------------- |
-| `job.status_changed`         | Generation request submitted (status → `pending`)                                              |
-| `job.status_changed`         | Grok video job completes, fails, or times out                                                  |
-| `job.progress`               | Grok video job enters `running` state                                                          |
+| Event | Published when |
+|-------|---------------|
+| `job.status_changed` | Generation request submitted (status → `pending`) |
+| `job.status_changed` | Grok video job completes, fails, or times out |
+| `job.progress` | Grok video job enters `running` state |
 | `gpu_session.status_changed` | GPU session transitions between any two states (start/provision/active/pause/resume/stop/fail) |
-| `balance.updated`            | `check_and_reserve` (debit), `refund`, `credit`, `admin_adjustment`                            |
-| `system.notification`        | Admin calls `POST /v1/admin/broadcast`                                                         |
+| `balance.updated` | `check_and_reserve` (debit), `refund`, `credit`, `admin_adjustment` |
+| `system.notification` | Admin calls `POST /v1/admin/broadcast` |
 
 ### Admin Broadcast
 
-#### `POST /v1/admin/broadcast` _(admin only)_
+#### `POST /v1/admin/broadcast` *(admin only)*
 
 ```
 Request: {
@@ -1716,9 +1716,9 @@ Note:    Publishes to system:broadcast channel — delivered to all active SSE c
 ```typescript
 async function openEventStream(apiFetch: Fetcher) {
   // 1. Get a fresh ticket
-  const { ticket } = await apiFetch<{ ticket: string }>('/v1/events/sse-ticket', {
-    method: 'POST',
-  });
+  const { ticket } = await apiFetch<{ ticket: string }>(
+    '/v1/events/sse-ticket', { method: 'POST' }
+  );
 
   // 2. Open SSE stream
   const es = new EventSource(`/v1/events/stream?ticket=${ticket}`);
@@ -1756,10 +1756,10 @@ async function openEventStream(apiFetch: Fetcher) {
 
 ### Products
 
-| Slug       | Display Name | Domains                                          | Content Rating | Age Gate | Payment Providers    | Org Feature |
-| ---------- | ------------ | ------------------------------------------------ | -------------- | -------- | -------------------- | ----------- |
-| `vex`      | vex.pics     | vex.pics, www.vex.pics, app.vex.pics             | permissive     | checkbox | Stripe + NowPayments | No          |
-| `synthara` | Synthara     | synthara.app, www.synthara.app, app.synthara.app | sfw            | none     | Stripe only          | Yes         |
+| Slug | Display Name | Domains | Content Rating | Age Gate | Payment Providers | Org Feature |
+|------|-------------|---------|---------------|----------|------------------|-------------|
+| `vex` | vex.pics | vex.pics, www.vex.pics, app.vex.pics | permissive | date_of_birth | Stripe + NowPayments | No |
+| `synthara` | Synthara | synthara.app, www.synthara.app, app.synthara.app | sfw | none | Stripe only | Yes |
 
 ### AgeGatePolicy
 
@@ -1775,72 +1775,71 @@ Values: `"sfw"`, `"permissive"`
 
 ### ModelType
 
-| Value                | Provider | T2I | I2I | T2V | I2V | V2V | FLF2V | Max Images | Age-gated |
-| -------------------- | -------- | --- | --- | --- | --- | --- | ----- | ---------- | --------- |
-| `grok-imagine-image` | grok     | ✓   | ✓   |     |     |     |       | 10         |           |
-| `grok-2-image-1212`  | grok     | ✓   |     |     |     |     |       | 10         |           |
-| `grok-imagine-video` | grok     |     |     | ✓   | ✓   | ✓   |       | 1          |           |
-| `aisha-image`        | aisha    | ✓   | ✓   |     |     |     |       | 4          | ✓         |
-| `aisha-video`        | aisha    |     |     | ✓   | ✓   |     | ✓     | 1          | ✓         |
+| Value | Provider | T2I | I2I | T2V | I2V | V2V | FLF2V | Max Images | Age-gated |
+|-------|----------|-----|-----|-----|-----|-----|-------|-----------|-----------|
+| `grok-imagine-image` | grok | ✓ | ✓ | | | | | 10 | |
+| `grok-2-image-1212` | grok | ✓ | | | | | | 10 | |
+| `grok-imagine-video` | grok | | | ✓ | ✓ | ✓ | | 1 | |
+| `aisha-image` | aisha | ✓ | ✓ | | | | | 4 | ✓ |
+| `aisha-video` | aisha | | | ✓ | ✓ | | ✓ | 1 | ✓ |
 
 **Age-gated** = `requires_age_verification=true` (exposed on `GET /v1/providers` → `ModelInfo`). The user must be age-verified via `PATCH /v1/users/me` before `POST /v1/generate` will accept the model; otherwise `403 age_verification_required`. The flag is per-model and authoritative regardless of the product's `age_gate` policy.
 
 **Capability corrections vs. the previous revision of this doc:**
-
 - `grok-imagine-video` does **not** support `flf2v` (Grok has no first-last-frame mode). Max video duration 15 s.
 - `aisha-video` does **not** support `v2v` yet. It supports `t2v`, `i2v`, `flf2v`; max duration 10 s; aspect ratios limited to `1:1`, `16:9`, `9:16`.
 - `aisha-image` exposes quality tiers (`draft`/`standard`/`high`/`ultra`, default `standard`) plus explicit `width`/`height`; `min_height` 256, `max_height` 2048, `default_height` 1024.
 
 **Seeded enablement (default `is_enabled`; admins toggle via `PATCH /v1/admin/models/{model_key}`):**
 
-| Model                | Seeded `is_enabled` | Reason                                                       |
-| -------------------- | ------------------- | ------------------------------------------------------------ |
-| `grok-imagine-image` | `true`              | Flagship image model                                         |
-| `grok-imagine-video` | `true`              | Active video model                                           |
-| `grok-2-image-1212`  | `false`             | EOL after Grok Imagine Image; kept for reference/fallback    |
-| `aisha-image`        | `false`             | Seeded off; enable once the GPU image workflow is signed off |
-| `aisha-video`        | `false`             | Seeded off until the video workflow is production-ready      |
+| Model | Seeded `is_enabled` | Reason |
+|-------|---------------------|--------|
+| `grok-imagine-image` | `true` | Flagship image model |
+| `grok-imagine-video` | `true` | Active video model |
+| `grok-2-image-1212` | `false` | EOL after Grok Imagine Image; kept for reference/fallback |
+| `aisha-image` | `false` | Seeded off; enable once the GPU image workflow is signed off |
+| `aisha-video` | `false` | Seeded off until the video workflow is production-ready |
 
 > `GET /v1/providers` reflects the **live** `is_enabled` value (not the seed), filtered by product.
 
 ### GenerationType
 
-| Value   | Description              | Requires image? | Requires video? | Is video output? |
-| ------- | ------------------------ | --------------- | --------------- | ---------------- |
-| `t2i`   | Text → Image             | No              | No              | No               |
-| `i2i`   | Image → Image            | Yes             | No              | No               |
-| `t2v`   | Text → Video             | No              | No              | Yes              |
-| `i2v`   | Image → Video            | Yes             | No              | Yes              |
-| `v2v`   | Video → Video            | No              | Yes             | Yes              |
-| `flf2v` | First-Last Frame → Video | Yes             | No              | Yes              |
+| Value | Description | Requires image? | Requires video? | Is video output? |
+|-------|------------|-----------------|-----------------|------------------|
+| `t2i` | Text → Image | No | No | No |
+| `i2i` | Image → Image | Yes | No | No |
+| `t2v` | Text → Video | No | No | Yes |
+| `i2v` | Image → Video | Yes | No | Yes |
+| `v2v` | Video → Video | No | Yes | Yes |
+| `flf2v` | First-Last Frame → Video | Yes | No | Yes |
 
 ### JobStatus
 
-| Value       | Terminal? | Description                   |
-| ----------- | --------- | ----------------------------- |
-| `pending`   | No        | Created, awaiting processing  |
-| `queued`    | No        | In queue                      |
-| `running`   | No        | Actively generating           |
-| `completed` | Yes       | Done, outputs available       |
-| `failed`    | Yes       | Error occurred                |
-| `cancelled` | Yes       | User or system cancelled      |
-| `moderated` | Yes       | Content moderated by provider |
+| Value | Terminal? | Description |
+|-------|----------|-------------|
+| `pending` | No | Created, awaiting processing |
+| `queued` | No | In queue |
+| `running` | No | Actively generating |
+| `completed` | Yes | Done, outputs available |
+| `failed` | Yes | Error occurred |
+| `cancelled` | Yes | User or system cancelled |
+| `moderated` | Yes | Content moderated by provider |
 
 **Polling strategy:** Poll `GET /v1/jobs/{id}` every 2s while status is `pending`, `queued`, or `running`. Stop on any terminal status. For real-time updates without polling, subscribe to the SSE `job.status_changed` event (see [§15 Real-Time Events](#15-real-time-events-sse--pubsub)).
 
 ### GpuSessionStatus
 
-| Value          | Terminal? | Description                                                                                      |
-| -------------- | --------- | ------------------------------------------------------------------------------------------------ |
-| `pending`      | No        | Session requested, Vast.ai node not yet provisioning                                             |
-| `provisioning` | No        | Vast.ai node is starting up; ComfyUI not yet reachable                                           |
-| `active`       | No        | Node is up, ComfyUI is reachable — generations can be submitted                                  |
-| `stale`        | No        | Node was active but the latest health probe failed; auto-recovers if a subsequent probe succeeds |
-| `paused`       | No        | User paused — Vast.ai instance stopped, persistent disk retained                                 |
-| `resuming`     | No        | User resumed — Vast.ai instance restarting                                                       |
-| `stopping`     | No        | User-requested stop — teardown in progress                                                       |
-| `stopped`      | Yes       | Session ended normally                                                                           |
-| `failed`       | Yes       | Provisioning or runtime failure (`error_message` populated)                                      |
+| Value | Terminal? | Description |
+|-------|----------|-------------|
+| `pending` | No | Session requested, Vast.ai node not yet provisioning |
+| `provisioning` | No | Vast.ai node is starting up; ComfyUI not yet reachable |
+| `active` | No | Node is up, ComfyUI is reachable — generations can be submitted |
+| `stale` | No | Node was active but the latest health probe failed; auto-recovers if a subsequent probe succeeds |
+| `paused` | No | User paused — Vast.ai instance stopped, persistent disk retained |
+| `resuming` | No | User resumed — Vast.ai instance restarting |
+| `stopping` | No | User-requested stop — teardown in progress |
+| `stopped` | Yes | Session ended normally |
+| `failed` | Yes | Provisioning or runtime failure (`error_message` populated) |
 
 > Use the `gpu_session.status_changed` SSE event for real-time UI updates rather than polling.
 
@@ -1848,22 +1847,22 @@ Values: `"sfw"`, `"permissive"`
 
 How a provider's compute is made available. Surfaced as `ProviderInfo.provisioning_mode` on `GET /v1/providers`.
 
-| Value       | Description                                                                                                |
-| ----------- | ---------------------------------------------------------------------------------------------------------- |
-| `always_on` | Cloud API — usable immediately whenever the provider is configured (e.g. Grok / xAI)                       |
+| Value | Description |
+|-------|-------------|
+| `always_on` | Cloud API — usable immediately whenever the provider is configured (e.g. Grok / xAI) |
 | `on_demand` | Per-user GPU session required — start one via `POST /v1/sessions` before generating (e.g. Aisha / ComfyUI) |
 
 ### ModelSessionState
 
 Per-user readiness of an `on_demand` model. Surfaced as `ModelInfo.session_state` on `GET /v1/providers` for authenticated requests only. Always `null` for `always_on` providers and unauthenticated callers.
 
-| Value          | Description                                                                                      |
-| -------------- | ------------------------------------------------------------------------------------------------ |
-| `none`         | No live session for this model — start one via `POST /v1/sessions`                               |
-| `provisioning` | Session exists and is starting up (`pending` / `provisioning` / `resuming`)                      |
-| `active`       | Session is active and ComfyUI is reachable — generations can be submitted                        |
-| `paused`       | Session is paused (instance stopped, disk retained) — resume via `POST /v1/sessions/{id}/resume` |
-| `stale`        | Session was active but the last health probe failed; may self-recover                            |
+| Value | Description |
+|-------|-------------|
+| `none` | No live session for this model — start one via `POST /v1/sessions` |
+| `provisioning` | Session exists and is starting up (`pending` / `provisioning` / `resuming`) |
+| `active` | Session is active and ComfyUI is reachable — generations can be submitted |
+| `paused` | Session is paused (instance stopped, disk retained) — resume via `POST /v1/sessions/{id}/resume` |
+| `stale` | Session was active but the last health probe failed; may self-recover |
 
 > Prefer the `gpu_session.status_changed` SSE event for real-time state changes rather than polling `GET /v1/providers`.
 
@@ -1877,26 +1876,26 @@ Values: `"480p"`, `"720p"`
 
 > Used for the `resolution` field on video generations. Distinct from the image-quality `Resolution` tier below.
 
-### Resolution _(image quality tier)_
+### Resolution *(image quality tier)*
 
 Image quality tier for Aisha image generation. Sent as `image_resolution` on `POST /v1/generate`. Each tier maps to a target **megapixel budget**; the backend computes concrete `width × height` for the requested aspect ratio (snapped to the model's latent multiple and clamped to its max edge / max megapixels).
 
-| Value      | Target megapixels |
-| ---------- | ----------------- |
-| `draft`    | 0.25 MP           |
-| `standard` | 1.0 MP (default)  |
-| `high`     | 2.0 MP            |
-| `ultra`    | 4.0 MP            |
+| Value | Target megapixels |
+|-------|-------------------|
+| `draft` | 0.25 MP |
+| `standard` | 1.0 MP (default) |
+| `high` | 2.0 MP |
+| `ultra` | 4.0 MP |
 
 > `tier_megapixels` in `GET /v1/providers` → `ImageConstraints` echoes this mapping per model. Mutually exclusive with explicit `width`/`height`.
 
-### Sampler _(Aisha sampler override)_
+### Sampler *(Aisha sampler override)*
 
 ComfyUI sampler names accepted on `POST /v1/generate` (`sampler`, Aisha image only):
 
 `euler`, `euler_ancestral`, `euler_cfg_pp`, `heun`, `dpm_2`, `dpm_2_ancestral`, `lms`, `dpmpp_2s_ancestral`, `dpmpp_sde`, `dpmpp_2m`, `dpmpp_2m_sde`, `dpmpp_3m_sde`, `ddim`, `uni_pc`, `uni_pc_bh2`, `lcm`, `res_multistep`
 
-### Scheduler _(Aisha scheduler override)_
+### Scheduler *(Aisha scheduler override)*
 
 ComfyUI scheduler names accepted on `POST /v1/generate` (`scheduler`, Aisha image only):
 
@@ -1957,7 +1956,6 @@ Used in Gallery to distinguish image vs. video generation groups and outputs.
 Values: `"prompt"`, `"image"`
 
 Indicates the primary input type for a gallery item:
-
 - `"prompt"` — text-to-image or text-to-video (no image input)
 - `"image"` — image/video input types (i2i, i2v, flf2v, v2v)
 
@@ -1975,26 +1973,26 @@ All non-2xx responses use a single unified envelope:
 
 ```typescript
 interface ApiError {
-  error: string; // machine-readable code (snake_case)
-  message: string; // human-readable, safe to show in UI
-  status_code: number; // mirrors the HTTP status
-  detail?: Record<string, unknown> | null; // optional structured context
+  error: string;        // machine-readable code (snake_case)
+  message: string;      // human-readable, safe to show in UI
+  status_code: number;  // mirrors the HTTP status
+  detail?: Record<string, unknown> | null;  // optional structured context
 }
 ```
 
 The `error` code is always a stable snake_case string — treat it like an enum. Common values:
 
-| HTTP | `error`                                                                                                                                                                                                                                               | `detail` keys                |
-| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
-| 400  | `bad_request`, `email_exists`, `invalid_token`, `invalid_password`, `validation_error`, `empty_file`, `file_too_large`, `invalid_file_type`, `upload_failed`, `payment_verification_failed`, `model_disabled`, `generation_failed`, `unknown_product` | —                            |
-| 401  | `unauthorized`, `invalid_credentials`, `account_inactive`, `token_reuse_detected`                                                                                                                                                                     | —                            |
-| 402  | `insufficient_balance`                                                                                                                                                                                                                                | `balance`, `required`        |
-| 403  | `forbidden`, `account_inactive`, `permission_denied`, `model_not_allowed`, `age_verification_required`                                                                                                                                                | —                            |
-| 404  | `not_found`, `account_not_found`, `price_not_found`                                                                                                                                                                                                   | —                            |
-| 409  | `conflict`, `refund_not_eligible`, `organization_balance_nonzero`, `no_active_gpu_session`, `session_already_exists`, `invalid_state`, `jobs_in_flight`                                                                                               | `balance`, `in_flight_count` |
-| 422  | `validation_error`, `moderation`                                                                                                                                                                                                                      | `provider`, `policy`         |
-| 429  | `too_many_requests`, `rate_limited`                                                                                                                                                                                                                   | `retry_after`                |
-| 503  | `service_unavailable`, `no_gpu_capacity`, `provisioning_failed`                                                                                                                                                                                       | —                            |
+| HTTP | `error` | `detail` keys |
+|------|---------|---------------|
+| 400 | `bad_request`, `email_exists`, `invalid_token`, `invalid_password`, `validation_error`, `empty_file`, `file_too_large`, `invalid_file_type`, `upload_failed`, `payment_verification_failed`, `model_disabled`, `generation_failed`, `unknown_product` | — |
+| 401 | `unauthorized`, `invalid_credentials`, `account_inactive`, `token_reuse_detected` | — |
+| 402 | `insufficient_balance` | `balance`, `required` |
+| 403 | `forbidden`, `account_inactive`, `permission_denied`, `model_not_allowed`, `age_verification_required` | — |
+| 404 | `not_found`, `account_not_found`, `price_not_found` | — |
+| 409 | `conflict`, `refund_not_eligible`, `organization_balance_nonzero`, `no_active_gpu_session`, `session_already_exists`, `invalid_state`, `jobs_in_flight` | `balance`, `in_flight_count` |
+| 422 | `validation_error`, `moderation` | `provider`, `policy` |
+| 429 | `too_many_requests`, `rate_limited` | `retry_after` |
+| 503 | `service_unavailable`, `no_gpu_capacity`, `provisioning_failed` | — |
 
 **Example responses:**
 
@@ -2019,7 +2017,7 @@ async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
   if (!res.ok) {
     const err: ApiError = await res.json();
-    throw err; // catch by err.error code, display err.message
+    throw err;  // catch by err.error code, display err.message
   }
   return res.json();
 }
@@ -2037,7 +2035,6 @@ Gallery responses and the `/v1/content/` endpoints return **content proxy URLs**
 - `GET /v1/content/uploads/{image_id}` — streams an uploaded image
 
 These URLs:
-
 - Are **stable** for the lifetime of the resource (no expiry)
 - Return `Cache-Control: private, max-age=10800, immutable` (3-hour client cache, configurable via `CONTENT_URL_TTL`)
 - Enforce ownership and product scoping on every request
@@ -2058,13 +2055,13 @@ These URLs:
 
 ## 20. Rate Limits
 
-| Endpoint                         | Limit              |
-| -------------------------------- | ------------------ |
-| `POST /auth/register`            | 5/hour per IP      |
-| `POST /auth/login`               | 10/minute per IP   |
-| `POST /auth/forgot-password`     | 3/hour per IP      |
-| `POST /auth/resend-verification` | 3/hour per IP      |
-| `POST /v1/events/sse-ticket`     | 10/minute per user |
+| Endpoint | Limit |
+|----------|-------|
+| `POST /auth/register` | 5/hour per IP |
+| `POST /auth/login` | 10/minute per IP |
+| `POST /auth/forgot-password` | 3/hour per IP |
+| `POST /auth/resend-verification` | 3/hour per IP |
+| `POST /v1/events/sse-ticket` | 10/minute per user |
 
 Rate limit headers are **not currently exposed** in responses. The frontend should handle 429 responses gracefully with a user-friendly message.
 
@@ -2074,13 +2071,13 @@ Rate limit headers are **not currently exposed** in responses. The frontend shou
 
 Three-tier health monitoring system. Use the appropriate endpoint for each consumer:
 
-| Consumer                            | Endpoint                       | Auth      |
-| ----------------------------------- | ------------------------------ | --------- |
-| Docker HEALTHCHECK, load balancers  | `GET /health/live`             | None      |
-| CI readiness waits, traffic routing | `GET /health/ready`            | None      |
-| Admin dashboards, monitoring        | `GET /v1/admin/health/`        | Admin JWT |
-| Admin real-time stream              | `GET /v1/admin/health/stream`  | Admin JWT |
-| Admin historical charts             | `GET /v1/admin/health/history` | Admin JWT |
+| Consumer | Endpoint | Auth |
+|----------|----------|------|
+| Docker HEALTHCHECK, load balancers | `GET /health/live` | None |
+| CI readiness waits, traffic routing | `GET /health/ready` | None |
+| Admin dashboards, monitoring | `GET /v1/admin/health/` | Admin JWT |
+| Admin real-time stream | `GET /v1/admin/health/stream` | Admin JWT |
+| Admin historical charts | `GET /v1/admin/health/history` | Admin JWT |
 
 #### `GET /health/live`
 
@@ -2149,15 +2146,15 @@ Component `status` values: `healthy`, `degraded`, `unhealthy`, `unknown`, `inact
 
 **Status semantics for cloud providers / platform APIs:**
 
-| HTTP response                 | Status      | Meaning                                                |
-| ----------------------------- | ----------- | ------------------------------------------------------ |
-| 2xx, 3xx                      | `healthy`   | API up, key valid                                      |
-| 401, 403                      | `degraded`  | API reachable, authentication failed — check API key   |
-| 429                           | `healthy`   | Rate-limited = API alive, transient condition          |
-| other 4xx                     | `degraded`  | API reachable but returning unexpected client errors   |
-| 5xx                           | `unhealthy` | Server-side failure                                    |
-| Connection error              | `unhealthy` | API unreachable                                        |
-| Key not set / whitespace-only | `inactive`  | Not configured (VASTAI_API_KEY or XAI_API_KEY not set) |
+| HTTP response | Status | Meaning |
+|---|---|---|
+| 2xx, 3xx | `healthy` | API up, key valid |
+| 401, 403 | `degraded` | API reachable, authentication failed — check API key |
+| 429 | `healthy` | Rate-limited = API alive, transient condition |
+| other 4xx | `degraded` | API reachable but returning unexpected client errors |
+| 5xx | `unhealthy` | Server-side failure |
+| Connection error | `unhealthy` | API unreachable |
+| Key not set / whitespace-only | `inactive` | Not configured (VASTAI_API_KEY or XAI_API_KEY not set) |
 
 Note: 401/403 returns immediately without trying fallback probes — if auth is wrong, all probes will fail the same way.
 
@@ -2208,7 +2205,6 @@ Note:     Results ordered by checked_at DESC. Default limit 60 = 1 hour at 1/min
 **GPU session reconciler behaviour:**
 
 The `gpu_sessions` section is populated by `GpuSessionReconciler`. On each health check cycle it:
-
 1. Queries all `gpu_sessions` rows with `status IN ('active', 'stale')`.
 2. Probes each node's `GET /object_info` endpoint (10 s timeout) concurrently.
 3. Unreachable sessions → marked `stale` in DB (`stale_detected_at` set, `status = 'stale'`). Already-stale sessions are not re-marked (idempotent).
@@ -2222,17 +2218,16 @@ The registry timeout for this checker is 15 s (increased from the 5 s default fo
 
 The backend's `OpenAPIConfig` is configured with `path="/docs"`, so all schema and documentation UI endpoints live under `/docs/`:
 
-| Endpoint                 | Description                                                  |
-| ------------------------ | ------------------------------------------------------------ |
+| Endpoint | Description |
+|----------|-------------|
 | `GET /docs/openapi.json` | OpenAPI 3.1 schema (JSON) — **use this for type generation** |
-| `GET /docs/openapi.yaml` | OpenAPI 3.1 schema (YAML)                                    |
-| `GET /docs/swagger`      | Swagger UI                                                   |
-| `GET /docs/redoc`        | ReDoc UI                                                     |
-| `GET /docs/elements`     | Stoplight Elements UI                                        |
-| `GET /docs/rapidoc`      | RapiDoc UI                                                   |
+| `GET /docs/openapi.yaml` | OpenAPI 3.1 schema (YAML) |
+| `GET /docs/swagger` | Swagger UI |
+| `GET /docs/redoc` | ReDoc UI |
+| `GET /docs/elements` | Stoplight Elements UI |
+| `GET /docs/rapidoc` | RapiDoc UI |
 
 **Export command:**
-
 ```bash
 curl http://localhost:8000/docs/openapi.json > src/lib/api/schema.json
 npx openapi-typescript src/lib/api/schema.json -o src/lib/api/types.ts
