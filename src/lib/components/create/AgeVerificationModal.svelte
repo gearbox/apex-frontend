@@ -43,7 +43,7 @@
       onVerified(profile);
       onClose();
     } catch (e) {
-      error = e instanceof ApiRequestError ? e.message : 'Unexpected error. Please try again.';
+      error = e instanceof ApiRequestError ? e.message : m.error_generic();
     } finally {
       submitting = false;
     }

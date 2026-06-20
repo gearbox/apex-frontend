@@ -47,4 +47,21 @@ describe('isAtLeast18()', () => {
     // Born July 1, 2008 — turns 18 on July 1, 2026 (in the future)
     expect(isAtLeast18('2008-07-01')).toBe(false);
   });
+
+  it('returns false for malformed input', () => {
+    for (const bad of ['', 'not-a-date', '2000/01/01', '2000-1-1', '20000101']) {
+      expect(isAtLeast18(bad)).toBe(false);
+    }
+  });
+
+  it('returns false for impossible calendar dates', () => {
+    expect(isAtLeast18('2001-13-01')).toBe(false);
+    expect(isAtLeast18('2000-02-31')).toBe(false);
+  });
+
+  it('returns false for future dates', () => {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() + 1);
+    expect(isAtLeast18(d.toISOString().split('T')[0])).toBe(false);
+  });
 });

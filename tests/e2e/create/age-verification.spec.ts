@@ -211,4 +211,43 @@ test.describe('Age verification gate', () => {
     // No modal should appear
     await expect(page.getByRole('dialog')).not.toBeVisible();
   });
+
+  test('8. Backend write-once DOB error shows message and stays on confirm step', async ({
+    authenticatedPage: page,
+  }) => {
+    // GET /v1/users/me → unverified; PATCH /v1/users/me → 400 write-once.
+    await page.route('**/v1/users/me', async (route) => {
+      if (route.request().method() === 'PATCH') {
+        return route.fulfill({
+          status: 400,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            error: 'validation_error',
+            message: 'Date of birth has already been set.',
+            status_code: 400,
+          }),
+        });
+      }
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(unverifiedUser),
+      });
+    });
+
+    await page.goto('/app/create');
+
+    await page.getByRole('button', { name: /Aisha/i }).first().click();
+    await page.locator('input[type="date"]').fill(validDob);
+    await page.getByRole('button', { name: /Save/i }).click();
+
+    // Now on the confirm step — submitting triggers the PATCH that the backend rejects.
+    await page.getByRole('button', { name: /Confirm/i }).click();
+
+    // Backend message is shown; modal stays open on the confirm step (not closed, not advanced).
+    await expect(page.locator('.modal-card')).toContainText('Date of birth has already been set.');
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await expect(page.getByRole('button', { name: /Confirm/i })).toBeVisible();
+    await expect(page.locator('input[type="date"]')).not.toBeVisible();
+  });
 });
