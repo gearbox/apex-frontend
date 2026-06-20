@@ -11,6 +11,9 @@ export function makeUserProfile(overrides: Partial<UserProfile> = {}): UserProfi
     email_verified: true,
     created_at: '2025-01-01T00:00:00Z',
     updated_at: '2025-01-01T00:00:00Z',
+    age_verified: false,
+    age_verified_at: null,
+    date_of_birth: null,
     ...overrides,
   };
 }

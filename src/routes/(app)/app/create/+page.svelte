@@ -10,7 +10,11 @@
   import { lookupCost } from '$lib/utils/pricing';
   import { createJobPoller } from '$lib/services/jobPoller';
   import { productInfo } from '$lib/stores/product';
+  import { isAgeVerified, setUser } from '$lib/stores/auth';
   import ModelSelector from '$lib/components/create/ModelSelector.svelte';
+  import AgeVerificationModal from '$lib/components/create/AgeVerificationModal.svelte';
+  import type { components } from '$lib/api/types';
+  import type { UserProfile } from '$lib/stores/auth';
   import TypeSelector from '$lib/components/create/TypeSelector.svelte';
   import ImageUpload from '$lib/components/create/ImageUpload.svelte';
   import PromptInput from '$lib/components/create/PromptInput.svelte';
@@ -74,13 +78,38 @@
   // Derive app title from productInfo for <title> tag
   let appTitle = $derived($productInfo?.display_name ?? 'Apex');
 
+  type ModelType = components['schemas']['ModelType'];
+
+  // ── Age gate state
+  let showAgeModal = $state(false);
+  let pendingModelKey = $state<ModelType | null>(null);
+
+  function handleModelSelect(key: ModelType) {
+    const info = allModels.find((m) => m.model_key === key);
+    if (info?.requires_age_verification && !$isAgeVerified) {
+      pendingModelKey = key;
+      showAgeModal = true;
+      return;
+    }
+    generationStore.setModel(key);
+  }
+
+  function handleAgeVerified(updatedProfile: UserProfile) {
+    setUser(updatedProfile);
+    if (pendingModelKey) generationStore.setModel(pendingModelKey);
+    pendingModelKey = null;
+    showAgeModal = false;
+  }
+
   // ── Job polling
   let stopPoller: (() => void) | null = null;
   let submitting = $state(false);
 
   function handleJobError(error: unknown): void {
     const apiErr = parseApiError(error, 0);
-    if (apiErr.error === 'insufficient_balance') {
+    if (apiErr.error === 'age_verification_required') {
+      showAgeModal = true;
+    } else if (apiErr.error === 'insufficient_balance') {
       addToast({
         type: 'error',
         message: 'Not enough tokens.',
@@ -140,6 +169,12 @@
     if (submitting || $isGenerating) return;
 
     const state = $generationStore;
+
+    if (currentModelInfo?.requires_age_verification && !$isAgeVerified) {
+      pendingModelKey = null;
+      showAgeModal = true;
+      return;
+    }
 
     if (
       (state.mode === 'i2i' || state.mode === 'i2v' || state.mode === 'flf2v') &&
@@ -211,7 +246,11 @@
 <div class="flex flex-col md:h-full md:flex-row md:gap-6">
   <!-- Controls column -->
   <div class="flex flex-col gap-4 p-4 pb-24 md:w-100 md:shrink-0 md:overflow-y-auto md:p-0 md:pb-5">
-    <ModelSelector models={allModels} />
+    <ModelSelector
+      models={allModels}
+      selectedModel={$generationStore.model}
+      onSelect={handleModelSelect}
+    />
 
     <TypeSelector modelInfo={currentModelInfo ?? null} />
 
@@ -246,3 +285,7 @@
 >
   <GenerateButton onclick={handleGenerate} {submitting} {estimatedCost} />
 </div>
+
+{#if showAgeModal}
+  <AgeVerificationModal onVerified={handleAgeVerified} onClose={() => (showAgeModal = false)} />
+{/if}

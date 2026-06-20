@@ -182,5 +182,12 @@
   "age_gate_continue": "Продолжить",
   "age_gate_error_checkbox": "Вы должны подтвердить, что вам 18 лет или больше, чтобы продолжить.",
   "age_gate_error_dob_missing": "Пожалуйста, введите дату рождения.",
-  "age_gate_error_underage": "Вам должно быть 18 лет или больше для использования этого сервиса."
+  "age_gate_error_underage": "Вам должно быть 18 лет или больше для использования этого сервиса.",
+  "age_verify_save": "Сохранить",
+  "age_verify_cancel": "Отмена",
+  "age_verify_back": "Назад",
+  "age_verify_confirm": "Подтвердить",
+  "age_verify_review_dob": "Ваша дата рождения",
+  "age_verify_permanent_warning": "Это нельзя изменить позже. Ваша дата рождения сохраняется постоянно и указывается только один раз.",
+  "age_verify_confirming": "Проверка…"
 }

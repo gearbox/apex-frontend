@@ -182,5 +182,12 @@
   "age_gate_continue": "Nastavi",
   "age_gate_error_checkbox": "Morate potvrditi da imate 18 ili više godina da biste nastavili.",
   "age_gate_error_dob_missing": "Molimo unesite datum rođenja.",
-  "age_gate_error_underage": "Morate imati 18 ili više godina da biste koristili ovu uslugu."
+  "age_gate_error_underage": "Morate imati 18 ili više godina da biste koristili ovu uslugu.",
+  "age_verify_save": "Sačuvaj",
+  "age_verify_cancel": "Otkaži",
+  "age_verify_back": "Nazad",
+  "age_verify_confirm": "Potvrdi",
+  "age_verify_review_dob": "Vaš datum rođenja",
+  "age_verify_permanent_warning": "Ovo se ne može promeniti kasnije. Vaš datum rođenja se trajno čuva i može se uneti samo jednom.",
+  "age_verify_confirming": "Provera…"
 }

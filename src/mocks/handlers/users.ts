@@ -1,12 +1,31 @@
 import { http, HttpResponse } from 'msw';
 import { makeUserProfile } from '../factories/user';
 import { MOCK_BASE_URL as BASE } from '../config';
+import { isAtLeast18 } from '$lib/utils/age';
 
 export const userHandlers = [
   http.get(`${BASE}/v1/users/me`, () => HttpResponse.json(makeUserProfile())),
 
   http.patch(`${BASE}/v1/users/me`, async ({ request }) => {
     const body = (await request.json()) as Record<string, unknown>;
+
+    if ('date_of_birth' in body) {
+      const dob = body.date_of_birth as string;
+      if (!dob || !isAtLeast18(dob)) {
+        return HttpResponse.json(
+          { error: 'validation_error', message: 'You must be 18 or older.', status_code: 400 },
+          { status: 400 },
+        );
+      }
+      return HttpResponse.json(
+        makeUserProfile({
+          age_verified: true,
+          age_verified_at: new Date().toISOString(),
+          date_of_birth: dob,
+        }),
+      );
+    }
+
     return HttpResponse.json(makeUserProfile(body as Parameters<typeof makeUserProfile>[0]));
   }),
 
@@ -49,3 +68,19 @@ export const userHandlers = [
     });
   }),
 ];
+
+/** Override: returns 400 underage error for age verification */
+export const underageDobHandler = http.patch(`${BASE}/v1/users/me`, () =>
+  HttpResponse.json(
+    { error: 'validation_error', message: 'You must be 18 or older.', status_code: 400 },
+    { status: 400 },
+  ),
+);
+
+/** Override: returns 400 write-once error for age verification */
+export const dobWriteOnceHandler = http.patch(`${BASE}/v1/users/me`, () =>
+  HttpResponse.json(
+    { error: 'validation_error', message: 'Date of birth has already been set.', status_code: 400 },
+    { status: 400 },
+  ),
+);

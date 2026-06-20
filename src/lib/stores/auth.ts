@@ -20,6 +20,9 @@ export interface UserProfile {
   created_at: string;
   updated_at: string;
   locale?: string;
+  age_verified: boolean;
+  age_verified_at?: string | null;
+  date_of_birth?: string | null;
 }
 
 export type AuthStatus = 'unknown' | 'authenticated' | 'unauthenticated';
@@ -38,6 +41,9 @@ export const isSuperAdmin = derived(user, ($u) => $u?.role === 'superadmin');
 
 /** True when the user has any admin-level role (admin OR superadmin). */
 export const isAdmin = derived(user, ($u) => $u?.role === 'admin' || $u?.role === 'superadmin');
+
+/** True when the user has completed age verification. */
+export const isAgeVerified = derived(user, ($u) => $u?.age_verified ?? false);
 
 /* ─── Token Access ─── */
 export function getAccessToken(): string | null {

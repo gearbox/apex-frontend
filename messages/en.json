@@ -182,5 +182,12 @@
   "age_gate_continue": "Continue",
   "age_gate_error_checkbox": "You must confirm you are 18 years or older to continue.",
   "age_gate_error_dob_missing": "Please enter your date of birth.",
-  "age_gate_error_underage": "You must be 18 or older to use this service."
+  "age_gate_error_underage": "You must be 18 or older to use this service.",
+  "age_verify_save": "Save",
+  "age_verify_cancel": "Cancel",
+  "age_verify_back": "Back",
+  "age_verify_confirm": "Confirm",
+  "age_verify_review_dob": "Your date of birth",
+  "age_verify_permanent_warning": "This cannot be changed later. Your date of birth is stored permanently and is write-once.",
+  "age_verify_confirming": "Verifying…"
 }
