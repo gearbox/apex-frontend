@@ -72,6 +72,7 @@ export const jobHandlers = [
               aspect_ratios: ['1:1', '16:9', '9:16', '4:3', '3:4'],
               image: null,
               video: null,
+              session_state: 'none',
             },
           ],
         },
@@ -109,4 +110,66 @@ export const jobNotFoundHandler = http.get(
 
 export const jobDeleteFailHandler = http.delete(`${BASE}/v1/jobs/:job_id`, () =>
   HttpResponse.json({ status_code: 500, detail: 'Internal error' }, { status: 500 }),
+);
+
+// Override: aisha provider unavailable (orthogonality test — never offer Start when unavailable)
+export const aishaUnavailableHandler = http.get(`${BASE}/v1/providers`, () =>
+  HttpResponse.json({
+    providers: [
+      {
+        provider: 'aisha',
+        name: 'Aisha',
+        available: false,
+        provisioning_mode: 'on_demand',
+        models: [
+          {
+            model_key: 'aisha-image',
+            name: 'Aisha',
+            description: 'Aisha image generation model',
+            capabilities: ['t2i', 'i2i'],
+            is_enabled: true,
+            max_images: 4,
+            max_prompt_length: 4096,
+            supports_negative_prompt: true,
+            aspect_ratios: ['1:1'],
+            image: null,
+            video: null,
+            session_state: 'none',
+          },
+        ],
+      },
+    ],
+    user_context: null,
+  }),
+);
+
+// Override: aisha provider with active session (session_state: 'active')
+export const aishaActiveSessionHandler = http.get(`${BASE}/v1/providers`, () =>
+  HttpResponse.json({
+    providers: [
+      {
+        provider: 'aisha',
+        name: 'Aisha',
+        available: true,
+        provisioning_mode: 'on_demand',
+        models: [
+          {
+            model_key: 'aisha-image',
+            name: 'Aisha',
+            description: 'Aisha image generation model',
+            capabilities: ['t2i', 'i2i'],
+            is_enabled: true,
+            max_images: 4,
+            max_prompt_length: 4096,
+            supports_negative_prompt: true,
+            aspect_ratios: ['1:1'],
+            image: null,
+            video: null,
+            session_state: 'active',
+          },
+        ],
+      },
+    ],
+    user_context: null,
+  }),
 );

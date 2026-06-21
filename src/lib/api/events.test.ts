@@ -4,6 +4,7 @@ import {
   isJobProgressPayload,
   isBalanceUpdatedPayload,
   isSystemNotificationPayload,
+  isGpuSessionStatusPayload,
   SSE_EVENTS,
 } from './events';
 
@@ -13,6 +14,7 @@ describe('SSE_EVENTS', () => {
     expect(SSE_EVENTS.JOB_PROGRESS).toBe('job.progress');
     expect(SSE_EVENTS.BALANCE_UPDATED).toBe('balance.updated');
     expect(SSE_EVENTS.SYSTEM_NOTIFICATION).toBe('system.notification');
+    expect(SSE_EVENTS.GPU_SESSION_STATUS).toBe('gpu_session.status_changed');
   });
 });
 
@@ -106,5 +108,35 @@ describe('isSystemNotificationPayload()', () => {
   it('returns false for non-object values', () => {
     expect(isSystemNotificationPayload(null)).toBe(false);
     expect(isSystemNotificationPayload('string')).toBe(false);
+  });
+});
+
+describe('isGpuSessionStatusPayload()', () => {
+  it('returns true for valid payload', () => {
+    expect(
+      isGpuSessionStatusPayload({
+        session_id: 'sess_001',
+        status: 'active',
+        previous_status: 'provisioning',
+        model_type: 'aisha-image',
+        bundle_name: 'aisha-bundle',
+        tunnel_hostname: null,
+        error_message: null,
+      }),
+    ).toBe(true);
+  });
+
+  it('returns false when missing required fields', () => {
+    expect(isGpuSessionStatusPayload({ session_id: 'sess_001', status: 'active' })).toBe(false);
+    expect(isGpuSessionStatusPayload({ session_id: 'sess_001', model_type: 'aisha-image' })).toBe(
+      false,
+    );
+    expect(isGpuSessionStatusPayload({ status: 'active', model_type: 'aisha-image' })).toBe(false);
+  });
+
+  it('returns false for non-object values', () => {
+    expect(isGpuSessionStatusPayload(null)).toBe(false);
+    expect(isGpuSessionStatusPayload('string')).toBe(false);
+    expect(isGpuSessionStatusPayload(42)).toBe(false);
   });
 });

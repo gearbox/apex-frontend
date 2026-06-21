@@ -11,6 +11,7 @@
     Coins,
     User,
     Shield,
+    Server,
     ChevronLeft,
     ChevronRight,
   } from 'lucide-svelte';
@@ -22,11 +23,13 @@
     coins: Coins,
     user: User,
     shield: Shield,
+    server: Server,
   };
 
   const mainItems = [
     { label: () => m.topbar_create(), href: '/app/create', icon: 'plus' },
     { label: () => m.topbar_gallery(), href: '/app/gallery', icon: 'image' },
+    { label: () => m.nav_sessions(), href: '/app/sessions', icon: 'server' },
     { label: () => m.topbar_jobs(), href: '/app/jobs', icon: 'activity' },
     { label: () => m.topbar_billing(), href: '/app/billing', icon: 'coins' },
   ];

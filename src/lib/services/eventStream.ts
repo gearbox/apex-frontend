@@ -1,4 +1,5 @@
 import type { QueryClient } from '@tanstack/svelte-query';
+import * as m from '$paraglide/messages';
 import apiClient from '$lib/api/client';
 import { API_BASE_URL } from '$lib/utils/constants';
 import {
@@ -20,10 +21,13 @@ import {
   isJobProgressPayload,
   isBalanceUpdatedPayload,
   isSystemNotificationPayload,
+  isGpuSessionStatusPayload,
   type JobStatusPayload,
   type JobProgressPayload,
   type BalanceUpdatedPayload,
+  type GpuSessionStatusPayload,
 } from '$lib/api/events';
+import { sessionKeys } from '$lib/queries/sessions';
 import { get } from 'svelte/store';
 
 export interface EventStreamServiceOptions {
@@ -138,6 +142,10 @@ export class EventStreamService {
 
     es.addEventListener(SSE_EVENTS.SYSTEM_NOTIFICATION, (e: MessageEvent) => {
       this.handleSystemNotification(e);
+    });
+
+    es.addEventListener(SSE_EVENTS.GPU_SESSION_STATUS, (e: MessageEvent) => {
+      this.handleGpuSessionStatus(e);
     });
 
     this.eventSource = es;
@@ -266,6 +274,61 @@ export class EventStreamService {
       addNotification(data);
     } catch {
       // Malformed event — ignore
+    }
+  }
+
+  private handleGpuSessionStatus(e: MessageEvent): void {
+    try {
+      const data = JSON.parse(e.data);
+      if (!isGpuSessionStatusPayload(data)) return;
+      this.processGpuSessionStatus(data);
+    } catch {
+      // Malformed event — ignore
+    }
+  }
+
+  private processGpuSessionStatus(payload: GpuSessionStatusPayload): void {
+    const { session_id, status, previous_status } = payload;
+
+    // Patch cached session detail optimistically
+    this.queryClient.setQueryData(
+      sessionKeys.detail(session_id),
+      (prev: Record<string, unknown> | undefined) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          status,
+          tunnel_hostname: payload.tunnel_hostname ?? prev['tunnel_hostname'],
+          error_message: payload.error_message ?? prev['error_message'],
+        };
+      },
+    );
+
+    // Invalidate list + providers so the create-page model card refreshes
+    this.queryClient.invalidateQueries({ queryKey: sessionKeys.all });
+    this.queryClient.invalidateQueries({ queryKey: ['providers'] });
+
+    // One-shot toasts keyed on transitions only
+    if (previous_status !== status) {
+      if (status === 'active') {
+        addToast({ type: 'success', message: m.session_toast_ready(), durationMs: 4000 });
+      } else if (status === 'failed') {
+        addToast({
+          type: 'error',
+          message: payload.error_message ?? m.session_toast_failed(),
+          durationMs: 6000,
+        });
+      } else if (status === 'stale') {
+        addToast({
+          type: 'warning',
+          message: payload.error_message
+            ? `${m.session_toast_stale()}: ${payload.error_message}`
+            : m.session_toast_stale(),
+          durationMs: 6000,
+        });
+      } else if (status === 'stopped') {
+        addToast({ type: 'success', message: m.session_toast_stopped(), durationMs: 3000 });
+      }
     }
   }
 

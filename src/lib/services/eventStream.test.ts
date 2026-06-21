@@ -11,6 +11,8 @@ import { eventStreamStatus, setEventStreamStatus } from '$lib/stores/eventStream
 import { notifications, clearNotifications } from '$lib/stores/notifications';
 import { activeJobStore } from '$lib/stores/jobs';
 import { generationStore } from '$lib/stores/generation';
+import { toasts, removeToast } from '$lib/stores/toasts';
+import { sessionKeys } from '$lib/queries/sessions';
 
 /* ─── Mock EventSource ─── */
 
@@ -73,6 +75,8 @@ beforeEach(() => {
   clearNotifications();
   activeJobStore.clear();
   generationStore.reset();
+  // Drain any lingering toasts from previous tests
+  get(toasts).forEach((t) => removeToast(t.id));
 });
 
 afterEach(() => {
@@ -305,6 +309,111 @@ describe('EventStreamService — job.progress dispatch', () => {
     let progressValue!: number | null;
     generationStore.subscribe((s) => (progressValue = s.progress))();
     expect(progressValue).toBe(42);
+
+    svc.dispose();
+  });
+});
+
+describe('EventStreamService — gpu_session.status_changed dispatch', () => {
+  it('patches detail cache and invalidates sessions + providers on provisioning→active', async () => {
+    const queryClient = makeMockQueryClient();
+    queryClient.getQueryData.mockReturnValue({
+      id: 'sess_001',
+      status: 'provisioning',
+    });
+
+    const svc = new EventStreamService({ queryClient: queryClient as never });
+    await svc.connect();
+
+    const es = MockEventSource.instances[0];
+    es._emit('gpu_session.status_changed', {
+      session_id: 'sess_001',
+      status: 'active',
+      previous_status: 'provisioning',
+      model_type: 'aisha-image',
+      bundle_name: 'aisha-bundle',
+      tunnel_hostname: 'tunnel.example.com',
+      error_message: null,
+    });
+
+    expect(queryClient.setQueryData).toHaveBeenCalledWith(
+      sessionKeys.detail('sess_001'),
+      expect.any(Function),
+    );
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: sessionKeys.all });
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['providers'] });
+
+    svc.dispose();
+  });
+
+  it('fires a success toast on → active transition', async () => {
+    const queryClient = makeMockQueryClient();
+    const svc = new EventStreamService({ queryClient: queryClient as never });
+    await svc.connect();
+
+    const es = MockEventSource.instances[0];
+    es._emit('gpu_session.status_changed', {
+      session_id: 'sess_003',
+      status: 'active',
+      previous_status: 'provisioning',
+      model_type: 'aisha-image',
+      bundle_name: 'aisha-bundle',
+      tunnel_hostname: 'tunnel.example.com',
+      error_message: null,
+    });
+
+    const allToasts = get(toasts);
+    expect(allToasts).toHaveLength(1);
+    expect(allToasts[0].type).toBe('success');
+
+    svc.dispose();
+  });
+
+  it('fires an error toast on → failed transition', async () => {
+    const queryClient = makeMockQueryClient();
+    const svc = new EventStreamService({ queryClient: queryClient as never });
+    await svc.connect();
+
+    const es = MockEventSource.instances[0];
+    es._emit('gpu_session.status_changed', {
+      session_id: 'sess_002',
+      status: 'failed',
+      previous_status: 'provisioning',
+      model_type: 'aisha-image',
+      bundle_name: 'aisha-bundle',
+      tunnel_hostname: null,
+      error_message: 'GPU out of memory',
+    });
+
+    const allToasts = get(toasts);
+    expect(allToasts).toHaveLength(1);
+    expect(allToasts[0].type).toBe('error');
+    expect(allToasts[0].message).toBe('GPU out of memory');
+
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: sessionKeys.all });
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['providers'] });
+
+    svc.dispose();
+  });
+
+  it('drops malformed event missing previous_status', async () => {
+    const queryClient = makeMockQueryClient();
+    const svc = new EventStreamService({ queryClient: queryClient as never });
+    await svc.connect();
+
+    const es = MockEventSource.instances[0];
+    es._emit('gpu_session.status_changed', {
+      session_id: 'sess_004',
+      status: 'active',
+      // previous_status intentionally omitted
+      model_type: 'aisha-image',
+      bundle_name: 'aisha-bundle',
+      tunnel_hostname: null,
+      error_message: null,
+    });
+
+    expect(queryClient.setQueryData).not.toHaveBeenCalled();
+    expect(get(toasts)).toHaveLength(0);
 
     svc.dispose();
   });
