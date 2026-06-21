@@ -28,7 +28,10 @@
         level,
         title: title.trim(),
         message: message.trim(),
-        expires_at: expiresAt ? new Date(expiresAt).toISOString() : null,
+        expires_at: (() => {
+          const d = expiresAt ? new Date(expiresAt) : null;
+          return d && !isNaN(d.getTime()) ? d.toISOString() : null;
+        })(),
       });
       addToast({ type: 'success', message: 'Broadcast sent' });
       title = '';
