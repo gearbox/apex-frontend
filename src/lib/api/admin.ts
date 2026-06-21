@@ -28,6 +28,7 @@ export type AdminAdjustResponse = components['schemas']['AdminAdjustResponse'];
 export type PricingRuleResponse = components['schemas']['PricingRuleResponse'];
 export type CreatePricingRuleRequest = components['schemas']['CreatePricingRuleRequest'];
 export type PatchPricingRuleRequest = components['schemas']['PatchPricingRuleRequest'];
+export type BroadcastRequest = components['schemas']['SystemBroadcastRequest'];
 
 /* ─── Users ─── */
 
@@ -256,6 +257,20 @@ export async function fetchAuditLog(params?: {
   });
   if (error || !data) throwApiError(error, 'Failed to fetch audit log');
   return data as AuditLogEntry[];
+}
+
+/* ─── Broadcast ─── */
+
+export async function sendBroadcast(
+  body: BroadcastRequest,
+  idempotencyKey: string,
+): Promise<{ message: string }> {
+  const { data, error } = await apiClient.POST('/v1/admin/broadcast', {
+    body,
+    headers: { 'Idempotency-Key': idempotencyKey },
+  });
+  if (error || !data) throwApiError(error, 'Failed to send broadcast');
+  return data as { message: string };
 }
 
 export async function adjustAccountBalance(

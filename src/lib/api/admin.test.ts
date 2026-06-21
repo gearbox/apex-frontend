@@ -32,6 +32,7 @@ import {
   grantPermission,
   revokePermission,
   fetchAuditLog,
+  sendBroadcast,
 } from './admin';
 
 const BASE = 'http://localhost:8000';
@@ -592,5 +593,55 @@ describe('fetchAuditLog()', () => {
     );
     await fetchAuditLog({ target_user_id: 'usr_002', limit: 10 });
     expect(capturedUrl).toContain('target_user_id');
+  });
+});
+
+describe('sendBroadcast()', () => {
+  it('posts broadcast body and returns message', async () => {
+    let requestBody: unknown = null;
+
+    server.use(
+      http.post(`${BASE}/v1/admin/broadcast`, async ({ request }) => {
+        requestBody = await request.json();
+        return HttpResponse.json({ message: 'Broadcast queued' });
+      }),
+    );
+
+    const result = await sendBroadcast(
+      { level: 'warning', title: 'Test', message: 'Hello', expires_at: null },
+      'test-idem-key',
+    );
+    expect(result.message).toBe('Broadcast queued');
+    expect(requestBody).toMatchObject({
+      level: 'warning',
+      title: 'Test',
+      message: 'Hello',
+    });
+  });
+
+  it('sends Idempotency-Key header', async () => {
+    let capturedKey: string | null = null;
+
+    server.use(
+      http.post(`${BASE}/v1/admin/broadcast`, async ({ request }) => {
+        capturedKey = request.headers.get('Idempotency-Key');
+        return HttpResponse.json({ message: 'ok' });
+      }),
+    );
+
+    await sendBroadcast({ level: 'info', title: 'T', message: 'M' }, 'my-bc-key');
+    expect(capturedKey).toBe('my-bc-key');
+  });
+
+  it('throws ApiRequestError on error response', async () => {
+    server.use(
+      http.post(`${BASE}/v1/admin/broadcast`, () =>
+        HttpResponse.json(
+          { error: 'Forbidden', message: 'Admin role required', status_code: 403 },
+          { status: 403 },
+        ),
+      ),
+    );
+    await expect(sendBroadcast({ level: 'info', title: 'T', message: 'M' }, 'k')).rejects.toThrow();
   });
 });

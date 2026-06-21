@@ -20,8 +20,10 @@ import {
   grantPermission,
   revokePermission,
   fetchAuditLog,
+  sendBroadcast,
   type CreatePricingRuleRequest,
   type PatchPricingRuleRequest,
+  type BroadcastRequest,
 } from '$lib/api/admin';
 
 /* ─── Query Key Factory ─── */
@@ -187,6 +189,15 @@ export function deletePricingRuleMutationOptions(queryClient: QueryClient) {
     mutationFn: (ruleId: string) => deletePricingRule(ruleId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: adminKeys.pricing() });
+    },
+  };
+}
+
+export function sendBroadcastMutationOptions(queryClient: QueryClient) {
+  return {
+    mutationFn: (body: BroadcastRequest) => sendBroadcast(body, generateIdempotencyKey()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.audit() });
     },
   };
 }
