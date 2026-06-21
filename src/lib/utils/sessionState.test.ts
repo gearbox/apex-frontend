@@ -6,6 +6,8 @@ import {
   deriveCardState,
   isGenerateEnabled,
   type SessionStatus,
+  type SessionState,
+  type ProvisioningMode,
 } from './sessionState';
 
 const ALL_STATUSES: SessionStatus[] = [
@@ -104,15 +106,15 @@ describe('isTerminalStatus()', () => {
 
 describe('deriveCardState()', () => {
   const always_on = {
-    provisioningMode: 'always_on',
+    provisioningMode: 'always_on' as ProvisioningMode,
     available: true,
-    sessionState: 'none' as string | null | undefined,
+    sessionState: 'none' as SessionState | null | undefined,
     isAuthenticated: true,
   };
   const on_demand = {
-    provisioningMode: 'on_demand',
+    provisioningMode: 'on_demand' as ProvisioningMode,
     available: true,
-    sessionState: 'none' as string | null | undefined,
+    sessionState: 'none' as SessionState | null | undefined,
     isAuthenticated: true,
   };
 
@@ -189,9 +191,9 @@ describe('deriveCardState()', () => {
 
   // Unknown session_state falls back to NEEDS_SESSION
   it('unknown session_state → NEEDS_SESSION', () => {
-    expect(deriveCardState({ ...on_demand, sessionState: 'unknown_future_state' })).toBe(
-      'NEEDS_SESSION',
-    );
+    expect(
+      deriveCardState({ ...on_demand, sessionState: 'unknown_future_state' as unknown as SessionState }),
+    ).toBe('NEEDS_SESSION');
   });
 });
 

@@ -240,5 +240,6 @@
   "create_session_paused_note": "Sesija je pauzirana. Upravljajte njome u odeljku Sesije.",
   "create_session_cost_hint": "Naplata po satu. Pokretanje traje ~30–90 s.",
   "create_session_uptime": "Vreme rada",
-  "create_session_cost_so_far": "Trenutni troškovi:"
+  "create_session_cost_so_far": "Trenutni troškovi:",
+  "create_session_manage_link": "Upravljanje u odeljku Sesije"
 }

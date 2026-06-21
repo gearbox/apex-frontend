@@ -20,6 +20,7 @@ vi.mock('$paraglide/messages', () => ({
   create_session_cost_hint: () => 'Billed by the hour.',
   create_session_uptime: () => 'Uptime',
   create_session_cost_so_far: () => 'Cost so far:',
+  create_session_manage_link: () => 'Manage in Sessions',
 }));
 
 vi.mock('$paraglide/runtime', () => ({

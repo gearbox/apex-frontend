@@ -12,7 +12,13 @@
   import { productInfo } from '$lib/stores/product';
   import { isAgeVerified, isAuthenticated, setUser } from '$lib/stores/auth';
   import { isSSEFallback } from '$lib/stores/eventStream';
-  import { deriveCardState, isGenerateEnabled, isTerminalStatus } from '$lib/utils/sessionState';
+  import {
+    deriveCardState,
+    isGenerateEnabled,
+    isTerminalStatus,
+    type ProvisioningMode,
+    type SessionState,
+  } from '$lib/utils/sessionState';
   import { sessionsListQueryOptions, startSessionMutationOptions } from '$lib/queries/sessions';
   import * as m from '$paraglide/messages';
   import ModelSelector from '$lib/components/create/ModelSelector.svelte';
@@ -97,9 +103,9 @@
   const cardState = $derived(
     currentModelInfo
       ? deriveCardState({
-          provisioningMode: currentModelInfo.provisioningMode,
+          provisioningMode: currentModelInfo.provisioningMode as ProvisioningMode,
           available: currentModelInfo.providerAvailable,
-          sessionState: currentModelInfo.session_state,
+          sessionState: currentModelInfo.session_state as SessionState | null,
           isAuthenticated: $isAuthenticated,
         })
       : 'READY', // no model selected yet → don't block UI

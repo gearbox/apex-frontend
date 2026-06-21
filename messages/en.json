@@ -240,5 +240,6 @@
   "create_session_paused_note": "Session is paused. Manage it in Sessions.",
   "create_session_cost_hint": "Billed by the hour. Takes ~30–90 s to start.",
   "create_session_uptime": "Uptime",
-  "create_session_cost_so_far": "Cost so far:"
+  "create_session_cost_so_far": "Cost so far:",
+  "create_session_manage_link": "Manage in Sessions"
 }

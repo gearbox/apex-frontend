@@ -16,14 +16,15 @@
 
   let { cardState, session, starting, onStart, onStopRequest }: Props = $props();
 
-  const CARD_COLOR_MAP: Record<string, string> = {
-    'session active': 'success',
-    'starting…': 'warning',
-    'session unreachable': 'warning',
-    'stopping…': 'muted',
-    'needs gpu session': 'info',
-    'sign in to use': 'neutral',
-    'temporarily unavailable': 'muted',
+  const CARD_COLOR_BY_STATE: Record<CardState, string> = {
+    READY: 'success',
+    NEEDS_SESSION: 'info',
+    PROVISIONING: 'warning',
+    STALE: 'warning',
+    STOPPING: 'muted',
+    SIGN_IN_REQUIRED: 'neutral',
+    UNAVAILABLE: 'muted',
+    PAUSED_HIDDEN: 'muted',
   };
 
   // Running uptime timer (active sessions only)
@@ -33,9 +34,14 @@
   function startTimer() {
     if (!session?.started_at) return;
     const startMs = new Date(session.started_at).getTime();
-    elapsed = Math.max(0, Math.floor((Date.now() - startMs) / 1000));
+    if (Number.isNaN(startMs)) {
+      elapsed = 0;
+      return;
+    }
+    const compute = () => Math.max(0, Math.floor((Date.now() - startMs) / 1000));
+    elapsed = compute();
     intervalId = setInterval(() => {
-      elapsed = Math.max(0, Math.floor((Date.now() - startMs) / 1000));
+      elapsed = compute();
     }, 1000);
   }
 
@@ -76,7 +82,7 @@
   <!-- on_demand active session: uptime timer + Stop -->
   <div class="panel">
     <div class="panel-header">
-      <StatusBadge status={m.create_state_active()} colorMap={CARD_COLOR_MAP} />
+      <StatusBadge status={m.create_state_active()} color={CARD_COLOR_BY_STATE[cardState]} />
       <div class="uptime">
         <span class="uptime-label">{m.create_session_uptime()}</span>
         <span class="uptime-value">{formatDuration(elapsed)}</span>
@@ -96,7 +102,7 @@
 {:else if cardState === 'NEEDS_SESSION'}
   <div class="panel">
     <div class="panel-header">
-      <StatusBadge status={m.create_state_needs_session()} colorMap={CARD_COLOR_MAP} />
+      <StatusBadge status={m.create_state_needs_session()} color={CARD_COLOR_BY_STATE[cardState]} />
       <span class="hint">{m.create_session_cost_hint()}</span>
     </div>
     <button class="btn-primary" onclick={onStart} disabled={starting}>
@@ -107,7 +113,7 @@
 {:else if cardState === 'PROVISIONING'}
   <div class="panel">
     <div class="panel-header">
-      <StatusBadge status={m.create_state_provisioning()} colorMap={CARD_COLOR_MAP} />
+      <StatusBadge status={m.create_state_provisioning()} color={CARD_COLOR_BY_STATE[cardState]} />
       {#if session?.provisioning_phase}
         <span class="hint">{session.provisioning_phase}</span>
       {/if}
@@ -120,7 +126,7 @@
 {:else if cardState === 'STALE'}
   <div class="panel">
     <div class="panel-header">
-      <StatusBadge status={m.create_state_stale()} colorMap={CARD_COLOR_MAP} />
+      <StatusBadge status={m.create_state_stale()} color={CARD_COLOR_BY_STATE[cardState]} />
       {#if session?.error_message}
         <span class="hint error">{session.error_message}</span>
       {/if}
@@ -132,12 +138,12 @@
   </div>
 {:else if cardState === 'STOPPING'}
   <div class="panel">
-    <StatusBadge status={m.create_state_stopping()} colorMap={CARD_COLOR_MAP} />
+    <StatusBadge status={m.create_state_stopping()} color={CARD_COLOR_BY_STATE[cardState]} />
   </div>
 {:else if cardState === 'SIGN_IN_REQUIRED'}
   <div class="panel">
     <div class="panel-header">
-      <StatusBadge status={m.create_state_sign_in()} colorMap={CARD_COLOR_MAP} />
+      <StatusBadge status={m.create_state_sign_in()} color={CARD_COLOR_BY_STATE[cardState]} />
     </div>
     <a href="/login" class="btn-primary btn-link">
       <LogIn size={13} />
@@ -146,12 +152,12 @@
   </div>
 {:else if cardState === 'UNAVAILABLE'}
   <div class="panel">
-    <StatusBadge status={m.create_state_unavailable()} colorMap={CARD_COLOR_MAP} />
+    <StatusBadge status={m.create_state_unavailable()} color={CARD_COLOR_BY_STATE[cardState]} />
   </div>
 {:else if cardState === 'PAUSED_HIDDEN'}
   <div class="panel paused">
     <span class="paused-note">{m.create_session_paused_note()}</span>
-    <a href="/app/sessions" class="escape-link">Manage in Sessions →</a>
+    <a href="/app/sessions" class="escape-link">{m.create_session_manage_link()} →</a>
   </div>
 {/if}
 

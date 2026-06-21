@@ -63,8 +63,9 @@ function setupCommonRoutes(page: Page) {
   ]);
 }
 
-// ── 1. Anonymous: on_demand model → SIGN_IN_REQUIRED ─────────────────────────
-anonTest('Anonymous user sees Sign-in CTA, not Start, for on_demand model', async ({ page }) => {
+// ── 1. Anonymous: (app) layout guard redirects to /login before the create page renders ──────────
+// Note: SIGN_IN_REQUIRED card state is defensive UI and unreachable under the (app) auth guard.
+anonTest('Anonymous user is redirected to /login for an on_demand create route', async ({ page }) => {
   await page.route('**/v1/auth/refresh', (r) =>
     r.fulfill({
       status: 401,
@@ -132,61 +133,58 @@ test('Unavailable model shows no Start CTA (finding-#3 regression guard)', async
 });
 
 // ── 3. NEEDS_SESSION → Start → PROVISIONING ──────────────────────────────────
-test('NEEDS_SESSION: Start session button triggers mutation and shows Cancel during provisioning', async ({
+test('NEEDS_SESSION: Start triggers mutation and shows Cancel during provisioning', async ({
   authenticatedPage: page,
 }) => {
   await setupCommonRoutes(page);
 
-  let providerSessionState = 'none';
+  let sessionState = 'none';
   await page.route('**/v1/providers', (r) =>
     r.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(makeAishaProvider(providerSessionState)),
+      body: JSON.stringify(makeAishaProvider(sessionState as never)),
     }),
   );
 
-  await page.route('**/v1/sessions', (r) =>
-    r.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        sessions: providerSessionState === 'provisioning' ? [makeSession('provisioning')] : [],
-      }),
-    }),
+  // Single handler for /v1/sessions (exact path — does NOT swallow /v1/sessions/*/stop)
+  await page.route(
+    (url) => url.pathname === '/v1/sessions',
+    async (r) => {
+      if (r.request().method() === 'POST') {
+        sessionState = 'provisioning';
+        await r.fulfill({
+          status: 201,
+          contentType: 'application/json',
+          body: JSON.stringify(makeSession('pending', 'sess_new')),
+        });
+      } else {
+        await r.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            sessions: sessionState === 'none' ? [] : [makeSession('provisioning')],
+          }),
+        });
+      }
+    },
   );
-
-  await page.route('**/v1/sessions', async (r) => {
-    await r.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ sessions: [] }),
-    });
-  });
-
-  // POST /v1/sessions — returns pending session and causes re-query
-  await page.route('**/v1/sessions', async (r) => {
-    if (r.request().method() === 'POST') {
-      providerSessionState = 'provisioning';
-      await r.fulfill({
-        status: 201,
-        contentType: 'application/json',
-        body: JSON.stringify(makeSession('pending', 'sess_new')),
-      });
-    } else {
-      await r.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          sessions: providerSessionState === 'none' ? [] : [makeSession('provisioning')],
-        }),
-      });
-    }
-  });
 
   await page.goto('/app/create');
 
+  // Initial NEEDS_SESSION state
   await expect(page.getByText(/Needs GPU session/i)).toBeVisible();
+  const startBtn = page.getByRole('button', { name: /Start session/i });
+  await expect(startBtn).toBeVisible();
+  await expect(page.getByRole('button', { name: /Generate/i }).first()).toBeDisabled();
+
+  // Click Start → POST fires, mutation invalidates providers+sessions → both refetch
+  await startBtn.click();
+
+  // Now PROVISIONING: "Starting…" badge + Cancel, Generate still disabled
+  await expect(page.getByText(/Starting…/i)).toBeVisible();
+  await expect(page.getByRole('button', { name: /Cancel/i })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Start session/i })).not.toBeVisible();
   await expect(page.getByRole('button', { name: /Generate/i }).first()).toBeDisabled();
 });
 

@@ -240,5 +240,6 @@
   "create_session_paused_note": "Сессия приостановлена. Управляйте ею в разделе Сессии.",
   "create_session_cost_hint": "Оплата почасовая. Запуск занимает ~30–90 с.",
   "create_session_uptime": "Время работы",
-  "create_session_cost_so_far": "Текущие расходы:"
+  "create_session_cost_so_far": "Текущие расходы:",
+  "create_session_manage_link": "Управление в разделе Сессии"
 }

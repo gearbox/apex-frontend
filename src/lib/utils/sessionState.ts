@@ -54,10 +54,12 @@ export type CardState =
   | 'STOPPING'
   | 'PAUSED_HIDDEN';
 
+export type ProvisioningMode = 'always_on' | 'on_demand';
+
 export interface DeriveCardStateArgs {
-  provisioningMode: string;
+  provisioningMode: ProvisioningMode;
   available: boolean;
-  sessionState: string | null | undefined;
+  sessionState: SessionState | null | undefined;
   isAuthenticated: boolean;
 }
 
