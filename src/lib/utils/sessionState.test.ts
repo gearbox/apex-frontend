@@ -192,7 +192,10 @@ describe('deriveCardState()', () => {
   // Unknown session_state falls back to NEEDS_SESSION
   it('unknown session_state → NEEDS_SESSION', () => {
     expect(
-      deriveCardState({ ...on_demand, sessionState: 'unknown_future_state' as unknown as SessionState }),
+      deriveCardState({
+        ...on_demand,
+        sessionState: 'unknown_future_state' as unknown as SessionState,
+      }),
     ).toBe('NEEDS_SESSION');
   });
 });

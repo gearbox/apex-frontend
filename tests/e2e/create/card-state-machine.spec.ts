@@ -65,45 +65,48 @@ function setupCommonRoutes(page: Page) {
 
 // ── 1. Anonymous: (app) layout guard redirects to /login before the create page renders ──────────
 // Note: SIGN_IN_REQUIRED card state is defensive UI and unreachable under the (app) auth guard.
-anonTest('Anonymous user is redirected to /login for an on_demand create route', async ({ page }) => {
-  await page.route('**/v1/auth/refresh', (r) =>
-    r.fulfill({
-      status: 401,
-      contentType: 'application/json',
-      body: JSON.stringify({ error: 'unauthorized' }),
-    }),
-  );
-  await page.route('**/v1/billing/balance', (r) =>
-    r.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ balance: 0 }),
-    }),
-  );
-  await page.route('**/v1/billing/pricing', (r) =>
-    r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) }),
-  );
-  await page.route('**/v1/providers', (r) =>
-    r.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(makeAishaProvider('none')),
-    }),
-  );
-  await page.route('**/v1/sessions', (r) =>
-    r.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ sessions: [] }),
-    }),
-  );
-  await page.route('**/v1/events', (r) => r.abort());
+anonTest(
+  'Anonymous user is redirected to /login for an on_demand create route',
+  async ({ page }) => {
+    await page.route('**/v1/auth/refresh', (r) =>
+      r.fulfill({
+        status: 401,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'unauthorized' }),
+      }),
+    );
+    await page.route('**/v1/billing/balance', (r) =>
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ balance: 0 }),
+      }),
+    );
+    await page.route('**/v1/billing/pricing', (r) =>
+      r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) }),
+    );
+    await page.route('**/v1/providers', (r) =>
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(makeAishaProvider('none')),
+      }),
+    );
+    await page.route('**/v1/sessions', (r) =>
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ sessions: [] }),
+      }),
+    );
+    await page.route('**/v1/events', (r) => r.abort());
 
-  await page.goto('/app/create');
+    await page.goto('/app/create');
 
-  // Should redirect to /login for unauthenticated users
-  await expect(page).toHaveURL(/\/login/);
-});
+    // Should redirect to /login for unauthenticated users
+    await expect(page).toHaveURL(/\/login/);
+  },
+);
 
 // ── 2. Unavailable: on_demand available:false → UNAVAILABLE, no Start ─────────
 test('Unavailable model shows no Start CTA (finding-#3 regression guard)', async ({
