@@ -8,7 +8,6 @@
     sessionsListQueryOptions,
     sessionDetailQueryOptions,
     startSessionMutationOptions,
-    stopSessionMutationOptions,
   } from '$lib/queries/sessions';
   import { isProvisioningStatus } from '$lib/utils/sessionState';
   import StartSessionPanel from '$lib/components/sessions/StartSessionPanel.svelte';
@@ -66,7 +65,7 @@
   );
 
   // Compute progress percentage from provisioning_progress bytes data
-  const provisioningProgress = $derived((): number | null => {
+  const provisioningProgress = $derived.by((): number | null => {
     const detail = sessionDetailQuery.data;
     if (!detail) return null;
     const pp = detail.provisioning_progress as Record<string, unknown> | null | undefined;
@@ -79,8 +78,7 @@
 
   // Merge detail data into the provisioning session card
   function getProgress(sessionId: string): number | null {
-    if (provisioningSession?.id !== sessionId) return null;
-    return provisioningProgress();
+    return provisioningSession?.id === sessionId ? provisioningProgress : null;
   }
 
   // ── Start mutation
@@ -115,9 +113,6 @@
   function closeStopModal() {
     stopModalSessionId = null;
   }
-
-  // ── Track which sessions are in the stop-pending state
-  const stopMutation = createMutation(() => stopSessionMutationOptions(queryClient));
 </script>
 
 <svelte:head>
@@ -138,7 +133,6 @@
         <SessionCard
           {session}
           onStop={openStopModal}
-          stopping={stopMutation.isPending && stopMutation.variables === session.id}
           provisioningProgress={getProgress(session.id)}
         />
       {/each}

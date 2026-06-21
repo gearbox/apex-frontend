@@ -10,6 +10,7 @@ vi.mock('$paraglide/messages', () => ({
   session_stop_preview_duration: () => 'Active duration',
   session_stop_confirm: () => 'Stop Session',
   session_stop_cancel: () => 'Keep Running',
+  session_stopping: () => 'Stopping…',
   common_loading: () => 'Loading…',
   common_close: () => 'Close',
 }));

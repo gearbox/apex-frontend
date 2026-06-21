@@ -13,7 +13,14 @@
   const width = $derived(isDeterminate ? Math.min(100, Math.max(0, progress!)) : 0);
 </script>
 
-<div class="progress-wrap" aria-label={m.session_provisioning_phase()} role="progressbar">
+<div
+  class="progress-wrap"
+  role="progressbar"
+  aria-label={m.session_provisioning_phase()}
+  aria-valuemin={isDeterminate ? 0 : undefined}
+  aria-valuemax={isDeterminate ? 100 : undefined}
+  aria-valuenow={isDeterminate ? width : undefined}
+>
   {#if isDeterminate}
     <div class="progress-bar determinate" style="width: {width}%"></div>
   {:else}

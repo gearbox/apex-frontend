@@ -25,6 +25,16 @@ describe('SessionProgressBar — determinate', () => {
     const bar2 = c2.querySelector('.progress-bar.determinate') as HTMLElement;
     expect(bar2.style.width).toBe('0%');
   });
+
+  it('exposes aria-valuenow equal to clamped width when determinate', () => {
+    const { container } = render(SessionProgressBar, {
+      props: { status: 'provisioning', progress: 75 },
+    });
+    const wrap = container.querySelector('.progress-wrap') as HTMLElement;
+    expect(wrap.getAttribute('aria-valuenow')).toBe('75');
+    expect(wrap.getAttribute('aria-valuemin')).toBe('0');
+    expect(wrap.getAttribute('aria-valuemax')).toBe('100');
+  });
 });
 
 describe('SessionProgressBar — indeterminate', () => {
@@ -34,6 +44,16 @@ describe('SessionProgressBar — indeterminate', () => {
     });
     expect(container.querySelector('.progress-bar.indeterminate')).not.toBeNull();
     expect(container.querySelector('.progress-bar.determinate')).toBeNull();
+  });
+
+  it('omits aria-valuenow when indeterminate', () => {
+    const { container } = render(SessionProgressBar, {
+      props: { status: 'provisioning', progress: null },
+    });
+    const wrap = container.querySelector('.progress-wrap') as HTMLElement;
+    expect(wrap.hasAttribute('aria-valuenow')).toBe(false);
+    expect(wrap.hasAttribute('aria-valuemin')).toBe(false);
+    expect(wrap.hasAttribute('aria-valuemax')).toBe(false);
   });
 });
 

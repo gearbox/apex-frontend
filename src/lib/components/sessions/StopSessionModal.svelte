@@ -109,7 +109,7 @@
           {m.session_stop_cancel()}
         </button>
         <button class="btn-confirm" onclick={handleConfirm} disabled={confirming}>
-          {confirming ? '…' : m.session_stop_confirm()}
+          {confirming ? m.session_stopping() : m.session_stop_confirm()}
         </button>
       </div>
     {/if}

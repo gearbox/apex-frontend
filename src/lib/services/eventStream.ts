@@ -1,4 +1,5 @@
 import type { QueryClient } from '@tanstack/svelte-query';
+import * as m from '$paraglide/messages';
 import apiClient from '$lib/api/client';
 import { API_BASE_URL } from '$lib/utils/constants';
 import {
@@ -310,23 +311,23 @@ export class EventStreamService {
     // One-shot toasts keyed on transitions only
     if (previous_status !== status) {
       if (status === 'active') {
-        addToast({ type: 'success', message: 'Session ready', durationMs: 4000 });
+        addToast({ type: 'success', message: m.session_toast_ready(), durationMs: 4000 });
       } else if (status === 'failed') {
         addToast({
           type: 'error',
-          message: payload.error_message ?? 'Session failed',
+          message: payload.error_message ?? m.session_toast_failed(),
           durationMs: 6000,
         });
       } else if (status === 'stale') {
         addToast({
           type: 'warning',
           message: payload.error_message
-            ? `Session unreachable: ${payload.error_message}`
-            : 'Session unreachable',
+            ? `${m.session_toast_stale()}: ${payload.error_message}`
+            : m.session_toast_stale(),
           durationMs: 6000,
         });
       } else if (status === 'stopped') {
-        addToast({ type: 'success', message: 'Session stopped', durationMs: 3000 });
+        addToast({ type: 'success', message: m.session_toast_stopped(), durationMs: 3000 });
       }
     }
   }

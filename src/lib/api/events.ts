@@ -103,6 +103,8 @@ export function isGpuSessionStatusPayload(data: unknown): data is GpuSessionStat
     data !== null &&
     'session_id' in data &&
     'status' in data &&
-    'model_type' in data
+    'previous_status' in data &&
+    'model_type' in data &&
+    'bundle_name' in data
   );
 }

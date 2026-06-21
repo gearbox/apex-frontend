@@ -10,11 +10,10 @@
   interface Props {
     session: GpuSessionResponse;
     onStop: (id: string) => void;
-    stopping?: boolean;
     provisioningProgress?: number | null;
   }
 
-  let { session, onStop, stopping = false, provisioningProgress = null }: Props = $props();
+  let { session, onStop, provisioningProgress = null }: Props = $props();
 
   const SESSION_COLOR_MAP: Record<string, string> = {
     active: 'success',
@@ -82,7 +81,7 @@
   const isProvisioning = $derived(isProvisioningStatus(session.status));
   const isTerminal = $derived(session.status === 'stopped' || session.status === 'failed');
   const stopDisabled = $derived(
-    stopping || session.status === 'stopping' || isTerminal || session.in_flight_job_count > 0,
+    session.status === 'stopping' || isTerminal || session.in_flight_job_count > 0,
   );
 </script>
 
@@ -132,7 +131,7 @@
     {/if}
     <button class="btn-stop" disabled={stopDisabled} onclick={() => onStop(session.id)}>
       <Square size={14} />
-      {stopping || session.status === 'stopping' ? m.session_stopping() : m.session_stop()}
+      {session.status === 'stopping' ? m.session_stopping() : m.session_stop()}
     </button>
   </div>
 </div>

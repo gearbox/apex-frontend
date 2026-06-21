@@ -47,14 +47,6 @@ describe('SessionCard — Stop button', () => {
     expect(btn.disabled).toBe(true);
   });
 
-  it('disables Stop when stopping prop is true', () => {
-    render(SessionCard, {
-      props: { session: makeSession(), onStop: vi.fn(), stopping: true },
-    });
-    const btn = screen.getByRole('button', { name: /stopping/i }) as HTMLButtonElement;
-    expect(btn.disabled).toBe(true);
-  });
-
   it('disables Stop for terminal statuses', () => {
     render(SessionCard, {
       props: { session: makeSession({ status: 'failed' }), onStop: vi.fn() },
