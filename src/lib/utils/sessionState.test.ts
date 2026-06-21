@@ -3,6 +3,8 @@ import {
   sessionStateFromStatus,
   isProvisioningStatus,
   isTerminalStatus,
+  deriveCardState,
+  isGenerateEnabled,
   type SessionStatus,
 } from './sessionState';
 
@@ -97,5 +99,119 @@ describe('isTerminalStatus()', () => {
     expect(isTerminalStatus('stale')).toBe(false);
     expect(isTerminalStatus('stopping')).toBe(false);
     expect(isTerminalStatus('unknown')).toBe(false);
+  });
+});
+
+describe('deriveCardState()', () => {
+  const always_on = {
+    provisioningMode: 'always_on',
+    available: true,
+    sessionState: 'none' as string | null | undefined,
+    isAuthenticated: true,
+  };
+  const on_demand = {
+    provisioningMode: 'on_demand',
+    available: true,
+    sessionState: 'none' as string | null | undefined,
+    isAuthenticated: true,
+  };
+
+  // Row 1: always_on → READY regardless of everything else
+  it('always_on → READY', () => {
+    expect(deriveCardState(always_on)).toBe('READY');
+  });
+
+  it('always_on wins even when unavailable and unauthenticated', () => {
+    expect(deriveCardState({ ...always_on, available: false, isAuthenticated: false })).toBe(
+      'READY',
+    );
+  });
+
+  // Row 2: on_demand + unauthenticated → SIGN_IN_REQUIRED
+  it('on_demand + unauthenticated → SIGN_IN_REQUIRED', () => {
+    expect(deriveCardState({ ...on_demand, isAuthenticated: false })).toBe('SIGN_IN_REQUIRED');
+  });
+
+  // Row 3: on_demand + unavailable → UNAVAILABLE (beats session_state)
+  it('on_demand + unavailable → UNAVAILABLE', () => {
+    expect(deriveCardState({ ...on_demand, available: false })).toBe('UNAVAILABLE');
+  });
+
+  it('on_demand + unavailable + session_state active still → UNAVAILABLE', () => {
+    expect(deriveCardState({ ...on_demand, available: false, sessionState: 'active' })).toBe(
+      'UNAVAILABLE',
+    );
+  });
+
+  it('on_demand + unavailable + session_state stale still → UNAVAILABLE', () => {
+    expect(deriveCardState({ ...on_demand, available: false, sessionState: 'stale' })).toBe(
+      'UNAVAILABLE',
+    );
+  });
+
+  // Row 4: session_state none/null/undefined → NEEDS_SESSION
+  it('on_demand + available + session_state none → NEEDS_SESSION', () => {
+    expect(deriveCardState({ ...on_demand, sessionState: 'none' })).toBe('NEEDS_SESSION');
+  });
+
+  it('on_demand + available + session_state null → NEEDS_SESSION', () => {
+    expect(deriveCardState({ ...on_demand, sessionState: null })).toBe('NEEDS_SESSION');
+  });
+
+  it('on_demand + available + session_state undefined → NEEDS_SESSION', () => {
+    expect(deriveCardState({ ...on_demand, sessionState: undefined })).toBe('NEEDS_SESSION');
+  });
+
+  // Row 5: provisioning → PROVISIONING
+  it('on_demand + available + session_state provisioning → PROVISIONING', () => {
+    expect(deriveCardState({ ...on_demand, sessionState: 'provisioning' })).toBe('PROVISIONING');
+  });
+
+  // Row 6: active → READY
+  it('on_demand + available + session_state active → READY', () => {
+    expect(deriveCardState({ ...on_demand, sessionState: 'active' })).toBe('READY');
+  });
+
+  // Row 7: stale → STALE
+  it('on_demand + available + session_state stale → STALE', () => {
+    expect(deriveCardState({ ...on_demand, sessionState: 'stale' })).toBe('STALE');
+  });
+
+  // Row 8: stopping → STOPPING
+  it('on_demand + available + session_state stopping → STOPPING', () => {
+    expect(deriveCardState({ ...on_demand, sessionState: 'stopping' })).toBe('STOPPING');
+  });
+
+  // Row 9: paused → PAUSED_HIDDEN
+  it('on_demand + available + session_state paused → PAUSED_HIDDEN', () => {
+    expect(deriveCardState({ ...on_demand, sessionState: 'paused' })).toBe('PAUSED_HIDDEN');
+  });
+
+  // Unknown session_state falls back to NEEDS_SESSION
+  it('unknown session_state → NEEDS_SESSION', () => {
+    expect(deriveCardState({ ...on_demand, sessionState: 'unknown_future_state' })).toBe(
+      'NEEDS_SESSION',
+    );
+  });
+});
+
+describe('isGenerateEnabled()', () => {
+  it('returns true only for READY', () => {
+    expect(isGenerateEnabled('READY')).toBe(true);
+  });
+
+  it('returns false for all non-READY states', () => {
+    const nonReady = [
+      'SIGN_IN_REQUIRED',
+      'UNAVAILABLE',
+      'NEEDS_SESSION',
+      'PROVISIONING',
+      'STALE',
+      'STOPPING',
+      'PAUSED_HIDDEN',
+    ] as const;
+    for (const state of nonReady) {
+      expect(isGenerateEnabled(state)).toBe(false);
+    }
   });
 });

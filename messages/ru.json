@@ -1,4 +1,5 @@
 {
+  "$schema": "https://inlang.com/schema/inlang-message-format",
   "nav_create": "Создать",
   "nav_gallery": "Галерея",
   "nav_billing": "Платежи и токены",
@@ -223,5 +224,21 @@
   "session_already_exists": "У вас уже есть активная сессия для этой модели",
   "create_needs_session": "Для генерации этой модели требуется активная GPU-сессия.",
   "create_start_session_cta": "Запустить сессию →",
-  "error_no_active_gpu_session": "Нет активной GPU-сессии. Запустите её на странице сессий."
+  "error_no_active_gpu_session": "Нет активной GPU-сессии. Запустите её на странице сессий.",
+  "create_state_ready": "Готова",
+  "create_state_active": "Сессия активна",
+  "create_state_needs_session": "Требуется GPU-сессия",
+  "create_state_provisioning": "Запуск…",
+  "create_state_stale": "Сессия недоступна",
+  "create_state_stopping": "Остановка…",
+  "create_state_unavailable": "Временно недоступно",
+  "create_state_sign_in": "Войдите, чтобы использовать",
+  "create_session_start": "Запустить сессию",
+  "create_session_stop": "Остановить сессию",
+  "create_session_cancel": "Отмена",
+  "create_session_sign_in_cta": "Войти",
+  "create_session_paused_note": "Сессия приостановлена. Управляйте ею в разделе Сессии.",
+  "create_session_cost_hint": "Оплата почасовая. Запуск занимает ~30–90 с.",
+  "create_session_uptime": "Время работы",
+  "create_session_cost_so_far": "Текущие расходы:"
 }

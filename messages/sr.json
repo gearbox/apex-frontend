@@ -1,4 +1,5 @@
 {
+  "$schema": "https://inlang.com/schema/inlang-message-format",
   "nav_create": "Kreiraj",
   "nav_gallery": "Galerija",
   "nav_billing": "Naplata i tokeni",
@@ -223,5 +224,21 @@
   "session_already_exists": "Već imate aktivnu sesiju za ovaj model",
   "create_needs_session": "Ovaj model zahteva aktivnu GPU sesiju za generisanje.",
   "create_start_session_cta": "Pokreni sesiju →",
-  "error_no_active_gpu_session": "Nema aktivne GPU sesije. Pokrenite je na stranici sesija."
+  "error_no_active_gpu_session": "Nema aktivne GPU sesije. Pokrenite je na stranici sesija.",
+  "create_state_ready": "Spremna",
+  "create_state_active": "Sesija aktivna",
+  "create_state_needs_session": "Potrebna GPU sesija",
+  "create_state_provisioning": "Pokretanje…",
+  "create_state_stale": "Sesija nedostupna",
+  "create_state_stopping": "Zaustavljanje…",
+  "create_state_unavailable": "Privremeno nedostupno",
+  "create_state_sign_in": "Prijavite se za korišćenje",
+  "create_session_start": "Pokreni sesiju",
+  "create_session_stop": "Zaustavi sesiju",
+  "create_session_cancel": "Otkaži",
+  "create_session_sign_in_cta": "Prijavi se",
+  "create_session_paused_note": "Sesija je pauzirana. Upravljajte njome u odeljku Sesije.",
+  "create_session_cost_hint": "Naplata po satu. Pokretanje traje ~30–90 s.",
+  "create_session_uptime": "Vreme rada",
+  "create_session_cost_so_far": "Trenutni troškovi:"
 }

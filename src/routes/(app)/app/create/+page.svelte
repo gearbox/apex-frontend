@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
-  import { createQuery, useQueryClient } from '@tanstack/svelte-query';
+  import { createQuery, createMutation, useQueryClient } from '@tanstack/svelte-query';
   import apiClient from '$lib/api/client';
   import { parseApiError } from '$lib/api/errors';
   import { generateIdempotencyKey } from '$lib/utils/idempotency';
@@ -10,10 +10,15 @@
   import { lookupCost } from '$lib/utils/pricing';
   import { createJobPoller } from '$lib/services/jobPoller';
   import { productInfo } from '$lib/stores/product';
-  import { isAgeVerified, setUser } from '$lib/stores/auth';
+  import { isAgeVerified, isAuthenticated, setUser } from '$lib/stores/auth';
+  import { isSSEFallback } from '$lib/stores/eventStream';
+  import { deriveCardState, isGenerateEnabled, isTerminalStatus } from '$lib/utils/sessionState';
+  import { sessionsListQueryOptions, startSessionMutationOptions } from '$lib/queries/sessions';
   import * as m from '$paraglide/messages';
   import ModelSelector from '$lib/components/create/ModelSelector.svelte';
   import AgeVerificationModal from '$lib/components/create/AgeVerificationModal.svelte';
+  import CreateSessionPanel from '$lib/components/sessions/CreateSessionPanel.svelte';
+  import StopSessionModal from '$lib/components/sessions/StopSessionModal.svelte';
   import type { components } from '$lib/api/types';
   import type { UserProfile } from '$lib/stores/auth';
   import TypeSelector from '$lib/components/create/TypeSelector.svelte';
@@ -69,12 +74,70 @@
     allModels.find((m) => m.model_key === $generationStore.model) ?? null,
   );
 
-  // ── Session hook: on-demand model with no active session disables Generate
-  const needsSession = $derived(
-    !!currentModelInfo &&
-      currentModelInfo.provisioningMode === 'on_demand' &&
-      currentModelInfo.session_state !== 'active',
+  // When the stored model is no longer in the providers list (e.g. first load with
+  // only on-demand models), fall back to the first available model automatically.
+  $effect(() => {
+    if (currentModelInfo === null && allModels.length > 0) {
+      generationStore.setModel(allModels[0].model_key as never);
+    }
+  });
+
+  // ── Sessions query (to resolve session id/timer/cost for the selected model)
+  const sessionsQuery = createQuery(() =>
+    sessionsListQueryOptions(false, $isSSEFallback ? 8000 : false),
   );
+
+  const selectedSession = $derived(
+    (sessionsQuery.data ?? []).find(
+      (s) => s.model_type === currentModelInfo?.model_key && !isTerminalStatus(s.status),
+    ) ?? null,
+  );
+
+  // ── Card state machine
+  const cardState = $derived(
+    currentModelInfo
+      ? deriveCardState({
+          provisioningMode: currentModelInfo.provisioningMode,
+          available: currentModelInfo.providerAvailable,
+          sessionState: currentModelInfo.session_state,
+          isAuthenticated: $isAuthenticated,
+        })
+      : 'READY', // no model selected yet → don't block UI
+  );
+
+  const generateEnabled = $derived(isGenerateEnabled(cardState));
+
+  // ── Start session mutation
+  const startMutation = createMutation(() => startSessionMutationOptions(queryClient));
+
+  function handleStart() {
+    if (!currentModelInfo) return;
+    startMutation.mutate(currentModelInfo.model_key as never, {
+      onError: (err) => {
+        const e = parseApiError(err, 0);
+        addToast({
+          type: e.error === 'session_already_exists' ? 'warning' : 'error',
+          message:
+            e.error === 'session_already_exists'
+              ? m.session_already_exists()
+              : e.message || 'Failed to start session',
+        });
+      },
+    });
+  }
+
+  // ── Stop / Cancel modal
+  let stopModalSessionId = $state<string | null>(null);
+
+  function handleStopRequest() {
+    if (selectedSession) stopModalSessionId = selectedSession.id;
+  }
+
+  function handleStopped() {
+    stopModalSessionId = null;
+    queryClient.invalidateQueries({ queryKey: ['sessions'] });
+    queryClient.invalidateQueries({ queryKey: ['providers'] });
+  }
 
   // Derived estimated cost (per unit — imageCount multiplier applied in CostPreview)
   const estimatedCost = $derived(
@@ -123,6 +186,7 @@
     if (apiErr.error === 'age_verification_required') {
       showAgeModal = true;
     } else if (apiErr.error === 'no_active_gpu_session') {
+      // Defensive fallback: should rarely fire now that Generate is gated on READY
       addToast({
         type: 'warning',
         message: m.error_no_active_gpu_session(),
@@ -286,13 +350,14 @@
       <ResultsPanel {showSkeleton} />
     </div>
 
-    <!-- Session hook: disabled notice for on-demand models without active session -->
-    {#if needsSession}
-      <p class="needs-session-notice">
-        {m.create_needs_session()}
-        <a href="/app/sessions" class="needs-session-link">{m.create_start_session_cta()}</a>
-      </p>
-    {/if}
+    <!-- Session state panel: badge + in-place CTA for the selected model -->
+    <CreateSessionPanel
+      {cardState}
+      session={selectedSession}
+      starting={startMutation.isPending}
+      onStart={handleStart}
+      onStopRequest={handleStopRequest}
+    />
 
     <!-- Generate button (desktop, inline at bottom of controls) -->
     <div class="hidden md:block">
@@ -300,7 +365,7 @@
         onclick={handleGenerate}
         {submitting}
         {estimatedCost}
-        disabled={needsSession}
+        disabled={!generateEnabled}
       />
     </div>
   </div>
@@ -315,29 +380,22 @@
 <div
   class="fixed bottom-[calc(56px+env(safe-area-inset-bottom))] left-0 right-0 border-t border-border bg-bg p-4 md:hidden"
 >
-  <GenerateButton onclick={handleGenerate} {submitting} {estimatedCost} disabled={needsSession} />
+  <GenerateButton
+    onclick={handleGenerate}
+    {submitting}
+    {estimatedCost}
+    disabled={!generateEnabled}
+  />
 </div>
+
+{#if stopModalSessionId}
+  <StopSessionModal
+    sessionId={stopModalSessionId}
+    onStopped={handleStopped}
+    onClose={() => (stopModalSessionId = null)}
+  />
+{/if}
 
 {#if showAgeModal}
   <AgeVerificationModal onVerified={handleAgeVerified} onClose={() => (showAgeModal = false)} />
 {/if}
-
-<style>
-  .needs-session-notice {
-    font-size: 13px;
-    color: var(--apex-text-muted);
-    line-height: 1.5;
-    margin: 0;
-  }
-
-  .needs-session-link {
-    color: var(--apex-accent);
-    text-decoration: none;
-    font-weight: 600;
-    margin-left: 4px;
-  }
-
-  .needs-session-link:hover {
-    text-decoration: underline;
-  }
-</style>

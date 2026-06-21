@@ -277,19 +277,19 @@ test.describe('Sessions page — create page hook', () => {
     await setupCommon(page);
   });
 
-  test('7. On-demand model without active session disables Generate and shows session link', async ({
+  test('7. On-demand model without active session disables Generate and shows Start session button', async ({
     authenticatedPage: page,
   }) => {
     await page.goto('/app/create');
 
-    // Click "Aisha" button in ModelSelector to switch to the on-demand model
-    // (default store model is grok-imagine-image; we need aisha-image for needsSession=true)
+    // The page auto-selects the first available model (Aisha, the only on-demand model here).
+    // Clicking the Aisha button explicitly confirms the model selection is reflected in the UI.
     await expect(page.getByRole('button', { name: 'Aisha' })).toBeVisible({ timeout: 5000 });
     await page.getByRole('button', { name: 'Aisha' }).click();
 
-    // Session notice and link should appear
-    const sessionLink = page.getByRole('link', { name: /Start a session/i });
-    await expect(sessionLink).toBeVisible({ timeout: 3000 });
+    // NEEDS_SESSION panel: badge + in-place Start session button (no redirect to /app/sessions)
+    await expect(page.getByText(/Needs GPU session/i)).toBeVisible({ timeout: 3000 });
+    await expect(page.getByRole('button', { name: /Start session/i })).toBeVisible();
 
     // Generate button(s) should be disabled
     const generateBtns = page.getByRole('button', { name: /Generate/i });
