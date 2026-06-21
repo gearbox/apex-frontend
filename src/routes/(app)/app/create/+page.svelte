@@ -11,6 +11,7 @@
   import { createJobPoller } from '$lib/services/jobPoller';
   import { productInfo } from '$lib/stores/product';
   import { isAgeVerified, setUser } from '$lib/stores/auth';
+  import * as m from '$paraglide/messages';
   import ModelSelector from '$lib/components/create/ModelSelector.svelte';
   import AgeVerificationModal from '$lib/components/create/AgeVerificationModal.svelte';
   import type { components } from '$lib/api/types';
@@ -51,16 +52,28 @@
     staleTime: 60 * 60 * 1000,
   }));
 
-  // Flatten all models from all providers, attaching the provider string for pricing lookup
+  // Flatten all models from all providers, attaching provider metadata for pricing + session hooks
   const allModels = $derived(
     (providerQuery.data?.providers ?? []).flatMap((p) =>
-      p.models.map((m) => ({ ...m, provider: p.provider })),
+      p.models.map((m) => ({
+        ...m,
+        provider: p.provider,
+        provisioningMode: p.provisioning_mode,
+        providerAvailable: p.available,
+      })),
     ),
   );
 
   // ── Current model info (includes provider for pricing lookup)
   const currentModelInfo = $derived(
     allModels.find((m) => m.model_key === $generationStore.model) ?? null,
+  );
+
+  // ── Session hook: on-demand model with no active session disables Generate
+  const needsSession = $derived(
+    !!currentModelInfo &&
+      currentModelInfo.provisioningMode === 'on_demand' &&
+      currentModelInfo.session_state !== 'active',
   );
 
   // Derived estimated cost (per unit — imageCount multiplier applied in CostPreview)
@@ -109,6 +122,12 @@
     const apiErr = parseApiError(error, 0);
     if (apiErr.error === 'age_verification_required') {
       showAgeModal = true;
+    } else if (apiErr.error === 'no_active_gpu_session') {
+      addToast({
+        type: 'warning',
+        message: m.error_no_active_gpu_session(),
+        action: { label: m.create_start_session_cta(), href: '/app/sessions' },
+      });
     } else if (apiErr.error === 'insufficient_balance') {
       addToast({
         type: 'error',
@@ -267,9 +286,22 @@
       <ResultsPanel {showSkeleton} />
     </div>
 
+    <!-- Session hook: disabled notice for on-demand models without active session -->
+    {#if needsSession}
+      <p class="needs-session-notice">
+        {m.create_needs_session()}
+        <a href="/app/sessions" class="needs-session-link">{m.create_start_session_cta()}</a>
+      </p>
+    {/if}
+
     <!-- Generate button (desktop, inline at bottom of controls) -->
     <div class="hidden md:block">
-      <GenerateButton onclick={handleGenerate} {submitting} {estimatedCost} />
+      <GenerateButton
+        onclick={handleGenerate}
+        {submitting}
+        {estimatedCost}
+        disabled={needsSession}
+      />
     </div>
   </div>
 
@@ -283,9 +315,29 @@
 <div
   class="fixed bottom-[calc(56px+env(safe-area-inset-bottom))] left-0 right-0 border-t border-border bg-bg p-4 md:hidden"
 >
-  <GenerateButton onclick={handleGenerate} {submitting} {estimatedCost} />
+  <GenerateButton onclick={handleGenerate} {submitting} {estimatedCost} disabled={needsSession} />
 </div>
 
 {#if showAgeModal}
   <AgeVerificationModal onVerified={handleAgeVerified} onClose={() => (showAgeModal = false)} />
 {/if}
+
+<style>
+  .needs-session-notice {
+    font-size: 13px;
+    color: var(--apex-text-muted);
+    line-height: 1.5;
+    margin: 0;
+  }
+
+  .needs-session-link {
+    color: var(--apex-accent);
+    text-decoration: none;
+    font-weight: 600;
+    margin-left: 4px;
+  }
+
+  .needs-session-link:hover {
+    text-decoration: underline;
+  }
+</style>

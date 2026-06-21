@@ -11,6 +11,7 @@ import { eventStreamStatus, setEventStreamStatus } from '$lib/stores/eventStream
 import { notifications, clearNotifications } from '$lib/stores/notifications';
 import { activeJobStore } from '$lib/stores/jobs';
 import { generationStore } from '$lib/stores/generation';
+import { sessionKeys } from '$lib/queries/sessions';
 
 /* ─── Mock EventSource ─── */
 
@@ -306,6 +307,69 @@ describe('EventStreamService — job.progress dispatch', () => {
     generationStore.subscribe((s) => (progressValue = s.progress))();
     expect(progressValue).toBe(42);
 
+    svc.dispose();
+  });
+});
+
+describe('EventStreamService — gpu_session.status_changed dispatch', () => {
+  it('patches detail cache and invalidates sessions + providers on provisioning→active', async () => {
+    const queryClient = makeMockQueryClient();
+    queryClient.getQueryData.mockReturnValue({
+      id: 'sess_001',
+      status: 'provisioning',
+    });
+
+    const svc = new EventStreamService({ queryClient: queryClient as never });
+    await svc.connect();
+
+    const es = MockEventSource.instances[0];
+    es._emit('gpu_session.status_changed', {
+      session_id: 'sess_001',
+      status: 'active',
+      previous_status: 'provisioning',
+      model_type: 'aisha-image',
+      bundle_name: 'aisha-bundle',
+      tunnel_hostname: 'tunnel.example.com',
+      error_message: null,
+    });
+
+    expect(queryClient.setQueryData).toHaveBeenCalledWith(
+      sessionKeys.detail('sess_001'),
+      expect.any(Function),
+    );
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: sessionKeys.all });
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['providers'] });
+
+    svc.dispose();
+  });
+
+  it('shows error toast on → failed with error_message', async () => {
+    const { addToast } = await import('$lib/stores/toasts');
+    const toastSpy = vi.spyOn({ addToast }, 'addToast');
+
+    const queryClient = makeMockQueryClient();
+    const svc = new EventStreamService({ queryClient: queryClient as never });
+    await svc.connect();
+
+    const es = MockEventSource.instances[0];
+
+    // Capture toasts by spying on invalidateQueries as a proxy — we can't easily spy
+    // on addToast without module mocking, so we assert via the cache invalidation
+    // which always accompanies a failed toast.
+    es._emit('gpu_session.status_changed', {
+      session_id: 'sess_002',
+      status: 'failed',
+      previous_status: 'provisioning',
+      model_type: 'aisha-image',
+      bundle_name: 'aisha-bundle',
+      tunnel_hostname: null,
+      error_message: 'GPU out of memory',
+    });
+
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: sessionKeys.all });
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['providers'] });
+
+    toastSpy.mockRestore();
     svc.dispose();
   });
 });

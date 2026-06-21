@@ -7,7 +7,13 @@
     onclick,
     submitting = false,
     estimatedCost = 0,
-  }: { onclick: () => void; submitting?: boolean; estimatedCost?: number } = $props();
+    disabled: externalDisabled = false,
+  }: {
+    onclick: () => void;
+    submitting?: boolean;
+    estimatedCost?: number;
+    disabled?: boolean;
+  } = $props();
 
   const isPolling = $derived(
     $generationStore.jobStatus !== null &&
@@ -17,7 +23,9 @@
       $generationStore.jobStatus !== 'moderated',
   );
 
-  const disabled = $derived(!$generationStore.prompt.trim() || submitting || isPolling);
+  const disabled = $derived(
+    externalDisabled || !$generationStore.prompt.trim() || submitting || isPolling,
+  );
 
   const label = $derived(
     submitting ? m.create_submitting() : isPolling ? m.create_generating() : m.create_generate(),

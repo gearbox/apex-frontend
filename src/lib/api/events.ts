@@ -8,6 +8,7 @@ export const SSE_EVENTS = {
   JOB_PROGRESS: 'job.progress',
   BALANCE_UPDATED: 'balance.updated',
   SYSTEM_NOTIFICATION: 'system.notification',
+  GPU_SESSION_STATUS: 'gpu_session.status_changed',
 } as const;
 
 export type SSEEventType = (typeof SSE_EVENTS)[keyof typeof SSE_EVENTS];
@@ -43,12 +44,23 @@ export interface SystemNotificationPayload {
   expires_at: string | null;
 }
 
+export interface GpuSessionStatusPayload {
+  session_id: string;
+  status: string;
+  previous_status: string;
+  model_type: string;
+  bundle_name: string;
+  tunnel_hostname: string | null;
+  error_message: string | null;
+}
+
 /* ─── Union Type ─── */
 export type SSEPayload =
   | { event: typeof SSE_EVENTS.JOB_STATUS; data: JobStatusPayload }
   | { event: typeof SSE_EVENTS.JOB_PROGRESS; data: JobProgressPayload }
   | { event: typeof SSE_EVENTS.BALANCE_UPDATED; data: BalanceUpdatedPayload }
-  | { event: typeof SSE_EVENTS.SYSTEM_NOTIFICATION; data: SystemNotificationPayload };
+  | { event: typeof SSE_EVENTS.SYSTEM_NOTIFICATION; data: SystemNotificationPayload }
+  | { event: typeof SSE_EVENTS.GPU_SESSION_STATUS; data: GpuSessionStatusPayload };
 
 /* ─── Type Guards ─── */
 export function isJobStatusPayload(data: unknown): data is JobStatusPayload {
@@ -82,5 +94,15 @@ export function isSystemNotificationPayload(data: unknown): data is SystemNotifi
     'level' in data &&
     'title' in data &&
     'message' in data
+  );
+}
+
+export function isGpuSessionStatusPayload(data: unknown): data is GpuSessionStatusPayload {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    'session_id' in data &&
+    'status' in data &&
+    'model_type' in data
   );
 }

@@ -2,7 +2,7 @@
   import { moreSheetOpen, closeMoreSheet } from '$lib/stores/ui';
   import { isAdmin } from '$lib/stores/auth';
   import * as m from '$paraglide/messages';
-  import { Coins, Activity, User, Shield, ChevronRight } from 'lucide-svelte';
+  import { Coins, Activity, User, Shield, Server, ChevronRight } from 'lucide-svelte';
 
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') closeMoreSheet();
@@ -25,6 +25,11 @@
       <div class="sheet-handle"></div>
 
       <nav>
+        <a href="/app/sessions" onclick={closeMoreSheet} class="sheet-item">
+          <span class="sheet-item-icon"><Server size={20} strokeWidth={1.75} /></span>
+          <span class="sheet-item-label">{m.nav_sessions()}</span>
+          <span class="sheet-item-chevron"><ChevronRight size={16} /></span>
+        </a>
         <a href="/app/billing" onclick={closeMoreSheet} class="sheet-item">
           <span class="sheet-item-icon"><Coins size={20} strokeWidth={1.75} /></span>
           <span class="sheet-item-label">{m.nav_billing()}</span>

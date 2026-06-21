@@ -4,3 +4,4 @@ node_modules
 pnpm-lock.yaml
 src/lib/api/types.ts
 src/lib/api/schema.json
+docs/*
