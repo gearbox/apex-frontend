@@ -2,6 +2,7 @@
   interface Props {
     status: string;
     colorMap?: Record<string, string>;
+    color?: string;
   }
 
   const DEFAULT_COLOR_MAP: Record<string, string> = {
@@ -30,10 +31,10 @@
     enterprise: 'success',
   };
 
-  let { status, colorMap }: Props = $props();
+  let { status, colorMap, color }: Props = $props();
 
   const map = $derived({ ...DEFAULT_COLOR_MAP, ...(colorMap ?? {}) });
-  const colorKey = $derived(map[status?.toLowerCase()] ?? 'neutral');
+  const colorKey = $derived(color ?? map[status?.toLowerCase()] ?? 'neutral');
 </script>
 
 <span class="badge badge-{colorKey}">{status}</span>

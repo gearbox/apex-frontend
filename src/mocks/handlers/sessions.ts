@@ -75,3 +75,39 @@ export const sessionProvisioningHandler = http.get(
 export const sessionProviderUnavailableHandler = http.get(`${BASE}/v1/sessions`, () =>
   HttpResponse.json({ sessions: [] }),
 );
+
+// Override: list returns a provisioning session for aisha-image
+export const sessionListProvisioningHandler = http.get(`${BASE}/v1/sessions`, () =>
+  HttpResponse.json({
+    sessions: [
+      makeGpuSessionResponse({
+        id: 'sess_provisioning',
+        status: 'provisioning',
+        started_at: null,
+        tunnel_hostname: null,
+        vastai_gpu_name: null,
+        provisioning_phase: 'downloading',
+      }),
+    ],
+  }),
+);
+
+// Override: list returns a stale session for aisha-image
+export const sessionListStaleHandler = http.get(`${BASE}/v1/sessions`, () =>
+  HttpResponse.json({
+    sessions: [
+      makeGpuSessionResponse({
+        id: 'sess_stale',
+        status: 'stale',
+        error_message: 'Connection lost',
+      }),
+    ],
+  }),
+);
+
+// Override: list returns an active session for aisha-image
+export const sessionListActiveHandler = http.get(`${BASE}/v1/sessions`, () =>
+  HttpResponse.json({
+    sessions: [makeGpuSessionResponse({ id: 'sess_active', status: 'active' })],
+  }),
+);

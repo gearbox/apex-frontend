@@ -173,3 +173,49 @@ export const aishaActiveSessionHandler = http.get(`${BASE}/v1/providers`, () =>
     user_context: null,
   }),
 );
+
+function makeAishaProvider(session_state: string) {
+  return {
+    providers: [
+      {
+        provider: 'aisha',
+        name: 'Aisha',
+        available: true,
+        provisioning_mode: 'on_demand',
+        models: [
+          {
+            model_key: 'aisha-image',
+            name: 'Aisha',
+            description: 'Aisha image generation model',
+            capabilities: ['t2i', 'i2i'],
+            is_enabled: true,
+            max_images: 4,
+            max_prompt_length: 4096,
+            supports_negative_prompt: true,
+            aspect_ratios: ['1:1'],
+            image: null,
+            video: null,
+            session_state,
+          },
+        ],
+      },
+    ],
+    user_context: null,
+  };
+}
+
+export const aishaProvisioningHandler = http.get(`${BASE}/v1/providers`, () =>
+  HttpResponse.json(makeAishaProvider('provisioning')),
+);
+
+export const aishaStaleHandler = http.get(`${BASE}/v1/providers`, () =>
+  HttpResponse.json(makeAishaProvider('stale')),
+);
+
+export const aishaStoppingHandler = http.get(`${BASE}/v1/providers`, () =>
+  HttpResponse.json(makeAishaProvider('stopping')),
+);
+
+export const aishaPausedHandler = http.get(`${BASE}/v1/providers`, () =>
+  HttpResponse.json(makeAishaProvider('paused')),
+);

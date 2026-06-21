@@ -8,6 +8,7 @@ const mockProvidersWithAisha = {
       provider: 'aisha',
       name: 'Aisha',
       available: true,
+      provisioning_mode: 'always_on',
       models: [
         {
           model_key: 'aisha-image',
