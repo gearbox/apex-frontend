@@ -33,6 +33,7 @@
   import NegativePromptInput from '$lib/components/create/NegativePromptInput.svelte';
   import ParamsPanel from '$lib/components/create/ParamsPanel.svelte';
   import { buildGeneratePayload } from '$lib/utils/generatePayload';
+  import { supportsAishaImageParams } from '$lib/utils/modelCapabilities';
   import GenerateButton from '$lib/components/create/GenerateButton.svelte';
   import ResultsPanel from '$lib/components/create/ResultsPanel.svelte';
 
@@ -277,7 +278,7 @@
 
     // Guard: prevent submitting an incomplete custom-size pair
     if (
-      currentModelInfo?.image?.supported_tiers != null &&
+      supportsAishaImageParams(currentModelInfo) &&
       state.sizingMode === 'custom' &&
       (state.customWidth === null) !== (state.customHeight === null)
     ) {

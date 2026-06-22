@@ -1,5 +1,6 @@
 import type { components } from '$lib/api/types';
 import type { GenerationState } from '$lib/stores/generation';
+import { supportsAishaImageParams } from '$lib/utils/modelCapabilities';
 
 type ModelInfo = components['schemas']['ModelInfo'];
 type UnifiedGenerationRequest = components['schemas']['UnifiedGenerationRequest'];
@@ -8,7 +9,7 @@ export function buildGeneratePayload(
   state: GenerationState,
   modelInfo: ModelInfo | null,
 ): UnifiedGenerationRequest {
-  const isAishaImage = modelInfo?.image?.supported_tiers != null;
+  const isAishaImage = supportsAishaImageParams(modelInfo);
 
   // Aisha sizing block (only when gate is true)
   const aishaSize: Partial<UnifiedGenerationRequest> = {};

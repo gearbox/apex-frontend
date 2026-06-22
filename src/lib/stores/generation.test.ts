@@ -119,11 +119,25 @@ describe('generationStore — Aisha image param setters', () => {
     expect(get(generationStore).imageTier).toBeNull();
   });
 
-  it('setCustomSize clamps width and height to 256–4096', () => {
+  it('setCustomSize clamps width and height to default 256–4096', () => {
     generationStore.setCustomSize(100, 5000);
     const state = get(generationStore);
     expect(state.customWidth).toBe(256);
     expect(state.customHeight).toBe(4096);
+  });
+
+  it('setCustomSize clamps to model-supplied minDim/maxDim', () => {
+    generationStore.setCustomSize(4000, 100, 256, 2048);
+    const state = get(generationStore);
+    expect(state.customWidth).toBe(2048);
+    expect(state.customHeight).toBe(256);
+  });
+
+  it('setCustomSize stores null for NaN input', () => {
+    generationStore.setCustomSize(NaN, NaN);
+    const state = get(generationStore);
+    expect(state.customWidth).toBeNull();
+    expect(state.customHeight).toBeNull();
   });
 
   it('setCustomSize allows null for either dimension', () => {
@@ -131,6 +145,26 @@ describe('generationStore — Aisha image param setters', () => {
     const state = get(generationStore);
     expect(state.customWidth).toBe(1024);
     expect(state.customHeight).toBeNull();
+  });
+
+  it('setSeed stores null for NaN', () => {
+    generationStore.setSeed(NaN);
+    expect(get(generationStore).seed).toBeNull();
+  });
+
+  it('setSteps stores null for NaN', () => {
+    generationStore.setSteps(NaN);
+    expect(get(generationStore).steps).toBeNull();
+  });
+
+  it('setCfg stores null for NaN', () => {
+    generationStore.setCfg(NaN);
+    expect(get(generationStore).cfg).toBeNull();
+  });
+
+  it('setDenoise stores null for NaN', () => {
+    generationStore.setDenoise(NaN);
+    expect(get(generationStore).denoise).toBeNull();
   });
 
   it('setSteps clamps to 1–150', () => {

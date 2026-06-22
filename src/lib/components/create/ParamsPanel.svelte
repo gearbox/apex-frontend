@@ -1,6 +1,7 @@
 <script lang="ts">
   import { generationStore } from '$lib/stores/generation';
   import type { components } from '$lib/api/types';
+  import { supportsAishaImageParams } from '$lib/utils/modelCapabilities';
   import AspectRatioChips from './AspectRatioChips.svelte';
   import ImageCountStepper from './ImageCountStepper.svelte';
   import VideoParams from './VideoParams.svelte';
@@ -11,7 +12,7 @@
   let { modelInfo }: { modelInfo: ModelInfo | null } = $props();
 
   const isVideo = $derived($generationStore.mode === 't2v' || $generationStore.mode === 'i2v');
-  const showAishaParams = $derived(!isVideo && modelInfo?.image?.supported_tiers != null);
+  const showAishaParams = $derived(!isVideo && supportsAishaImageParams(modelInfo));
 </script>
 
 {#if isVideo}

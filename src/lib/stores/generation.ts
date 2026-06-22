@@ -164,29 +164,32 @@ function createGenerationStore() {
       update((s) => ({ ...s, imageTier }));
     },
 
-    setCustomSize(customWidth: number | null, customHeight: number | null) {
-      update((s) => ({
-        ...s,
-        customWidth: customWidth !== null ? Math.max(256, Math.min(4096, customWidth)) : null,
-        customHeight: customHeight !== null ? Math.max(256, Math.min(4096, customHeight)) : null,
-      }));
+    setCustomSize(
+      customWidth: number | null,
+      customHeight: number | null,
+      minDim = 256,
+      maxDim = 4096,
+    ) {
+      const clamp = (v: number | null): number | null =>
+        v === null || Number.isNaN(v) ? null : Math.max(minDim, Math.min(maxDim, v));
+      update((s) => ({ ...s, customWidth: clamp(customWidth), customHeight: clamp(customHeight) }));
     },
 
     setSeed(seed: number | null) {
-      update((s) => ({ ...s, seed }));
+      update((s) => ({ ...s, seed: seed !== null && Number.isNaN(seed) ? null : seed }));
     },
 
     setSteps(steps: number | null) {
       update((s) => ({
         ...s,
-        steps: steps !== null ? Math.max(1, Math.min(150, steps)) : null,
+        steps: steps === null || Number.isNaN(steps) ? null : Math.max(1, Math.min(150, steps)),
       }));
     },
 
     setCfg(cfg: number | null) {
       update((s) => ({
         ...s,
-        cfg: cfg !== null ? Math.max(0, Math.min(30, cfg)) : null,
+        cfg: cfg === null || Number.isNaN(cfg) ? null : Math.max(0, Math.min(30, cfg)),
       }));
     },
 
@@ -201,7 +204,8 @@ function createGenerationStore() {
     setDenoise(denoise: number | null) {
       update((s) => ({
         ...s,
-        denoise: denoise !== null ? Math.max(0, Math.min(1, denoise)) : null,
+        denoise:
+          denoise === null || Number.isNaN(denoise) ? null : Math.max(0, Math.min(1, denoise)),
       }));
     },
 

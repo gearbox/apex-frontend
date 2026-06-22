@@ -46,6 +46,9 @@
 
   let advancedOpen = $state(false);
 
+  const minDim = $derived(modelInfo.image?.min_height ?? 256);
+  const maxDim = $derived(modelInfo.image?.max_height ?? 4096);
+
   const tiers = $derived((modelInfo.image?.supported_tiers ?? FALLBACK_TIERS) as Resolution[]);
   const defaultTier = $derived(modelInfo.image?.default_tier ?? null);
 
@@ -72,6 +75,7 @@
         {@const isActive = sizingMode === mode}
         <button
           onclick={() => generationStore.setSizingMode(mode)}
+          aria-pressed={isActive}
           class="flex-1 rounded-lg border py-2 text-xs font-semibold transition-all
             {isActive
             ? 'border-accent-dim bg-accent-glow text-accent'
@@ -89,6 +93,7 @@
       <!-- Default chip (clears tier) -->
       <button
         onclick={() => generationStore.setImageTier(null)}
+        aria-pressed={imageTier === null}
         class="rounded-md border px-2 py-1.5 text-xs font-semibold transition-all
           {imageTier === null
           ? 'border-accent-dim bg-accent-glow text-accent'
@@ -101,6 +106,7 @@
         {@const isDefault = defaultTier === tier}
         <button
           onclick={() => generationStore.setImageTier(tier)}
+          aria-pressed={isActive}
           class="rounded-md border px-2 py-1.5 text-xs font-semibold transition-all
             {isActive
             ? 'border-accent-dim bg-accent-glow text-accent'
@@ -123,14 +129,19 @@
           <input
             id="aisha-custom-width"
             type="number"
-            min="256"
-            max="4096"
+            min={minDim}
+            max={maxDim}
             step="8"
             placeholder="e.g. 1024"
             value={customWidth ?? ''}
             oninput={(e) => {
               const v = (e.target as HTMLInputElement).value;
-              generationStore.setCustomSize(v ? parseInt(v) : null, $generationStore.customHeight);
+              generationStore.setCustomSize(
+                v ? parseInt(v, 10) : null,
+                $generationStore.customHeight,
+                minDim,
+                maxDim,
+              );
             }}
             class="w-full rounded-2.5 border border-border bg-surface px-3 py-2 text-xs text-text-muted placeholder:text-text-dim focus:border-accent focus:outline-none transition-colors"
           />
@@ -143,14 +154,19 @@
           <input
             id="aisha-custom-height"
             type="number"
-            min="256"
-            max="4096"
+            min={minDim}
+            max={maxDim}
             step="8"
             placeholder="e.g. 1024"
             value={customHeight ?? ''}
             oninput={(e) => {
               const v = (e.target as HTMLInputElement).value;
-              generationStore.setCustomSize($generationStore.customWidth, v ? parseInt(v) : null);
+              generationStore.setCustomSize(
+                $generationStore.customWidth,
+                v ? parseInt(v, 10) : null,
+                minDim,
+                maxDim,
+              );
             }}
             class="w-full rounded-2.5 border border-border bg-surface px-3 py-2 text-xs text-text-muted placeholder:text-text-dim focus:border-accent focus:outline-none transition-colors"
           />
@@ -166,6 +182,7 @@
   <div class="flex flex-col gap-1">
     <button
       onclick={() => (advancedOpen = !advancedOpen)}
+      aria-expanded={advancedOpen}
       class="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-text-dim hover:text-text-muted transition-colors"
     >
       <span>Advanced</span>
@@ -188,7 +205,7 @@
             value={$generationStore.seed ?? ''}
             oninput={(e) => {
               const v = (e.target as HTMLInputElement).value;
-              generationStore.setSeed(v ? parseInt(v) : null);
+              generationStore.setSeed(v ? parseInt(v, 10) : null);
             }}
             class="w-full rounded-2.5 border border-border bg-surface px-3 py-2 text-xs text-text-muted placeholder:text-text-dim focus:border-accent focus:outline-none transition-colors"
           />
@@ -213,7 +230,7 @@
             step="1"
             value={$generationStore.steps ?? 20}
             oninput={(e) =>
-              generationStore.setSteps(parseInt((e.target as HTMLInputElement).value))}
+              generationStore.setSteps(parseInt((e.target as HTMLInputElement).value, 10))}
             class="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-border accent-accent"
           />
           <div class="flex justify-between text-[10px] text-text-dim">
