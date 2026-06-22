@@ -29,6 +29,8 @@ export type PricingRuleResponse = components['schemas']['PricingRuleResponse'];
 export type CreatePricingRuleRequest = components['schemas']['CreatePricingRuleRequest'];
 export type PatchPricingRuleRequest = components['schemas']['PatchPricingRuleRequest'];
 export type BroadcastRequest = components['schemas']['SystemBroadcastRequest'];
+export type DetailedHealthResponse = components['schemas']['DetailedHealthResponse'];
+export type HealthSnapshotResponse = components['schemas']['HealthSnapshotResponse'];
 
 /* ─── Users ─── */
 
@@ -257,6 +259,26 @@ export async function fetchAuditLog(params?: {
   });
   if (error || !data) throwApiError(error, 'Failed to fetch audit log');
   return data as AuditLogEntry[];
+}
+
+/* ─── Health ─── */
+
+export async function fetchHealth(): Promise<DetailedHealthResponse> {
+  const { data, error } = await apiClient.GET('/v1/admin/health');
+  if (error || !data) throwApiError(error, 'Failed to fetch system health');
+  return data;
+}
+
+export async function fetchHealthHistory(params?: {
+  after?: string;
+  before?: string;
+  limit?: number;
+}): Promise<HealthSnapshotResponse[]> {
+  const { data, error } = await apiClient.GET('/v1/admin/health/history', {
+    params: { query: params },
+  });
+  if (error || !data) throwApiError(error, 'Failed to fetch health history');
+  return data as HealthSnapshotResponse[];
 }
 
 /* ─── Broadcast ─── */

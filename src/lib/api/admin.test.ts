@@ -9,6 +9,8 @@ import {
   makeBalanceResponse,
   makeTransactionResponse,
   makePricingRule,
+  makeDetailedHealthResponse,
+  makeHealthSnapshotResponse,
 } from '../../mocks/factories/admin';
 import {
   fetchAdminUsers,
@@ -33,6 +35,8 @@ import {
   revokePermission,
   fetchAuditLog,
   sendBroadcast,
+  fetchHealth,
+  fetchHealthHistory,
 } from './admin';
 
 const BASE = 'http://localhost:8000';
@@ -643,5 +647,54 @@ describe('sendBroadcast()', () => {
       ),
     );
     await expect(sendBroadcast({ level: 'info', title: 'T', message: 'M' }, 'k')).rejects.toThrow();
+  });
+});
+
+describe('fetchHealth()', () => {
+  it('returns a DetailedHealthResponse', async () => {
+    server.use(
+      http.get(`${BASE}/v1/admin/health`, () => HttpResponse.json(makeDetailedHealthResponse())),
+    );
+    const result = await fetchHealth();
+    expect(result).toHaveProperty('status');
+    expect(result).toHaveProperty('checked_at');
+    expect(result).toHaveProperty('infrastructure');
+    expect(result).toHaveProperty('gpu_sessions');
+  });
+
+  it('throws on error response', async () => {
+    server.use(
+      http.get(`${BASE}/v1/admin/health`, () =>
+        HttpResponse.json({ error: 'Forbidden' }, { status: 403 }),
+      ),
+    );
+    await expect(fetchHealth()).rejects.toThrow();
+  });
+});
+
+describe('fetchHealthHistory()', () => {
+  it('returns an array of HealthSnapshotResponse', async () => {
+    server.use(
+      http.get(`${BASE}/v1/admin/health/history`, () =>
+        HttpResponse.json([
+          makeHealthSnapshotResponse({ overall_status: 'healthy' }),
+          makeHealthSnapshotResponse({ overall_status: 'degraded' }),
+        ]),
+      ),
+    );
+    const result = await fetchHealthHistory({ limit: 2 });
+    expect(result).toHaveLength(2);
+    expect(result[0]).toHaveProperty('checked_at');
+    expect(result[0]).toHaveProperty('overall_status');
+    expect(result[1].overall_status).toBe('degraded');
+  });
+
+  it('throws on error response', async () => {
+    server.use(
+      http.get(`${BASE}/v1/admin/health/history`, () =>
+        HttpResponse.json({ error: 'Forbidden' }, { status: 403 }),
+      ),
+    );
+    await expect(fetchHealthHistory()).rejects.toThrow();
   });
 });

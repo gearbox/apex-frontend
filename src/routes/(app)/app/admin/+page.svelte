@@ -10,6 +10,7 @@
   import AdminPricingTab from '$lib/components/admin/AdminPricingTab.svelte';
   import AdminManageTab from '$lib/components/admin/AdminManageTab.svelte';
   import AdminBroadcastTab from '$lib/components/admin/AdminBroadcastTab.svelte';
+  import AdminHealthTab from '$lib/components/admin/AdminHealthTab.svelte';
   import AppVersionBadge from '$lib/components/shared/AppVersionBadge.svelte';
 
   let activeTab = $state('users');
@@ -47,6 +48,8 @@
       <AdminPricingTab />
     {:else if activeTab === 'broadcast'}
       <AdminBroadcastTab />
+    {:else if activeTab === 'health' && $isAdmin}
+      <AdminHealthTab />
     {:else if activeTab === 'admins' && $isSuperAdmin}
       <AdminManageTab />
     {/if}

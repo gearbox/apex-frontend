@@ -21,6 +21,8 @@ import {
   revokePermission,
   fetchAuditLog,
   sendBroadcast,
+  fetchHealth,
+  fetchHealthHistory,
   type CreatePricingRuleRequest,
   type PatchPricingRuleRequest,
   type BroadcastRequest,
@@ -40,6 +42,8 @@ export const adminKeys = {
     ['admin', 'account-txns', id, params ?? {}] as const,
   admins: () => ['admin', 'manage', 'admins'] as const,
   audit: (params?: object) => ['admin', 'manage', 'audit', params ?? {}] as const,
+  health: () => ['admin', 'health'] as const,
+  healthHistory: (p?: object) => ['admin', 'health', 'history', p ?? {}] as const,
 };
 
 /* ─── Query Options ─── */
@@ -282,5 +286,24 @@ export function revokePermissionMutationOptions(queryClient: QueryClient) {
       queryClient.invalidateQueries({ queryKey: adminKeys.admins() });
       queryClient.invalidateQueries({ queryKey: adminKeys.audit() });
     },
+  };
+}
+
+/* ─── Health ─── */
+
+export function adminHealthQueryOptions(refetchInterval: number | false = false) {
+  return {
+    queryKey: adminKeys.health(),
+    queryFn: fetchHealth,
+    staleTime: 15_000,
+    refetchInterval,
+  };
+}
+
+export function adminHealthHistoryQueryOptions(params: { limit?: number } = { limit: 60 }) {
+  return {
+    queryKey: adminKeys.healthHistory(params),
+    queryFn: () => fetchHealthHistory(params),
+    staleTime: 30_000,
   };
 }
