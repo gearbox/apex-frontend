@@ -159,4 +159,39 @@ describe('AdminBroadcastTab', () => {
     const btn = screen.getByRole('button', { name: /sending/i }) as HTMLButtonElement;
     expect(btn.disabled).toBe(true);
   });
+
+  it('blocks send and shows error when expiry is in the past', async () => {
+    render(AdminBroadcastTab);
+    await fireEvent.input(screen.getByLabelText('Title'), { target: { value: 'T' } });
+    await fireEvent.input(screen.getByLabelText('Message'), { target: { value: 'M' } });
+    await fireEvent.input(screen.getByLabelText(/expires at/i), {
+      target: { value: '2020-01-01T00:00' },
+    });
+
+    await fireEvent.click(screen.getByRole('button', { name: /send broadcast/i }));
+
+    await waitFor(() => {
+      expect(mutateAsyncFn).not.toHaveBeenCalled();
+      expect(screen.getByRole('alert').textContent).toBe(
+        'Expiry must be a valid date in the future.',
+      );
+    });
+  });
+
+  it('sends with ISO expires_at when expiry is in the future', async () => {
+    render(AdminBroadcastTab);
+    await fireEvent.input(screen.getByLabelText('Title'), { target: { value: 'T' } });
+    await fireEvent.input(screen.getByLabelText('Message'), { target: { value: 'M' } });
+    await fireEvent.input(screen.getByLabelText(/expires at/i), {
+      target: { value: '2099-12-31T23:59' },
+    });
+
+    await fireEvent.click(screen.getByRole('button', { name: /send broadcast/i }));
+
+    await waitFor(() => {
+      const call = mutateAsyncFn.mock.calls[0][0] as { expires_at: string };
+      expect(call.expires_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+      expect(new Date(call.expires_at).getTime()).toBeGreaterThan(Date.now());
+    });
+  });
 });

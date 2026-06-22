@@ -15,6 +15,12 @@
 
   const mutation = createMutation(() => sendBroadcastMutationOptions(queryClient));
 
+  function toLocalInputValue(d: Date): string {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+  const minExpiry = toLocalInputValue(new Date());
+
   const levelColors: Record<'info' | 'warning' | 'critical', string> = {
     info: 'var(--apex-accent)',
     warning: 'var(--apex-warning)',
@@ -23,15 +29,23 @@
 
   async function handleSend() {
     errorMsg = '';
+
+    let expiresIso: string | null = null;
+    if (expiresAt) {
+      const exp = new Date(expiresAt);
+      if (Number.isNaN(exp.getTime()) || exp.getTime() <= Date.now()) {
+        errorMsg = 'Expiry must be a valid date in the future.';
+        return;
+      }
+      expiresIso = exp.toISOString();
+    }
+
     try {
       await mutation.mutateAsync({
         level,
         title: title.trim(),
         message: message.trim(),
-        expires_at: (() => {
-          const d = expiresAt ? new Date(expiresAt) : null;
-          return d && !isNaN(d.getTime()) ? d.toISOString() : null;
-        })(),
+        expires_at: expiresIso,
       });
       addToast({ type: 'success', message: 'Broadcast sent' });
       title = '';
@@ -94,7 +108,13 @@
     <!-- Expires at -->
     <div class="field">
       <label class="field-label" for="bc-expires">Expires at (optional)</label>
-      <input id="bc-expires" class="field-input" type="datetime-local" bind:value={expiresAt} />
+      <input
+        id="bc-expires"
+        class="field-input"
+        type="datetime-local"
+        bind:value={expiresAt}
+        min={minExpiry}
+      />
       <span class="field-hint">Leave empty for no expiry.</span>
     </div>
   </div>
@@ -110,7 +130,7 @@
   </div>
 
   {#if errorMsg}
-    <p class="error-msg">{errorMsg}</p>
+    <p class="error-msg" role="alert">{errorMsg}</p>
   {/if}
 
   <div class="form-actions">
@@ -240,6 +260,7 @@
   .preview-message {
     font-size: 13px;
     color: var(--apex-text-muted);
+    white-space: pre-wrap;
   }
 
   .error-msg {
