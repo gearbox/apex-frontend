@@ -30,6 +30,10 @@ test.describe('Token refresh', () => {
     await page.goto('/app/create');
 
     await expect(page).toHaveURL(/\/login/, { timeout: 8000 });
+    // Wait for the login form to be fully rendered before reading storage — the URL
+    // assertion resolves as soon as history is updated, but SvelteKit's navigation
+    // lifecycle (and the evaluate call below) can race during that window.
+    await expect(page.locator('input[type="email"]')).toBeVisible();
 
     // clearAuth() should have removed the token
     const refreshToken = await page.evaluate(() => localStorage.getItem('apex-refresh-token'));

@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { adminKeys } from './admin';
+import { describe, it, expect, vi } from 'vitest';
+import { QueryClient } from '@tanstack/svelte-query';
+import { adminKeys, sendBroadcastMutationOptions } from './admin';
 
 describe('adminKeys', () => {
   it('all returns base key', () => {
@@ -77,5 +78,37 @@ describe('adminKeys', () => {
       'audit',
       { target_user_id: 'usr_001' },
     ]);
+  });
+});
+
+describe('sendBroadcastMutationOptions()', () => {
+  it('onSuccess invalidates adminKeys.audit()', async () => {
+    const queryClient = new QueryClient();
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+
+    const opts = sendBroadcastMutationOptions(queryClient);
+    await opts.onSuccess();
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: adminKeys.audit() });
+  });
+
+  it('mutationFn calls sendBroadcast with an idempotency key', async () => {
+    const { http, HttpResponse } = await import('msw');
+    const { server } = await import('../../mocks/server');
+
+    let capturedKey: string | null = null;
+    server.use(
+      http.post('http://localhost:8000/v1/admin/broadcast', async ({ request }) => {
+        capturedKey = request.headers.get('Idempotency-Key');
+        return HttpResponse.json({ message: 'ok' });
+      }),
+    );
+
+    const queryClient = new QueryClient();
+    const opts = sendBroadcastMutationOptions(queryClient);
+    await opts.mutationFn({ level: 'info', title: 'T', message: 'M' });
+
+    expect(capturedKey).toBeTruthy();
+    expect(typeof capturedKey).toBe('string');
   });
 });

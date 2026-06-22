@@ -118,6 +118,9 @@ export const adminHandlers = [
     }),
   ),
 
+  // Broadcast
+  http.post(`${BASE}/v1/admin/broadcast`, () => HttpResponse.json({ message: 'Broadcast queued' })),
+
   // Adjust balance
   http.post(`${BASE}/v1/admin/accounts/:accountId/adjust`, async ({ request }) => {
     const body = (await request.json()) as { amount: number; description: string };
@@ -254,6 +257,13 @@ export const adminPricingDeleteFailHandler = http.delete(`${BASE}/v1/admin/prici
   HttpResponse.json(
     { error: 'not_found', message: 'Pricing rule not found', status_code: 404 },
     { status: 404 },
+  ),
+);
+
+export const adminBroadcastFailHandler = http.post(`${BASE}/v1/admin/broadcast`, () =>
+  HttpResponse.json(
+    { error: 'Forbidden', message: 'Admin role required', status_code: 403 },
+    { status: 403 },
   ),
 );
 

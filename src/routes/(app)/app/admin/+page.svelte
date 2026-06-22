@@ -9,6 +9,7 @@
   import AdminPaymentsTab from '$lib/components/admin/AdminPaymentsTab.svelte';
   import AdminPricingTab from '$lib/components/admin/AdminPricingTab.svelte';
   import AdminManageTab from '$lib/components/admin/AdminManageTab.svelte';
+  import AdminBroadcastTab from '$lib/components/admin/AdminBroadcastTab.svelte';
   import AppVersionBadge from '$lib/components/shared/AppVersionBadge.svelte';
 
   let activeTab = $state('users');
@@ -44,6 +45,8 @@
       <AdminPaymentsTab />
     {:else if activeTab === 'pricing'}
       <AdminPricingTab />
+    {:else if activeTab === 'broadcast'}
+      <AdminBroadcastTab />
     {:else if activeTab === 'admins' && $isSuperAdmin}
       <AdminManageTab />
     {/if}

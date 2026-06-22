@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Users, Building2, Cpu, CreditCard, Coins, ShieldCheck } from 'lucide-svelte';
+  import { Users, Building2, Cpu, CreditCard, Coins, Megaphone, ShieldCheck } from 'lucide-svelte';
 
   interface TabDef {
     id: string;
@@ -21,6 +21,7 @@
     { id: 'models', label: 'Models', icon: Cpu },
     { id: 'payments', label: 'Payments', icon: CreditCard },
     { id: 'pricing', label: 'Pricing', icon: Coins },
+    { id: 'broadcast', label: 'Broadcast', icon: Megaphone },
   ];
 
   const manageTabs: TabDef[] = [{ id: 'admins', label: 'Admins', icon: ShieldCheck }];
