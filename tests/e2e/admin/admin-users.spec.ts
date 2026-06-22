@@ -115,8 +115,10 @@ test.describe('Admin Users cursor pagination', () => {
     authenticatedPage: page,
   }) => {
     let requestCount = 0;
+    const requestUrls: string[] = [];
     await page.route('**/v1/admin/users**', (route) => {
       const url = new URL(route.request().url());
+      requestUrls.push(url.toString());
       const cursor = url.searchParams.get('cursor');
       requestCount++;
       const body = cursor === 'cursor-2' ? page2Response : page1Response;
@@ -145,6 +147,7 @@ test.describe('Admin Users cursor pagination', () => {
         .locator('td.email-cell:visible, span.card-email:visible')
         .filter({ hasText: /carol@example\.com/ }),
     ).toBeVisible();
+    expect(requestUrls.some((u) => u.includes('cursor=cursor-2'))).toBe(true);
     expect(requestCount).toBeGreaterThanOrEqual(2);
   });
 
@@ -169,25 +172,34 @@ test.describe('Admin Users cursor pagination', () => {
     await page.waitForLoadState('networkidle');
     await expect(page.getByText('Page 2')).toBeVisible();
 
+    // staleTime=30s means TanStack Query may serve page 1 from cache without a network
+    // request. Capture the first request if it fires; if not (cache hit), null signals
+    // "no cursor was sent" — both are correct behaviour.
+    const prevRequestPromise = page
+      .waitForRequest((req) => req.url().includes('/v1/admin/users'), { timeout: 3000 })
+      .catch(() => null);
+
     await page.getByRole('button', { name: /previous page/i }).click();
+    const prevRequest = await prevRequestPromise;
     await page.waitForLoadState('networkidle');
 
     await expect(page.getByText('Page 1')).toBeVisible();
     await expect(page.getByRole('button', { name: /previous page/i })).toBeDisabled();
+    // Returning to page 1 must drop the cursor entirely
+    if (prevRequest) {
+      expect(new URL(prevRequest.url()).searchParams.get('cursor')).toBeNull();
+    }
   });
 
   test('changing a filter resets to Page 1 with no cursor', async ({ authenticatedPage: page }) => {
-    const requestedUrls: string[] = [];
+    const requestUrls: string[] = [];
     await page.route('**/v1/admin/users**', (route) => {
-      requestedUrls.push(route.request().url());
       const url = new URL(route.request().url());
+      requestUrls.push(url.toString());
       const cursor = url.searchParams.get('cursor');
-      const body = cursor === 'cursor-2' ? page2Response : filteredResponse;
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(body),
-      });
+      const role = url.searchParams.get('role');
+      const body = role ? filteredResponse : cursor === 'cursor-2' ? page2Response : page1Response;
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
     });
 
     await page.goto('/app/admin');
@@ -195,33 +207,21 @@ test.describe('Admin Users cursor pagination', () => {
     await page.getByRole('tab', { name: 'Users' }).click();
     await page.waitForLoadState('networkidle');
 
-    // Advance to page 2
-    await page.route('**/v1/admin/users**', (route) => {
-      requestedUrls.push(route.request().url());
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(page1Response),
-      });
-    });
+    // Actually go to page 2 via the UI
+    await page.getByRole('button', { name: /next page/i }).click();
     await page.waitForLoadState('networkidle');
+    await expect(page.getByText('Page 2')).toBeVisible();
+    expect(requestUrls.some((u) => u.includes('cursor=cursor-2'))).toBe(true);
 
-    // Now filter by role — should reset paging
-    await page.route('**/v1/admin/users**', (route) => {
-      requestedUrls.push(route.request().url());
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(filteredResponse),
-      });
-    });
+    // Change the role filter → must reset to page 1 with no cursor
     await page.locator('select.filter-select').first().selectOption('user');
     await page.waitForLoadState('networkidle');
 
     await expect(page.getByText('Page 1')).toBeVisible();
     await expect(page.getByRole('button', { name: /previous page/i })).toBeDisabled();
 
-    const lastRequest = requestedUrls[requestedUrls.length - 1];
-    expect(new URL(lastRequest).searchParams.has('cursor')).toBe(false);
+    const lastUrl = new URL(requestUrls[requestUrls.length - 1]);
+    expect(lastUrl.searchParams.has('cursor')).toBe(false);
+    expect(lastUrl.searchParams.get('role')).toBe('user');
   });
 });

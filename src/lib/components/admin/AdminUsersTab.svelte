@@ -15,6 +15,8 @@
   let emailSearch = $state('');
   let roleFilter = $state('');
   let activeFilter = $state('');
+  // cursorStack holds the cursor of each previously-visited page so Prev can walk back.
+  // Page 1's cursor is null (no cursor param), so null is a valid, intentional stack entry.
   let cursorStack = $state<(string | null)[]>([]);
   let currentCursor = $state<string | null>(null);
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
