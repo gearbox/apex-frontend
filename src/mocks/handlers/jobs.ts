@@ -1,6 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { makeJobCreatedResponse, makeUnifiedJobResponse } from '../factories/job';
 import { MOCK_BASE_URL as BASE } from '../config';
+import { AISHA_IMAGE_CONSTRAINTS } from '../fixtures/aisha';
 
 export const jobHandlers = [
   // Provider info — unified format
@@ -70,7 +71,7 @@ export const jobHandlers = [
               max_prompt_length: 4096,
               supports_negative_prompt: true,
               aspect_ratios: ['1:1', '16:9', '9:16', '4:3', '3:4'],
-              image: null,
+              image: AISHA_IMAGE_CONSTRAINTS,
               video: null,
               session_state: 'none',
             },
@@ -132,7 +133,7 @@ export const aishaUnavailableHandler = http.get(`${BASE}/v1/providers`, () =>
             max_prompt_length: 4096,
             supports_negative_prompt: true,
             aspect_ratios: ['1:1'],
-            image: null,
+            image: AISHA_IMAGE_CONSTRAINTS,
             video: null,
             session_state: 'none',
           },
@@ -163,7 +164,7 @@ export const aishaActiveSessionHandler = http.get(`${BASE}/v1/providers`, () =>
             max_prompt_length: 4096,
             supports_negative_prompt: true,
             aspect_ratios: ['1:1'],
-            image: null,
+            image: AISHA_IMAGE_CONSTRAINTS,
             video: null,
             session_state: 'active',
           },
@@ -193,7 +194,7 @@ function makeAishaProvider(session_state: string) {
             max_prompt_length: 4096,
             supports_negative_prompt: true,
             aspect_ratios: ['1:1'],
-            image: null,
+            image: AISHA_IMAGE_CONSTRAINTS,
             video: null,
             session_state,
           },

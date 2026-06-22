@@ -103,3 +103,152 @@ describe('generationStore — remix flow', () => {
     expect(state.uploadedImageId).toBeNull();
   });
 });
+
+describe('generationStore — Aisha image param setters', () => {
+  it('setSizingMode toggles between tier and custom', () => {
+    generationStore.setSizingMode('custom');
+    expect(get(generationStore).sizingMode).toBe('custom');
+    generationStore.setSizingMode('tier');
+    expect(get(generationStore).sizingMode).toBe('tier');
+  });
+
+  it('setImageTier sets and clears imageTier', () => {
+    generationStore.setImageTier('high');
+    expect(get(generationStore).imageTier).toBe('high');
+    generationStore.setImageTier(null);
+    expect(get(generationStore).imageTier).toBeNull();
+  });
+
+  it('setCustomSize clamps width and height to default 256–4096', () => {
+    generationStore.setCustomSize(100, 5000);
+    const state = get(generationStore);
+    expect(state.customWidth).toBe(256);
+    expect(state.customHeight).toBe(4096);
+  });
+
+  it('setCustomSize clamps to model-supplied minDim/maxDim', () => {
+    generationStore.setCustomSize(4000, 100, 256, 2048);
+    const state = get(generationStore);
+    expect(state.customWidth).toBe(2048);
+    expect(state.customHeight).toBe(256);
+  });
+
+  it('setCustomSize stores null for NaN input', () => {
+    generationStore.setCustomSize(NaN, NaN);
+    const state = get(generationStore);
+    expect(state.customWidth).toBeNull();
+    expect(state.customHeight).toBeNull();
+  });
+
+  it('setCustomSize allows null for either dimension', () => {
+    generationStore.setCustomSize(1024, null);
+    const state = get(generationStore);
+    expect(state.customWidth).toBe(1024);
+    expect(state.customHeight).toBeNull();
+  });
+
+  it('setSeed stores null for NaN', () => {
+    generationStore.setSeed(NaN);
+    expect(get(generationStore).seed).toBeNull();
+  });
+
+  it('setSteps stores null for NaN', () => {
+    generationStore.setSteps(NaN);
+    expect(get(generationStore).steps).toBeNull();
+  });
+
+  it('setCfg stores null for NaN', () => {
+    generationStore.setCfg(NaN);
+    expect(get(generationStore).cfg).toBeNull();
+  });
+
+  it('setDenoise stores null for NaN', () => {
+    generationStore.setDenoise(NaN);
+    expect(get(generationStore).denoise).toBeNull();
+  });
+
+  it('setSteps clamps to 1–150', () => {
+    generationStore.setSteps(0);
+    expect(get(generationStore).steps).toBe(1);
+    generationStore.setSteps(200);
+    expect(get(generationStore).steps).toBe(150);
+    generationStore.setSteps(50);
+    expect(get(generationStore).steps).toBe(50);
+    generationStore.setSteps(null);
+    expect(get(generationStore).steps).toBeNull();
+  });
+
+  it('setCfg clamps to 0–30', () => {
+    generationStore.setCfg(-1);
+    expect(get(generationStore).cfg).toBe(0);
+    generationStore.setCfg(35);
+    expect(get(generationStore).cfg).toBe(30);
+    generationStore.setCfg(7.5);
+    expect(get(generationStore).cfg).toBe(7.5);
+    generationStore.setCfg(null);
+    expect(get(generationStore).cfg).toBeNull();
+  });
+
+  it('setDenoise clamps to 0–1', () => {
+    generationStore.setDenoise(-0.5);
+    expect(get(generationStore).denoise).toBe(0);
+    generationStore.setDenoise(1.5);
+    expect(get(generationStore).denoise).toBe(1);
+    generationStore.setDenoise(0.75);
+    expect(get(generationStore).denoise).toBe(0.75);
+    generationStore.setDenoise(null);
+    expect(get(generationStore).denoise).toBeNull();
+  });
+
+  it('setSampler and setScheduler set and clear values', () => {
+    generationStore.setSampler('euler');
+    expect(get(generationStore).sampler).toBe('euler');
+    generationStore.setSampler(null);
+    expect(get(generationStore).sampler).toBeNull();
+
+    generationStore.setScheduler('karras');
+    expect(get(generationStore).scheduler).toBe('karras');
+    generationStore.setScheduler(null);
+    expect(get(generationStore).scheduler).toBeNull();
+  });
+
+  it('reset() clears all Aisha params back to initial values', () => {
+    generationStore.setSizingMode('custom');
+    generationStore.setCustomSize(1024, 768);
+    generationStore.setImageTier('ultra');
+    generationStore.setSteps(50);
+    generationStore.setCfg(7);
+    generationStore.setSampler('euler');
+    generationStore.setScheduler('karras');
+    generationStore.setDenoise(0.8);
+    generationStore.setSeed(42);
+
+    generationStore.reset();
+    const state = get(generationStore);
+    expect(state.sizingMode).toBe('tier');
+    expect(state.imageTier).toBeNull();
+    expect(state.customWidth).toBeNull();
+    expect(state.customHeight).toBeNull();
+    expect(state.seed).toBeNull();
+    expect(state.steps).toBeNull();
+    expect(state.cfg).toBeNull();
+    expect(state.sampler).toBeNull();
+    expect(state.scheduler).toBeNull();
+    expect(state.denoise).toBeNull();
+  });
+
+  it('setModel() clears all Aisha params', () => {
+    generationStore.setSizingMode('custom');
+    generationStore.setCustomSize(512, 512);
+    generationStore.setSteps(40);
+    generationStore.setSampler('heun');
+
+    generationStore.setModel('grok-imagine-image');
+    const state = get(generationStore);
+    expect(state.sizingMode).toBe('tier');
+    expect(state.customWidth).toBeNull();
+    expect(state.customHeight).toBeNull();
+    expect(state.steps).toBeNull();
+    expect(state.sampler).toBeNull();
+  });
+});
