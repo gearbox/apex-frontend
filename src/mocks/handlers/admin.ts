@@ -9,6 +9,8 @@ import {
   makePricingRule,
   makeAdminRoleResponse,
   makeAuditLogEntry,
+  makeDetailedHealthResponse,
+  makeHealthSnapshotResponse,
 } from '../factories/admin';
 import { MOCK_BASE_URL as BASE } from '../config';
 
@@ -180,6 +182,48 @@ export const adminHandlers = [
   http.delete(`${BASE}/v1/admin/pricing/:ruleId`, () =>
     HttpResponse.json({ message: 'Pricing rule deleted.' }),
   ),
+
+  // ─── Health ───
+
+  // Health snapshot
+  http.get(`${BASE}/v1/admin/health`, () =>
+    HttpResponse.json(
+      makeDetailedHealthResponse({
+        status: 'degraded',
+        platform_apis: {
+          status: 'degraded',
+          components: [
+            { name: 'stripe', status: 'healthy', latency_ms: 110, message: '' },
+            { name: 'openai', status: 'degraded', latency_ms: 520, message: 'Elevated latency' },
+          ],
+        },
+      }),
+    ),
+  ),
+
+  // Health history
+  http.get(`${BASE}/v1/admin/health/history`, () => {
+    const statuses = [
+      'healthy',
+      'healthy',
+      'healthy',
+      'degraded',
+      'healthy',
+      'unhealthy',
+      'healthy',
+    ];
+    const now = Date.now();
+    const items = statuses.map((s, i) =>
+      makeHealthSnapshotResponse({
+        overall_status: s,
+        checked_at: new Date(now - (statuses.length - i) * 60_000).toISOString(),
+      }),
+    );
+    return HttpResponse.json(items);
+  }),
+
+  // Health stream — respond with 503 by default in MSW so E2E falls back to polling
+  http.get(`${BASE}/v1/admin/health/stream`, () => new HttpResponse(null, { status: 503 })),
 
   // ─── Admin Management (Superadmin only) ───
 

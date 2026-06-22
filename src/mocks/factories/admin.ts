@@ -9,6 +9,8 @@ type PaymentResponse = components['schemas']['PaymentResponse'];
 type BalanceResponse = components['schemas']['BalanceResponse'];
 type TransactionResponse = components['schemas']['TransactionResponse'];
 type PricingRuleResponse = components['schemas']['PricingRuleResponse'];
+type DetailedHealthResponse = components['schemas']['DetailedHealthResponse'];
+type HealthSnapshotResponse = components['schemas']['HealthSnapshotResponse'];
 
 export function makeAdminUser(overrides: Partial<AdminUserResponse> = {}): AdminUserResponse {
   return {
@@ -135,6 +137,54 @@ export function makePricingRule(overrides: Partial<PricingRuleResponse> = {}): P
     effective_from: '2025-01-01T00:00:00Z',
     effective_until: null,
     notes: null,
+    ...overrides,
+  };
+}
+
+export function makeDetailedHealthResponse(
+  overrides: Partial<DetailedHealthResponse> = {},
+): DetailedHealthResponse {
+  return {
+    status: 'healthy',
+    checked_at: '2026-06-22T12:00:00Z',
+    infrastructure: {
+      status: 'healthy',
+      components: [
+        { name: 'database', status: 'healthy', latency_ms: 5, message: '' },
+        { name: 'redis', status: 'healthy', latency_ms: 2, message: '' },
+      ],
+    },
+    platform_apis: {
+      status: 'degraded',
+      components: [
+        { name: 'stripe', status: 'healthy', latency_ms: 120, message: '' },
+        { name: 'openai', status: 'degraded', latency_ms: 450, message: 'Elevated latency' },
+      ],
+    },
+    cloud_providers: {
+      vex: {
+        status: 'healthy',
+        components: [{ name: 'grok-imagine', status: 'healthy', latency_ms: 80, message: '' }],
+      },
+    },
+    gpu_sessions: {
+      status: 'healthy',
+      total: 4,
+      healthy: 3,
+      stale: 1,
+      message: '',
+    },
+    ...overrides,
+  };
+}
+
+export function makeHealthSnapshotResponse(
+  overrides: Partial<HealthSnapshotResponse> = {},
+): HealthSnapshotResponse {
+  return {
+    checked_at: '2026-06-22T12:00:00Z',
+    overall_status: 'healthy',
+    snapshot_data: {},
     ...overrides,
   };
 }
