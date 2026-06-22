@@ -61,14 +61,23 @@ describe('fetchAdminUsers()', () => {
     expect(result.items[0]).toHaveProperty('role');
   });
 
-  it('passes query params correctly', async () => {
+  it('passes cursor param correctly', async () => {
+    let capturedUrl = '';
     server.use(
-      http.get(`${BASE}/v1/admin/users`, () =>
-        HttpResponse.json({ items: [makeAdminUser({ role: 'admin' })], total: 1 }),
-      ),
+      http.get(`${BASE}/v1/admin/users`, ({ request }) => {
+        capturedUrl = request.url;
+        return HttpResponse.json({
+          items: [makeAdminUser({ role: 'admin' })],
+          has_more: false,
+          next_cursor: null,
+          limit: 20,
+        });
+      }),
     );
-    const result = await fetchAdminUsers({ role: 'admin', limit: 10, offset: 0 });
+    const result = await fetchAdminUsers({ cursor: 'c1', limit: 20 });
     expect(result).toBeDefined();
+    expect(capturedUrl).toContain('cursor=c1');
+    expect(capturedUrl).not.toContain('offset');
   });
 });
 

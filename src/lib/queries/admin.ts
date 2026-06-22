@@ -1,4 +1,4 @@
-import type { QueryClient } from '@tanstack/svelte-query';
+import { keepPreviousData, type QueryClient } from '@tanstack/svelte-query';
 import { generateIdempotencyKey } from '$lib/utils/idempotency';
 import {
   fetchAdminUsers,
@@ -53,7 +53,7 @@ export interface AdminUsersFilters {
   role?: string;
   email?: string;
   limit?: number;
-  offset?: number;
+  cursor?: string;
 }
 
 export function adminUsersQueryOptions(filters: AdminUsersFilters = {}) {
@@ -62,6 +62,7 @@ export function adminUsersQueryOptions(filters: AdminUsersFilters = {}) {
     queryFn: () => fetchAdminUsers(filters),
     staleTime: 30_000,
     refetchOnWindowFocus: true,
+    placeholderData: keepPreviousData,
   };
 }
 

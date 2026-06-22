@@ -39,7 +39,7 @@ export async function fetchAdminUsers(params?: {
   role?: string;
   email?: string;
   limit?: number;
-  offset?: number;
+  cursor?: string;
 }): Promise<AdminUserListResponse> {
   const { data, error } = await apiClient.GET('/v1/admin/users', {
     params: { query: params },
