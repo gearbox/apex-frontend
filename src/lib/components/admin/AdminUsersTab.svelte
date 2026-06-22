@@ -5,7 +5,7 @@
   import { fetchUserAccount } from '$lib/api/admin';
   import type { AdminUserResponse } from '$lib/api/admin';
   import { currentUser } from '$lib/stores/auth';
-  import Pagination from '$lib/components/shared/Pagination.svelte';
+  import CursorPagination from '$lib/components/shared/CursorPagination.svelte';
   import StatusBadge from '$lib/components/shared/StatusBadge.svelte';
   import EditUserModal from './EditUserModal.svelte';
   import AccountAdjustModal from './AccountAdjustModal.svelte';
@@ -15,7 +15,8 @@
   let emailSearch = $state('');
   let roleFilter = $state('');
   let activeFilter = $state('');
-  let offset = $state(0);
+  let cursorStack = $state<(string | null)[]>([]);
+  let currentCursor = $state<string | null>(null);
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
   let debouncedEmail = $state('');
 
@@ -23,24 +24,29 @@
   let adjustAccountId = $state<string | null>(null);
   let adjustEntityName = $state('');
 
+  function resetPaging() {
+    cursorStack = [];
+    currentCursor = null;
+  }
+
   function onEmailInput(e: Event) {
     const val = (e.target as HTMLInputElement).value;
     emailSearch = val;
     if (debounceTimer) clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
       debouncedEmail = val;
-      offset = 0;
+      resetPaging();
     }, 400);
   }
 
   function onRoleChange(e: Event) {
     roleFilter = (e.target as HTMLSelectElement).value;
-    offset = 0;
+    resetPaging();
   }
 
   function onActiveChange(e: Event) {
     activeFilter = (e.target as HTMLSelectElement).value;
-    offset = 0;
+    resetPaging();
   }
 
   const queryClient = useQueryClient();
@@ -51,9 +57,22 @@
       ...(roleFilter ? { role: roleFilter } : {}),
       ...(activeFilter !== '' ? { is_active: activeFilter === 'true' } : {}),
       limit: PAGE_SIZE,
-      offset,
+      ...(currentCursor ? { cursor: currentCursor } : {}),
     }),
   );
+
+  function goNext() {
+    const next = usersQuery.data?.next_cursor;
+    if (!next) return;
+    cursorStack = [...cursorStack, currentCursor];
+    currentCursor = next;
+  }
+
+  function goPrev() {
+    if (cursorStack.length === 0) return;
+    currentCursor = cursorStack[cursorStack.length - 1];
+    cursorStack = cursorStack.slice(0, -1);
+  }
 
   async function openAdjust(user: AdminUserResponse) {
     try {
@@ -109,7 +128,6 @@
     </div>
   {:else if usersQuery.data}
     {@const items = usersQuery.data.items}
-    {@const total = offset + items.length + (usersQuery.data.has_more ? PAGE_SIZE : 0)}
 
     {#if items.length === 0}
       <div class="empty-state">
@@ -201,11 +219,13 @@
         {/each}
       </div>
 
-      <Pagination
-        {total}
-        limit={PAGE_SIZE}
-        {offset}
-        onpagechange={(newOffset) => (offset = newOffset)}
+      <CursorPagination
+        hasPrev={cursorStack.length > 0}
+        hasNext={usersQuery.data?.has_more === true}
+        pageNumber={cursorStack.length + 1}
+        loading={usersQuery.isFetching}
+        onprev={goPrev}
+        onnext={goNext}
       />
     {/if}
   {/if}

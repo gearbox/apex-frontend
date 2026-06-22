@@ -15,16 +15,33 @@ import {
 import { MOCK_BASE_URL as BASE } from '../config';
 
 export const adminHandlers = [
-  // List users
-  http.get(`${BASE}/v1/admin/users`, () =>
-    HttpResponse.json({
+  // List users — cursor-based pagination
+  http.get(`${BASE}/v1/admin/users`, ({ request }) => {
+    const url = new URL(request.url);
+    const cursor = url.searchParams.get('cursor');
+
+    if (cursor === 'cursor-2') {
+      return HttpResponse.json({
+        items: [
+          makeAdminUser({ id: 'usr_003', email: 'carol@example.com' }),
+          makeAdminUser({ id: 'usr_004', email: 'dan@example.com' }),
+        ],
+        has_more: false,
+        next_cursor: null,
+        limit: 20,
+      });
+    }
+
+    return HttpResponse.json({
       items: [
         makeAdminUser({ id: 'usr_001', email: 'alice@example.com', role: 'admin' }),
         makeAdminUser({ id: 'usr_002', email: 'bob@example.com' }),
       ],
-      total: 2,
-    }),
-  ),
+      has_more: true,
+      next_cursor: 'cursor-2',
+      limit: 20,
+    });
+  }),
 
   // Patch user
   http.patch(`${BASE}/v1/admin/users/:userId`, async ({ request, params }) => {
@@ -280,6 +297,16 @@ export const adminHandlers = [
     ]),
   ),
 ];
+
+// Single-page users result (has_more: false) — for filter-reset tests
+export const adminUsersSinglePageHandler = http.get(`${BASE}/v1/admin/users`, () =>
+  HttpResponse.json({
+    items: [makeAdminUser({ id: 'usr_001', email: 'alice@example.com', role: 'admin' })],
+    has_more: false,
+    next_cursor: null,
+    limit: 20,
+  }),
+);
 
 // Named override handlers for negative-path tests
 export const adminUserPatchFailHandler = http.patch(`${BASE}/v1/admin/users/:userId`, () =>
