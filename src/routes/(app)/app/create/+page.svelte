@@ -32,6 +32,7 @@
   import PromptInput from '$lib/components/create/PromptInput.svelte';
   import NegativePromptInput from '$lib/components/create/NegativePromptInput.svelte';
   import ParamsPanel from '$lib/components/create/ParamsPanel.svelte';
+  import { buildGeneratePayload } from '$lib/utils/generatePayload';
   import GenerateButton from '$lib/components/create/GenerateButton.svelte';
   import ResultsPanel from '$lib/components/create/ResultsPanel.svelte';
 
@@ -274,22 +275,23 @@
       return;
     }
 
+    // Guard: prevent submitting an incomplete custom-size pair
+    if (
+      currentModelInfo?.image?.supported_tiers != null &&
+      state.sizingMode === 'custom' &&
+      (state.customWidth === null) !== (state.customHeight === null)
+    ) {
+      addToast({ type: 'error', message: 'Both width and height are required for custom size.' });
+      return;
+    }
+
     submitting = true;
     const idempotencyKey = generateIdempotencyKey();
 
     try {
+      const body = buildGeneratePayload(state, currentModelInfo);
       const { data, error } = await apiClient.POST('/v1/generate', {
-        body: {
-          prompt: state.prompt,
-          generation_type: state.mode,
-          model: state.model,
-          ...(state.uploadedImageId ? { input_image_id: state.uploadedImageId } : {}),
-          ...(state.sourceOutputId ? { source_output_id: state.sourceOutputId } : {}),
-          aspect_ratio: state.aspectRatio,
-          n: state.imageCount,
-          duration: state.videoDuration,
-          resolution: state.videoResolution,
-        },
+        body,
         params: {
           header: { 'Idempotency-Key': idempotencyKey },
         },
@@ -348,8 +350,10 @@
     {/if}
 
     <PromptInput />
-    <NegativePromptInput />
-    <ParamsPanel />
+    {#if currentModelInfo?.supports_negative_prompt === true}
+      <NegativePromptInput />
+    {/if}
+    <ParamsPanel modelInfo={currentModelInfo} />
 
     <!-- Results (mobile: inline below form) -->
     <div class="md:hidden">

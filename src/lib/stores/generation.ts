@@ -6,6 +6,9 @@ type ModelType = components['schemas']['ModelType'];
 type AspectRatio = components['schemas']['AspectRatio'];
 type JobStatus = components['schemas']['JobStatus'];
 type UnifiedJobResponse = components['schemas']['UnifiedJobResponse'];
+type Resolution = components['schemas']['Resolution'];
+type Sampler = components['schemas']['Sampler'];
+type Scheduler = components['schemas']['Scheduler'];
 
 export interface GenerationState {
   // Model
@@ -25,6 +28,20 @@ export interface GenerationState {
   imageCount: number;
   videoDuration: number;
   videoResolution: '480p' | '720p';
+
+  // Aisha image sizing (image_resolution XOR width+height)
+  sizingMode: 'tier' | 'custom';
+  imageTier: Resolution | null;
+  customWidth: number | null;
+  customHeight: number | null;
+
+  // Aisha sampler overrides (null = Auto / use model bundle default)
+  seed: number | null;
+  steps: number | null;
+  cfg: number | null;
+  sampler: Sampler | null;
+  scheduler: Scheduler | null;
+  denoise: number | null;
 
   // Session job tracking
   activeJobId: string | null;
@@ -50,6 +67,16 @@ function createGenerationStore() {
     imageCount: 1,
     videoDuration: 5,
     videoResolution: '720p',
+    sizingMode: 'tier',
+    imageTier: null,
+    customWidth: null,
+    customHeight: null,
+    seed: null,
+    steps: null,
+    cfg: null,
+    sampler: null,
+    scheduler: null,
+    denoise: null,
     activeJobId: null,
     jobStatus: null,
     completedJob: null,
@@ -62,7 +89,23 @@ function createGenerationStore() {
     subscribe,
 
     setModel(model: ModelType) {
-      update((s) => ({ ...s, model, activeJobId: null, jobStatus: null, completedJob: null }));
+      update((s) => ({
+        ...s,
+        model,
+        activeJobId: null,
+        jobStatus: null,
+        completedJob: null,
+        sizingMode: 'tier',
+        imageTier: null,
+        customWidth: null,
+        customHeight: null,
+        seed: null,
+        steps: null,
+        cfg: null,
+        sampler: null,
+        scheduler: null,
+        denoise: null,
+      }));
     },
 
     setMode(mode: GenerationMode) {
@@ -111,6 +154,55 @@ function createGenerationStore() {
 
     setVideoResolution(videoResolution: '480p' | '720p') {
       update((s) => ({ ...s, videoResolution }));
+    },
+
+    setSizingMode(sizingMode: 'tier' | 'custom') {
+      update((s) => ({ ...s, sizingMode }));
+    },
+
+    setImageTier(imageTier: Resolution | null) {
+      update((s) => ({ ...s, imageTier }));
+    },
+
+    setCustomSize(customWidth: number | null, customHeight: number | null) {
+      update((s) => ({
+        ...s,
+        customWidth: customWidth !== null ? Math.max(256, Math.min(4096, customWidth)) : null,
+        customHeight: customHeight !== null ? Math.max(256, Math.min(4096, customHeight)) : null,
+      }));
+    },
+
+    setSeed(seed: number | null) {
+      update((s) => ({ ...s, seed }));
+    },
+
+    setSteps(steps: number | null) {
+      update((s) => ({
+        ...s,
+        steps: steps !== null ? Math.max(1, Math.min(150, steps)) : null,
+      }));
+    },
+
+    setCfg(cfg: number | null) {
+      update((s) => ({
+        ...s,
+        cfg: cfg !== null ? Math.max(0, Math.min(30, cfg)) : null,
+      }));
+    },
+
+    setSampler(sampler: Sampler | null) {
+      update((s) => ({ ...s, sampler }));
+    },
+
+    setScheduler(scheduler: Scheduler | null) {
+      update((s) => ({ ...s, scheduler }));
+    },
+
+    setDenoise(denoise: number | null) {
+      update((s) => ({
+        ...s,
+        denoise: denoise !== null ? Math.max(0, Math.min(1, denoise)) : null,
+      }));
     },
 
     startJob(jobId: string) {
