@@ -1,9 +1,13 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
+  import { goto } from '$app/navigation';
   import { Play, Square, X, LogIn } from 'lucide-svelte';
+  import { createQuery } from '@tanstack/svelte-query';
   import StatusBadge from '$lib/components/shared/StatusBadge.svelte';
   import type { GpuSessionResponse } from '$lib/api/sessions';
   import type { CardState } from '$lib/utils/sessionState';
+  import { balanceQueryOptions, canStartNewWork } from '$lib/stores/balanceGate';
+  import { ROUTES } from '$lib/utils/routes';
   import * as m from '$paraglide/messages';
 
   interface Props {
@@ -15,6 +19,10 @@
   }
 
   let { cardState, session, starting, onStart, onStopRequest }: Props = $props();
+
+  const balanceQuery = createQuery(balanceQueryOptions);
+  const hasBalance = $derived(canStartNewWork(balanceQuery.data?.balance));
+  const isTopUpMode = $derived(!hasBalance && !balanceQuery.isLoading);
 
   const CARD_COLOR_BY_STATE: Record<CardState, string> = {
     READY: 'success',
@@ -105,10 +113,16 @@
       <StatusBadge status={m.create_state_needs_session()} color={CARD_COLOR_BY_STATE[cardState]} />
       <span class="hint">{m.create_session_cost_hint()}</span>
     </div>
-    <button class="btn-primary" onclick={onStart} disabled={starting}>
-      <Play size={13} />
-      {starting ? m.create_state_provisioning() : m.create_session_start()}
-    </button>
+    {#if isTopUpMode}
+      <button class="btn-primary" onclick={() => goto(ROUTES.billingTopUp)}>
+        {m.generate_btn_topup()}
+      </button>
+    {:else}
+      <button class="btn-primary" onclick={onStart} disabled={starting}>
+        <Play size={13} />
+        {starting ? m.create_state_provisioning() : m.create_session_start()}
+      </button>
+    {/if}
   </div>
 {:else if cardState === 'PROVISIONING'}
   <div class="panel">

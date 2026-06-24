@@ -36,6 +36,7 @@
   import { supportsAishaImageParams } from '$lib/utils/modelCapabilities';
   import GenerateButton from '$lib/components/create/GenerateButton.svelte';
   import ResultsPanel from '$lib/components/create/ResultsPanel.svelte';
+  import { ROUTES } from '$lib/utils/routes';
 
   const queryClient = useQueryClient();
 
@@ -204,7 +205,7 @@
       addToast({
         type: 'error',
         message: 'Not enough tokens.',
-        action: { label: 'Buy more →', href: '/app/billing' },
+        action: { label: 'Buy more →', href: ROUTES.billing },
       });
     } else if (apiErr.error === 'idempotency_conflict') {
       addToast({

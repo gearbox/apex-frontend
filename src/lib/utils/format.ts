@@ -74,3 +74,11 @@ export function formatRelativeTime(iso: string): string {
 export function formatFileSize(bytes: number): string {
   return formatBytes(bytes);
 }
+
+/** Format milliseconds as MM:SS countdown, clamped to 00:00. */
+export function formatCountdown(ms: number): string {
+  const totalSecs = Math.max(0, Math.floor(ms / 1000));
+  const mins = Math.floor(totalSecs / 60);
+  const secs = totalSecs % 60;
+  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+}

@@ -3,6 +3,8 @@
   import apiClient from '$lib/api/client';
   import { formatNumber } from '$lib/utils/format';
   import { isSSEConnected } from '$lib/stores/eventStream';
+  import { ROUTES } from '$lib/utils/routes';
+  import * as m from '$paraglide/messages';
 
   const balanceQuery = createQuery(() => ({
     queryKey: ['balance'],
@@ -16,14 +18,28 @@
     refetchInterval: $isSSEConnected ? false : 30_000,
     refetchOnWindowFocus: true,
   }));
+
+  const balance = $derived(balanceQuery.data?.balance);
+  const isDebt = $derived(typeof balance === 'number' && balance < 0);
+  const debtLabel = $derived(
+    isDebt
+      ? m.balance_debt_label({ n: formatNumber(Math.abs(balance!)) })
+      : m.topbar_balance({ amount: formatNumber(balance ?? 0) }),
+  );
 </script>
 
-<a href="/app/billing" class="pill" aria-label="Token balance">
+<a
+  href={isDebt ? ROUTES.billingTopUp : ROUTES.billing}
+  class="pill"
+  class:debt={isDebt}
+  aria-label={balanceQuery.isLoading ? m.balance_loading_aria_label() : debtLabel}
+  title={isDebt ? debtLabel : undefined}
+>
   <span class="pill-symbol">◈</span>
   {#if balanceQuery.isLoading}
     <span class="loading-skel"></span>
   {:else}
-    {balanceQuery.data?.balance !== undefined ? formatNumber(balanceQuery.data.balance) : '—'}
+    {balance !== undefined && balance !== null ? formatNumber(balance) : '—'}
   {/if}
 </a>
 
@@ -47,6 +63,16 @@
 
   .pill:hover {
     border-color: color-mix(in srgb, var(--apex-accent-dim) 40%, transparent);
+  }
+
+  .pill.debt {
+    background: color-mix(in srgb, var(--apex-danger) 9%, transparent);
+    border-color: color-mix(in srgb, var(--apex-danger) 25%, transparent);
+    color: var(--apex-danger);
+  }
+
+  .pill.debt:hover {
+    border-color: color-mix(in srgb, var(--apex-danger) 45%, transparent);
   }
 
   .pill-symbol {

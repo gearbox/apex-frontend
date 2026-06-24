@@ -4,6 +4,27 @@ import type { ComponentProps } from 'svelte';
 import CreateSessionPanel from './CreateSessionPanel.svelte';
 import type { CardState } from '$lib/utils/sessionState';
 
+vi.mock('@tanstack/svelte-query', async () => {
+  const actual =
+    await vi.importActual<typeof import('@tanstack/svelte-query')>('@tanstack/svelte-query');
+  return {
+    ...actual,
+    createQuery: vi.fn(() => ({
+      get data() {
+        return { balance: 1000 };
+      },
+      get isLoading() {
+        return false;
+      },
+      get isError() {
+        return false;
+      },
+    })),
+  };
+});
+
+vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
+
 vi.mock('$paraglide/messages', () => ({
   create_state_active: () => 'Session active',
   create_state_needs_session: () => 'Needs GPU session',
@@ -21,6 +42,7 @@ vi.mock('$paraglide/messages', () => ({
   create_session_uptime: () => 'Uptime',
   create_session_cost_so_far: () => 'Cost so far:',
   create_session_manage_link: () => 'Manage in Sessions',
+  generate_btn_topup: () => 'Top up to generate',
 }));
 
 vi.mock('$paraglide/runtime', () => ({

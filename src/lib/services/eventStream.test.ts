@@ -13,6 +13,7 @@ import { activeJobStore } from '$lib/stores/jobs';
 import { generationStore } from '$lib/stores/generation';
 import { toasts, removeToast } from '$lib/stores/toasts';
 import { sessionKeys } from '$lib/queries/sessions';
+import { creditWarnings, dismissAllCreditWarnings } from '$lib/stores/creditWarnings';
 
 /* ─── Mock EventSource ─── */
 
@@ -75,6 +76,7 @@ beforeEach(() => {
   clearNotifications();
   activeJobStore.clear();
   generationStore.reset();
+  dismissAllCreditWarnings();
   // Drain any lingering toasts from previous tests
   get(toasts).forEach((t) => removeToast(t.id));
 });
@@ -414,6 +416,186 @@ describe('EventStreamService — gpu_session.status_changed dispatch', () => {
 
     expect(queryClient.setQueryData).not.toHaveBeenCalled();
     expect(get(toasts)).toHaveLength(0);
+
+    svc.dispose();
+  });
+});
+
+describe('EventStreamService — gpu_session.credit_warning dispatch', () => {
+  it('upserts credit warning in store on valid payload', async () => {
+    const queryClient = makeMockQueryClient();
+    const svc = new EventStreamService({ queryClient: queryClient as never });
+    await svc.connect();
+
+    const es = MockEventSource.instances[0];
+    es._emit('gpu_session.credit_warning', {
+      session_id: 'sess_cw_001',
+      level: 'warning',
+      minutes_remaining: 10,
+      terminate_at: new Date(Date.now() + 10 * 60_000).toISOString(),
+      balance: 50,
+    });
+
+    const map = get(creditWarnings);
+    expect(map.has('sess_cw_001')).toBe(true);
+    expect(map.get('sess_cw_001')?.level).toBe('warning');
+
+    svc.dispose();
+  });
+
+  it('ignores malformed credit_warning events', async () => {
+    const queryClient = makeMockQueryClient();
+    const svc = new EventStreamService({ queryClient: queryClient as never });
+    await svc.connect();
+
+    const es = MockEventSource.instances[0];
+    // Missing required fields
+    es._emit('gpu_session.credit_warning', { session_id: 'sess_bad' });
+
+    expect(get(creditWarnings).size).toBe(0);
+
+    svc.dispose();
+  });
+
+  it('dismisses warning on level=info', async () => {
+    const queryClient = makeMockQueryClient();
+    const svc = new EventStreamService({ queryClient: queryClient as never });
+    await svc.connect();
+
+    const es = MockEventSource.instances[0];
+    // First add a warning
+    es._emit('gpu_session.credit_warning', {
+      session_id: 'sess_cw_002',
+      level: 'warning',
+      minutes_remaining: 5,
+      terminate_at: new Date(Date.now() + 5 * 60_000).toISOString(),
+      balance: 20,
+    });
+    expect(get(creditWarnings).has('sess_cw_002')).toBe(true);
+
+    // Then clear it via info level
+    es._emit('gpu_session.credit_warning', {
+      session_id: 'sess_cw_002',
+      level: 'info',
+      minutes_remaining: 0,
+      terminate_at: null,
+      balance: 500,
+    });
+    expect(get(creditWarnings).has('sess_cw_002')).toBe(false);
+
+    svc.dispose();
+  });
+});
+
+describe('EventStreamService — balance.updated dismissal heuristic', () => {
+  it('dismisses all credit warnings on balance.updated with delta > 0', async () => {
+    const queryClient = makeMockQueryClient();
+    const svc = new EventStreamService({ queryClient: queryClient as never });
+    await svc.connect();
+
+    const es = MockEventSource.instances[0];
+    // Seed a warning first
+    es._emit('gpu_session.credit_warning', {
+      session_id: 'sess_topup',
+      level: 'critical',
+      minutes_remaining: 2,
+      terminate_at: new Date(Date.now() + 2 * 60_000).toISOString(),
+      balance: 10,
+    });
+    expect(get(creditWarnings).size).toBe(1);
+
+    // Top-up received
+    es._emit('balance.updated', {
+      account_id: 'acc_001',
+      balance: 1000,
+      delta: 950,
+      transaction_type: 'credit',
+    });
+
+    expect(get(creditWarnings).size).toBe(0);
+
+    svc.dispose();
+  });
+
+  it('does NOT dismiss warnings on balance.updated with delta <= 0', async () => {
+    const queryClient = makeMockQueryClient();
+    const svc = new EventStreamService({ queryClient: queryClient as never });
+    await svc.connect();
+
+    const es = MockEventSource.instances[0];
+    es._emit('gpu_session.credit_warning', {
+      session_id: 'sess_debit',
+      level: 'warning',
+      minutes_remaining: 8,
+      terminate_at: new Date(Date.now() + 8 * 60_000).toISOString(),
+      balance: 40,
+    });
+
+    es._emit('balance.updated', {
+      account_id: 'acc_001',
+      balance: 35,
+      delta: -5,
+      transaction_type: 'debit',
+    });
+
+    expect(get(creditWarnings).size).toBe(1);
+
+    svc.dispose();
+  });
+});
+
+describe('EventStreamService — gpu_session.status_changed dismissal on terminal', () => {
+  it('dismisses credit warning when session reaches stopped status', async () => {
+    const queryClient = makeMockQueryClient();
+    const svc = new EventStreamService({ queryClient: queryClient as never });
+    await svc.connect();
+
+    const es = MockEventSource.instances[0];
+    es._emit('gpu_session.credit_warning', {
+      session_id: 'sess_stop',
+      level: 'critical',
+      minutes_remaining: 0,
+      terminate_at: null,
+      balance: -5,
+    });
+    expect(get(creditWarnings).has('sess_stop')).toBe(true);
+
+    es._emit('gpu_session.status_changed', {
+      session_id: 'sess_stop',
+      status: 'stopped',
+      previous_status: 'stopping',
+      model_type: 'aisha-image',
+      bundle_name: 'aisha-bundle',
+      tunnel_hostname: null,
+      error_message: null,
+      reason: 'insufficient_credits',
+    });
+
+    expect(get(creditWarnings).has('sess_stop')).toBe(false);
+
+    svc.dispose();
+  });
+
+  it('fires insufficient_credits toast on stopped with reason=insufficient_credits', async () => {
+    const queryClient = makeMockQueryClient();
+    const svc = new EventStreamService({ queryClient: queryClient as never });
+    await svc.connect();
+
+    const es = MockEventSource.instances[0];
+    es._emit('gpu_session.status_changed', {
+      session_id: 'sess_ic',
+      status: 'stopped',
+      previous_status: 'stopping',
+      model_type: 'aisha-image',
+      bundle_name: 'aisha-bundle',
+      tunnel_hostname: null,
+      error_message: null,
+      reason: 'insufficient_credits',
+    });
+
+    const allToasts = get(toasts);
+    expect(allToasts).toHaveLength(1);
+    expect(allToasts[0].type).toBe('warning');
 
     svc.dispose();
   });

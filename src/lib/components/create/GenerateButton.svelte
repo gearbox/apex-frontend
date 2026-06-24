@@ -1,5 +1,9 @@
 <script lang="ts">
+  import { goto } from '$app/navigation';
+  import { createQuery } from '@tanstack/svelte-query';
   import { generationStore } from '$lib/stores/generation';
+  import { balanceQueryOptions, canStartNewWork } from '$lib/stores/balanceGate';
+  import { ROUTES } from '$lib/utils/routes';
   import CostPreview from './CostPreview.svelte';
   import * as m from '$paraglide/messages';
 
@@ -15,6 +19,10 @@
     disabled?: boolean;
   } = $props();
 
+  const balanceQuery = createQuery(balanceQueryOptions);
+
+  const hasBalance = $derived(canStartNewWork(balanceQuery.data?.balance));
+
   const isPolling = $derived(
     $generationStore.jobStatus !== null &&
       $generationStore.jobStatus !== 'completed' &&
@@ -23,19 +31,37 @@
       $generationStore.jobStatus !== 'moderated',
   );
 
+  const isTopUpMode = $derived(!hasBalance && !balanceQuery.isLoading);
+
   const disabled = $derived(
-    externalDisabled || !$generationStore.prompt.trim() || submitting || isPolling,
+    isTopUpMode
+      ? false
+      : externalDisabled || !$generationStore.prompt.trim() || submitting || isPolling,
   );
 
   const label = $derived(
-    submitting ? m.create_submitting() : isPolling ? m.create_generating() : m.create_generate(),
+    isTopUpMode
+      ? m.generate_btn_topup()
+      : submitting
+        ? m.create_submitting()
+        : isPolling
+          ? m.create_generating()
+          : m.create_generate(),
   );
 
   const progress = $derived($generationStore.progress);
+
+  function handleClick() {
+    if (isTopUpMode) {
+      goto(ROUTES.billingTopUp);
+    } else {
+      onclick();
+    }
+  }
 </script>
 
 <button
-  {onclick}
+  onclick={handleClick}
   {disabled}
   class="relative flex w-full items-center justify-center gap-2 overflow-hidden rounded-xl py-3.5 text-sm font-bold text-white transition-opacity
     {disabled ? 'cursor-not-allowed opacity-40' : 'hover:opacity-90'}"
@@ -55,5 +81,7 @@
     ></span>
   {/if}
   <span>{label}</span>
-  <CostPreview {estimatedCost} />
+  {#if !isTopUpMode}
+    <CostPreview {estimatedCost} />
+  {/if}
 </button>

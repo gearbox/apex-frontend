@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { server } from '../../mocks/server';
 import { makeTokenResponse } from '../../mocks/factories/auth';
@@ -6,6 +6,7 @@ import { makeUserProfile } from '../../mocks/factories/user';
 import { setAuth, clearAuth, getAccessToken } from '$lib/stores/auth';
 import { clearRateLimits, getRateLimitState } from '$lib/stores/rateLimit';
 import { STORAGE_KEYS } from '$lib/utils/constants';
+import { ROUTES } from '$lib/utils/routes';
 
 const BASE = 'http://localhost:8000';
 
@@ -208,5 +209,48 @@ describe('rate limit middleware', () => {
     expect(response.status).toBe(429);
     // 1 original + 3 retries = 4 calls
     expect(callCount).toBe(4);
+  });
+});
+
+describe('402 insufficient balance — toast throttle', () => {
+  let addToastSpy: ReturnType<typeof vi.fn>;
+
+  beforeEach(async () => {
+    vi.useFakeTimers();
+    // Reset the module so lastInsufficientBalanceToastAt starts at 0
+    vi.resetModules();
+    const toastsModule = await import('$lib/stores/toasts');
+    addToastSpy = vi.spyOn(toastsModule, 'addToast');
+    apiClient = (await import('./client')).default;
+
+    server.use(
+      http.get(`${BASE}/v1/billing/balance`, () =>
+        HttpResponse.json({ error: 'payment_required' }, { status: 402 }),
+      ),
+    );
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('fires a single toast for two rapid 402s within the throttle window', async () => {
+    await apiClient.GET('/v1/billing/balance');
+    await apiClient.GET('/v1/billing/balance');
+    expect(addToastSpy).toHaveBeenCalledTimes(1);
+    expect(addToastSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'warning',
+        action: expect.objectContaining({ href: ROUTES.billingTopUp }),
+      }),
+    );
+  });
+
+  it('fires a second toast after the throttle window elapses', async () => {
+    await apiClient.GET('/v1/billing/balance');
+    vi.advanceTimersByTime(6001);
+    await apiClient.GET('/v1/billing/balance');
+    expect(addToastSpy).toHaveBeenCalledTimes(2);
   });
 });
