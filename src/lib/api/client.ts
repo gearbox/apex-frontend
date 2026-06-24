@@ -4,6 +4,8 @@ import { getAccessToken } from '$lib/stores/auth';
 import { silentRefresh } from '$lib/api/auth';
 import { parseRateLimitHeaders, endpointKey, getRetryDelay } from '$lib/api/rateLimit';
 import { updateRateLimit } from '$lib/stores/rateLimit';
+import { addToast } from '$lib/stores/toasts';
+import * as m from '$paraglide/messages';
 import type { paths } from './types';
 
 const MAX_RATE_LIMIT_RETRIES = 3;
@@ -44,6 +46,11 @@ const authMiddleware: Middleware = {
         if (current.status !== 429) break;
       }
       return current;
+    }
+
+    if (response.status === 402) {
+      addToast({ type: 'warning', message: m.error_insufficient_balance(), durationMs: 6000 });
+      return response;
     }
 
     if (response.status !== 401) return response;

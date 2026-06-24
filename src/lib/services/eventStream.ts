@@ -22,11 +22,18 @@ import {
   isBalanceUpdatedPayload,
   isSystemNotificationPayload,
   isGpuSessionStatusPayload,
+  isGpuSessionCreditWarningPayload,
   type JobStatusPayload,
   type JobProgressPayload,
   type BalanceUpdatedPayload,
   type GpuSessionStatusPayload,
+  type GpuSessionCreditWarningPayload,
 } from '$lib/api/events';
+import {
+  upsertCreditWarning,
+  dismissCreditWarning,
+  dismissAllCreditWarnings,
+} from '$lib/stores/creditWarnings';
 import { sessionKeys } from '$lib/queries/sessions';
 import { get } from 'svelte/store';
 
@@ -148,6 +155,10 @@ export class EventStreamService {
       this.handleGpuSessionStatus(e);
     });
 
+    es.addEventListener(SSE_EVENTS.GPU_SESSION_CREDIT_WARNING, (e: MessageEvent) => {
+      this.handleCreditWarning(e);
+    });
+
     this.eventSource = es;
   }
 
@@ -264,6 +275,8 @@ export class EventStreamService {
         message: `${label}: +${payload.delta} tokens`,
         durationMs: 3000,
       });
+      // Optimistically clear warnings — if top-up was insufficient the backend re-emits
+      dismissAllCreditWarnings();
     }
   }
 
@@ -308,6 +321,11 @@ export class EventStreamService {
     this.queryClient.invalidateQueries({ queryKey: sessionKeys.all });
     this.queryClient.invalidateQueries({ queryKey: ['providers'] });
 
+    // Dismiss credit warning for this session when it reaches a terminal state
+    if (status === 'stopped' || status === 'failed') {
+      dismissCreditWarning(session_id);
+    }
+
     // One-shot toasts keyed on transitions only
     if (previous_status !== status) {
       if (status === 'active') {
@@ -327,9 +345,31 @@ export class EventStreamService {
           durationMs: 6000,
         });
       } else if (status === 'stopped') {
-        addToast({ type: 'success', message: m.session_toast_stopped(), durationMs: 3000 });
+        if (payload.reason === 'insufficient_credits') {
+          addToast({
+            type: 'warning',
+            message: m.session_toast_stopped_no_credits(),
+            durationMs: 8000,
+          });
+        } else {
+          addToast({ type: 'success', message: m.session_toast_stopped(), durationMs: 3000 });
+        }
       }
     }
+  }
+
+  private handleCreditWarning(e: MessageEvent): void {
+    try {
+      const data = JSON.parse(e.data);
+      if (!isGpuSessionCreditWarningPayload(data)) return;
+      this.processCreditWarning(data);
+    } catch {
+      // Malformed event — ignore
+    }
+  }
+
+  private processCreditWarning(payload: GpuSessionCreditWarningPayload): void {
+    upsertCreditWarning(payload);
   }
 
   /* ─── Reconnection Logic ─── */

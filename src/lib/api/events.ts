@@ -9,6 +9,7 @@ export const SSE_EVENTS = {
   BALANCE_UPDATED: 'balance.updated',
   SYSTEM_NOTIFICATION: 'system.notification',
   GPU_SESSION_STATUS: 'gpu_session.status_changed',
+  GPU_SESSION_CREDIT_WARNING: 'gpu_session.credit_warning',
 } as const;
 
 export type SSEEventType = (typeof SSE_EVENTS)[keyof typeof SSE_EVENTS];
@@ -52,6 +53,15 @@ export interface GpuSessionStatusPayload {
   bundle_name: string;
   tunnel_hostname: string | null;
   error_message: string | null;
+  reason: string | null;
+}
+
+export interface GpuSessionCreditWarningPayload {
+  session_id: string;
+  level: 'info' | 'warning' | 'critical';
+  minutes_remaining: number;
+  terminate_at: string | null;
+  balance: number;
 }
 
 /* ─── Union Type ─── */
@@ -60,7 +70,8 @@ export type SSEPayload =
   | { event: typeof SSE_EVENTS.JOB_PROGRESS; data: JobProgressPayload }
   | { event: typeof SSE_EVENTS.BALANCE_UPDATED; data: BalanceUpdatedPayload }
   | { event: typeof SSE_EVENTS.SYSTEM_NOTIFICATION; data: SystemNotificationPayload }
-  | { event: typeof SSE_EVENTS.GPU_SESSION_STATUS; data: GpuSessionStatusPayload };
+  | { event: typeof SSE_EVENTS.GPU_SESSION_STATUS; data: GpuSessionStatusPayload }
+  | { event: typeof SSE_EVENTS.GPU_SESSION_CREDIT_WARNING; data: GpuSessionCreditWarningPayload };
 
 /* ─── Type Guards ─── */
 export function isJobStatusPayload(data: unknown): data is JobStatusPayload {
@@ -106,5 +117,16 @@ export function isGpuSessionStatusPayload(data: unknown): data is GpuSessionStat
     'previous_status' in data &&
     'model_type' in data &&
     'bundle_name' in data
+  );
+}
+
+export function isGpuSessionCreditWarningPayload(d: unknown): d is GpuSessionCreditWarningPayload {
+  return (
+    typeof d === 'object' &&
+    d !== null &&
+    'session_id' in d &&
+    'level' in d &&
+    'minutes_remaining' in d &&
+    'balance' in d
   );
 }

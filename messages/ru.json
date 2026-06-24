@@ -241,5 +241,14 @@
   "create_session_cost_hint": "Оплата почасовая. Запуск занимает ~30–90 с.",
   "create_session_uptime": "Время работы",
   "create_session_cost_so_far": "Текущие расходы:",
-  "create_session_manage_link": "Управление в разделе Сессии"
+  "create_session_manage_link": "Управление в разделе Сессии",
+  "credit_banner_warning": "Мало кредитов — эта GPU-сессия остановится через {time}. Пополните баланс.",
+  "credit_banner_critical": "Критично: GPU-сессия вот-вот остановится! Через {time}. Пополните баланс.",
+  "credit_banner_stopping": "Кредиты закончились — сессия останавливается…",
+  "credit_banner_cta_topup": "Пополнить",
+  "credit_banner_dismiss": "Закрыть предупреждение",
+  "session_toast_stopped_no_credits": "Сессия остановлена из-за нехватки кредитов. Пополните баланс.",
+  "balance_debt_label": "Задолженность {n} токенов — пополните баланс",
+  "generate_btn_topup": "Пополнить для генерации",
+  "error_insufficient_balance": "Недостаточно средств. Пополните баланс."
 }

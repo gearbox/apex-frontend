@@ -241,5 +241,14 @@
   "create_session_cost_hint": "Naplata po satu. Pokretanje traje ~30–90 s.",
   "create_session_uptime": "Vreme rada",
   "create_session_cost_so_far": "Trenutni troškovi:",
-  "create_session_manage_link": "Upravljanje u odeljku Sesije"
+  "create_session_manage_link": "Upravljanje u odeljku Sesije",
+  "credit_banner_warning": "Malo kredita — ova GPU sesija staje za {time}. Dopunite da nastavite.",
+  "credit_banner_critical": "Kritično: GPU sesija staje za {time}! Dopunite odmah.",
+  "credit_banner_stopping": "Nema kredita — sesija se zaustavlja…",
+  "credit_banner_cta_topup": "Dopuni",
+  "credit_banner_dismiss": "Zatvori upozorenje",
+  "session_toast_stopped_no_credits": "Sesija je zaustavljena zbog nedovoljnih kredita. Dopunite za nastavak.",
+  "balance_debt_label": "Dugujete {n} tokena — dopunite za nastavak",
+  "generate_btn_topup": "Dopunite za generisanje",
+  "error_insufficient_balance": "Nedovoljno sredstava. Dopunite za nastavak."
 }

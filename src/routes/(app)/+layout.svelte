@@ -7,6 +7,7 @@
   import { initAuth } from '$lib/api/auth';
   import { EventStreamService } from '$lib/services/eventStream';
   import AppShell from '$lib/components/layout/AppShell.svelte';
+  import SessionCreditBanner from '$lib/components/layout/SessionCreditBanner.svelte';
   import ToastContainer from '$lib/components/ui/ToastContainer.svelte';
   import SystemBanner from '$lib/components/ui/SystemBanner.svelte';
   import OfflineBanner from '$lib/components/ui/OfflineBanner.svelte';
@@ -67,6 +68,7 @@
   <AppShell>
     {@render children()}
   </AppShell>
+  <SessionCreditBanner />
   <ToastContainer />
   <InstallPromptSheet />
 {/if}

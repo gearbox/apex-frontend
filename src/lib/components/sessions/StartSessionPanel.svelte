@@ -1,5 +1,8 @@
 <script lang="ts">
+  import { goto } from '$app/navigation';
+  import { createQuery } from '@tanstack/svelte-query';
   import { Zap } from 'lucide-svelte';
+  import { balanceQueryOptions, canStartNewWork } from '$lib/stores/balanceGate';
   import * as m from '$paraglide/messages';
 
   interface ModelOption {
@@ -21,7 +24,12 @@
   // Falls back to first available model if none explicitly selected
   const resolvedModel = $derived(selectedModel || onDemandModels[0]?.model_key || '');
   const selectedInfo = $derived(onDemandModels.find((m) => m.model_key === resolvedModel) ?? null);
-  const canStart = $derived(!starting && !!selectedInfo?.available);
+
+  const balanceQuery = createQuery(balanceQueryOptions);
+  const hasBalance = $derived(canStartNewWork(balanceQuery.data?.balance));
+  const isTopUpMode = $derived(!hasBalance && !balanceQuery.isLoading);
+
+  const canStart = $derived(!starting && !!selectedInfo?.available && !isTopUpMode);
 </script>
 
 <div class="start-panel">
@@ -57,14 +65,20 @@
       <p class="hint">{m.sessions_start_hint()}</p>
     {/if}
 
-    <button
-      class="btn-start"
-      disabled={!canStart}
-      onclick={() => canStart && onStart(resolvedModel)}
-    >
-      <Zap size={15} />
-      {starting ? m.common_loading() : m.sessions_start_cta()}
-    </button>
+    {#if isTopUpMode}
+      <button class="btn-start" onclick={() => goto('/app/billing/buy')}>
+        {m.generate_btn_topup()}
+      </button>
+    {:else}
+      <button
+        class="btn-start"
+        disabled={!canStart}
+        onclick={() => canStart && onStart(resolvedModel)}
+      >
+        <Zap size={15} />
+        {starting ? m.common_loading() : m.sessions_start_cta()}
+      </button>
+    {/if}
   {/if}
 </div>
 
