@@ -3,6 +3,7 @@
   import apiClient from '$lib/api/client';
   import { formatNumber } from '$lib/utils/format';
   import { isSSEConnected } from '$lib/stores/eventStream';
+  import { ROUTES } from '$lib/utils/routes';
   import * as m from '$paraglide/messages';
 
   const balanceQuery = createQuery(() => ({
@@ -28,10 +29,10 @@
 </script>
 
 <a
-  href={isDebt ? '/app/billing/buy' : '/app/billing'}
+  href={isDebt ? ROUTES.billingTopUp : ROUTES.billing}
   class="pill"
   class:debt={isDebt}
-  aria-label={balanceQuery.isLoading ? 'Loading balance' : debtLabel}
+  aria-label={balanceQuery.isLoading ? m.balance_loading_aria_label() : debtLabel}
   title={isDebt ? debtLabel : undefined}
 >
   <span class="pill-symbol">◈</span>

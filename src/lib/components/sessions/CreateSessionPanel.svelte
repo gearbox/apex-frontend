@@ -7,6 +7,7 @@
   import type { GpuSessionResponse } from '$lib/api/sessions';
   import type { CardState } from '$lib/utils/sessionState';
   import { balanceQueryOptions, canStartNewWork } from '$lib/stores/balanceGate';
+  import { ROUTES } from '$lib/utils/routes';
   import * as m from '$paraglide/messages';
 
   interface Props {
@@ -113,7 +114,7 @@
       <span class="hint">{m.create_session_cost_hint()}</span>
     </div>
     {#if isTopUpMode}
-      <button class="btn-primary" onclick={() => goto('/app/billing/buy')}>
+      <button class="btn-primary" onclick={() => goto(ROUTES.billingTopUp)}>
         {m.generate_btn_topup()}
       </button>
     {:else}

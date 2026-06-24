@@ -3,13 +3,22 @@
   import * as m from '$paraglide/messages';
   import { mostUrgentCreditWarning, dismissCreditWarning } from '$lib/stores/creditWarnings';
   import { formatCountdown } from '$lib/utils/format';
+  import { ROUTES } from '$lib/utils/routes';
 
   let now = $state(Date.now());
 
   $effect(() => {
+    const w = $mostUrgentCreditWarning;
+    if (!w || !w.terminate_at) return;
+
+    const target = Date.parse(w.terminate_at);
+    if (Number.isNaN(target)) return;
+
     const id = setInterval(() => {
       now = Date.now();
+      if (now >= target) clearInterval(id);
     }, 1000);
+
     return () => clearInterval(id);
   });
 
@@ -37,8 +46,8 @@
         {isStopping
           ? m.credit_banner_stopping()
           : warning.level === 'critical'
-            ? m.credit_banner_critical({ time: 'soon' })
-            : m.credit_banner_warning({ time: 'soon' })}
+            ? m.credit_banner_critical_sr()
+            : m.credit_banner_warning_sr()}
       </span>
       <!-- Visual version: live countdown hidden from screen readers -->
       <span aria-hidden="true">
@@ -50,7 +59,7 @@
       </span>
     </span>
 
-    <button class="cta-btn" onclick={() => goto('/app/billing/buy')}>
+    <button class="cta-btn" onclick={() => goto(ROUTES.billingTopUp)}>
       {m.credit_banner_cta_topup()}
     </button>
 

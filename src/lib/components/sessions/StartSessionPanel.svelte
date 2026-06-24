@@ -3,6 +3,7 @@
   import { createQuery } from '@tanstack/svelte-query';
   import { Zap } from 'lucide-svelte';
   import { balanceQueryOptions, canStartNewWork } from '$lib/stores/balanceGate';
+  import { ROUTES } from '$lib/utils/routes';
   import * as m from '$paraglide/messages';
 
   interface ModelOption {
@@ -66,7 +67,7 @@
     {/if}
 
     {#if isTopUpMode}
-      <button class="btn-start" onclick={() => goto('/app/billing/buy')}>
+      <button class="btn-start" onclick={() => goto(ROUTES.billingTopUp)}>
         {m.generate_btn_topup()}
       </button>
     {:else}

@@ -40,6 +40,7 @@ vi.mock('$lib/stores/generation', () => ({
 
 import GenerateButton from './GenerateButton.svelte';
 import { createQuery } from '@tanstack/svelte-query';
+import { ROUTES } from '$lib/utils/routes';
 
 function mockBalanceQuery(balance: number | null, isLoading = false) {
   vi.mocked(createQuery).mockReturnValue({
@@ -97,7 +98,7 @@ describe('GenerateButton — zero or negative balance (debt gate)', () => {
 
     const btn = screen.getByRole('button');
     await fireEvent.click(btn);
-    expect(goto).toHaveBeenCalledWith('/app/billing/buy');
+    expect(goto).toHaveBeenCalledWith(ROUTES.billingTopUp);
     expect(onclick).not.toHaveBeenCalled();
   });
 });

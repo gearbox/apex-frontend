@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/svelte';
 import { formatCountdown } from '$lib/utils/format';
 import { upsertCreditWarning, dismissAllCreditWarnings } from '$lib/stores/creditWarnings';
 import SessionCreditBanner from './SessionCreditBanner.svelte';
+import { ROUTES } from '$lib/utils/routes';
 
 vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
 
@@ -10,6 +11,10 @@ vi.mock('$paraglide/messages', () => ({
   credit_banner_warning: ({ time }: { time: string }) => `Running low — stops in ${time}. Top up.`,
   credit_banner_critical: ({ time }: { time: string }) =>
     `Critical — stops in ${time}! Top up now.`,
+  credit_banner_warning_sr: () =>
+    'Running low on credits — this GPU session will stop soon. Top up to keep generating.',
+  credit_banner_critical_sr: () =>
+    'Critical: this GPU session is almost out of credits and will stop soon. Top up now.',
   credit_banner_stopping: () => 'Out of credits — stopping…',
   credit_banner_cta_topup: () => 'Top up',
   credit_banner_dismiss: () => 'Dismiss credit warning',
@@ -110,7 +115,7 @@ describe('SessionCreditBanner — top-up CTA', () => {
     expect(btn).not.toBeNull();
   });
 
-  it('calls goto(/app/billing/buy) on CTA click', async () => {
+  it('calls goto(ROUTES.billingTopUp) on CTA click', async () => {
     const { goto } = await import('$app/navigation');
     upsertCreditWarning({
       session_id: 'sess_goto',
@@ -122,6 +127,49 @@ describe('SessionCreditBanner — top-up CTA', () => {
     render(SessionCreditBanner);
     const btn = screen.getByRole('button', { name: /top up/i });
     btn.click();
-    expect(goto).toHaveBeenCalledWith('/app/billing/buy');
+    expect(goto).toHaveBeenCalledWith(ROUTES.billingTopUp);
+  });
+});
+
+describe('SessionCreditBanner — interval gating', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  it('does not schedule an interval when no warning is active', () => {
+    const setIntervalSpy = vi.spyOn(globalThis, 'setInterval');
+    render(SessionCreditBanner);
+    vi.runAllTimers();
+    expect(setIntervalSpy).not.toHaveBeenCalled();
+    setIntervalSpy.mockRestore();
+  });
+
+  it('does not schedule an interval when terminate_at is null (stopping state)', () => {
+    const setIntervalSpy = vi.spyOn(globalThis, 'setInterval');
+    upsertCreditWarning({
+      session_id: 'sess_null',
+      level: 'critical',
+      minutes_remaining: 0,
+      terminate_at: null,
+      balance: -1,
+    });
+    render(SessionCreditBanner);
+    vi.runAllTimers();
+    expect(setIntervalSpy).not.toHaveBeenCalled();
+    setIntervalSpy.mockRestore();
+  });
+
+  it('schedules an interval when an active warning has a future terminate_at', () => {
+    const setIntervalSpy = vi.spyOn(globalThis, 'setInterval');
+    upsertCreditWarning({
+      session_id: 'sess_tick',
+      level: 'warning',
+      minutes_remaining: 5,
+      terminate_at: new Date(Date.now() + 5 * 60_000).toISOString(),
+      balance: 50,
+    });
+    render(SessionCreditBanner);
+    expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 1000);
+    setIntervalSpy.mockRestore();
   });
 });

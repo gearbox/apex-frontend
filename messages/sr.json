@@ -250,5 +250,8 @@
   "session_toast_stopped_no_credits": "Sesija je zaustavljena zbog nedovoljnih kredita. Dopunite za nastavak.",
   "balance_debt_label": "Dugujete {n} tokena — dopunite za nastavak",
   "generate_btn_topup": "Dopunite za generisanje",
-  "error_insufficient_balance": "Nedovoljno sredstava. Dopunite za nastavak."
+  "error_insufficient_balance": "Nedovoljno sredstava. Dopunite za nastavak.",
+  "credit_banner_warning_sr": "Running low on credits — this GPU session will stop soon. Top up to keep generating.",
+  "credit_banner_critical_sr": "Critical: this GPU session is almost out of credits and will stop soon. Top up now.",
+  "balance_loading_aria_label": "Loading balance"
 }

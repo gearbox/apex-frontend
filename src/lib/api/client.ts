@@ -5,10 +5,14 @@ import { silentRefresh } from '$lib/api/auth';
 import { parseRateLimitHeaders, endpointKey, getRetryDelay } from '$lib/api/rateLimit';
 import { updateRateLimit } from '$lib/stores/rateLimit';
 import { addToast } from '$lib/stores/toasts';
+import { ROUTES } from '$lib/utils/routes';
 import * as m from '$paraglide/messages';
 import type { paths } from './types';
 
 const MAX_RATE_LIMIT_RETRIES = 3;
+
+const INSUFFICIENT_BALANCE_TOAST_THROTTLE_MS = 6000;
+let lastInsufficientBalanceToastAt = 0;
 
 /* ─── Auth + Rate-limit Middleware ─── */
 const authMiddleware: Middleware = {
@@ -49,7 +53,16 @@ const authMiddleware: Middleware = {
     }
 
     if (response.status === 402) {
-      addToast({ type: 'warning', message: m.error_insufficient_balance(), durationMs: 6000 });
+      const nowTs = Date.now();
+      if (nowTs - lastInsufficientBalanceToastAt > INSUFFICIENT_BALANCE_TOAST_THROTTLE_MS) {
+        lastInsufficientBalanceToastAt = nowTs;
+        addToast({
+          type: 'warning',
+          message: m.error_insufficient_balance(),
+          durationMs: 6000,
+          action: { label: 'Top up →', href: ROUTES.billingTopUp },
+        });
+      }
       return response;
     }
 

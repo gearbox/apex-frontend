@@ -19,6 +19,7 @@ vi.mock('$lib/stores/eventStream', () => ({
 vi.mock('$paraglide/messages', () => ({
   topbar_balance: ({ amount }: { amount: string }) => `Balance: ${amount}`,
   balance_debt_label: ({ n }: { n: string }) => `You owe ${n} tokens — top up`,
+  balance_loading_aria_label: () => 'Loading balance',
 }));
 
 vi.mock('$paraglide/runtime', () => ({
@@ -28,6 +29,7 @@ vi.mock('$paraglide/runtime', () => ({
 
 import BalancePill from './BalancePill.svelte';
 import { createQuery } from '@tanstack/svelte-query';
+import { ROUTES } from '$lib/utils/routes';
 
 function mockQuery(data: Record<string, unknown> | null, isLoading = false) {
   vi.mocked(createQuery).mockReturnValue({
@@ -48,22 +50,22 @@ beforeEach(() => {
 });
 
 describe('BalancePill — positive balance', () => {
-  it('renders balance value and links to /app/billing', () => {
+  it('renders balance value and links to ROUTES.billing', () => {
     mockQuery({ balance: 1250, account_id: 'acc_001' });
     render(BalancePill);
     const link = document.querySelector('a') as HTMLAnchorElement;
     expect(link).not.toBeNull();
-    expect(link.href).toContain('/app/billing');
+    expect(link.href).toContain(ROUTES.billing);
     expect(link.classList.contains('debt')).toBe(false);
   });
 });
 
 describe('BalancePill — negative balance (debt)', () => {
-  it('renders danger class and links to /app/billing/buy', () => {
+  it('renders danger class and links to ROUTES.billingTopUp', () => {
     mockQuery({ balance: -500, account_id: 'acc_001' });
     render(BalancePill);
     const link = document.querySelector('a') as HTMLAnchorElement;
-    expect(link.href).toContain('/app/billing/buy');
+    expect(link.href).toContain(ROUTES.billingTopUp);
     expect(link.classList.contains('debt')).toBe(true);
   });
 
@@ -80,5 +82,12 @@ describe('BalancePill — loading state', () => {
     mockQuery(null, true);
     render(BalancePill);
     expect(document.querySelector('.loading-skel')).not.toBeNull();
+  });
+
+  it('uses localized aria-label while loading', () => {
+    mockQuery(null, true);
+    render(BalancePill);
+    const link = document.querySelector('a') as HTMLAnchorElement;
+    expect(link.getAttribute('aria-label')).toBe('Loading balance');
   });
 });

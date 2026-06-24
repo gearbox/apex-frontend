@@ -250,5 +250,8 @@
   "session_toast_stopped_no_credits": "Session stopped due to insufficient credits. Top up to continue.",
   "balance_debt_label": "You owe {n} tokens — top up to continue",
   "generate_btn_topup": "Top up to generate",
-  "error_insufficient_balance": "Insufficient balance. Top up to continue."
+  "error_insufficient_balance": "Insufficient balance. Top up to continue.",
+  "credit_banner_warning_sr": "Running low on credits — this GPU session will stop soon. Top up to keep generating.",
+  "credit_banner_critical_sr": "Critical: this GPU session is almost out of credits and will stop soon. Top up now.",
+  "balance_loading_aria_label": "Loading balance"
 }

@@ -3,6 +3,7 @@
   import { createQuery } from '@tanstack/svelte-query';
   import { generationStore } from '$lib/stores/generation';
   import { balanceQueryOptions, canStartNewWork } from '$lib/stores/balanceGate';
+  import { ROUTES } from '$lib/utils/routes';
   import CostPreview from './CostPreview.svelte';
   import * as m from '$paraglide/messages';
 
@@ -52,7 +53,7 @@
 
   function handleClick() {
     if (isTopUpMode) {
-      goto('/app/billing/buy');
+      goto(ROUTES.billingTopUp);
     } else {
       onclick();
     }
