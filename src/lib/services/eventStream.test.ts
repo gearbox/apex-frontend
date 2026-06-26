@@ -333,7 +333,7 @@ describe('EventStreamService — gpu_session.status_changed dispatch', () => {
       status: 'active',
       previous_status: 'provisioning',
       model_type: 'aisha-image',
-      bundle_name: 'aisha-bundle',
+
       tunnel_hostname: 'tunnel.example.com',
       error_message: null,
     });
@@ -359,7 +359,7 @@ describe('EventStreamService — gpu_session.status_changed dispatch', () => {
       status: 'active',
       previous_status: 'provisioning',
       model_type: 'aisha-image',
-      bundle_name: 'aisha-bundle',
+
       tunnel_hostname: 'tunnel.example.com',
       error_message: null,
     });
@@ -382,7 +382,7 @@ describe('EventStreamService — gpu_session.status_changed dispatch', () => {
       status: 'failed',
       previous_status: 'provisioning',
       model_type: 'aisha-image',
-      bundle_name: 'aisha-bundle',
+
       tunnel_hostname: null,
       error_message: 'GPU out of memory',
     });
@@ -409,7 +409,7 @@ describe('EventStreamService — gpu_session.status_changed dispatch', () => {
       status: 'active',
       // previous_status intentionally omitted
       model_type: 'aisha-image',
-      bundle_name: 'aisha-bundle',
+
       tunnel_hostname: null,
       error_message: null,
     });
@@ -565,7 +565,7 @@ describe('EventStreamService — gpu_session.status_changed dismissal on termina
       status: 'stopped',
       previous_status: 'stopping',
       model_type: 'aisha-image',
-      bundle_name: 'aisha-bundle',
+
       tunnel_hostname: null,
       error_message: null,
       reason: 'insufficient_credits',
@@ -587,7 +587,7 @@ describe('EventStreamService — gpu_session.status_changed dismissal on termina
       status: 'stopped',
       previous_status: 'stopping',
       model_type: 'aisha-image',
-      bundle_name: 'aisha-bundle',
+
       tunnel_hostname: null,
       error_message: null,
       reason: 'insufficient_credits',

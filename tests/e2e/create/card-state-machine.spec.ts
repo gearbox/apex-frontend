@@ -38,8 +38,6 @@ const makeSession = (status: string, id = 'sess_mock') => ({
   product_id: 'prod_001',
   status,
   model_type: 'aisha-image',
-  bundle_name: 'aisha-bundle',
-  bundle_version: '1.0.0',
   tunnel_hostname: status === 'active' ? 'tunnel.example.com' : null,
   vastai_gpu_name: 'RTX 4090',
   vastai_cost_per_hour_micros: 50000,
@@ -336,7 +334,6 @@ test('Stop button opens StopSessionModal; confirm calls stop endpoint', async ({
         body: JSON.stringify({
           session_id: 'sess_mock',
           model_type: 'aisha-image',
-          bundle_name: 'aisha-bundle',
           vastai_gpu_name: 'RTX 4090',
           vastai_cost_per_hour_micros: 50000,
           active_duration_seconds: 3600,

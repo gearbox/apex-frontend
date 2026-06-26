@@ -90,9 +90,6 @@
     <div class="card-title-row">
       <div class="card-model">
         <span class="model-name">{session.model_type}</span>
-        {#if session.bundle_name}
-          <span class="bundle-name">{session.bundle_name}</span>
-        {/if}
       </div>
       <StatusBadge status={session.status} colorMap={SESSION_COLOR_MAP} />
     </div>
@@ -170,11 +167,6 @@
     font-size: 15px;
     font-weight: 700;
     color: var(--apex-text);
-  }
-
-  .bundle-name {
-    font-size: 12px;
-    color: var(--apex-text-muted);
   }
 
   .card-meta {

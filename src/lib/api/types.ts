@@ -1718,8 +1718,6 @@ export interface components {
             product_id: string;
             status: string;
             model_type: string;
-            bundle_name: string;
-            bundle_version: string | null;
             tunnel_hostname: string | null;
             vastai_gpu_name: string | null;
             vastai_cost_per_hour_micros: number | null;
@@ -1871,6 +1869,12 @@ export interface components {
          * @enum {string}
          */
         ModelType: "aisha-image" | "aisha-video" | "grok-imagine-image" | "grok-2-image-1212" | "grok-imagine-video";
+        /**
+         * NotificationLevel
+         * @description Severity level for system notifications and credit warnings.
+         * @enum {string}
+         */
+        NotificationLevel: "info" | "warning" | "critical";
         /** NowPaymentsInvoiceResponse */
         NowPaymentsInvoiceResponse: {
             invoice_url: string;
@@ -2057,7 +2061,6 @@ export interface components {
             /** Format: uuid */
             session_id: string;
             model_type: string;
-            bundle_name: string;
             vastai_gpu_name: string | null;
             vastai_cost_per_hour_micros: number | null;
             active_duration_seconds: number;
@@ -2100,7 +2103,7 @@ export interface components {
         SupportedLocale: "en" | "ru" | "sr";
         /** SystemBroadcastRequest */
         SystemBroadcastRequest: {
-            level: string;
+            level: components["schemas"]["NotificationLevel"];
             title: string;
             message: string;
             expires_at?: string | null;
