@@ -15,8 +15,6 @@ const mockSession: GpuSessionResponse = {
   product_id: 'prod_001',
   status: 'active',
   model_type: 'aisha-image',
-  bundle_name: 'aisha-bundle',
-  bundle_version: '1.0.0',
   tunnel_hostname: null,
   vastai_gpu_name: 'RTX 4090',
   vastai_cost_per_hour_micros: 50000,

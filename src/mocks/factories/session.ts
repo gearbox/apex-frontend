@@ -12,8 +12,6 @@ export function makeGpuSessionResponse(
     product_id: 'prod_mock_001',
     status: 'active',
     model_type: 'aisha-image',
-    bundle_name: 'aisha-bundle',
-    bundle_version: '1.0.0',
     tunnel_hostname: 'tunnel.example.com',
     vastai_gpu_name: 'RTX 4090',
     vastai_cost_per_hour_micros: 50000,
@@ -36,7 +34,6 @@ export function makeStopConfirmationResponse(
   return {
     session_id: 'sess_mock_001',
     model_type: 'aisha-image',
-    bundle_name: 'aisha-bundle',
     vastai_gpu_name: 'RTX 4090',
     vastai_cost_per_hour_micros: 50000,
     active_duration_seconds: 3600,

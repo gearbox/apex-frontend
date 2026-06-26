@@ -119,7 +119,19 @@ describe('isGpuSessionStatusPayload()', () => {
         status: 'active',
         previous_status: 'provisioning',
         model_type: 'aisha-image',
-        bundle_name: 'aisha-bundle',
+        tunnel_hostname: null,
+        error_message: null,
+      }),
+    ).toBe(true);
+  });
+
+  it('returns true for payload without bundle_name (discriminator no longer requires it)', () => {
+    expect(
+      isGpuSessionStatusPayload({
+        session_id: 'sess_001',
+        status: 'active',
+        previous_status: 'provisioning',
+        model_type: 'aisha-image',
         tunnel_hostname: null,
         error_message: null,
       }),

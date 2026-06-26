@@ -10,8 +10,6 @@ function makeSession(overrides: Partial<GpuSessionResponse> = {}): GpuSessionRes
     product_id: 'prod_001',
     status: 'active',
     model_type: 'aisha-image',
-    bundle_name: 'aisha-bundle',
-    bundle_version: '1.0.0',
     tunnel_hostname: null,
     vastai_gpu_name: 'RTX 4090',
     vastai_cost_per_hour_micros: 50000,
@@ -65,6 +63,17 @@ describe('SessionCard — provisioning state', () => {
       },
     });
     expect(container.querySelector('.progress-wrap')).not.toBeNull();
+  });
+});
+
+describe('SessionCard — model identity', () => {
+  it('renders model_type and no internal bundle string', () => {
+    render(SessionCard, {
+      props: { session: makeSession(), onStop: vi.fn() },
+    });
+    expect(screen.getByText('aisha-image')).not.toBeNull();
+    expect(screen.queryByText('aisha-bundle')).toBeNull();
+    expect(document.querySelector('.bundle-name')).toBeNull();
   });
 });
 

@@ -50,7 +50,6 @@ export interface GpuSessionStatusPayload {
   status: string;
   previous_status: string;
   model_type: string;
-  bundle_name: string;
   tunnel_hostname: string | null;
   error_message: string | null;
   reason: string | null;
@@ -115,8 +114,7 @@ export function isGpuSessionStatusPayload(data: unknown): data is GpuSessionStat
     'session_id' in data &&
     'status' in data &&
     'previous_status' in data &&
-    'model_type' in data &&
-    'bundle_name' in data
+    'model_type' in data
   );
 }
 

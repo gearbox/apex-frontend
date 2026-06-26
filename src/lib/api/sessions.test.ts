@@ -12,8 +12,6 @@ const mockSession = {
   product_id: 'prod_001',
   status: 'active',
   model_type: 'aisha-image',
-  bundle_name: 'aisha-bundle',
-  bundle_version: '1.0.0',
   tunnel_hostname: 'tunnel.example.com',
   vastai_gpu_name: 'RTX 4090',
   vastai_cost_per_hour_micros: 50000,
@@ -31,7 +29,6 @@ const mockSession = {
 const mockStopConfirmation = {
   session_id: 'sess_001',
   model_type: 'aisha-image',
-  bundle_name: 'aisha-bundle',
   vastai_gpu_name: 'RTX 4090',
   vastai_cost_per_hour_micros: 50000,
   active_duration_seconds: 3600,
