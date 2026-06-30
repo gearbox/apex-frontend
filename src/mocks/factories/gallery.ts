@@ -19,32 +19,31 @@ export function makeImageVariant(overrides: Partial<ImageVariant> = {}): ImageVa
   };
 }
 
-export function makeMediaObject(overrides: Partial<MediaObject> = {}): MediaObject {
+/** original + standard sm(150)/md(512) WEBP variants for a given base id */
+export function makeStandardImageMedia(
+  baseId: string,
+  overrides: Partial<MediaObject> = {},
+): MediaObject {
+  const base = `/v1/content/outputs/${baseId}`;
   return {
     media_type: 'image',
     original: {
-      url: '/v1/content/outputs/out_mock_001',
+      url: base,
       width: 1024,
       height: 1024,
       content_type: 'image/png',
       size_bytes: 102400,
     },
     variants: [
-      makeImageVariant({
-        label: 'sm',
-        width: 150,
-        height: 150,
-        url: '/v1/content/outputs/out_mock_001_sm',
-      }),
-      makeImageVariant({
-        label: 'md',
-        width: 512,
-        height: 512,
-        url: '/v1/content/outputs/out_mock_001_md',
-      }),
+      makeImageVariant({ label: 'sm', width: 150, height: 150, url: `${base}_sm` }),
+      makeImageVariant({ label: 'md', width: 512, height: 512, url: `${base}_md` }),
     ],
     ...overrides,
   };
+}
+
+export function makeMediaObject(overrides: Partial<MediaObject> = {}): MediaObject {
+  return makeStandardImageMedia('out_mock_001', overrides);
 }
 
 export function makeVideoMediaObject(overrides: Partial<MediaObject> = {}): MediaObject {
@@ -78,14 +77,15 @@ export function makeVideoMediaObject(overrides: Partial<MediaObject> = {}): Medi
 /** MediaObject with no variants — tests legacy/empty-variant rendering */
 export function makeEmptyVariantsMediaObject(): MediaObject {
   return {
-    media_type: 'image',
-    original: {
-      url: '/v1/content/outputs/out_legacy_001',
-      width: 800,
-      height: 600,
-      content_type: 'image/jpeg',
-      size_bytes: 50000,
-    },
+    ...makeStandardImageMedia('out_legacy_001', {
+      original: {
+        url: '/v1/content/outputs/out_legacy_001',
+        width: 800,
+        height: 600,
+        content_type: 'image/jpeg',
+        size_bytes: 50000,
+      },
+    }),
     variants: [],
   };
 }
@@ -161,29 +161,7 @@ export function makeGalleryCursorPage(
   const items = Array.from({ length: count }, (_, i) =>
     makeGalleryGridItem({
       job_id: `job_mock_${String(i + 1).padStart(3, '0')}`,
-      cover: makeMediaObject({
-        original: {
-          url: `/v1/content/outputs/out_mock_${String(i + 1).padStart(3, '0')}`,
-          width: 1024,
-          height: 1024,
-          content_type: 'image/png',
-          size_bytes: 102400,
-        },
-        variants: [
-          makeImageVariant({
-            label: 'sm',
-            width: 150,
-            height: 150,
-            url: `/v1/content/outputs/out_mock_${String(i + 1).padStart(3, '0')}_sm`,
-          }),
-          makeImageVariant({
-            label: 'md',
-            width: 512,
-            height: 512,
-            url: `/v1/content/outputs/out_mock_${String(i + 1).padStart(3, '0')}_md`,
-          }),
-        ],
-      }),
+      cover: makeStandardImageMedia(`out_mock_${String(i + 1).padStart(3, '0')}`),
       prompt_snippet: `Mock generation prompt ${i + 1}`,
       created_at: new Date(Date.now() - i * 86400000).toISOString(),
       ...overrides,

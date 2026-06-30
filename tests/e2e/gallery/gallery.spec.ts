@@ -2,7 +2,11 @@ import { Buffer } from 'node:buffer';
 import { test, expect } from '../fixtures/auth.fixture';
 import { jsonRoute } from '../helpers/api';
 
-function makeMedia(url: string, mediaType: 'image' | 'video' = 'image') {
+function makeMedia(
+  url: string,
+  mediaType: 'image' | 'video' = 'image',
+  variants: Array<{ label: string; width: number; height: number; url: string }> = [],
+) {
   return {
     media_type: mediaType,
     original: {
@@ -12,7 +16,7 @@ function makeMedia(url: string, mediaType: 'image' | 'video' = 'image') {
       content_type: mediaType === 'video' ? 'video/mp4' : 'image/jpeg',
       size_bytes: mediaType === 'video' ? 5000000 : 102400,
     },
-    variants: [],
+    variants,
   };
 }
 
@@ -449,5 +453,127 @@ test.describe('Gallery page', () => {
     // Should render badge pills on cards
     await expect(page.getByText('Prompt').first()).toBeVisible();
     await expect(page.getByText('Image').first()).toBeVisible();
+  });
+});
+
+test.describe('Gallery media rendering', () => {
+  // Minimal valid 1×1 GIF — prevents onerror from firing in MediaImage,
+  // which would otherwise strip the srcset attribute via the error-fallback path.
+  const MINIMAL_GIF = Buffer.from(
+    'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
+    'base64',
+  );
+
+  test.beforeEach(async ({ authenticatedPage: page }) => {
+    await page.route('**/v1/content/**', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'image/gif',
+        body: MINIMAL_GIF,
+      }),
+    );
+  });
+
+  test('10. Empty-variants: lightbox img uses original src and has no srcset', async ({
+    authenticatedPage: page,
+  }) => {
+    const legacyUrl = '/v1/content/outputs/out_legacy';
+    const legacyDetail = {
+      ...mockGalleryDetail,
+      job_id: 'job_legacy',
+      outputs: [
+        {
+          id: 'out_legacy_001',
+          output_index: 0,
+          created_at: '2025-01-01T00:01:00Z',
+          media: makeMedia(legacyUrl, 'image'),
+        },
+      ],
+    };
+    const legacyPage = {
+      items: [
+        {
+          job_id: 'job_legacy',
+          cover: makeMedia(legacyUrl, 'image'),
+          badge: 'prompt',
+          output_count: 1,
+          generation_type: 't2i',
+          model: 'grok-imagine-image',
+          aspect_ratio: '1:1',
+          prompt_snippet: 'Legacy image',
+          created_at: '2025-01-01T00:00:00Z',
+        },
+      ],
+      limit: 20,
+      has_more: false,
+      next_cursor: null,
+    };
+
+    await page.route((url) => url.pathname === '/v1/gallery', jsonRoute(legacyPage));
+    await page.route('**/v1/gallery/job_legacy', jsonRoute(legacyDetail));
+
+    await page.goto('/app/gallery');
+    await expect(page.getByText(/loaded/i)).toBeVisible({ timeout: 5000 });
+
+    await page.locator('[class*="grid"]').locator('button, [role="button"]').first().click();
+    await expect(page.getByText('Legacy image').first()).toBeVisible({ timeout: 3000 });
+
+    const img = page.locator('img').first();
+    await expect(img).toHaveAttribute('src', new RegExp(legacyUrl.replace(/\//g, '\\/')));
+    await expect(img).not.toHaveAttribute('srcset');
+  });
+
+  test('11. Variants-present: lightbox img srcset contains 150w and 512w', async ({
+    authenticatedPage: page,
+  }) => {
+    const baseUrl = '/v1/content/outputs/out_srcset';
+    const variants = [
+      { label: 'sm', width: 150, height: 150, url: `${baseUrl}_sm` },
+      { label: 'md', width: 512, height: 512, url: `${baseUrl}_md` },
+    ];
+    const srcsetDetail = {
+      ...mockGalleryDetail,
+      job_id: 'job_srcset',
+      outputs: [
+        {
+          id: 'out_srcset_001',
+          output_index: 0,
+          created_at: '2025-01-01T00:01:00Z',
+          media: makeMedia(baseUrl, 'image', variants),
+        },
+      ],
+    };
+    const srcsetPage = {
+      items: [
+        {
+          job_id: 'job_srcset',
+          cover: makeMedia(baseUrl, 'image', variants),
+          badge: 'prompt',
+          output_count: 1,
+          generation_type: 't2i',
+          model: 'grok-imagine-image',
+          aspect_ratio: '1:1',
+          prompt_snippet: 'Srcset image',
+          created_at: '2025-01-01T00:00:00Z',
+        },
+      ],
+      limit: 20,
+      has_more: false,
+      next_cursor: null,
+    };
+
+    await page.route((url) => url.pathname === '/v1/gallery', jsonRoute(srcsetPage));
+    await page.route('**/v1/gallery/job_srcset', jsonRoute(srcsetDetail));
+
+    await page.goto('/app/gallery');
+    await expect(page.getByText(/loaded/i)).toBeVisible({ timeout: 5000 });
+
+    await page.locator('[class*="grid"]').locator('button, [role="button"]').first().click();
+    await expect(page.getByText('Srcset image').first()).toBeVisible({ timeout: 3000 });
+
+    const img = page.locator('img').first();
+    const srcset = await img.getAttribute('srcset');
+    expect(srcset).toMatch(/150w/);
+    expect(srcset).toMatch(/512w/);
   });
 });

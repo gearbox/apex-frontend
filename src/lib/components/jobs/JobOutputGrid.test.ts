@@ -57,6 +57,18 @@ describe('JobOutputGrid', () => {
     expect(container.querySelector('video')).not.toBeNull();
   });
 
+  it('wraps image output in an anchor with target=_blank and rel=noopener noreferrer', () => {
+    const outputs = [
+      makeOutput({ output_index: 0, media: makeImageMedia('/v1/content/outputs/a.png') }),
+    ];
+
+    const { container } = render(JobOutputGrid, { props: { outputs } });
+
+    const link = container.querySelector('a[target="_blank"]');
+    expect(link).not.toBeNull();
+    expect(link?.getAttribute('rel')).toBe('noopener noreferrer');
+  });
+
   it('renders nothing when outputs array is empty', () => {
     const { container } = render(JobOutputGrid, { props: { outputs: [] } });
     expect(container.querySelector('.grid')).toBeNull();

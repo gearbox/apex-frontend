@@ -7,6 +7,7 @@ import {
   makeGalleryLineage,
   makeVideoMediaObject,
   makeMediaObject,
+  makeStandardImageMedia,
   makeEmptyVariantsMediaObject,
 } from '../factories/gallery';
 
@@ -48,7 +49,7 @@ export const galleryHandlers = [
       const t2iItems = makeGalleryCursorPage(3);
       const i2iItems = makeGalleryCursorPage(1, {
         job_id: 'job_mock_i2i',
-        cover: makeMediaObject({
+        cover: makeStandardImageMedia('out_i2i_cover', {
           original: {
             url: '/v1/content/outputs/out_i2i_cover',
             width: 1024,
@@ -102,7 +103,7 @@ export const galleryHandlers = [
           outputs: [
             makeGalleryOutputItem({
               id: 'out_i2i_001',
-              media: makeMediaObject({
+              media: makeStandardImageMedia('out_i2i_001', {
                 original: {
                   url: '/v1/content/outputs/out_i2i_001',
                   width: 1024,
@@ -110,26 +111,12 @@ export const galleryHandlers = [
                   content_type: 'image/png',
                   size_bytes: 200000,
                 },
-                variants: [
-                  {
-                    label: 'sm',
-                    width: 150,
-                    height: 84,
-                    url: '/v1/content/outputs/out_i2i_001_sm',
-                  },
-                  {
-                    label: 'md',
-                    width: 512,
-                    height: 288,
-                    url: '/v1/content/outputs/out_i2i_001_md',
-                  },
-                ],
               }),
             }),
             makeGalleryOutputItem({
               id: 'out_i2i_002',
               output_index: 1,
-              media: makeMediaObject({
+              media: makeStandardImageMedia('out_i2i_002', {
                 original: {
                   url: '/v1/content/outputs/out_i2i_002',
                   width: 1024,
@@ -137,20 +124,6 @@ export const galleryHandlers = [
                   content_type: 'image/png',
                   size_bytes: 200000,
                 },
-                variants: [
-                  {
-                    label: 'sm',
-                    width: 150,
-                    height: 84,
-                    url: '/v1/content/outputs/out_i2i_002_sm',
-                  },
-                  {
-                    label: 'md',
-                    width: 512,
-                    height: 288,
-                    url: '/v1/content/outputs/out_i2i_002_md',
-                  },
-                ],
               }),
             }),
           ],
@@ -179,29 +152,7 @@ export const galleryHandlers = [
         outputs: [
           makeGalleryOutputItem({
             id: `out_${jobId}_001`,
-            media: makeMediaObject({
-              original: {
-                url: `/v1/content/outputs/out_${jobId}_001`,
-                width: 1024,
-                height: 1024,
-                content_type: 'image/png',
-                size_bytes: 102400,
-              },
-              variants: [
-                {
-                  label: 'sm',
-                  width: 150,
-                  height: 150,
-                  url: `/v1/content/outputs/out_${jobId}_001_sm`,
-                },
-                {
-                  label: 'md',
-                  width: 512,
-                  height: 512,
-                  url: `/v1/content/outputs/out_${jobId}_001_md`,
-                },
-              ],
-            }),
+            media: makeStandardImageMedia(`out_${jobId}_001`),
           }),
         ],
       }),

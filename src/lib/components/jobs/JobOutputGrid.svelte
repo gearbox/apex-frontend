@@ -21,11 +21,12 @@
         {#if output.media.media_type === 'video'}
           <MediaVideo media={output.media} controls playsinline class="w-full rounded-lg" />
         {:else}
-          <button
-            type="button"
-            class="w-full"
+          <a
+            href={toMediaSrc(output.media.original.url)}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="block w-full"
             aria-label="Open output {output.output_index + 1} in new tab"
-            onclick={() => window.open(toMediaSrc(output.media.original.url), '_blank')}
           >
             <MediaImage
               media={output.media}
@@ -33,7 +34,7 @@
               sizes="(max-width: 768px) 50vw, 200px"
               class="aspect-square w-full rounded-lg object-cover transition-opacity hover:opacity-90"
             />
-          </button>
+          </a>
         {/if}
       </div>
     {/each}
