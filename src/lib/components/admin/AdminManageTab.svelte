@@ -1,5 +1,10 @@
 <script lang="ts">
-  import { useQueryClient, createQuery, createMutation } from '@tanstack/svelte-query';
+  import {
+    useQueryClient,
+    createQuery,
+    createInfiniteQuery,
+    createMutation,
+  } from '@tanstack/svelte-query';
   import { ShieldCheck, Trash2, AlertCircle, Plus, ChevronDown, ChevronUp } from 'lucide-svelte';
   import {
     adminListQueryOptions,
@@ -10,7 +15,7 @@
     revokePermissionMutationOptions,
     type AuditLogFilters,
   } from '$lib/queries/admin';
-  import type { AdminRoleResponse, AuditLogEntry } from '$lib/api/admin';
+  import type { AdminRoleResponse } from '$lib/api/admin';
   import { currentUser } from '$lib/stores/auth';
   import { addToast } from '$lib/stores/toasts';
   import { ApiRequestError } from '$lib/api/errors';
@@ -26,7 +31,8 @@
 
   // ─── Audit log ───
   let auditFilters = $state<AuditLogFilters>({});
-  const auditQuery = createQuery(() => auditLogQueryOptions(auditFilters));
+  const auditQuery = createInfiniteQuery(() => auditLogQueryOptions(auditFilters));
+  const entries = $derived(auditQuery.data?.pages.flatMap((p) => p.items) ?? []);
 
   // ─── Mutations ───
   const revokeMutation = createMutation(() => revokeRoleMutationOptions(queryClient));
@@ -295,7 +301,6 @@
         <button class="retry-btn" onclick={() => auditQuery.refetch()}>Retry</button>
       </div>
     {:else if auditQuery.data}
-      {@const entries = auditQuery.data as AuditLogEntry[]}
       {#if entries.length === 0}
         <div class="empty-state">
           <p>No audit entries.</p>
@@ -313,6 +318,15 @@
             </li>
           {/each}
         </ul>
+        {#if auditQuery.hasNextPage}
+          <button
+            class="load-more-btn"
+            onclick={() => auditQuery.fetchNextPage()}
+            disabled={auditQuery.isFetchingNextPage}
+          >
+            {auditQuery.isFetchingNextPage ? 'Loading…' : 'Load more'}
+          </button>
+        {/if}
       {/if}
     {/if}
   </div>
@@ -620,6 +634,31 @@
     background: var(--apex-accent-glow);
     color: var(--apex-accent);
     border-color: var(--apex-accent-dim);
+  }
+
+  .load-more-btn {
+    display: block;
+    margin: 12px auto 0;
+    padding: 7px 20px;
+    border-radius: 8px;
+    border: 1px solid var(--apex-border);
+    background: transparent;
+    color: var(--apex-text-muted);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s;
+  }
+
+  .load-more-btn:hover:not(:disabled) {
+    background: var(--apex-surface-hover);
+    color: var(--apex-text);
+  }
+
+  .load-more-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   /* Audit log */

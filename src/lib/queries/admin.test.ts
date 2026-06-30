@@ -1,6 +1,13 @@
 import { describe, it, expect, vi } from 'vitest';
 import { QueryClient } from '@tanstack/svelte-query';
-import { adminKeys, sendBroadcastMutationOptions } from './admin';
+import {
+  adminKeys,
+  auditLogQueryOptions,
+  adminOrgsQueryOptions,
+  adminPaymentsQueryOptions,
+  patchAdminUserMutationOptions,
+  sendBroadcastMutationOptions,
+} from './admin';
 
 describe('adminKeys', () => {
   it('all returns base key', () => {
@@ -78,6 +85,56 @@ describe('adminKeys', () => {
       'audit',
       { target_user_id: 'usr_001' },
     ]);
+  });
+});
+
+describe('auditLogQueryOptions()', () => {
+  it('is an infinite query options shape', () => {
+    const opts = auditLogQueryOptions({});
+    expect(opts).toHaveProperty('initialPageParam');
+    expect(opts.initialPageParam).toBeNull();
+    expect(opts).toHaveProperty('getNextPageParam');
+  });
+
+  it('getNextPageParam returns cursor when has_more is true', () => {
+    const opts = auditLogQueryOptions({});
+    const page = { items: [], limit: 50, has_more: true, next_cursor: 'cursor-abc' };
+    expect(opts.getNextPageParam(page as never)).toBe('cursor-abc');
+  });
+
+  it('getNextPageParam returns undefined when has_more is false', () => {
+    const opts = auditLogQueryOptions({});
+    const page = { items: [], limit: 50, has_more: false, next_cursor: null };
+    expect(opts.getNextPageParam(page as never)).toBeUndefined();
+  });
+
+  it('includes target_user_id in queryKey when set', () => {
+    const opts = auditLogQueryOptions({ target_user_id: 'usr_001' });
+    expect(opts.queryKey).toEqual(adminKeys.audit({ target_user_id: 'usr_001' }));
+  });
+});
+
+describe('adminOrgsQueryOptions()', () => {
+  it('uses cursor not offset in queryKey', () => {
+    const opts = adminOrgsQueryOptions({ cursor: 'org-c1', limit: 20 });
+    expect(opts.queryKey).toEqual(adminKeys.orgs({ cursor: 'org-c1', limit: 20 }));
+  });
+});
+
+describe('adminPaymentsQueryOptions()', () => {
+  it('uses cursor not offset in queryKey', () => {
+    const opts = adminPaymentsQueryOptions({ cursor: 'pay-c1', limit: 20 });
+    expect(opts.queryKey).toEqual(adminKeys.payments({ cursor: 'pay-c1', limit: 20 }));
+  });
+});
+
+describe('patchAdminUserMutationOptions()', () => {
+  it('onSuccess invalidates adminKeys.users()', async () => {
+    const queryClient = new QueryClient();
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+    const opts = patchAdminUserMutationOptions(queryClient);
+    await opts.onSuccess();
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: adminKeys.users() });
   });
 });
 

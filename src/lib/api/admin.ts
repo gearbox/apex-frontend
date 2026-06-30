@@ -9,6 +9,7 @@ function throwApiError(error: unknown, fallbackMsg: string): never {
 
 export type AdminRoleResponse = components['schemas']['AdminRoleResponse'];
 export type AuditLogEntry = components['schemas']['AuditLogEntry'];
+export type AuditLogPage = components['schemas']['CursorPage_src.api.schemas.admin.AuditLogEntry_'];
 export type AdminUserResponse = components['schemas']['AdminUserResponse'];
 export type AdminUserListResponse =
   components['schemas']['CursorPage_src.api.schemas.admin.AdminUserResponse_'];
@@ -31,6 +32,12 @@ export type PatchPricingRuleRequest = components['schemas']['PatchPricingRuleReq
 export type BroadcastRequest = components['schemas']['SystemBroadcastRequest'];
 export type DetailedHealthResponse = components['schemas']['DetailedHealthResponse'];
 export type HealthSnapshotResponse = components['schemas']['HealthSnapshotResponse'];
+export type PatchAdminUserBody = {
+  role?: string;
+  subscription_tier?: string;
+  is_active?: boolean;
+  locale?: string;
+};
 
 /* ─── Users ─── */
 
@@ -50,7 +57,7 @@ export async function fetchAdminUsers(params?: {
 
 export async function patchAdminUser(
   userId: string,
-  body: { role?: string; subscription_tier?: string; is_active?: boolean },
+  body: PatchAdminUserBody,
 ): Promise<AdminUserResponse> {
   const { data, error } = await apiClient.PATCH('/v1/admin/users/{user_id}', {
     params: { path: { user_id: userId } },
@@ -73,7 +80,7 @@ export async function fetchUserAccount(userId: string): Promise<BalanceResponse>
 export async function fetchAdminOrgs(params?: {
   is_active?: boolean;
   limit?: number;
-  offset?: number;
+  cursor?: string;
 }): Promise<AdminOrgListResponse> {
   const { data, error } = await apiClient.GET('/v1/admin/organizations', {
     params: { query: params },
@@ -120,7 +127,7 @@ export async function fetchAdminPayments(params?: {
   status?: string;
   payment_provider?: string;
   limit?: number;
-  offset?: number;
+  cursor?: string;
 }): Promise<PaymentListResponse> {
   const { data, error } = await apiClient.GET('/v1/admin/payments', {
     params: { query: params },
@@ -149,7 +156,7 @@ export async function fetchAccountBalance(accountId: string): Promise<BalanceRes
 
 export async function fetchAccountTransactions(
   accountId: string,
-  params?: { limit?: number; offset?: number; type?: string },
+  params?: { limit?: number; cursor?: string; type?: string },
 ): Promise<TransactionListResponse> {
   const { data, error } = await apiClient.GET('/v1/admin/accounts/{account_id}/transactions', {
     params: { path: { account_id: accountId }, query: params },
@@ -253,12 +260,13 @@ export async function revokePermission(
 export async function fetchAuditLog(params?: {
   target_user_id?: string;
   limit?: number;
-}): Promise<AuditLogEntry[]> {
+  cursor?: string;
+}): Promise<AuditLogPage> {
   const { data, error } = await apiClient.GET('/v1/admin/manage/audit', {
     params: { query: params },
   });
   if (error || !data) throwApiError(error, 'Failed to fetch audit log');
-  return data.items as AuditLogEntry[];
+  return data as AuditLogPage;
 }
 
 /* ─── Health ─── */

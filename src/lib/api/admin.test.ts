@@ -104,6 +104,30 @@ describe('patchAdminUser()', () => {
     );
     await expect(patchAdminUser('usr_001', { role: 'user' })).rejects.toThrow();
   });
+
+  it('includes locale in body when provided', async () => {
+    let capturedBody: Record<string, unknown> = {};
+    server.use(
+      http.patch(`${BASE}/v1/admin/users/:userId`, async ({ request }) => {
+        capturedBody = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(makeAdminUser({ id: 'usr_001' }));
+      }),
+    );
+    await patchAdminUser('usr_001', { role: 'user', locale: 'ru' });
+    expect(capturedBody.locale).toBe('ru');
+  });
+
+  it('omits locale from body when not provided', async () => {
+    let capturedBody: Record<string, unknown> = {};
+    server.use(
+      http.patch(`${BASE}/v1/admin/users/:userId`, async ({ request }) => {
+        capturedBody = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(makeAdminUser({ id: 'usr_001' }));
+      }),
+    );
+    await patchAdminUser('usr_001', { role: 'user' });
+    expect(capturedBody).not.toHaveProperty('locale');
+  });
 });
 
 describe('fetchAdminOrgs()', () => {
@@ -112,7 +136,9 @@ describe('fetchAdminOrgs()', () => {
       http.get(`${BASE}/v1/admin/organizations`, () =>
         HttpResponse.json({
           items: [makeAdminOrg({ id: 'org_001', name: 'Acme Corp' })],
-          total: 1,
+          limit: 20,
+          has_more: false,
+          next_cursor: null,
         }),
       ),
     );
@@ -120,6 +146,24 @@ describe('fetchAdminOrgs()', () => {
     expect(result.items.length).toBeGreaterThan(0);
     expect(result.items[0]).toHaveProperty('name');
     expect(result.items[0]).toHaveProperty('token_balance');
+  });
+
+  it('passes cursor param correctly', async () => {
+    let capturedUrl = '';
+    server.use(
+      http.get(`${BASE}/v1/admin/organizations`, ({ request }) => {
+        capturedUrl = request.url;
+        return HttpResponse.json({
+          items: [makeAdminOrg()],
+          limit: 20,
+          has_more: false,
+          next_cursor: null,
+        });
+      }),
+    );
+    await fetchAdminOrgs({ cursor: 'org-c1', limit: 20 });
+    expect(capturedUrl).toContain('cursor=org-c1');
+    expect(capturedUrl).not.toContain('offset');
   });
 });
 
@@ -167,7 +211,9 @@ describe('fetchAdminPayments()', () => {
       http.get(`${BASE}/v1/admin/payments`, () =>
         HttpResponse.json({
           items: [makePayment({ id: 'pay_001', status: 'completed' })],
-          total: 1,
+          limit: 20,
+          has_more: false,
+          next_cursor: null,
         }),
       ),
     );
@@ -175,6 +221,24 @@ describe('fetchAdminPayments()', () => {
     expect(result.items.length).toBeGreaterThan(0);
     expect(result.items[0]).toHaveProperty('status');
     expect(result.items[0]).toHaveProperty('amount_usd');
+  });
+
+  it('passes cursor param correctly', async () => {
+    let capturedUrl = '';
+    server.use(
+      http.get(`${BASE}/v1/admin/payments`, ({ request }) => {
+        capturedUrl = request.url;
+        return HttpResponse.json({
+          items: [makePayment()],
+          limit: 20,
+          has_more: false,
+          next_cursor: null,
+        });
+      }),
+    );
+    await fetchAdminPayments({ cursor: 'pay-c1', limit: 20 });
+    expect(capturedUrl).toContain('cursor=pay-c1');
+    expect(capturedUrl).not.toContain('offset');
   });
 });
 
@@ -227,7 +291,9 @@ describe('fetchAccountTransactions()', () => {
           items: [
             makeTransactionResponse({ id: 'txn_001', transaction_type: 'credit', amount: 500 }),
           ],
-          total: 1,
+          limit: 20,
+          has_more: false,
+          next_cursor: null,
         }),
       ),
     );
@@ -235,6 +301,24 @@ describe('fetchAccountTransactions()', () => {
     expect(result.items.length).toBeGreaterThan(0);
     expect(result.items[0]).toHaveProperty('transaction_type');
     expect(result.items[0]).toHaveProperty('amount');
+  });
+
+  it('passes cursor param instead of offset', async () => {
+    let capturedUrl = '';
+    server.use(
+      http.get(`${BASE}/v1/admin/accounts/:accountId/transactions`, ({ request }) => {
+        capturedUrl = request.url;
+        return HttpResponse.json({
+          items: [makeTransactionResponse()],
+          limit: 20,
+          has_more: false,
+          next_cursor: null,
+        });
+      }),
+    );
+    await fetchAccountTransactions('acc_001', { cursor: 'txn-c1', limit: 5 });
+    expect(capturedUrl).toContain('cursor=txn-c1');
+    expect(capturedUrl).not.toContain('offset');
   });
 });
 
@@ -575,7 +659,7 @@ describe('revokePermission()', () => {
 });
 
 describe('fetchAuditLog()', () => {
-  it('returns a list of audit entries', async () => {
+  it('returns a CursorPage of audit entries', async () => {
     server.use(
       http.get(`${BASE}/v1/admin/manage/audit`, () =>
         HttpResponse.json({
@@ -597,8 +681,9 @@ describe('fetchAuditLog()', () => {
       ),
     );
     const result = await fetchAuditLog();
-    expect(result).toHaveLength(1);
-    expect(result[0].action).toBe('role.grant');
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].action).toBe('role.grant');
+    expect(result.has_more).toBe(false);
   });
 
   it('passes target_user_id filter', async () => {
@@ -606,11 +691,23 @@ describe('fetchAuditLog()', () => {
     server.use(
       http.get(`${BASE}/v1/admin/manage/audit`, ({ request }) => {
         capturedUrl = request.url;
-        return HttpResponse.json([]);
+        return HttpResponse.json({ items: [], has_more: false, next_cursor: null, limit: 50 });
       }),
     );
     await fetchAuditLog({ target_user_id: 'usr_002', limit: 10 });
     expect(capturedUrl).toContain('target_user_id');
+  });
+
+  it('passes cursor param correctly', async () => {
+    let capturedUrl = '';
+    server.use(
+      http.get(`${BASE}/v1/admin/manage/audit`, ({ request }) => {
+        capturedUrl = request.url;
+        return HttpResponse.json({ items: [], has_more: false, next_cursor: null, limit: 50 });
+      }),
+    );
+    await fetchAuditLog({ cursor: 'audit-cursor-2' });
+    expect(capturedUrl).toContain('cursor=audit-cursor-2');
   });
 });
 

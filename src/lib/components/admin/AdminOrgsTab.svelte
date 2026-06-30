@@ -4,14 +4,15 @@
   import { adminOrgsQueryOptions } from '$lib/queries/admin';
   import { fetchOrgAccount } from '$lib/api/admin';
   import type { AdminOrgResponse } from '$lib/api/admin';
-  import Pagination from '$lib/components/shared/Pagination.svelte';
+  import CursorPagination from '$lib/components/shared/CursorPagination.svelte';
   import StatusBadge from '$lib/components/shared/StatusBadge.svelte';
   import AccountAdjustModal from './AccountAdjustModal.svelte';
+  import { CursorPaginator } from '$lib/utils/cursorPagination.svelte';
 
   const PAGE_SIZE = 20;
 
   let activeFilter = $state('');
-  let offset = $state(0);
+  const pager = new CursorPaginator();
 
   let adjustAccountId = $state<string | null>(null);
   let adjustEntityName = $state('');
@@ -22,7 +23,7 @@
     adminOrgsQueryOptions({
       ...(activeFilter !== '' ? { is_active: activeFilter === 'true' } : {}),
       limit: PAGE_SIZE,
-      offset,
+      ...pager.param,
     }),
   );
 
@@ -47,7 +48,7 @@
 
   function onActiveChange(e: Event) {
     activeFilter = (e.target as HTMLSelectElement).value;
-    offset = 0;
+    pager.reset();
   }
 </script>
 
@@ -75,7 +76,6 @@
     </div>
   {:else if orgsQuery.data}
     {@const items = orgsQuery.data.items}
-    {@const total = offset + items.length + (orgsQuery.data.has_more ? PAGE_SIZE : 0)}
 
     {#if items.length === 0}
       <div class="empty-state">
@@ -146,11 +146,13 @@
         {/each}
       </div>
 
-      <Pagination
-        {total}
-        limit={PAGE_SIZE}
-        {offset}
-        onpagechange={(newOffset) => (offset = newOffset)}
+      <CursorPagination
+        hasPrev={pager.hasPrev}
+        hasNext={orgsQuery.data?.has_more === true}
+        pageNumber={pager.pageNumber}
+        loading={orgsQuery.isFetching}
+        onprev={() => pager.prev()}
+        onnext={() => pager.next(orgsQuery.data?.next_cursor)}
       />
     {/if}
   {/if}

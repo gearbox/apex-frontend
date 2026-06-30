@@ -9,16 +9,14 @@
   import StatusBadge from '$lib/components/shared/StatusBadge.svelte';
   import EditUserModal from './EditUserModal.svelte';
   import AccountAdjustModal from './AccountAdjustModal.svelte';
+  import { CursorPaginator } from '$lib/utils/cursorPagination.svelte';
 
   const PAGE_SIZE = 20;
 
   let emailSearch = $state('');
   let roleFilter = $state('');
   let activeFilter = $state('');
-  // cursorStack holds the cursor of each previously-visited page so Prev can walk back.
-  // Page 1's cursor is null (no cursor param), so null is a valid, intentional stack entry.
-  let cursorStack = $state<(string | null)[]>([]);
-  let currentCursor = $state<string | null>(null);
+  const pager = new CursorPaginator();
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
   let debouncedEmail = $state('');
 
@@ -26,29 +24,24 @@
   let adjustAccountId = $state<string | null>(null);
   let adjustEntityName = $state('');
 
-  function resetPaging() {
-    cursorStack = [];
-    currentCursor = null;
-  }
-
   function onEmailInput(e: Event) {
     const val = (e.target as HTMLInputElement).value;
     emailSearch = val;
     if (debounceTimer) clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
       debouncedEmail = val;
-      resetPaging();
+      pager.reset();
     }, 400);
   }
 
   function onRoleChange(e: Event) {
     roleFilter = (e.target as HTMLSelectElement).value;
-    resetPaging();
+    pager.reset();
   }
 
   function onActiveChange(e: Event) {
     activeFilter = (e.target as HTMLSelectElement).value;
-    resetPaging();
+    pager.reset();
   }
 
   const queryClient = useQueryClient();
@@ -59,22 +52,9 @@
       ...(roleFilter ? { role: roleFilter } : {}),
       ...(activeFilter !== '' ? { is_active: activeFilter === 'true' } : {}),
       limit: PAGE_SIZE,
-      ...(currentCursor ? { cursor: currentCursor } : {}),
+      ...pager.param,
     }),
   );
-
-  function goNext() {
-    const next = usersQuery.data?.next_cursor;
-    if (!next) return;
-    cursorStack = [...cursorStack, currentCursor];
-    currentCursor = next;
-  }
-
-  function goPrev() {
-    if (cursorStack.length === 0) return;
-    currentCursor = cursorStack[cursorStack.length - 1];
-    cursorStack = cursorStack.slice(0, -1);
-  }
 
   async function openAdjust(user: AdminUserResponse) {
     try {
@@ -222,12 +202,12 @@
       </div>
 
       <CursorPagination
-        hasPrev={cursorStack.length > 0}
+        hasPrev={pager.hasPrev}
         hasNext={usersQuery.data?.has_more === true}
-        pageNumber={cursorStack.length + 1}
+        pageNumber={pager.pageNumber}
         loading={usersQuery.isFetching}
-        onprev={goPrev}
-        onnext={goNext}
+        onprev={() => pager.prev()}
+        onnext={() => pager.next(usersQuery.data?.next_cursor)}
       />
     {/if}
   {/if}
