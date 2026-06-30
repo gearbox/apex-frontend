@@ -24,7 +24,7 @@ const mockAdmins = [
   },
 ];
 
-const mockAuditLog = [
+const mockAuditLogItems = [
   {
     id: 'audit_001',
     actor_id: 'usr_sa_001',
@@ -35,6 +35,8 @@ const mockAuditLog = [
     created_at: '2025-06-01T12:00:00Z',
   },
 ];
+
+const mockAuditLog = { items: mockAuditLogItems, limit: 50, has_more: false, next_cursor: null };
 
 const superadminProfile = {
   id: 'usr_sa_001',
@@ -132,5 +134,57 @@ test.describe('Admin Management Tab', () => {
     await expect(page.getByRole('dialog', { name: /grant admin role/i })).toBeVisible({
       timeout: 3000,
     });
+  });
+
+  test('audit log "Load more" fetches second page', async ({ authenticatedPage: page }) => {
+    await page.route('**/v1/users/me', jsonRoute(superadminProfile));
+    await page.route('**/v1/admin/manage/admins', jsonRoute(mockAdmins));
+
+    await page.route('**/v1/admin/manage/audit**', async (route) => {
+      const url = new URL(route.request().url());
+      if (url.searchParams.get('cursor') === 'audit-cursor-2') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            items: [
+              {
+                id: 'audit_003',
+                actor_id: 'usr_sa_001',
+                target_user_id: 'usr_a_001',
+                action: 'permission.revoke',
+                detail: 'Second page entry',
+                source: 'api',
+                created_at: '2025-06-03T12:00:00Z',
+              },
+            ],
+            limit: 50,
+            has_more: false,
+            next_cursor: null,
+          }),
+        });
+      } else {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            items: mockAuditLogItems,
+            limit: 50,
+            has_more: true,
+            next_cursor: 'audit-cursor-2',
+          }),
+        });
+      }
+    });
+
+    await page.goto('/app/admin');
+    await page.waitForLoadState('networkidle');
+    await page.getByRole('tab', { name: 'Admins' }).click();
+
+    const loadMoreBtn = page.getByRole('button', { name: 'Load more' });
+    await expect(loadMoreBtn).toBeVisible({ timeout: 5000 });
+    await loadMoreBtn.click();
+
+    await expect(page.locator('text=Second page entry')).toBeVisible({ timeout: 5000 });
   });
 });

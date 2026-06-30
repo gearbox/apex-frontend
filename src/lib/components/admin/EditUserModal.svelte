@@ -19,6 +19,8 @@
   let role = $state(untrack(() => (user.role === 'admin' ? 'admin' : 'user')));
   let subscriptionTier = $state(untrack(() => user.subscription_tier));
   let isActive = $state(untrack(() => user.is_active));
+  // '' means "Keep current" — AdminUserResponse has no locale field so we never seed a default
+  let locale = $state('');
   let errorMsg = $state('');
 
   const mutation = createMutation(() => patchAdminUserMutationOptions(queryClient));
@@ -28,7 +30,12 @@
     try {
       await mutation.mutateAsync({
         userId: user.id,
-        body: { role, subscription_tier: subscriptionTier, is_active: isActive },
+        body: {
+          role,
+          subscription_tier: subscriptionTier,
+          is_active: isActive,
+          ...(locale !== '' ? { locale } : {}),
+        },
       });
       addToast({ type: 'success', message: `User ${user.email} updated successfully.` });
       onclose();
@@ -81,6 +88,16 @@
           <option value="basic">Basic</option>
           <option value="pro">Pro</option>
           <option value="enterprise">Enterprise</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label class="field-label" for="edit-locale">Locale</label>
+        <select id="edit-locale" class="field-select" bind:value={locale}>
+          <option value="">Keep current</option>
+          <option value="en">English</option>
+          <option value="ru">Russian</option>
+          <option value="sr">Serbian (Latin)</option>
         </select>
       </div>
 

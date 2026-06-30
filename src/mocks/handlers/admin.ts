@@ -69,7 +69,9 @@ export const adminHandlers = [
         makeAdminOrg({ id: 'org_001', name: 'Acme Corp' }),
         makeAdminOrg({ id: 'org_002', name: 'Beta Inc', token_balance: 0 }),
       ],
-      total: 2,
+      limit: 20,
+      has_more: false,
+      next_cursor: null,
     }),
   ),
 
@@ -110,7 +112,9 @@ export const adminHandlers = [
         makePayment({ id: 'pay_001', status: 'completed' }),
         makePayment({ id: 'pay_002', status: 'pending', completed_at: null }),
       ],
-      total: 2,
+      limit: 20,
+      has_more: false,
+      next_cursor: null,
     }),
   ),
 
@@ -133,7 +137,9 @@ export const adminHandlers = [
         makeTransactionResponse({ id: 'txn_001', transaction_type: 'credit', amount: 500 }),
         makeTransactionResponse({ id: 'txn_002', transaction_type: 'debit', amount: -10 }),
       ],
-      total: 2,
+      limit: 20,
+      has_more: false,
+      next_cursor: null,
     }),
   ),
 
@@ -286,15 +292,20 @@ export const adminHandlers = [
 
   // Audit log
   http.get(`${BASE}/v1/admin/manage/audit`, () =>
-    HttpResponse.json([
-      makeAuditLogEntry({ id: 'audit_001', action: 'role.grant' }),
-      makeAuditLogEntry({
-        id: 'audit_002',
-        action: 'permission.grant',
-        detail: "Permission 'billing_adjust' granted",
-        created_at: '2025-06-02T12:00:00Z',
-      }),
-    ]),
+    HttpResponse.json({
+      items: [
+        makeAuditLogEntry({ id: 'audit_001', action: 'role.grant' }),
+        makeAuditLogEntry({
+          id: 'audit_002',
+          action: 'permission.grant',
+          detail: "Permission 'billing_adjust' granted",
+          created_at: '2025-06-02T12:00:00Z',
+        }),
+      ],
+      limit: 50,
+      has_more: false,
+      next_cursor: null,
+    }),
   ),
 ];
 
@@ -330,6 +341,75 @@ export const adminPricingDeleteFailHandler = http.delete(`${BASE}/v1/admin/prici
     { status: 404 },
   ),
 );
+
+// Two-page audit log — page 1 has has_more: true; cursor-2 returns the final page
+export const paginatedAuditLogHandler = http.get(`${BASE}/v1/admin/manage/audit`, ({ request }) => {
+  const cursor = new URL(request.url).searchParams.get('cursor');
+  if (cursor === 'audit-cursor-2') {
+    return HttpResponse.json({
+      items: [
+        makeAuditLogEntry({
+          id: 'audit_003',
+          action: 'permission.revoke',
+          detail: 'Second page entry',
+        }),
+      ],
+      limit: 50,
+      has_more: false,
+      next_cursor: null,
+    });
+  }
+  return HttpResponse.json({
+    items: [makeAuditLogEntry({ id: 'audit_001', action: 'role.grant' })],
+    limit: 50,
+    has_more: true,
+    next_cursor: 'audit-cursor-2',
+  });
+});
+
+// Two-page orgs list — for cursor prev/next tests
+export const paginatedOrgsHandler = http.get(`${BASE}/v1/admin/organizations`, ({ request }) => {
+  const cursor = new URL(request.url).searchParams.get('cursor');
+  if (cursor === 'org-cursor-2') {
+    return HttpResponse.json({
+      items: [makeAdminOrg({ id: 'org_003', name: 'Gamma LLC' })],
+      limit: 20,
+      has_more: false,
+      next_cursor: null,
+    });
+  }
+  return HttpResponse.json({
+    items: [
+      makeAdminOrg({ id: 'org_001', name: 'Acme Corp' }),
+      makeAdminOrg({ id: 'org_002', name: 'Beta Inc', token_balance: 0 }),
+    ],
+    limit: 20,
+    has_more: true,
+    next_cursor: 'org-cursor-2',
+  });
+});
+
+// Two-page payments list — for cursor prev/next tests
+export const paginatedPaymentsHandler = http.get(`${BASE}/v1/admin/payments`, ({ request }) => {
+  const cursor = new URL(request.url).searchParams.get('cursor');
+  if (cursor === 'pay-cursor-2') {
+    return HttpResponse.json({
+      items: [makePayment({ id: 'pay_003', status: 'refunded' })],
+      limit: 20,
+      has_more: false,
+      next_cursor: null,
+    });
+  }
+  return HttpResponse.json({
+    items: [
+      makePayment({ id: 'pay_001', status: 'completed' }),
+      makePayment({ id: 'pay_002', status: 'pending', completed_at: null }),
+    ],
+    limit: 20,
+    has_more: true,
+    next_cursor: 'pay-cursor-2',
+  });
+});
 
 export const adminBroadcastFailHandler = http.post(`${BASE}/v1/admin/broadcast`, () =>
   HttpResponse.json(

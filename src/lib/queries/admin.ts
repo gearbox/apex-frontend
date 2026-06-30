@@ -23,6 +23,7 @@ import {
   sendBroadcast,
   fetchHealth,
   fetchHealthHistory,
+  type AuditLogPage,
   type CreatePricingRuleRequest,
   type PatchPricingRuleRequest,
   type BroadcastRequest,
@@ -69,7 +70,7 @@ export function adminUsersQueryOptions(filters: AdminUsersFilters = {}) {
 export interface AdminOrgsFilters {
   is_active?: boolean;
   limit?: number;
-  offset?: number;
+  cursor?: string;
 }
 
 export function adminOrgsQueryOptions(filters: AdminOrgsFilters = {}) {
@@ -98,7 +99,7 @@ export interface AdminPaymentsFilters {
   status?: string;
   payment_provider?: string;
   limit?: number;
-  offset?: number;
+  cursor?: string;
 }
 
 export function adminPaymentsQueryOptions(filters: AdminPaymentsFilters = {}) {
@@ -124,7 +125,7 @@ export function accountTransactionsQueryOptions(accountId: string, params?: obje
     queryFn: () =>
       fetchAccountTransactions(
         accountId,
-        params as { limit?: number; offset?: number; type?: string },
+        params as { limit?: number; cursor?: string; type?: string },
       ),
     staleTime: 30_000,
   };
@@ -139,7 +140,7 @@ export function patchAdminUserMutationOptions(queryClient: QueryClient) {
       body,
     }: {
       userId: string;
-      body: { role?: string; subscription_tier?: string; is_active?: boolean };
+      body: { role?: string; subscription_tier?: string; is_active?: boolean; locale?: string };
     }) => patchAdminUser(userId, body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: adminKeys.users() });
@@ -239,9 +240,11 @@ export interface AuditLogFilters {
 export function auditLogQueryOptions(filters: AuditLogFilters = {}) {
   return {
     queryKey: adminKeys.audit(filters),
-    queryFn: () => fetchAuditLog(filters),
+    queryFn: ({ pageParam }: { pageParam: string | null }) =>
+      fetchAuditLog({ ...filters, cursor: pageParam ?? undefined }),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last: AuditLogPage) => (last.has_more ? last.next_cursor : undefined),
     staleTime: 30_000,
-    refetchOnWindowFocus: true,
   };
 }
 

@@ -2,23 +2,39 @@
   import { createQuery } from '@tanstack/svelte-query';
   import { CreditCard, AlertCircle } from 'lucide-svelte';
   import { adminPaymentsQueryOptions } from '$lib/queries/admin';
-  import Pagination from '$lib/components/shared/Pagination.svelte';
+  import CursorPagination from '$lib/components/shared/CursorPagination.svelte';
   import StatusBadge from '$lib/components/shared/StatusBadge.svelte';
 
   const PAGE_SIZE = 20;
 
   let statusFilter = $state('');
   let providerFilter = $state('');
-  let offset = $state(0);
+  // cursorStack holds the cursor of each previously-visited page so Prev can walk back.
+  // Page 1's cursor is null (no cursor param), so null is a valid, intentional stack entry.
+  let cursorStack = $state<(string | null)[]>([]);
+  let currentCursor = $state<string | null>(null);
 
   const paymentsQuery = createQuery(() =>
     adminPaymentsQueryOptions({
       ...(statusFilter ? { status: statusFilter } : {}),
       ...(providerFilter ? { payment_provider: providerFilter } : {}),
       limit: PAGE_SIZE,
-      offset,
+      ...(currentCursor ? { cursor: currentCursor } : {}),
     }),
   );
+
+  function goNext() {
+    const next = paymentsQuery.data?.next_cursor;
+    if (!next) return;
+    cursorStack = [...cursorStack, currentCursor];
+    currentCursor = next;
+  }
+
+  function goPrev() {
+    if (cursorStack.length === 0) return;
+    currentCursor = cursorStack[cursorStack.length - 1];
+    cursorStack = cursorStack.slice(0, -1);
+  }
 
   function formatAmount(amount: string): string {
     return `$${parseFloat(amount).toFixed(2)}`;
@@ -35,12 +51,14 @@
 
   function onStatusChange(e: Event) {
     statusFilter = (e.target as HTMLSelectElement).value;
-    offset = 0;
+    cursorStack = [];
+    currentCursor = null;
   }
 
   function onProviderChange(e: Event) {
     providerFilter = (e.target as HTMLSelectElement).value;
-    offset = 0;
+    cursorStack = [];
+    currentCursor = null;
   }
 </script>
 
@@ -75,7 +93,6 @@
     </div>
   {:else if paymentsQuery.data}
     {@const items = paymentsQuery.data.items}
-    {@const total = offset + items.length + (paymentsQuery.data.has_more ? PAGE_SIZE : 0)}
 
     {#if items.length === 0}
       <div class="empty-state">
@@ -132,11 +149,13 @@
         {/each}
       </div>
 
-      <Pagination
-        {total}
-        limit={PAGE_SIZE}
-        {offset}
-        onpagechange={(newOffset) => (offset = newOffset)}
+      <CursorPagination
+        hasPrev={cursorStack.length > 0}
+        hasNext={paymentsQuery.data?.has_more === true}
+        pageNumber={cursorStack.length + 1}
+        loading={paymentsQuery.isFetching}
+        onprev={goPrev}
+        onnext={goNext}
       />
     {/if}
   {/if}
