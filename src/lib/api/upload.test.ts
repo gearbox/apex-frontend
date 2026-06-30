@@ -14,16 +14,27 @@ const UPLOAD_URL = 'http://localhost:8000/v1/storage/upload';
 
 const mockUploadResponse = {
   id: 'upload_001',
-  storage_key: 'users/mock/uploads/upload_001.jpg',
   filename: 'test.jpg',
-  content_type: 'image/jpeg',
-  size_bytes: 1000,
   created_at: '2025-01-01T00:00:00Z',
   expires_at: '2025-02-01T00:00:00Z',
+  media: {
+    media_type: 'image',
+    original: {
+      url: '/v1/content/uploads/upload_001',
+      width: 1024,
+      height: 768,
+      content_type: 'image/jpeg',
+      size_bytes: 1000,
+    },
+    variants: [
+      { label: 'sm', width: 150, height: 113, url: '/v1/content/uploads/upload_001_sm' },
+      { label: 'md', width: 512, height: 384, url: '/v1/content/uploads/upload_001_md' },
+    ],
+  },
 };
 
 describe('uploadImage', () => {
-  it('sends request with auth header and returns UploadResponse', async () => {
+  it('sends request with auth header and returns UploadResponse with media', async () => {
     let capturedAuth: string | null = null;
     let capturedMethod: string = '';
 
@@ -39,6 +50,7 @@ describe('uploadImage', () => {
     const result = await uploadImage(file);
 
     expect(result.id).toBe('upload_001');
+    expect(result.media.original.url).toBe('/v1/content/uploads/upload_001');
     expect(capturedMethod).toBe('POST');
     expect(capturedAuth).toBe('Bearer mock-token');
   });

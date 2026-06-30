@@ -1,5 +1,22 @@
 import { http, HttpResponse } from 'msw';
 import { MOCK_BASE_URL as BASE } from '../config';
+import { makeMediaObject } from '../factories/gallery';
+
+function makeUploadMediaObject(uploadId: string) {
+  return makeMediaObject({
+    original: {
+      url: `/v1/content/uploads/${uploadId}`,
+      width: 1024,
+      height: 768,
+      content_type: 'image/jpeg',
+      size_bytes: 500000,
+    },
+    variants: [
+      { label: 'sm', width: 150, height: 113, url: `/v1/content/uploads/${uploadId}_sm` },
+      { label: 'md', width: 512, height: 384, url: `/v1/content/uploads/${uploadId}_md` },
+    ],
+  });
+}
 
 export const storageHandlers = [
   // Upload list — cursor-based pagination
@@ -8,56 +25,33 @@ export const storageHandlers = [
     const limit = Number(url.searchParams.get('limit') ?? 50);
     const cursor = url.searchParams.get('cursor');
 
-    // Second page: empty
     if (cursor) {
-      return HttpResponse.json({
-        items: [],
-        limit,
-        has_more: false,
-        next_cursor: null,
-      });
+      return HttpResponse.json({ items: [], limit, has_more: false, next_cursor: null });
     }
 
-    const items = Array.from({ length: Math.min(limit, 6) }, (_, i) => ({
-      id: `upload_mock_${String(i + 1).padStart(3, '0')}`,
-      filename: `image_${i + 1}.jpg`,
-      content_type: 'image/jpeg',
-      size_bytes: 500000 + i * 100000,
-      created_at: new Date(Date.now() - i * 86400000).toISOString(),
-      expires_at: new Date(Date.now() + 30 * 86400000).toISOString(),
-    }));
-
-    return HttpResponse.json({
-      items,
-      limit,
-      has_more: false,
-      next_cursor: null,
+    const items = Array.from({ length: Math.min(limit, 6) }, (_, i) => {
+      const id = `upload_mock_${String(i + 1).padStart(3, '0')}`;
+      return {
+        id,
+        filename: `image_${i + 1}.jpg`,
+        created_at: new Date(Date.now() - i * 86400000).toISOString(),
+        expires_at: new Date(Date.now() + 30 * 86400000).toISOString(),
+        media: makeUploadMediaObject(id),
+      };
     });
+
+    return HttpResponse.json({ items, limit, has_more: false, next_cursor: null });
   }),
 
-  // Single upload access
-  http.get(`${BASE}/v1/storage/uploads/:image_id`, ({ params }) =>
-    HttpResponse.json({
-      id: params.image_id,
-      storage_key: `users/mock/uploads/${params.image_id}.jpg`,
-      presigned_url: `https://example.com/presigned/${params.image_id}.jpg`,
-      content_type: 'image/jpeg',
-      size_bytes: 500000,
-      expires_in_seconds: 3600,
-    }),
-  ),
-
-  // File upload
+  // File upload — returns UploadResponse with media
   http.post(`${BASE}/v1/storage/upload`, () =>
     HttpResponse.json(
       {
         id: 'upload_new_001',
-        storage_key: 'users/mock/uploads/upload_new_001.jpg',
         filename: 'uploaded.jpg',
-        content_type: 'image/jpeg',
-        size_bytes: 500000,
         created_at: new Date().toISOString(),
         expires_at: new Date(Date.now() + 30 * 86400000).toISOString(),
+        media: makeUploadMediaObject('upload_new_001'),
       },
       { status: 201 },
     ),
@@ -71,6 +65,19 @@ export const storageHandlers = [
         status: 200,
         headers: {
           'Content-Type': 'image/jpeg',
+          'Cache-Control': 'private, max-age=10800, immutable',
+        },
+      }),
+  ),
+
+  // Content proxy stubs for output images
+  http.get(
+    `${BASE}/v1/content/outputs/:output_id`,
+    () =>
+      new HttpResponse(new Uint8Array([0x89, 0x50, 0x4e, 0x47]), {
+        status: 200,
+        headers: {
+          'Content-Type': 'image/png',
           'Cache-Control': 'private, max-age=10800, immutable',
         },
       }),

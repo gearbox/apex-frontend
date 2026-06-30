@@ -1,23 +1,35 @@
 import { test, expect } from '../fixtures/auth.fixture';
 import { jsonRoute } from '../helpers/api';
 
+function makeMedia(url: string, mediaType: 'image' | 'video' = 'image') {
+  return {
+    media_type: mediaType,
+    original: {
+      url,
+      width: 1024,
+      height: 768,
+      content_type: mediaType === 'video' ? 'video/mp4' : 'image/jpeg',
+      size_bytes: 500000,
+    },
+    variants: [],
+  };
+}
+
 const mockUploads = {
   items: [
     {
       id: 'upload_001',
       filename: 'photo.jpg',
-      content_type: 'image/jpeg',
-      size_bytes: 500000,
       created_at: '2025-06-01T00:00:00Z',
       expires_at: '2025-07-01T00:00:00Z',
+      media: makeMedia('/v1/content/uploads/upload_001'),
     },
     {
       id: 'upload_002',
       filename: 'sketch.png',
-      content_type: 'image/png',
-      size_bytes: 300000,
       created_at: '2025-06-02T00:00:00Z',
       expires_at: '2025-07-02T00:00:00Z',
+      media: makeMedia('/v1/content/uploads/upload_002'),
     },
   ],
   limit: 30,
@@ -29,10 +41,8 @@ const mockGalleryImages = {
   items: [
     {
       job_id: 'job_gen_001',
-      cover_url: '/v1/content/outputs/out_001',
-      video_url: null,
+      cover: makeMedia('/v1/content/outputs/out_001'),
       badge: 'prompt',
-      media_type: 'image',
       output_count: 1,
       generation_type: 't2i',
       model: 'grok-imagine-image',
@@ -41,12 +51,9 @@ const mockGalleryImages = {
       created_at: '2025-06-03T00:00:00Z',
     },
     {
-      // i2i job — backend returns source image as cover_url
       job_id: 'job_i2i_001',
-      cover_url: '/v1/content/uploads/upload_src_001',
-      video_url: null,
+      cover: makeMedia('/v1/content/outputs/out_i2i_cover'),
       badge: 'image',
-      media_type: 'image',
       output_count: 1,
       generation_type: 'i2i',
       model: 'grok-imagine-image',
@@ -63,20 +70,15 @@ const mockGalleryImages = {
 const mockGalleryDetailI2i = {
   job_id: 'job_i2i_001',
   badge: 'image',
-  input_image_url: '/v1/content/uploads/upload_src_001',
+  input_media: makeMedia('/v1/content/uploads/upload_src_001'),
   prompt: 'Stylised portrait in oil painting style',
   negative_prompt: null,
   outputs: [
     {
       id: 'out_i2i_001',
-      url: '/v1/content/outputs/out_i2i_001',
-      thumbnail_url: null,
-      content_type: 'image/jpeg',
-      media_type: 'image',
-      format: 'jpeg',
-      size_bytes: 204800,
       output_index: 0,
       created_at: '2025-06-04T00:01:00Z',
+      media: makeMedia('/v1/content/outputs/out_i2i_001'),
     },
   ],
   media_type: 'image',
@@ -99,20 +101,15 @@ const mockGalleryDetailI2i = {
 const mockGalleryDetail = {
   job_id: 'job_gen_001',
   badge: 'prompt',
-  input_image_url: null,
+  input_media: null,
   prompt: 'A sunset over mountains with golden light streaming through clouds',
   negative_prompt: null,
   outputs: [
     {
       id: 'out_001',
-      url: '/v1/content/outputs/out_001',
-      thumbnail_url: null,
-      content_type: 'image/jpeg',
-      media_type: 'image',
-      format: 'jpeg',
-      size_bytes: 102400,
       output_index: 0,
       created_at: '2025-06-03T00:01:00Z',
+      media: makeMedia('/v1/content/outputs/out_001'),
     },
   ],
   media_type: 'image',

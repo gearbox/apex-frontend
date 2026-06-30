@@ -2,7 +2,8 @@
   import { createQuery } from '@tanstack/svelte-query';
   import { Check } from 'lucide-svelte';
   import { galleryDetailQueryOptions } from '$lib/queries/gallery';
-  import AuthImage from '$lib/components/ui/AuthImage.svelte';
+  import MediaImage from '$lib/media/MediaImage.svelte';
+  import { toMediaSrc } from '$lib/media/index';
   import type { components } from '$lib/api/types';
 
   type GalleryGridItem = components['schemas']['GalleryGridItem'];
@@ -27,7 +28,9 @@
   const detailQuery = createQuery(() => galleryDetailQueryOptions(item.job_id));
 
   const imageOutputs = $derived(
-    (detailQuery.data?.outputs ?? []).filter((o: GalleryOutputItem) => o.media_type === 'image'),
+    (detailQuery.data?.outputs ?? []).filter(
+      (o: GalleryOutputItem) => o.media.media_type === 'image',
+    ),
   );
 </script>
 
@@ -40,7 +43,7 @@
       onclick={() =>
         onSelect({
           outputId: output.id,
-          previewUrl: output.url,
+          previewUrl: toMediaSrc(output.media.original.url),
           prompt: detailQuery.data?.prompt ?? item.prompt_snippet,
         })}
       class="group relative aspect-square overflow-hidden rounded-lg border-2 transition-colors
@@ -48,11 +51,11 @@
       aria-pressed={isSelected}
       aria-label="Generated: {item.prompt_snippet}"
     >
-      <AuthImage
-        src={output.url}
+      <MediaImage
+        media={output.media}
         alt={item.prompt_snippet ?? ''}
+        sizes="(max-width: 768px) 33vw, 25vw"
         class="h-full w-full object-cover"
-        loading="lazy"
       />
       {#if isSelected}
         <div class="absolute inset-0 flex items-center justify-center bg-accent/20">

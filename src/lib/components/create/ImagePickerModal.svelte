@@ -11,7 +11,8 @@
   import { addToast } from '$lib/stores/toasts';
   import { isDesktop } from '$lib/utils/breakpoints';
   import type { components } from '$lib/api/types';
-  import AuthImage from '$lib/components/ui/AuthImage.svelte';
+  import MediaImage from '$lib/media/MediaImage.svelte';
+  import { toMediaSrc, mediaFallbackSrc } from '$lib/media/index';
   import InfiniteScrollSentinel from '$lib/components/gallery/InfiniteScrollSentinel.svelte';
   import GeneratedI2iOutputs from './GeneratedI2iOutputs.svelte';
   import ConfirmDeleteModal from '$lib/components/shared/ConfirmDeleteModal.svelte';
@@ -72,12 +73,6 @@
   const uploadItems = $derived((uploadsQuery.data?.pages ?? []).flatMap((p) => p.items));
   const generatedItems = $derived((generatedQuery.data?.pages ?? []).flatMap((p) => p.items));
 
-  /* ─── Helpers ─── */
-
-  function getUploadThumbnailUrl(uploadId: string): string {
-    return `/v1/content/uploads/${uploadId}`;
-  }
-
   /* ─── Confirm ─── */
 
   async function handleConfirm() {
@@ -117,7 +112,7 @@
       }
 
       const imageOutput = detail.outputs.find(
-        (o: GalleryGroupDetail['outputs'][number]) => o.media_type === 'image',
+        (o: GalleryGroupDetail['outputs'][number]) => o.media.media_type === 'image',
       );
       if (!imageOutput) {
         addToast({ type: 'error', message: 'No image output found in this generation.' });
@@ -127,7 +122,7 @@
       onselect({
         source: 'output',
         id: imageOutput.id,
-        previewUrl: imageOutput.url,
+        previewUrl: toMediaSrc(imageOutput.media.original.url),
         prompt: detail.prompt,
       });
     } catch {
@@ -278,7 +273,7 @@
                       : {
                           id: item.id,
                           source: 'upload',
-                          previewUrl: getUploadThumbnailUrl(item.id),
+                          previewUrl: toMediaSrc(item.media.original.url),
                         })}
                   ontouchstart={() => {
                     if (!$isDesktop) startLongPress(item.id);
@@ -290,11 +285,11 @@
                   aria-pressed={isSelected}
                   aria-label="Upload: {item.filename}"
                 >
-                  <AuthImage
-                    src={getUploadThumbnailUrl(item.id)}
+                  <MediaImage
+                    media={item.media}
                     alt={item.filename}
+                    sizes="(max-width: 768px) 33vw, 25vw"
                     class="h-full w-full object-cover"
-                    loading="lazy"
                   />
                   {#if isSelected}
                     <div class="absolute inset-0 flex items-center justify-center bg-accent/20">
@@ -371,7 +366,7 @@
                           })}
                 />
               {:else}
-                <!-- t2i job: show cover_url directly (it IS the generated output) -->
+                <!-- t2i job: show cover directly (it IS the generated output) -->
                 {@const isSelected =
                   selectedItem?.id === item.job_id &&
                   selectedItem?.source === 'output' &&
@@ -383,7 +378,7 @@
                       : {
                           id: item.job_id,
                           source: 'output',
-                          previewUrl: item.cover_url,
+                          previewUrl: mediaFallbackSrc(item.cover, 512),
                           prompt: item.prompt_snippet,
                         })}
                   class="group relative aspect-square overflow-hidden rounded-lg border-2 transition-colors
@@ -393,11 +388,11 @@
                   aria-pressed={isSelected}
                   aria-label="Generated: {item.prompt_snippet}"
                 >
-                  <AuthImage
-                    src={item.cover_url}
+                  <MediaImage
+                    media={item.cover}
                     alt={item.prompt_snippet ?? ''}
+                    sizes="(max-width: 768px) 33vw, 25vw"
                     class="h-full w-full object-cover"
-                    loading="lazy"
                   />
                   {#if isSelected}
                     <div class="absolute inset-0 flex items-center justify-center bg-accent/20">

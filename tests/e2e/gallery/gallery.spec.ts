@@ -2,13 +2,25 @@ import { Buffer } from 'node:buffer';
 import { test, expect } from '../fixtures/auth.fixture';
 import { jsonRoute } from '../helpers/api';
 
+function makeMedia(url: string, mediaType: 'image' | 'video' = 'image') {
+  return {
+    media_type: mediaType,
+    original: {
+      url,
+      width: mediaType === 'video' ? null : 1024,
+      height: mediaType === 'video' ? null : 1024,
+      content_type: mediaType === 'video' ? 'video/mp4' : 'image/jpeg',
+      size_bytes: mediaType === 'video' ? 5000000 : 102400,
+    },
+    variants: [],
+  };
+}
+
 const mockGalleryItems = [
   {
     job_id: 'job_001',
-    cover_url: '/v1/content/outputs/out_001',
-    video_url: null,
+    cover: makeMedia('/v1/content/outputs/out_001'),
     badge: 'prompt',
-    media_type: 'image',
     output_count: 1,
     generation_type: 't2i',
     model: 'grok-imagine-image',
@@ -18,10 +30,8 @@ const mockGalleryItems = [
   },
   {
     job_id: 'job_002',
-    cover_url: '/v1/content/outputs/out_002',
-    video_url: null,
+    cover: makeMedia('/v1/content/outputs/out_002'),
     badge: 'image',
-    media_type: 'image',
     output_count: 2,
     generation_type: 'i2i',
     model: 'grok-imagine-image',
@@ -31,10 +41,8 @@ const mockGalleryItems = [
   },
   {
     job_id: 'job_003',
-    cover_url: '/v1/content/outputs/out_003',
-    video_url: '/v1/content/outputs/vid_003',
+    cover: makeMedia('/v1/content/outputs/vid_003', 'video'),
     badge: 'prompt',
-    media_type: 'video',
     output_count: 1,
     generation_type: 't2v',
     model: 'grok-imagine-video',
@@ -54,20 +62,15 @@ const mockGalleryPage = {
 const mockGalleryDetail = {
   job_id: 'job_001',
   badge: 'prompt',
-  input_image_url: null,
+  input_media: null,
   prompt: 'A beautiful sunset over mountains with golden light streaming through clouds',
   negative_prompt: null,
   outputs: [
     {
       id: 'out_001',
-      url: '/v1/content/outputs/out_001',
-      thumbnail_url: null,
-      content_type: 'image/jpeg',
-      media_type: 'image',
-      format: 'jpeg',
-      size_bytes: 102400,
       output_index: 0,
       created_at: '2025-01-01T00:01:00Z',
+      media: makeMedia('/v1/content/outputs/out_001'),
     },
   ],
   media_type: 'image',
@@ -85,7 +88,7 @@ const mockDetailWithLineage = {
   ...mockGalleryDetail,
   job_id: 'job_002',
   badge: 'image',
-  input_image_url: '/v1/content/uploads/upload_001',
+  input_media: makeMedia('/v1/content/uploads/upload_001'),
   generation_type: 'i2i',
   aspect_ratio: '16:9',
   lineage: {
@@ -295,14 +298,9 @@ test.describe('Lightbox Remix', () => {
       outputs: [
         {
           id: 'vid_001',
-          url: '/v1/content/outputs/vid_001',
-          thumbnail_url: null,
-          content_type: 'video/mp4',
-          media_type: 'video',
-          format: 'mp4',
-          size_bytes: 5000000,
           output_index: 0,
           created_at: '2025-01-01T00:01:00Z',
+          media: makeMedia('/v1/content/outputs/vid_001', 'video'),
         },
       ],
     };

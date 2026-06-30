@@ -1,8 +1,8 @@
 # Backend API Reference — Apex REST API
 
-> _Last updated: 2026-06-26 — removed `bundle_name` and `bundle_version` from the frontend-facing API surface (§7, §15): both fields are dropped from `GpuSessionResponse`, `StopConfirmationResponse`, and the `gpu_session.status_changed` SSE payload. The DB columns and all internal reads are unchanged. Prior: vex age gate switched from `checkbox` to `date_of_birth` (§3, §16)._
+> _Last updated: 2026-06-30 — MediaObject contract tightening (§5b): `ImageVariant.width`/`height` are now required non-null integers (serializer skips and logs any legacy dimensionless variant row rather than emitting null). `MediaObject.variants` is now required (was optional with a default) — OpenAPI marks it in `required`. Content cookie `Domain` is now omitted (host-only) in dev mode so the `apex_content` cookie is stored correctly over `http://localhost`; production posture unchanged (`Domain=<product>`, `Secure`). Frontend must re-run `gen:api` to pick up the updated types, then drop `?? []` on `variants` and `.filter(v => v.width)` guards. Prior (2026-06-29): Cursor pagination on audit log (§14): `GET /v1/admin/manage/audit` now returns `CursorPage<AuditLogEntry>` instead of a bare array. Pass `cursor=next_cursor` for subsequent pages. Frontend must regenerate types and switch to cursor-scroll. Prior (2026-06-27): Unified Image Variants (§6, §8, §10): `MediaObject` replaces all per-output presigned URL fields across the Jobs, Storage, and Gallery APIs. Jobs API no longer presigns URLs — all content URLs are stable content-proxy paths. Gallery cover logic now always uses the job's own primary output (no longer sources input images). Upload thumbnails (sm=150px, md=512px WEBP) generated automatically on upload._
 >
-> _Prior (2026-06-17): synced the doc with `master` after a long gap — Aisha generation parameter system (§4), quality-tier capabilities (§5), per-output `thumbnail_url` (§6), GPU-session provisioning fields + internal callback (§7), corrected billing public-endpoint behaviour (§11), corrected model-capability matrix and new enums (§17), corrected `POST /v1/auth/register` contract (§2)._
+> _Prior (2026-06-26): removed `bundle_name` and `bundle_version` from the frontend-facing API surface (§7, §15). Prior (2026-06-17): synced the doc with `master` — Aisha generation parameter system (§4), quality-tier capabilities (§5), per-output `thumbnail_url` (§6), GPU-session provisioning fields + internal callback (§7), corrected billing public-endpoint behaviour (§11), corrected model-capability matrix and new enums (§17), corrected `POST /v1/auth/register` contract (§2)._
 
 > **Source:** `gearbox/apex` repository
 > **Framework:** Litestar 2.5+ / Python 3.13
@@ -467,6 +467,48 @@ Body: {
 
 ---
 
+## 5b. Shared Media Types
+
+### `MediaObject`
+
+All image- and video-bearing responses use a unified `MediaObject` envelope. URLs are stable content-proxy paths — never presigned and never expiring within the resource's lifetime.
+
+```typescript
+interface MediaObject {
+  media_type: "image" | "video";
+  original: MediaOriginal;
+  variants: ImageVariant[];  // preview rasters, ascending by width; always present, may be empty
+}
+
+interface MediaOriginal {
+  url: string;          // "/v1/content/outputs/{id}" or "/v1/content/uploads/{id}"
+  width: number | null;
+  height: number | null;
+  content_type: string; // "image/png", "image/jpeg", "image/webp", "video/mp4", etc.
+  size_bytes: number;
+}
+
+interface ImageVariant {
+  label: string;   // "sm" (150px longest edge) or "md" (512px longest edge)
+  width: number;   // actual pixel width of this variant (always non-null)
+  height: number;  // actual pixel height of this variant (always non-null)
+  url: string;     // "/v1/content/outputs/{id}" or "/v1/content/uploads/{id}"
+}
+```
+
+**Variant labels:**
+
+| `label` | Max longest edge | Content type | Use case |
+|---------|-----------------|--------------|----------|
+| `sm` | 150 px | `image/webp` | Thumbnails, grid cells |
+| `md` | 512 px | `image/webp` | Preview, lightbox |
+
+For **video** outputs: `original.url` is the MP4 source; `variants` are poster-frame rasters (extracted first frame → sm + md WEBP).
+
+For **image** outputs and **uploads**: `original.url` is the full-resolution source; `variants` are downscaled WEBP previews.
+
+---
+
 ## 6. Jobs *(authenticated)*
 
 #### `GET /v1/jobs`
@@ -492,44 +534,36 @@ Note:     Soft-hide from history
 
 ### UnifiedJobResponse Schema
 
-```
-{
-  id: UUID,
-  name: string,
-  status: JobStatus,
-  provider: "grok" | "aisha",
-  model: string | null,
-  generation_type: GenerationType,
-  prompt: string,
-  negative_prompt: string | null,
-  aspect_ratio: string | null,
-  token_cost: int | null,
-  created_at: datetime,
-  started_at: datetime | null,
-  completed_at: datetime | null,
-  outputs: JobOutputItem[],
-  thumbnail_url: string | null,
-  error: string | null
+```typescript
+interface UnifiedJobResponse {
+  id: string;               // UUID
+  name: string;
+  status: JobStatus;
+  provider: "grok" | "aisha";
+  model: string | null;
+  generation_type: GenerationType;
+  prompt: string;
+  negative_prompt: string | null;
+  aspect_ratio: string | null;
+  token_cost: number | null;
+  created_at: string;       // ISO datetime
+  started_at: string | null;
+  completed_at: string | null;
+  outputs: JobOutputItem[]; // empty while processing
+  error: string | null;
 }
 
-JobOutputItem: {
-  id: UUID,
-  url: string,              // presigned URL for the full-resolution output, valid ~1 hour
-  content_type: string,     // "image/jpeg", "video/mp4", etc.
-  format: string,           // "jpeg", "webp", "mp4"
-  size_bytes: int,
-  output_index: int,        // 0-based position within the batch
-  thumbnail_url: string | null,  // presigned URL of a WEBP thumbnail of this output
-                                  // (image) or its poster frame (video); null if none
-  is_thumbnail: bool        // true for the extracted first-frame/poster image of a video
+interface JobOutputItem {
+  id: string;               // UUID
+  output_index: number;     // 0-based position within the batch
+  media: MediaObject;       // original asset + sm/md WEBP preview variants
 }
 ```
 
-> **Thumbnail model change:** each output now carries its own `thumbnail_url` (server-side
-> WEBP, quality 80, 512px longest edge). Thumbnails are no longer surfaced as separate
-> outputs with `output_index = -1`. `is_thumbnail` now flags only the extracted poster-frame
-> output of a video. `UnifiedJobResponse.thumbnail_url` remains a convenience shortcut to the
-> job's cover thumbnail.
+> **Breaking change (2026-06-27):** `JobOutputItem` no longer carries `url`, `content_type`,
+> `format`, `size_bytes`, `thumbnail_url`, or `is_thumbnail`. The full media envelope
+> (`original` + `variants`) is in `media: MediaObject`. Jobs API URLs are now stable
+> content-proxy paths — **no presigned URLs**. `UnifiedJobResponse.thumbnail_url` is removed.
 
 ---
 
@@ -803,16 +837,15 @@ Errors:   401 unauthorized (missing / empty / invalid Bearer token),
 Request:  multipart/form-data, field "data" (max 20MB, PNG/JPEG/WebP)
 Response: {
   id: UUID,
-  storage_key: string,
   filename: string,
-  content_type: string,
-  size_bytes: int,
   created_at: datetime,
-  expires_at: datetime
+  expires_at: datetime,
+  media: MediaObject    // original + sm/md WEBP variants (generated synchronously)
 }
 Status:   201 Created
 Errors:   400 (invalid_file_type | file_too_large | empty_file)
-Note:     Returns image id used for I2I/I2V generation requests
+Note:     Returns image id used for I2I/I2V generation requests.
+          Thumbnail generation is non-fatal; variants may be empty on failure.
 ```
 
 #### `GET /v1/storage/uploads`
@@ -824,10 +857,9 @@ Response: CursorPage<ImageListItem>
 ImageListItem: {
   id: UUID,
   filename: string,
-  content_type: string,
-  size_bytes: int,
   created_at: datetime,
-  expires_at: datetime
+  expires_at: datetime,
+  media: MediaObject    // original + sm/md WEBP variants
 }
 ```
 
@@ -864,11 +896,10 @@ Response: CursorPage<OutputListItem>
 OutputListItem: {
   id: UUID,
   job_id: UUID,
-  content_type: string,
-  size_bytes: int,
   output_index: int,
   created_at: datetime,
-  expires_at: datetime
+  expires_at: datetime,
+  media: MediaObject    // original + sm/md WEBP variants
 }
 ```
 
@@ -989,11 +1020,10 @@ Errors:   404 not_found (job not completed, wrong user, or wrong product)
 
 ```typescript
 interface GalleryGridItem {
-  job_id: UUID;
-  cover_url: string;        // "/v1/content/outputs/{id}" or "/v1/content/uploads/{id}"
-  video_url: string | null; // present for video generation types; autoplay source
+  job_id: string;           // UUID
+  cover: MediaObject;       // always the job's own primary output + sm/md WEBP variants
+                            // for video: original is the MP4; variants are poster frames
   badge: GalleryBadge;      // "prompt" (t2i/t2v) or "image" (i2i/i2v/flf2v/v2v)
-  media_type: OutputMediaType; // "image" or "video"
   output_count: number;     // non-thumbnail outputs in this group
   generation_type: GenerationType;
   model: string | null;
@@ -1003,16 +1033,17 @@ interface GalleryGridItem {
 }
 
 interface GalleryGroupDetail {
-  job_id: UUID;
+  job_id: string;           // UUID
   // Header
   badge: GalleryBadge;
-  input_image_url: string | null; // present when badge == "image"
+  input_media: MediaObject | null; // source input envelope when badge == "image"
+                                   // (remixed output or uploaded input image + variants)
   prompt: string;
   negative_prompt: string | null;
   // Outputs
-  outputs: GalleryOutputItem[];   // non-thumbnail outputs, ordered by output_index
+  outputs: GalleryOutputItem[];    // non-thumbnail outputs, ordered by output_index
   // Metadata
-  media_type: OutputMediaType;
+  media_type: OutputMediaType;     // "image" or "video"
   model: string | null;
   provider: string;
   generation_type: GenerationType;
@@ -1025,36 +1056,27 @@ interface GalleryGroupDetail {
 }
 
 interface GalleryOutputItem {
-  id: UUID;
-  url: string;              // "/v1/content/outputs/{id}"
-  thumbnail_url: string | null; // video poster frame URL (if applicable)
-  content_type: string;     // "image/jpeg", "video/mp4", etc.
-  media_type: OutputMediaType;
-  format: string;           // "jpeg", "webp", "mp4"
-  size_bytes: number;
+  id: string;               // UUID
   output_index: number;     // 0-based
   created_at: string;
+  media: MediaObject;       // original asset + sm/md WEBP variants
 }
 
 interface GalleryLineage {
   source_type: GallerySourceType;    // "upload" or "generation"
-  source_upload_id: UUID | null;     // set when source_type == "upload"
-  source_job_id: UUID | null;        // set when source_type == "generation"
+  source_upload_id: string | null;   // UUID; set when source_type == "upload"
+  source_job_id: string | null;      // UUID; set when source_type == "generation"
   source_job_name: string | null;    // human-readable name of the source job
-  source_output_id: UUID | null;     // specific output used as input
+  source_output_id: string | null;   // UUID; specific output used as input
 }
 ```
 
-### Cover URL Resolution
-
-| Generation type | `cover_url` source | `video_url` |
-|----------------|-------------------|-------------|
-| `t2i` | Last generated output | `null` |
-| `t2v` | Video thumbnail (poster frame) | Video output |
-| `i2i` | Source output → input upload → last output | `null` |
-| `i2v` | Source output → input upload → last output | Video output |
-| `flf2v` | Source output → input upload → last output | Video output |
-| `v2v` | Source output → thumbnail → last output | Video output |
+> **Breaking change (2026-06-27):** `GalleryGridItem` no longer has `cover_url`, `video_url`,
+> or `media_type` — use `cover: MediaObject` instead. The cover is now always the job's own
+> primary output (stops N near-identical tiles for N generations from one input).
+> `GalleryGroupDetail.input_image_url` → `input_media: MediaObject | null`.
+> `GalleryOutputItem` drops `url`, `thumbnail_url`, `content_type`, `media_type`, `format`,
+> `size_bytes` — all in `media: MediaObject`.
 
 ### Gallery Badge Logic
 
@@ -1574,9 +1596,14 @@ Note:     Idempotent — revoking a permission the user doesn't hold is a no-op 
 #### `GET /v1/admin/manage/audit`
 
 ```
-Query:    target_user_id? (UUID), limit? (default 50)
-Response: AuditLogEntry[]
+Query:    target_user_id? (UUID), limit? (default 50), cursor? (opaque token)
+Response: CursorPage<AuditLogEntry>
 Note:     Entries are returned newest-first. Optionally filter to a specific target user.
+          Uses cursor (keyset) pagination — pass cursor=next_cursor from the previous
+          response to fetch the next page. Breaking change from the previous bare
+          AuditLogEntry[] response: the body is now wrapped in the standard CursorPage
+          envelope (items / limit / has_more / next_cursor). Regenerate OpenAPI types
+          and update the admin audit-log table in apex-frontend (gen:api → cursor scroll).
 ```
 
 ---

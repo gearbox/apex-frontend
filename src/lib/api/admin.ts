@@ -258,7 +258,7 @@ export async function fetchAuditLog(params?: {
     params: { query: params },
   });
   if (error || !data) throwApiError(error, 'Failed to fetch audit log');
-  return data as AuditLogEntry[];
+  return data.items as AuditLogEntry[];
 }
 
 /* ─── Health ─── */

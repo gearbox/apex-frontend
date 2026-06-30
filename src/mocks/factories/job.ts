@@ -1,4 +1,5 @@
 import type { components } from '$lib/api/types';
+import { makeMediaObject } from './gallery';
 
 type JobCreatedResponse = components['schemas']['JobCreatedResponse'];
 type UnifiedJobResponse = components['schemas']['UnifiedJobResponse'];
@@ -21,12 +22,8 @@ export function makeJobCreatedResponse(
 export function makeJobOutputItem(overrides: Partial<JobOutputItem> = {}): JobOutputItem {
   return {
     id: 'out_mock_001',
-    url: 'https://example.com/output-1.jpg',
-    content_type: 'image/jpeg',
-    format: 'jpeg',
-    size_bytes: 102400,
     output_index: 0,
-    is_thumbnail: false,
+    media: makeMediaObject(),
     ...overrides,
   };
 }

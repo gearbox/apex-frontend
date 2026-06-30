@@ -5,7 +5,7 @@
   import { X, ImageIcon, GalleryHorizontalEnd } from 'lucide-svelte';
   import ImagePickerModal from './ImagePickerModal.svelte';
   import type { ImagePickerSelection } from './ImagePickerModal.svelte';
-  import AuthImage from '$lib/components/ui/AuthImage.svelte';
+  import { mediaFallbackSrc } from '$lib/media/index';
   import { uploadImage } from '$lib/api/upload';
   import { useQueryClient } from '@tanstack/svelte-query';
   import { storageKeys } from '$lib/queries/storage';
@@ -65,6 +65,13 @@
       const result = await uploadImage(file);
       generationStore.setUploadedImageId(result.id);
       queryClient.invalidateQueries({ queryKey: storageKeys.uploads() });
+      // Switch to picker-selection preview using the immediate media from the response
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      previewUrl = null;
+      pickerSelection = {
+        previewUrl: mediaFallbackSrc(result.media, 512),
+        label: file.name,
+      };
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Upload failed. Please try again.';
       addToast({ type: 'error', message });
@@ -139,7 +146,7 @@
   {#if pickerSelection}
     <!-- Picker selection preview -->
     <div class="relative flex items-center gap-3 rounded-2.5 border border-border bg-surface p-3">
-      <AuthImage
+      <img
         src={pickerSelection.previewUrl}
         alt="Selected"
         class="h-14 w-14 rounded-lg object-cover"

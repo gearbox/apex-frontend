@@ -4,19 +4,21 @@
   import { goto } from '$app/navigation';
   import { generationStore } from '$lib/stores/generation';
   import { timeAgo } from '$lib/utils/format';
-  import { API_BASE_URL } from '$lib/utils/constants';
+  import { toMediaSrc } from '$lib/media/index';
   import { X, Download, ChevronLeft, ChevronRight, Repeat2, Trash2 } from 'lucide-svelte';
   import { galleryDetailQueryOptions, deleteContentMutationOptions } from '$lib/queries/gallery';
   import { getAccessToken } from '$lib/stores/auth';
+  import { API_BASE_URL } from '$lib/utils/constants';
   import { addToast } from '$lib/stores/toasts';
-  import AuthImage from '$lib/components/ui/AuthImage.svelte';
-  import AuthVideo from '$lib/components/ui/AuthVideo.svelte';
+  import MediaImage from '$lib/media/MediaImage.svelte';
+  import MediaVideo from '$lib/media/MediaVideo.svelte';
   import ConfirmDeleteModal from '$lib/components/shared/ConfirmDeleteModal.svelte';
   import type { components } from '$lib/api/types';
   import type { GenerationMode } from '$lib/stores/generation';
   import * as m from '$paraglide/messages';
 
   type GalleryGridItem = components['schemas']['GalleryGridItem'];
+  type GalleryOutputItem = components['schemas']['GalleryOutputItem'];
   type ModelType = components['schemas']['ModelType'];
   type AspectRatio = components['schemas']['AspectRatio'];
 
@@ -87,10 +89,11 @@
     if (!detailQuery.data) return;
     const detail = detailQuery.data;
 
-    const output = detail.outputs[selectedOutputIndex] ?? detail.outputs[0];
+    const output: GalleryOutputItem | undefined =
+      detail.outputs[selectedOutputIndex] ?? detail.outputs[0];
     if (!output) return;
 
-    if (output.media_type !== 'image') {
+    if (output.media.media_type !== 'image') {
       handleRegenerate();
       return;
     }
@@ -104,7 +107,7 @@
     });
 
     // Must happen AFTER prefill — prefill resets image source fields
-    generationStore.setSourceOutputId(output.id, output.url);
+    generationStore.setSourceOutputId(output.id, toMediaSrc(output.media.original.url));
 
     goto('/app/create');
     onclose();
@@ -113,7 +116,8 @@
   async function handleDeleteOutput() {
     const detail = detailQuery.data;
     if (!detail) return;
-    const output = detail.outputs[selectedOutputIndex] ?? detail.outputs[0];
+    const output: GalleryOutputItem | undefined =
+      detail.outputs[selectedOutputIndex] ?? detail.outputs[0];
     if (!output) return;
 
     try {
@@ -134,11 +138,12 @@
     }
   }
 
-  async function handleDownload(outputUrl: string, outputId: string) {
+  async function handleDownload(output: GalleryOutputItem) {
     downloading = true;
     try {
       const token = getAccessToken();
-      const response = await fetch(`${API_BASE_URL}${outputUrl}`, {
+      const absoluteUrl = `${API_BASE_URL}${output.media.original.url}`;
+      const response = await fetch(absoluteUrl, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       const blob = await response.blob();
@@ -149,11 +154,12 @@
         'video/mp4': 'mp4',
         'video/webm': 'webm',
       };
-      const detail = detailQuery.data;
-      const ext = mimeToExt[blob.type] ?? (detail?.media_type === 'video' ? 'mp4' : 'jpg');
+      const ext =
+        mimeToExt[output.media.original.content_type] ??
+        (output.media.media_type === 'video' ? 'mp4' : 'jpg');
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = `apex-${outputId}.${ext}`;
+      a.download = `apex-${output.id}.${ext}`;
       a.click();
       URL.revokeObjectURL(a.href);
     } finally {
@@ -228,10 +234,9 @@
       {:else if detailQuery.data && detailQuery.data.outputs.length > 0}
         {@const detail = detailQuery.data}
         {@const output = detail.outputs[selectedOutputIndex] ?? detail.outputs[0]}
-        {#if detail.media_type === 'video'}
-          <AuthVideo
-            src={output.url}
-            posterSrc={output.thumbnail_url}
+        {#if output.media.media_type === 'video'}
+          <MediaVideo
+            media={output.media}
             controls
             autoplay
             loop
@@ -240,11 +245,12 @@
             class="max-h-full w-full object-contain"
           />
         {:else}
-          <AuthImage
-            src={output.url}
+          <MediaImage
+            media={output.media}
             alt={detail.prompt}
-            class="max-h-[60vh] w-full object-contain md:max-h-full"
+            sizes="(max-width: 768px) 100vw, 66vw"
             loading="eager"
+            class="max-h-[60vh] w-full object-contain md:max-h-full"
           />
         {/if}
       {:else}
@@ -261,11 +267,12 @@
         {@const detail = detailQuery.data}
 
         <!-- Header: input image or prompt -->
-        {#if detail.badge === 'image' && detail.input_image_url}
+        {#if detail.badge === 'image' && detail.input_media}
           <div class="flex items-center gap-3">
-            <AuthImage
-              src={detail.input_image_url}
+            <MediaImage
+              media={detail.input_media}
               alt="Source"
+              sizes="48px"
               class="h-12 w-12 rounded-lg object-cover"
             />
             <p class="text-xs text-text-muted">Source image</p>
@@ -281,7 +288,7 @@
           {#if detail.outputs.length > 0}
             {@const output = detail.outputs[selectedOutputIndex] ?? detail.outputs[0]}
             <button
-              onclick={() => handleDownload(output.url, output.id)}
+              onclick={() => handleDownload(output)}
               disabled={downloading}
               class="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-2 text-xs font-medium text-text transition-colors hover:bg-surface-hover disabled:opacity-50"
             >
@@ -415,9 +422,10 @@
                   class="relative aspect-square overflow-hidden rounded-lg transition-opacity hover:opacity-80
                     {selectedOutputIndex === i ? 'ring-2 ring-accent' : ''}"
                 >
-                  <AuthImage
-                    src={output.url}
+                  <MediaImage
+                    media={output.media}
                     alt="Output {i + 1}"
+                    sizes="80px"
                     class="h-full w-full object-cover"
                   />
                 </button>
