@@ -32,6 +32,12 @@ export type PatchPricingRuleRequest = components['schemas']['PatchPricingRuleReq
 export type BroadcastRequest = components['schemas']['SystemBroadcastRequest'];
 export type DetailedHealthResponse = components['schemas']['DetailedHealthResponse'];
 export type HealthSnapshotResponse = components['schemas']['HealthSnapshotResponse'];
+export type PatchAdminUserBody = {
+  role?: string;
+  subscription_tier?: string;
+  is_active?: boolean;
+  locale?: string;
+};
 
 /* ─── Users ─── */
 
@@ -51,7 +57,7 @@ export async function fetchAdminUsers(params?: {
 
 export async function patchAdminUser(
   userId: string,
-  body: { role?: string; subscription_tier?: string; is_active?: boolean; locale?: string },
+  body: PatchAdminUserBody,
 ): Promise<AdminUserResponse> {
   const { data, error } = await apiClient.PATCH('/v1/admin/users/{user_id}', {
     params: { path: { user_id: userId } },

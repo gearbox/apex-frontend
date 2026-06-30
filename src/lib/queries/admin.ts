@@ -27,6 +27,7 @@ import {
   type CreatePricingRuleRequest,
   type PatchPricingRuleRequest,
   type BroadcastRequest,
+  type PatchAdminUserBody,
 } from '$lib/api/admin';
 
 /* ─── Query Key Factory ─── */
@@ -79,6 +80,7 @@ export function adminOrgsQueryOptions(filters: AdminOrgsFilters = {}) {
     queryFn: () => fetchAdminOrgs(filters),
     staleTime: 30_000,
     refetchOnWindowFocus: true,
+    placeholderData: keepPreviousData,
   };
 }
 
@@ -108,6 +110,7 @@ export function adminPaymentsQueryOptions(filters: AdminPaymentsFilters = {}) {
     queryFn: () => fetchAdminPayments(filters),
     staleTime: 30_000,
     refetchOnWindowFocus: true,
+    placeholderData: keepPreviousData,
   };
 }
 
@@ -119,14 +122,13 @@ export function accountBalanceQueryOptions(accountId: string) {
   };
 }
 
-export function accountTransactionsQueryOptions(accountId: string, params?: object) {
+export function accountTransactionsQueryOptions(
+  accountId: string,
+  params?: { limit?: number; cursor?: string; type?: string },
+) {
   return {
     queryKey: adminKeys.accountTransactions(accountId, params),
-    queryFn: () =>
-      fetchAccountTransactions(
-        accountId,
-        params as { limit?: number; cursor?: string; type?: string },
-      ),
+    queryFn: () => fetchAccountTransactions(accountId, params),
     staleTime: 30_000,
   };
 }
@@ -140,7 +142,7 @@ export function patchAdminUserMutationOptions(queryClient: QueryClient) {
       body,
     }: {
       userId: string;
-      body: { role?: string; subscription_tier?: string; is_active?: boolean; locale?: string };
+      body: PatchAdminUserBody;
     }) => patchAdminUser(userId, body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: adminKeys.users() });

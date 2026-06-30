@@ -4,37 +4,22 @@
   import { adminPaymentsQueryOptions } from '$lib/queries/admin';
   import CursorPagination from '$lib/components/shared/CursorPagination.svelte';
   import StatusBadge from '$lib/components/shared/StatusBadge.svelte';
+  import { CursorPaginator } from '$lib/utils/cursorPagination.svelte';
 
   const PAGE_SIZE = 20;
 
   let statusFilter = $state('');
   let providerFilter = $state('');
-  // cursorStack holds the cursor of each previously-visited page so Prev can walk back.
-  // Page 1's cursor is null (no cursor param), so null is a valid, intentional stack entry.
-  let cursorStack = $state<(string | null)[]>([]);
-  let currentCursor = $state<string | null>(null);
+  const pager = new CursorPaginator();
 
   const paymentsQuery = createQuery(() =>
     adminPaymentsQueryOptions({
       ...(statusFilter ? { status: statusFilter } : {}),
       ...(providerFilter ? { payment_provider: providerFilter } : {}),
       limit: PAGE_SIZE,
-      ...(currentCursor ? { cursor: currentCursor } : {}),
+      ...pager.param,
     }),
   );
-
-  function goNext() {
-    const next = paymentsQuery.data?.next_cursor;
-    if (!next) return;
-    cursorStack = [...cursorStack, currentCursor];
-    currentCursor = next;
-  }
-
-  function goPrev() {
-    if (cursorStack.length === 0) return;
-    currentCursor = cursorStack[cursorStack.length - 1];
-    cursorStack = cursorStack.slice(0, -1);
-  }
 
   function formatAmount(amount: string): string {
     return `$${parseFloat(amount).toFixed(2)}`;
@@ -51,14 +36,12 @@
 
   function onStatusChange(e: Event) {
     statusFilter = (e.target as HTMLSelectElement).value;
-    cursorStack = [];
-    currentCursor = null;
+    pager.reset();
   }
 
   function onProviderChange(e: Event) {
     providerFilter = (e.target as HTMLSelectElement).value;
-    cursorStack = [];
-    currentCursor = null;
+    pager.reset();
   }
 </script>
 
@@ -150,12 +133,12 @@
       </div>
 
       <CursorPagination
-        hasPrev={cursorStack.length > 0}
+        hasPrev={pager.hasPrev}
         hasNext={paymentsQuery.data?.has_more === true}
-        pageNumber={cursorStack.length + 1}
+        pageNumber={pager.pageNumber}
         loading={paymentsQuery.isFetching}
-        onprev={goPrev}
-        onnext={goNext}
+        onprev={() => pager.prev()}
+        onnext={() => pager.next(paymentsQuery.data?.next_cursor)}
       />
     {/if}
   {/if}

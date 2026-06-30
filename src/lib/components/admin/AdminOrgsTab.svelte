@@ -7,14 +7,12 @@
   import CursorPagination from '$lib/components/shared/CursorPagination.svelte';
   import StatusBadge from '$lib/components/shared/StatusBadge.svelte';
   import AccountAdjustModal from './AccountAdjustModal.svelte';
+  import { CursorPaginator } from '$lib/utils/cursorPagination.svelte';
 
   const PAGE_SIZE = 20;
 
   let activeFilter = $state('');
-  // cursorStack holds the cursor of each previously-visited page so Prev can walk back.
-  // Page 1's cursor is null (no cursor param), so null is a valid, intentional stack entry.
-  let cursorStack = $state<(string | null)[]>([]);
-  let currentCursor = $state<string | null>(null);
+  const pager = new CursorPaginator();
 
   let adjustAccountId = $state<string | null>(null);
   let adjustEntityName = $state('');
@@ -25,22 +23,9 @@
     adminOrgsQueryOptions({
       ...(activeFilter !== '' ? { is_active: activeFilter === 'true' } : {}),
       limit: PAGE_SIZE,
-      ...(currentCursor ? { cursor: currentCursor } : {}),
+      ...pager.param,
     }),
   );
-
-  function goNext() {
-    const next = orgsQuery.data?.next_cursor;
-    if (!next) return;
-    cursorStack = [...cursorStack, currentCursor];
-    currentCursor = next;
-  }
-
-  function goPrev() {
-    if (cursorStack.length === 0) return;
-    currentCursor = cursorStack[cursorStack.length - 1];
-    cursorStack = cursorStack.slice(0, -1);
-  }
 
   async function openAdjust(org: AdminOrgResponse) {
     try {
@@ -63,8 +48,7 @@
 
   function onActiveChange(e: Event) {
     activeFilter = (e.target as HTMLSelectElement).value;
-    cursorStack = [];
-    currentCursor = null;
+    pager.reset();
   }
 </script>
 
@@ -163,12 +147,12 @@
       </div>
 
       <CursorPagination
-        hasPrev={cursorStack.length > 0}
+        hasPrev={pager.hasPrev}
         hasNext={orgsQuery.data?.has_more === true}
-        pageNumber={cursorStack.length + 1}
+        pageNumber={pager.pageNumber}
         loading={orgsQuery.isFetching}
-        onprev={goPrev}
-        onnext={goNext}
+        onprev={() => pager.prev()}
+        onnext={() => pager.next(orgsQuery.data?.next_cursor)}
       />
     {/if}
   {/if}
