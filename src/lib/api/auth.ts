@@ -64,6 +64,7 @@ async function fetchJson<T>(path: string, init: RequestInit): Promise<T> {
 export async function login(email: string, password: string): Promise<void> {
   const authRes = await fetchJson<AuthResponse>('/v1/auth/login', {
     method: 'POST',
+    credentials: 'include',
     body: JSON.stringify({ email, password }),
   });
 
@@ -79,6 +80,7 @@ export async function register(
 ): Promise<void> {
   const authRes = await fetchJson<AuthResponse>('/v1/auth/register', {
     method: 'POST',
+    credentials: 'include',
     body: JSON.stringify({ email, password, display_name: displayName }),
   });
 
@@ -105,6 +107,7 @@ export async function silentRefresh(): Promise<boolean> {
     try {
       const authRes = await fetchJson<AuthResponse>('/v1/auth/refresh', {
         method: 'POST',
+        credentials: 'include',
         body: JSON.stringify({ refresh_token: refreshToken }),
       });
 
@@ -133,6 +136,7 @@ export async function logout(): Promise<void> {
     try {
       await fetchJson('/v1/auth/logout', {
         method: 'POST',
+        credentials: 'include',
         body: JSON.stringify({ refresh_token: refreshToken }),
       });
     } catch {

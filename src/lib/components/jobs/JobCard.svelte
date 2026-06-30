@@ -2,6 +2,7 @@
   import { goto } from '$app/navigation';
   import { MoreHorizontal } from 'lucide-svelte';
   import { timeAgo } from '$lib/utils/format';
+  import { mediaFallbackSrc } from '$lib/media/index';
   import JobStatusBadge from './JobStatusBadge.svelte';
   import JobTypeIcon from './JobTypeIcon.svelte';
   import type { components } from '$lib/api/types';
@@ -19,6 +20,12 @@
     menuOpen?: boolean;
     onMenuToggle?: (id: string | null) => void;
   } = $props();
+
+  const thumbnailSrc = $derived.by(() => {
+    const firstOutput = job.outputs?.[0];
+    if (!firstOutput) return null;
+    return mediaFallbackSrc(firstOutput.media, 150);
+  });
 </script>
 
 <a
@@ -31,9 +38,9 @@
   {/if}
 
   <!-- Thumbnail -->
-  {#if job.thumbnail_url}
+  {#if thumbnailSrc}
     <img
-      src={job.thumbnail_url}
+      src={thumbnailSrc}
       loading="lazy"
       class="h-12 w-12 shrink-0 rounded-lg object-cover"
       alt={job.name}

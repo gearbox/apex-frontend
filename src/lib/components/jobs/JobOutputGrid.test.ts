@@ -4,25 +4,41 @@ import JobOutputGrid from './JobOutputGrid.svelte';
 import type { components } from '$lib/api/types';
 
 type JobOutputItem = components['schemas']['JobOutputItem'];
+type MediaObject = components['schemas']['MediaObject'];
+
+function makeImageMedia(url = '/v1/content/outputs/out.png'): MediaObject {
+  return {
+    media_type: 'image',
+    original: { url, width: 1024, height: 1024, content_type: 'image/png', size_bytes: 102400 },
+    variants: [
+      { label: 'sm', width: 150, height: 150, url: `${url}_sm` },
+      { label: 'md', width: 512, height: 512, url: `${url}_md` },
+    ],
+  };
+}
+
+function makeVideoMedia(url = '/v1/content/outputs/out.mp4'): MediaObject {
+  return {
+    media_type: 'video',
+    original: { url, width: null, height: null, content_type: 'video/mp4', size_bytes: 5000000 },
+    variants: [{ label: 'sm', width: 150, height: 84, url: `${url}_poster_sm` }],
+  };
+}
 
 function makeOutput(overrides: Partial<JobOutputItem> = {}): JobOutputItem {
   return {
     id: `out-${Math.random().toString(36).slice(2)}`,
-    url: 'https://example.com/output.jpg',
-    content_type: 'image/jpeg',
-    format: 'jpeg',
-    size_bytes: 102400,
     output_index: 0,
-    is_thumbnail: false,
+    media: makeImageMedia(),
     ...overrides,
   };
 }
 
-describe('JobOutputGrid thumbnail filtering', () => {
-  it('renders all outputs for an image job (no is_thumbnail outputs)', () => {
+describe('JobOutputGrid', () => {
+  it('renders all image outputs as img elements', () => {
     const outputs = [
-      makeOutput({ output_index: 0, url: 'https://example.com/a.jpg' }),
-      makeOutput({ output_index: 1, url: 'https://example.com/b.jpg' }),
+      makeOutput({ output_index: 0, media: makeImageMedia('/v1/content/outputs/a.png') }),
+      makeOutput({ output_index: 1, media: makeImageMedia('/v1/content/outputs/b.png') }),
     ];
 
     render(JobOutputGrid, { props: { outputs } });
@@ -30,29 +46,31 @@ describe('JobOutputGrid thumbnail filtering', () => {
     expect(screen.getAllByRole('img')).toHaveLength(2);
   });
 
-  it('excludes is_thumbnail outputs (video poster frames) from the grid', () => {
+  it('renders video outputs as video elements', () => {
     const outputs = [
-      makeOutput({
-        output_index: 0,
-        url: 'https://example.com/video.mp4',
-        content_type: 'video/mp4',
-        is_thumbnail: false,
-      }),
-      makeOutput({ output_index: 1, url: 'https://example.com/poster.jpg', is_thumbnail: true }),
+      makeOutput({ output_index: 0, media: makeVideoMedia('/v1/content/outputs/video.mp4') }),
     ];
 
     const { container } = render(JobOutputGrid, { props: { outputs } });
 
-    // Only the video output is shown; the poster thumbnail is excluded
     expect(screen.queryAllByRole('img')).toHaveLength(0);
     expect(container.querySelector('video')).not.toBeNull();
   });
 
-  it('renders nothing when all outputs are is_thumbnail', () => {
-    const outputs = [makeOutput({ is_thumbnail: true })];
+  it('wraps image output in an anchor with target=_blank and rel=noopener noreferrer', () => {
+    const outputs = [
+      makeOutput({ output_index: 0, media: makeImageMedia('/v1/content/outputs/a.png') }),
+    ];
 
     const { container } = render(JobOutputGrid, { props: { outputs } });
 
+    const link = container.querySelector('a[target="_blank"]');
+    expect(link).not.toBeNull();
+    expect(link?.getAttribute('rel')).toBe('noopener noreferrer');
+  });
+
+  it('renders nothing when outputs array is empty', () => {
+    const { container } = render(JobOutputGrid, { props: { outputs: [] } });
     expect(container.querySelector('.grid')).toBeNull();
   });
 });

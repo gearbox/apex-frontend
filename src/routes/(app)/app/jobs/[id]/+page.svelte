@@ -55,7 +55,7 @@
   }
 
   // ── Derived display values
-  const nonThumbnailOutputs = $derived((job?.outputs ?? []).filter((o) => !o.is_thumbnail));
+  const nonThumbnailOutputs = $derived(job?.outputs ?? []);
   const hasOutputs = $derived(job?.status === 'completed' && nonThumbnailOutputs.length > 0);
   const canRetry = $derived(job?.status === 'failed' || job?.status === 'cancelled');
 </script>

@@ -15,12 +15,18 @@ const mockJob = {
   outputs: [
     {
       id: 'out_001',
-      url: 'https://example.com/output-1.jpg',
-      content_type: 'image/jpeg',
-      format: 'jpeg',
-      size_bytes: 102400,
       output_index: 0,
-      is_thumbnail: false,
+      media: {
+        media_type: 'image',
+        original: {
+          url: '/v1/content/outputs/out_001',
+          width: 1024,
+          height: 1024,
+          content_type: 'image/jpeg',
+          size_bytes: 102400,
+        },
+        variants: [],
+      },
     },
   ],
   token_cost: 10,

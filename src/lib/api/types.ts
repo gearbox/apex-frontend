@@ -1533,6 +1533,13 @@ export interface components {
             has_more: boolean;
             next_cursor?: string | null;
         };
+        /** CursorPage[AuditLogEntry] */
+        "CursorPage_src.api.schemas.admin.AuditLogEntry_": {
+            items: components["schemas"]["AuditLogEntry"][];
+            limit: number;
+            has_more: boolean;
+            next_cursor?: string | null;
+        };
         /** CursorPage[PaymentResponse] */
         "CursorPage_src.api.schemas.billing.PaymentResponse_": {
             items: components["schemas"]["PaymentResponse"][];
@@ -1622,10 +1629,8 @@ export interface components {
         GalleryGridItem: {
             /** Format: uuid */
             job_id: string;
-            cover_url: string;
-            video_url?: string | null;
+            cover: components["schemas"]["MediaObject"];
             badge: components["schemas"]["GalleryBadge"];
-            media_type: components["schemas"]["OutputMediaType"];
             output_count: number;
             generation_type: components["schemas"]["GenerationType"];
             model?: string | null;
@@ -1639,7 +1644,7 @@ export interface components {
             /** Format: uuid */
             job_id: string;
             badge: components["schemas"]["GalleryBadge"];
-            input_image_url?: string | null;
+            input_media?: components["schemas"]["MediaObject"] | null;
             prompt: string;
             negative_prompt?: string | null;
             outputs: components["schemas"]["GalleryOutputItem"][];
@@ -1666,15 +1671,10 @@ export interface components {
         GalleryOutputItem: {
             /** Format: uuid */
             id: string;
-            url: string;
-            thumbnail_url?: string | null;
-            content_type: string;
-            media_type: components["schemas"]["OutputMediaType"];
-            format: string;
-            size_bytes: number;
             output_index: number;
             /** Format: date-time */
             created_at: string;
+            media: components["schemas"]["MediaObject"];
         };
         /**
          * GallerySourceType
@@ -1774,12 +1774,18 @@ export interface components {
         ImageListItem: {
             id: string;
             filename: string;
-            content_type: string;
-            size_bytes: number;
             /** Format: date-time */
             created_at: string;
             /** Format: date-time */
             expires_at: string;
+            media: components["schemas"]["MediaObject"];
+        };
+        /** ImageVariant */
+        ImageVariant: {
+            label: string;
+            width: number;
+            height: number;
+            url: string;
         };
         /** JobCreatedResponse */
         JobCreatedResponse: {
@@ -1799,14 +1805,8 @@ export interface components {
         JobOutputItem: {
             /** Format: uuid */
             id: string;
-            url: string;
-            content_type: string;
-            format: string;
-            size_bytes: number;
             output_index: number;
-            thumbnail_url?: string | null;
-            /** @default false */
-            is_thumbnail: boolean;
+            media: components["schemas"]["MediaObject"];
         };
         /**
          * JobStatus
@@ -1826,6 +1826,20 @@ export interface components {
         LoginRequest: {
             email: string;
             password: string;
+        };
+        /** MediaObject */
+        MediaObject: {
+            media_type: components["schemas"]["OutputMediaType"];
+            original: components["schemas"]["MediaOriginal"];
+            variants: components["schemas"]["ImageVariant"][];
+        };
+        /** MediaOriginal */
+        MediaOriginal: {
+            url: string;
+            width?: number | null;
+            height?: number | null;
+            content_type: string;
+            size_bytes: number;
         };
         /** MemberResponse */
         MemberResponse: {
@@ -1909,13 +1923,12 @@ export interface components {
         OutputListItem: {
             id: string;
             job_id: string;
-            content_type: string;
-            size_bytes: number;
             output_index: number;
             /** Format: date-time */
             created_at: string;
             /** Format: date-time */
             expires_at: string;
+            media: components["schemas"]["MediaObject"];
         };
         /**
          * OutputMediaType
@@ -2197,7 +2210,6 @@ export interface components {
             started_at?: string | null;
             completed_at?: string | null;
             outputs?: components["schemas"]["JobOutputItem"][];
-            thumbnail_url?: string | null;
             error?: string | null;
         };
         /** UpdateProfileRequest */
@@ -2216,14 +2228,12 @@ export interface components {
         /** UploadResponse */
         UploadResponse: {
             id: string;
-            storage_key: string;
             filename: string;
-            content_type: string;
-            size_bytes: number;
             /** Format: date-time */
             created_at: string;
             /** Format: date-time */
             expires_at: string;
+            media: components["schemas"]["MediaObject"];
         };
         /** UserContext */
         UserContext: {
@@ -4138,6 +4148,7 @@ export interface operations {
             query?: {
                 target_user_id?: string | null;
                 limit?: number;
+                cursor?: string | null;
             };
             header?: never;
             path?: never;
@@ -4151,7 +4162,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AuditLogEntry"][];
+                    "application/json": components["schemas"]["CursorPage_src.api.schemas.admin.AuditLogEntry_"];
                 };
             };
             /** @description Bad request syntax or unsupported method */

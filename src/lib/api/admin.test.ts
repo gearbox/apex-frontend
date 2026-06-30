@@ -578,17 +578,22 @@ describe('fetchAuditLog()', () => {
   it('returns a list of audit entries', async () => {
     server.use(
       http.get(`${BASE}/v1/admin/manage/audit`, () =>
-        HttpResponse.json([
-          {
-            id: 'audit_001',
-            actor_id: 'usr_sa_001',
-            target_user_id: 'usr_002',
-            action: 'role.grant',
-            detail: "Role changed from 'user' to 'admin'",
-            source: 'api',
-            created_at: '2025-06-01T12:00:00Z',
-          },
-        ]),
+        HttpResponse.json({
+          items: [
+            {
+              id: 'audit_001',
+              actor_id: 'usr_sa_001',
+              target_user_id: 'usr_002',
+              action: 'role.grant',
+              detail: "Role changed from 'user' to 'admin'",
+              source: 'api',
+              created_at: '2025-06-01T12:00:00Z',
+            },
+          ],
+          has_more: false,
+          next_cursor: null,
+          limit: 50,
+        }),
       ),
     );
     const result = await fetchAuditLog();

@@ -2,6 +2,9 @@
   import { generationStore } from '$lib/stores/generation';
   import { timeAgo } from '$lib/utils/format';
   import { Download, RefreshCw, Play, Repeat2 } from 'lucide-svelte';
+  import { toMediaSrc } from '$lib/media/index';
+  import MediaImage from '$lib/media/MediaImage.svelte';
+  import MediaVideo from '$lib/media/MediaVideo.svelte';
   import type { components } from '$lib/api/types';
 
   type UnifiedJobResponse = components['schemas']['UnifiedJobResponse'];
@@ -11,9 +14,9 @@
   let { showSkeleton = false }: { showSkeleton?: boolean } = $props();
 
   const job = $derived($generationStore.completedJob);
-  const nonThumbnailOutputs = $derived((job?.outputs ?? []).filter((o) => !o.is_thumbnail));
+  const outputs = $derived(job?.outputs ?? []);
 
-  let videoModalUrl = $state<string | null>(null);
+  let videoModalOutput = $state<JobOutputItem | null>(null);
 
   function handleRegenerate(completedJob: UnifiedJobResponse) {
     generationStore.prefill({
@@ -25,7 +28,7 @@
   function handleUseAsInput(output: JobOutputItem) {
     if (!job) return;
     generationStore.setMode('i2i');
-    generationStore.setSourceOutputId(output.id, output.url);
+    generationStore.setSourceOutputId(output.id, toMediaSrc(output.media.original.url));
   }
 </script>
 
@@ -36,7 +39,7 @@
       <div class="aspect-square animate-pulse rounded-xl bg-surface"></div>
     {/each}
   </div>
-{:else if job && nonThumbnailOutputs.length > 0}
+{:else if job && outputs.length > 0}
   <div class="flex flex-col gap-4">
     <!-- Job metadata -->
     <div class="flex flex-wrap items-center gap-3 text-[11px] text-text-dim">
@@ -55,14 +58,14 @@
 
     <!-- Outputs grid -->
     <div class="grid grid-cols-2 gap-2">
-      {#each nonThumbnailOutputs as output (output.id)}
+      {#each outputs as output (output.id)}
         <div class="group relative overflow-hidden rounded-xl border border-border">
-          {#if output.content_type.startsWith('video/')}
+          {#if output.media.media_type === 'video'}
             <!-- Video thumbnail with play overlay -->
             <div class="relative aspect-video bg-surface">
               <div class="absolute inset-0 flex items-center justify-center">
                 <button
-                  onclick={() => (videoModalUrl = output.url)}
+                  onclick={() => (videoModalOutput = output)}
                   class="flex h-12 w-12 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-sm hover:bg-black/70 transition-colors"
                 >
                   <Play size={20} fill="white" />
@@ -70,11 +73,11 @@
               </div>
             </div>
           {:else}
-            <img
-              src={output.url}
+            <MediaImage
+              media={output.media}
               alt="Generated output"
+              sizes="(max-width: 768px) 50vw, 33vw"
               class="w-full object-cover"
-              loading="lazy"
             />
           {/if}
 
@@ -83,7 +86,7 @@
             class="absolute inset-x-0 bottom-0 flex justify-end gap-1.5 bg-linear-to-t from-black/60 to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
           >
             <a
-              href={output.url}
+              href={toMediaSrc(output.media.original.url)}
               download
               class="flex h-7 w-7 items-center justify-center rounded-lg bg-white/20 text-white backdrop-blur-sm hover:bg-white/30 transition-colors"
               aria-label="Download"
@@ -99,7 +102,7 @@
                 <RefreshCw size={13} />
               </button>
             {/if}
-            {#if output.content_type.startsWith('image/')}
+            {#if output.media.media_type === 'image'}
               <button
                 onclick={() => handleUseAsInput(output)}
                 class="flex h-7 w-7 items-center justify-center rounded-lg bg-white/20 text-white backdrop-blur-sm hover:bg-white/30 transition-colors"
@@ -127,20 +130,19 @@
 {/if}
 
 <!-- Video modal -->
-{#if videoModalUrl}
+{#if videoModalOutput}
   <div
     class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
     onclick={(e) => {
-      if (e.target === e.currentTarget) videoModalUrl = null;
+      if (e.target === e.currentTarget) videoModalOutput = null;
     }}
-    onkeydown={(e) => e.key === 'Escape' && (videoModalUrl = null)}
+    onkeydown={(e) => e.key === 'Escape' && (videoModalOutput = null)}
     role="dialog"
     aria-modal="true"
     tabindex="-1"
   >
     <div class="w-full max-w-2xl">
-      <!-- svelte-ignore a11y_media_has_caption -->
-      <video src={videoModalUrl} controls autoplay loop class="w-full rounded-xl"></video>
+      <MediaVideo media={videoModalOutput.media} controls autoplay loop class="w-full rounded-xl" />
     </div>
   </div>
 {/if}

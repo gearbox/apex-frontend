@@ -1,5 +1,5 @@
 import apiClient from '$lib/api/client';
-import { PRESIGNED_URL_STALE_MS } from '$lib/utils/constants';
+import { UPLOADS_LIST_STALE_MS } from '$lib/utils/constants';
 
 /* ─── Query Key Factory ─── */
 
@@ -30,6 +30,6 @@ export function uploadsInfiniteQueryOptions() {
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage: { has_more: boolean; next_cursor?: string | null }) =>
       lastPage.has_more ? lastPage.next_cursor : undefined,
-    staleTime: PRESIGNED_URL_STALE_MS, // 30 min — upload list metadata doesn't change often
+    staleTime: UPLOADS_LIST_STALE_MS,
   };
 }
