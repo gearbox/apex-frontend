@@ -84,14 +84,6 @@ export default defineConfig({
               expiration: { maxAgeSeconds: 3600 },
             },
           },
-          {
-            urlPattern: /\/v1\/grok\//,
-            handler: 'StaleWhileRevalidate',
-            options: {
-              cacheName: 'provider-cache',
-              expiration: { maxAgeSeconds: 3600 },
-            },
-          },
         ],
       },
     }),

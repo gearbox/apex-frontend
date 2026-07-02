@@ -129,7 +129,7 @@
           message:
             e.error === 'session_already_exists'
               ? m.session_already_exists()
-              : e.message || 'Failed to start session',
+              : e.message || m.error_start_session_failed(),
         });
       },
     });
@@ -204,22 +204,22 @@
     } else if (apiErr.error === 'insufficient_balance') {
       addToast({
         type: 'error',
-        message: 'Not enough tokens.',
-        action: { label: 'Buy more →', href: ROUTES.billing },
+        message: m.error_insufficient_tokens(),
+        action: { label: m.billing_buy_more_cta(), href: ROUTES.billing },
       });
     } else if (apiErr.error === 'idempotency_conflict') {
       addToast({
         type: 'warning',
-        message: 'Request already in progress. Please wait a moment and try again.',
+        message: m.error_idempotency_conflict(),
       });
     } else if (apiErr.error === 'service_unavailable') {
-      addToast({ type: 'warning', message: 'AI provider temporarily unavailable' });
+      addToast({ type: 'warning', message: m.error_service_unavailable() });
     } else if (apiErr.error === 'moderation') {
       addToast({ type: 'warning', message: apiErr.message });
     } else {
       addToast({
         type: 'error',
-        message: apiErr.message || 'Failed to start generation. Please try again.',
+        message: apiErr.message || m.error_generation_start_failed(),
       });
     }
   }
@@ -243,11 +243,11 @@
       onError: (err) => {
         const msg = err.message;
         if (msg.includes('Max retries')) {
-          addToast({ type: 'error', message: 'Generation status unknown. Check Jobs page.' });
+          addToast({ type: 'error', message: m.error_generation_status_unknown() });
           generationStore.setError();
           activeJobStore.clear();
         } else if (msg.includes('retrying')) {
-          addToast({ type: 'warning', message: 'Connection issue — retrying…', durationMs: 2000 });
+          addToast({ type: 'warning', message: m.error_connection_retrying(), durationMs: 2000 });
         } else {
           addToast({ type: 'error', message: msg });
           generationStore.setError();
@@ -273,7 +273,7 @@
       !state.uploadedImageId &&
       !state.sourceOutputId
     ) {
-      addToast({ type: 'error', message: 'Please select or upload a source image first.' });
+      addToast({ type: 'error', message: m.error_source_image_required() });
       return;
     }
 
@@ -283,7 +283,7 @@
       state.sizingMode === 'custom' &&
       (state.customWidth === null) !== (state.customHeight === null)
     ) {
-      addToast({ type: 'error', message: 'Both width and height are required for custom size.' });
+      addToast({ type: 'error', message: m.error_custom_size_incomplete() });
       return;
     }
 
@@ -306,14 +306,14 @@
 
       const jobId = data && 'job_id' in data ? (data as { job_id: string }).job_id : undefined;
       if (!jobId) {
-        addToast({ type: 'error', message: 'Failed to start generation. Please try again.' });
+        addToast({ type: 'error', message: m.error_generation_start_failed() });
         return;
       }
 
       generationStore.startJob(jobId);
       startPolling(jobId);
     } catch {
-      addToast({ type: 'error', message: 'An unexpected error occurred. Please try again.' });
+      addToast({ type: 'error', message: m.error_unexpected() });
     } finally {
       submitting = false;
     }

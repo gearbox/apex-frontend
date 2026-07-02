@@ -6,6 +6,7 @@
   import { currentAuthStatus } from '$lib/stores/auth';
   import { initAuth } from '$lib/api/auth';
   import { EventStreamService } from '$lib/services/eventStream';
+  import * as m from '$paraglide/messages';
   import AppShell from '$lib/components/layout/AppShell.svelte';
   import SessionCreditBanner from '$lib/components/layout/SessionCreditBanner.svelte';
   import ToastContainer from '$lib/components/ui/ToastContainer.svelte';
@@ -59,7 +60,7 @@
       <div
         class="h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent"
       ></div>
-      <p class="text-sm text-text-dim">Loading…</p>
+      <p class="text-sm text-text-dim">{m.common_loading()}</p>
     </div>
   </div>
 {:else}

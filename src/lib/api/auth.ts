@@ -1,7 +1,6 @@
 import { API_BASE_URL } from '$lib/utils/constants';
 import {
   setAuth,
-  updateTokens,
   clearAuth,
   setAuthStatus,
   getRefreshToken,
@@ -112,13 +111,23 @@ export async function silentRefresh(): Promise<boolean> {
       });
 
       const tokens = toTokens(authRes);
-      updateTokens(tokens);
-
       const profile = await fetchProfile(tokens.accessToken);
       setAuth(tokens, profile);
       return true;
-    } catch {
-      clearAuth();
+    } catch (err) {
+      // Definitive rejection from the refresh endpoint → session is dead; clear it.
+      if (
+        err instanceof AuthError &&
+        err.status_code >= 400 &&
+        err.status_code < 500 &&
+        err.status_code !== 429
+      ) {
+        clearAuth();
+        return false;
+      }
+      // Transient (network error, 5xx, 429): keep the refresh token so the next
+      // launch/retry can restore the session. Report failure without destroying state.
+      setAuthStatus('unauthenticated');
       return false;
     }
   })();

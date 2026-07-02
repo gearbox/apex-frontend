@@ -107,7 +107,7 @@
 
       const detail = data as GalleryGroupDetail | undefined;
       if (error || !detail?.outputs?.length) {
-        addToast({ type: 'error', message: 'Could not load image details. Please try again.' });
+        addToast({ type: 'error', message: m.picker_error_load_details() });
         return;
       }
 
@@ -115,7 +115,7 @@
         (o: GalleryGroupDetail['outputs'][number]) => o.media.media_type === 'image',
       );
       if (!imageOutput) {
-        addToast({ type: 'error', message: 'No image output found in this generation.' });
+        addToast({ type: 'error', message: m.picker_error_no_image_output() });
         return;
       }
 
@@ -126,7 +126,7 @@
         prompt: detail.prompt,
       });
     } catch {
-      addToast({ type: 'error', message: 'Failed to load image details.' });
+      addToast({ type: 'error', message: m.picker_error_load_details_failed() });
     } finally {
       confirming = false;
     }

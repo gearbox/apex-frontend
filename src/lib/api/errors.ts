@@ -76,3 +76,9 @@ export class ApiRequestError extends Error {
     this.detail = apiError.detail;
   }
 }
+
+/** Coerce an unknown openapi-fetch error into an ApiRequestError and throw it. */
+export function throwApiError(error: unknown, fallbackMsg: string): never {
+  const apiErr = parseApiError(error, 0);
+  throw new ApiRequestError({ ...apiErr, message: apiErr.message || fallbackMsg });
+}

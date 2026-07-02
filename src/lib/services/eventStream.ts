@@ -199,9 +199,12 @@ export class EventStreamService {
           activeJobStore.clear();
 
           if (status === 'failed') {
-            addToast({ type: 'error', message: `Generation failed (${payload.provider})` });
+            addToast({
+              type: 'error',
+              message: m.job_toast_failed({ provider: payload.provider }),
+            });
           } else if (status === 'moderated') {
-            addToast({ type: 'warning', message: 'Content was moderated by the AI provider.' });
+            addToast({ type: 'warning', message: m.job_toast_moderated() });
           }
         }
       } else {
@@ -269,10 +272,13 @@ export class EventStreamService {
 
     // Show toast for credits/refunds (not debits — those are expected during generation)
     if (payload.delta > 0) {
-      const label = payload.transaction_type === 'refund' ? 'Refund' : 'Credit';
+      const message =
+        payload.transaction_type === 'refund'
+          ? m.balance_toast_refund({ amount: payload.delta })
+          : m.balance_toast_credit({ amount: payload.delta });
       addToast({
         type: 'success',
-        message: `${label}: +${payload.delta} tokens`,
+        message,
         durationMs: 3000,
       });
       // Optimistically clear warnings — if top-up was insufficient the backend re-emits

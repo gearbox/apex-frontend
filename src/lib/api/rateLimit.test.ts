@@ -74,13 +74,21 @@ describe('endpointKey()', () => {
 /* ─── getRetryDelay ─── */
 
 describe('getRetryDelay()', () => {
-  it('uses Retry-After value (in ms) when provided', () => {
-    expect(getRetryDelay(45, 1)).toBe(45_000);
-    expect(getRetryDelay(45, 2)).toBe(45_000); // attempt irrelevant when retryAfter present
+  it('uses Retry-After value (in ms) when provided and under the cap', () => {
+    expect(getRetryDelay(20, 1)).toBe(20_000);
+    expect(getRetryDelay(20, 2)).toBe(20_000); // attempt irrelevant when retryAfter present
   });
 
   it('returns 0 ms when Retry-After is 0', () => {
     expect(getRetryDelay(0, 1)).toBe(0);
+  });
+
+  it('caps Retry-After at 30 s (server asking for 1 hour)', () => {
+    expect(getRetryDelay(3600, 1)).toBe(30_000);
+  });
+
+  it('caps Retry-After at 30 s at the boundary (45 s)', () => {
+    expect(getRetryDelay(45, 1)).toBe(30_000);
   });
 
   it('uses exponential backoff when Retry-After is absent', () => {
