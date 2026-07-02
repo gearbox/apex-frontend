@@ -181,6 +181,59 @@ describe('silentRefresh()', () => {
     const result = await silentRefresh();
     expect(result).toBe(false);
   });
+
+  it('network error (offline): retains refresh token, returns false, status unauthenticated', async () => {
+    const { currentAuthStatus } = await import('$lib/stores/auth');
+    let status: string | undefined;
+    const unsub = currentAuthStatus.subscribe((s) => (status = s));
+
+    localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, 'existing-refresh-token');
+
+    server.use(http.post(`${BASE}/v1/auth/refresh`, () => HttpResponse.error()));
+
+    const result = await silentRefresh();
+    unsub();
+
+    expect(result).toBe(false);
+    expect(localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN)).toBe('existing-refresh-token');
+    expect(status).toBe('unauthenticated');
+  });
+
+  it('refresh endpoint 503: retains refresh token, returns false', async () => {
+    localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, 'existing-refresh-token');
+
+    server.use(
+      http.post(`${BASE}/v1/auth/refresh`, () =>
+        HttpResponse.json(
+          { error: 'service_unavailable', message: 'Try again later', status_code: 503 },
+          { status: 503 },
+        ),
+      ),
+    );
+
+    const result = await silentRefresh();
+
+    expect(result).toBe(false);
+    expect(localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN)).toBe('existing-refresh-token');
+  });
+
+  it('refresh endpoint 429: retains refresh token, returns false', async () => {
+    localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, 'existing-refresh-token');
+
+    server.use(
+      http.post(`${BASE}/v1/auth/refresh`, () =>
+        HttpResponse.json(
+          { error: 'rate_limit_exceeded', message: 'Too many requests', status_code: 429 },
+          { status: 429 },
+        ),
+      ),
+    );
+
+    const result = await silentRefresh();
+
+    expect(result).toBe(false);
+    expect(localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN)).toBe('existing-refresh-token');
+  });
 });
 
 describe('logout()', () => {

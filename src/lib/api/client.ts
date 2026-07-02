@@ -2,7 +2,12 @@ import createClient, { type Middleware } from 'openapi-fetch';
 import { API_BASE_URL } from '$lib/utils/constants';
 import { getAccessToken } from '$lib/stores/auth';
 import { silentRefresh } from '$lib/api/auth';
-import { parseRateLimitHeaders, endpointKey, getRetryDelay } from '$lib/api/rateLimit';
+import {
+  parseRateLimitHeaders,
+  endpointKey,
+  getRetryDelay,
+  MAX_RETRY_DELAY_MS,
+} from '$lib/api/rateLimit';
 import { updateRateLimit } from '$lib/stores/rateLimit';
 import { addToast } from '$lib/stores/toasts';
 import { ROUTES } from '$lib/utils/routes';
@@ -14,6 +19,16 @@ const MAX_RATE_LIMIT_RETRIES = 3;
 const INSUFFICIENT_BALANCE_TOAST_THROTTLE_MS = 6000;
 let lastInsufficientBalanceToastAt = 0;
 
+/** Pristine clones captured pre-dispatch so retries can re-send bodies. */
+const retryTemplates = new WeakMap<Request, Request>();
+
+/** Builds a fresh Request for a retry attempt from the pre-dispatch clone (body-safe). */
+function buildRetryRequest(original: Request): Request {
+  const template = retryTemplates.get(original);
+  // Clone the template per attempt so multiple retries each get a fresh body.
+  return template ? template.clone() : original.clone();
+}
+
 /* ─── Auth + Rate-limit Middleware ─── */
 const authMiddleware: Middleware = {
   async onRequest({ request }) {
@@ -24,6 +39,8 @@ const authMiddleware: Middleware = {
     if (token) {
       request.headers.set('Authorization', `Bearer ${token}`);
     }
+    // Cloning is safe here: all app bodies are JSON strings or FormData, never one-shot streams.
+    retryTemplates.set(request, request.clone());
     return request;
   },
 
@@ -40,9 +57,16 @@ const authMiddleware: Middleware = {
       let current = response;
       for (let attempt = 1; attempt <= MAX_RATE_LIMIT_RETRIES; attempt++) {
         const currentHeaders = parseRateLimitHeaders(current.headers);
+        // Retry-After beyond our cap: don't silently block the UI — hand the 429 back now.
+        if (
+          currentHeaders.retryAfter !== undefined &&
+          currentHeaders.retryAfter * 1000 > MAX_RETRY_DELAY_MS
+        ) {
+          break;
+        }
         const delay = getRetryDelay(currentHeaders.retryAfter, attempt);
         await new Promise<void>((resolve) => setTimeout(resolve, delay));
-        current = await fetch(request);
+        current = await fetch(buildRetryRequest(request));
         const retriedHeaders = parseRateLimitHeaders(current.headers);
         if (Object.keys(retriedHeaders).length > 0) {
           updateRateLimit(key, retriedHeaders);
@@ -71,20 +95,21 @@ const authMiddleware: Middleware = {
     // Attempt refresh
     const refreshed = await silentRefresh();
     if (!refreshed) {
-      // Redirect to login, preserving current path
+      // Redirect to login, preserving current path + query string
       if (typeof window !== 'undefined') {
-        const redirect = encodeURIComponent(window.location.pathname);
+        const redirect = encodeURIComponent(window.location.pathname + window.location.search);
         window.location.href = `/login?redirect=${redirect}`;
       }
       return response;
     }
 
-    // Retry original request with new token
+    // Retry original request with new token (body-safe clone; does not re-enter middleware)
+    const retryReq = buildRetryRequest(request);
     const newToken = getAccessToken();
     if (newToken) {
-      request.headers.set('Authorization', `Bearer ${newToken}`);
+      retryReq.headers.set('Authorization', `Bearer ${newToken}`);
     }
-    return fetch(request);
+    return fetch(retryReq);
   },
 };
 

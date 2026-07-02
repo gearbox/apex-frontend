@@ -22,13 +22,7 @@
     try {
       await login(email, password);
       // Fire-and-forget locale sync — never blocks login flow
-      void (async () => {
-        try {
-          await updateUserLocale($locale);
-        } catch {
-          // silently swallow — locale sync is best-effort
-        }
-      })();
+      void updateUserLocale($locale);
       const redirect = $page.url.searchParams.get('redirect') ?? '/app/create';
       goto(redirect, { replaceState: true });
     } catch (err) {

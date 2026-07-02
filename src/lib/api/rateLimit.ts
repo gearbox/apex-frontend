@@ -43,16 +43,19 @@ export function endpointKey(url: string): string {
   }
 }
 
+export const MAX_RETRY_DELAY_MS = 30_000;
+
 /**
  * Calculate the delay in milliseconds before a retry.
  * If Retry-After is provided it takes precedence; otherwise exponential backoff is used.
+ * Both paths are capped at MAX_RETRY_DELAY_MS.
  * @param retryAfter - value from Retry-After header (seconds)
  * @param attempt    - 1-based retry attempt number
  */
 export function getRetryDelay(retryAfter: number | undefined, attempt: number): number {
   if (retryAfter !== undefined) {
-    return Math.max(0, retryAfter) * 1000;
+    return Math.min(Math.max(0, retryAfter) * 1000, MAX_RETRY_DELAY_MS);
   }
   // Exponential backoff: 1 s → 2 s → 4 s → … capped at 30 s
-  return Math.min(1000 * Math.pow(2, attempt - 1), 30_000);
+  return Math.min(1000 * Math.pow(2, attempt - 1), MAX_RETRY_DELAY_MS);
 }

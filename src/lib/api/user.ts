@@ -1,13 +1,8 @@
 import apiClient from '$lib/api/client';
 import type { components } from '$lib/api/types';
-import { parseApiError, ApiRequestError } from '$lib/api/errors';
+import { throwApiError } from '$lib/api/errors';
 import type { Locale } from '$lib/stores/locale';
 import type { UserProfile } from '$lib/stores/auth';
-
-function throwApiError(error: unknown, fallbackMsg: string): never {
-  const apiErr = parseApiError(error, 0);
-  throw new ApiRequestError({ ...apiErr, message: apiErr.message || fallbackMsg });
-}
 
 export type UserStatsResponse = components['schemas']['UserStatsResponse'];
 export type DeleteAccountResponse = components['schemas']['DeleteAccountResponse'];
@@ -59,6 +54,14 @@ export async function verifyAge(dateOfBirth: string): Promise<UserProfile> {
  * Never throws — callers are expected to fire-and-forget.
  */
 export async function updateUserLocale(locale: Locale): Promise<void> {
-  const { error } = await apiClient.PATCH('/v1/users/me', { body: { locale } });
-  if (error) throw error;
+  try {
+    const { error } = await apiClient.PATCH('/v1/users/me', { body: { locale } });
+    if (error && import.meta.env.DEV) {
+      console.warn('updateUserLocale failed:', error);
+    }
+  } catch (err) {
+    if (import.meta.env.DEV) {
+      console.warn('updateUserLocale failed:', err);
+    }
+  }
 }

@@ -25,13 +25,7 @@
     try {
       await register(email, password, displayName || undefined);
       // Fire-and-forget locale sync — never blocks register flow
-      void (async () => {
-        try {
-          await updateUserLocale($locale);
-        } catch {
-          // silently swallow — locale sync is best-effort
-        }
-      })();
+      void updateUserLocale($locale);
       goto('/app/create', { replaceState: true });
     } catch (err) {
       if (err instanceof AuthError) {

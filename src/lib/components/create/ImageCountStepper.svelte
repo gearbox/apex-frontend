@@ -1,9 +1,12 @@
 <script lang="ts">
   import { generationStore } from '$lib/stores/generation';
+  import * as m from '$paraglide/messages';
 </script>
 
 <div class="flex flex-col gap-2">
-  <span class="text-[11px] font-semibold uppercase tracking-wider text-text-muted">Images</span>
+  <span class="text-[11px] font-semibold uppercase tracking-wider text-text-muted"
+    >{m.create_images_count_label()}</span
+  >
   <div class="flex gap-1">
     {#each [1, 2, 3, 4] as n (n)}
       {@const isActive = $generationStore.imageCount === n}

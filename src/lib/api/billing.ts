@@ -1,11 +1,6 @@
 import apiClient from '$lib/api/client';
 import type { components } from '$lib/api/types';
-import { parseApiError, ApiRequestError } from '$lib/api/errors';
-
-function throwApiError(error: unknown, fallbackMsg: string): never {
-  const apiErr = parseApiError(error, 0);
-  throw new ApiRequestError({ ...apiErr, message: apiErr.message || fallbackMsg });
-}
+import { throwApiError } from '$lib/api/errors';
 
 export type StripeCheckoutResponse = components['schemas']['StripeCheckoutResponse'];
 export type NowPaymentsInvoiceResponse = components['schemas']['NowPaymentsInvoiceResponse'];

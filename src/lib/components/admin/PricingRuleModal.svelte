@@ -42,12 +42,12 @@
   // Fetch models for provider/model dropdowns
   const modelsQuery = createQuery(() => adminModelsQueryOptions({ enabled_only: false }));
 
-  const uniqueProviders = $derived(() => {
+  const uniqueProviders = $derived.by(() => {
     const models = modelsQuery.data?.items ?? [];
     return [...new Set(models.map((m) => m.provider))].sort();
   });
 
-  const filteredModels = $derived(() => {
+  const filteredModels = $derived.by(() => {
     if (!provider) return [];
     return (modelsQuery.data?.items ?? []).filter((m) => m.provider === provider);
   });
@@ -122,7 +122,7 @@
             {#if modelsQuery.isPending}
               <option disabled>Loading…</option>
             {:else}
-              {#each uniqueProviders() as p (p)}
+              {#each uniqueProviders as p (p)}
                 <option value={p}>{p}</option>
               {/each}
             {/if}
@@ -157,7 +157,7 @@
         {:else}
           <select id="pricing-model" class="field-select" bind:value={model} disabled={!provider}>
             <option value="">All models</option>
-            {#each filteredModels() as m (m.model_key)}
+            {#each filteredModels as m (m.model_key)}
               <option value={m.model_key}>{m.name}</option>
             {/each}
           </select>

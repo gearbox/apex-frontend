@@ -137,13 +137,8 @@ export function accountTransactionsQueryOptions(
 
 export function patchAdminUserMutationOptions(queryClient: QueryClient) {
   return {
-    mutationFn: ({
-      userId,
-      body,
-    }: {
-      userId: string;
-      body: PatchAdminUserBody;
-    }) => patchAdminUser(userId, body),
+    mutationFn: ({ userId, body }: { userId: string; body: PatchAdminUserBody }) =>
+      patchAdminUser(userId, body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: adminKeys.users() });
     },

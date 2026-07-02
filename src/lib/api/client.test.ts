@@ -212,6 +212,97 @@ describe('rate limit middleware', () => {
   });
 });
 
+describe('body-safe retries (C1)', () => {
+  it('POST with JSON body: on 429 with Retry-After: 0, retries with intact body and preserved Idempotency-Key', async () => {
+    let callCount = 0;
+    const capturedBodies: unknown[] = [];
+    const capturedIdempotencyKeys: (string | null)[] = [];
+
+    server.use(
+      http.post(`${BASE}/v1/billing/topup/stripe`, async ({ request }) => {
+        callCount++;
+        capturedBodies.push(await request.json());
+        capturedIdempotencyKeys.push(request.headers.get('Idempotency-Key'));
+        if (callCount === 1) {
+          return HttpResponse.json(
+            { error: 'rate_limit_exceeded', message: 'Too many requests', status_code: 429 },
+            { status: 429, headers: { 'Retry-After': '0' } },
+          );
+        }
+        return HttpResponse.json({ checkout_url: 'https://checkout.example.com/session' });
+      }),
+    );
+
+    const { response, data } = await apiClient.POST('/v1/billing/topup/stripe', {
+      body: { package_id: 'pkg_100' },
+      params: { header: { 'Idempotency-Key': 'idem-key-123' } },
+    });
+
+    expect(response.status).toBe(200);
+    expect(callCount).toBe(2);
+    expect(capturedBodies).toEqual([{ package_id: 'pkg_100' }, { package_id: 'pkg_100' }]);
+    expect(capturedIdempotencyKeys).toEqual(['idem-key-123', 'idem-key-123']);
+    expect(data).toMatchObject({ checkout_url: expect.any(String) });
+  });
+
+  it('POST with JSON body: on 401, refreshes and retries with new token and intact body', async () => {
+    const newToken = makeTokenResponse({ access_token: 'new-access-token' });
+    const profile = makeUserProfile();
+
+    localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, 'valid-refresh-token');
+
+    let callCount = 0;
+    const capturedBodies: unknown[] = [];
+    let lastAuthHeader: string | null = null;
+
+    server.use(
+      http.post(`${BASE}/v1/billing/topup/stripe`, async ({ request }) => {
+        callCount++;
+        capturedBodies.push(await request.json());
+        lastAuthHeader = request.headers.get('Authorization');
+        if (callCount === 1) {
+          return HttpResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+        return HttpResponse.json({ checkout_url: 'https://checkout.example.com/session' });
+      }),
+      http.post(`${BASE}/v1/auth/refresh`, () => HttpResponse.json(newToken)),
+      http.get(`${BASE}/v1/users/me`, () => HttpResponse.json(profile)),
+    );
+
+    const { response } = await apiClient.POST('/v1/billing/topup/stripe', {
+      body: { package_id: 'pkg_100' },
+      params: { header: { 'Idempotency-Key': 'idem-key-456' } },
+    });
+
+    expect(response.status).toBe(200);
+    expect(callCount).toBe(2);
+    expect(capturedBodies).toEqual([{ package_id: 'pkg_100' }, { package_id: 'pkg_100' }]);
+    expect(lastAuthHeader).toBe('Bearer new-access-token');
+  });
+
+  it('on 429 with Retry-After beyond the 30s cap: does not retry, returns the 429 immediately', async () => {
+    let callCount = 0;
+
+    server.use(
+      http.get(`${BASE}/v1/billing/balance`, () => {
+        callCount++;
+        return HttpResponse.json(
+          { error: 'rate_limit_exceeded', message: 'Too many requests', status_code: 429 },
+          { status: 429, headers: { 'Retry-After': '3600' } },
+        );
+      }),
+    );
+
+    const start = Date.now();
+    const { response } = await apiClient.GET('/v1/billing/balance');
+    const elapsed = Date.now() - start;
+
+    expect(response.status).toBe(429);
+    expect(callCount).toBe(1);
+    expect(elapsed).toBeLessThan(500);
+  });
+});
+
 describe('402 insufficient balance — toast throttle', () => {
   let addToastSpy: ReturnType<typeof vi.fn>;
 

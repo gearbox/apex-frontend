@@ -21,7 +21,7 @@
     const accepted = await triggerInstall();
     installing = false;
     if (accepted) {
-      addToast({ type: 'success', message: 'App installed!', durationMs: 3000 });
+      addToast({ type: 'success', message: m.pwa_install_success(), durationMs: 3000 });
     }
   }
 
