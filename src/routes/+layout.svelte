@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, type Snippet } from 'svelte';
+  import { afterNavigate } from '$app/navigation';
   import { QueryClient, QueryClientProvider } from '@tanstack/svelte-query';
   import { pwaInfo } from 'virtual:pwa-info';
   import { initTheme, setTheme } from '$lib/stores/theme';
@@ -27,6 +28,10 @@
   // Derive app title from productInfo for <title> tag
   let appTitle = $derived($productInfo?.display_name ?? 'Apex');
   let webManifestLink = $derived(pwaInfo ? pwaInfo.webManifest.linkTag : '');
+
+  afterNavigate(() => {
+    window.scrollTo(0, 0);
+  });
 
   onMount(() => {
     const cleanups: (() => void)[] = [];
