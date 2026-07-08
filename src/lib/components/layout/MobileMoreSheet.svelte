@@ -15,7 +15,7 @@
   <div class="sheet-backdrop" onclick={closeMoreSheet} role="presentation">
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <div
-      class="sheet-panel"
+      class="sheet-panel chrome-no-select"
       onclick={(e) => e.stopPropagation()}
       role="dialog"
       aria-label="More navigation"

@@ -57,9 +57,19 @@ export default defineConfig({
     sveltekit(),
     SvelteKitPWA({
       registerType: 'autoUpdate',
+      // Absolute base + scope: this is an SPA (ssr=false) whose root route
+      // client-redirects to /app/create. The plugin's default relative './'
+      // scope resolves against whatever URL is current when registerSW() runs
+      // (e.g. /app/gallery), producing the wrong SW scope and a 404 for the
+      // script. Forcing absolute paths makes registration scope-correct from
+      // any route.
+      base: '/',
+      scope: '/',
       manifest: {
         ...manifest,
         display: 'standalone',
+        scope: '/',
+        start_url: '/',
         icons: [
           { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },
@@ -73,7 +83,7 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
-        navigateFallback: '/offline',
+        navigateFallback: '/',
         navigateFallbackDenylist: [/^\/v1\//, /^\/api\//, /^\/docs\//],
         runtimeCaching: [
           {

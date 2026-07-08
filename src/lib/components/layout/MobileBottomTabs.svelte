@@ -11,7 +11,7 @@
   };
 </script>
 
-<nav class="btm-tabs">
+<nav class="btm-tabs chrome-no-select">
   {#each TAB_ITEMS as item (item.href)}
     {@const Icon = iconMap[item.icon]}
     {@const isActive = $page.url.pathname.startsWith(item.href)}
