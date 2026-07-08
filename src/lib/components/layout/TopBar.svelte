@@ -22,7 +22,7 @@
   );
 </script>
 
-<header class="topbar">
+<header class="topbar chrome-no-select">
   <div class="topbar-left">
     <a href="/app/create" class="topbar-logo">{logoText}</a>
     {#if pageTitle}
@@ -44,6 +44,7 @@
     align-items: center;
     justify-content: space-between;
     padding: 10px 16px;
+    padding-top: max(10px, env(safe-area-inset-top));
     border-bottom: 1px solid var(--apex-border);
     flex-shrink: 0;
   }
@@ -52,6 +53,7 @@
   @media (min-width: 768px) {
     .topbar {
       padding: 12px 24px;
+      padding-top: max(12px, env(safe-area-inset-top));
     }
   }
 

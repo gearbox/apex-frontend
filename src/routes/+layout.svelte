@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, type Snippet } from 'svelte';
   import { QueryClient, QueryClientProvider } from '@tanstack/svelte-query';
+  import { pwaInfo } from 'virtual:pwa-info';
   import { initTheme, setTheme } from '$lib/stores/theme';
   import { productInfo } from '$lib/stores/product';
   import { initNetworkListener } from '$lib/stores/network';
@@ -25,6 +26,7 @@
 
   // Derive app title from productInfo for <title> tag
   let appTitle = $derived($productInfo?.display_name ?? 'Apex');
+  let webManifestLink = $derived(pwaInfo ? pwaInfo.webManifest.linkTag : '');
 
   onMount(() => {
     const cleanups: (() => void)[] = [];
@@ -32,6 +34,12 @@
     cleanups.push(initTheme());
     cleanups.push(initNetworkListener());
     cleanups.push(initPwaInstallListener());
+
+    if (pwaInfo) {
+      import('virtual:pwa-register').then(({ registerSW }) => {
+        registerSW({ immediate: true });
+      });
+    }
 
     // Fetch product info — public endpoint, no auth required (fire and forget)
     (async () => {
@@ -62,10 +70,16 @@
 </script>
 
 <svelte:head>
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+  />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#110f0b" />
+  <!-- eslint-disable-next-line svelte/no-at-html-tags -- build-generated link tag, not user input -->
+  {@html webManifestLink}
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
   <link

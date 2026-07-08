@@ -52,6 +52,19 @@ html {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overscroll-behavior-y: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+a {
+  touch-action: manipulation;
+}
+
+/* Nav chrome only — prompt text, errors, and details must stay selectable. */
+.chrome-no-select {
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 body {

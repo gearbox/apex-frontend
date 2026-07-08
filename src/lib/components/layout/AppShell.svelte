@@ -39,7 +39,8 @@
   /* ─── Desktop ─── */
   .desktop-shell {
     display: flex;
-    height: 100dvh;
+    flex: 1;
+    min-height: 0;
     overflow: hidden;
     background: var(--apex-bg);
     transition: background 0.35s;
@@ -62,7 +63,8 @@
   .mobile-shell {
     display: flex;
     flex-direction: column;
-    height: 100dvh;
+    flex: 1;
+    min-height: 0;
     overflow: hidden;
     background: var(--apex-bg);
     transition: background 0.35s;

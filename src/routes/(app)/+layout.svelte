@@ -64,12 +64,23 @@
     </div>
   </div>
 {:else}
-  <SystemBanner />
-  <OfflineBanner />
-  <AppShell>
-    {@render children()}
-  </AppShell>
+  <div class="app-viewport">
+    <SystemBanner />
+    <OfflineBanner />
+    <AppShell>
+      {@render children()}
+    </AppShell>
+  </div>
   <SessionCreditBanner />
   <ToastContainer />
   <InstallPromptSheet />
 {/if}
+
+<style>
+  .app-viewport {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    overflow: hidden;
+  }
+</style>
