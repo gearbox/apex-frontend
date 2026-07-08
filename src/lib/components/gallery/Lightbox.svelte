@@ -310,7 +310,7 @@
         {:else if detail.lineage.source_type === 'generation'}
           <p class="text-text-dim">
             Remixed from
-            {#if detail.lineage.source_job_name}
+            {#if detail.lineage.source_job_name && detail.lineage.source_job_id}
               <button
                 onclick={() => navigateToSourceJob(detail.lineage!.source_job_id!)}
                 class="font-medium text-accent hover:underline"
@@ -486,8 +486,7 @@
         </div>
 
         <div
-          class="flex max-h-[45vh] shrink-0 flex-col gap-4 overflow-y-auto px-4 pt-0"
-          style="padding-bottom: max(1rem, env(safe-area-inset-bottom));"
+          class="safe-bottom-padding flex max-h-[45vh] shrink-0 flex-col gap-4 overflow-y-auto px-4 pt-0"
         >
           {@render headerBlock(detail)}
           {@render promptBlock(detail)}

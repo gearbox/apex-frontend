@@ -67,6 +67,11 @@ a {
   -webkit-user-select: none;
 }
 
+/* Bottom-most scrollable/fixed regions that sit flush against the screen edge. */
+.safe-bottom-padding {
+  padding-bottom: max(1rem, var(--safe-area-bottom));
+}
+
 body {
   background-color: var(--apex-bg);
   color: var(--apex-text);
