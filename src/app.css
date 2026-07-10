@@ -54,8 +54,6 @@ html {
   -moz-osx-font-smoothing: grayscale;
   overscroll-behavior-y: none;
   -webkit-tap-highlight-color: transparent;
-  height: 100%;
-  overflow: hidden;
 }
 
 button,
@@ -80,8 +78,7 @@ body {
   transition:
     background-color 0.35s ease,
     color 0.35s ease;
-  height: 100%;
-  overflow: hidden;
+  min-height: 100dvh;
 }
 
 /* ─── Scrollbar Styling ─── */
