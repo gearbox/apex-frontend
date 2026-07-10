@@ -28,12 +28,24 @@
   // Derive app title from productInfo for <title> tag
   let appTitle = $derived($productInfo?.display_name ?? 'Apex');
 
+  const updateAppHeight = () => {
+    const h = window.visualViewport?.height ?? window.innerHeight;
+    document.documentElement.style.setProperty('--app-height', `${Math.round(h)}px`);
+  };
+
   afterNavigate(() => {
     window.scrollTo(0, 0);
+    updateAppHeight();
   });
 
   onMount(() => {
     const cleanups: (() => void)[] = [];
+
+    updateAppHeight();
+    window.visualViewport?.addEventListener('resize', updateAppHeight);
+    window.addEventListener('resize', updateAppHeight); // fallback + orientation changes
+    cleanups.push(() => window.visualViewport?.removeEventListener('resize', updateAppHeight));
+    cleanups.push(() => window.removeEventListener('resize', updateAppHeight));
 
     cleanups.push(initTheme());
     cleanups.push(initNetworkListener());

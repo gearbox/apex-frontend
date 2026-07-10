@@ -80,7 +80,8 @@
   .app-viewport {
     display: flex;
     flex-direction: column;
-    height: 100dvh;
+    height: 100dvh; /* pre-JS fallback */
+    height: var(--app-height, 100dvh);
     overflow: hidden;
   }
 </style>
