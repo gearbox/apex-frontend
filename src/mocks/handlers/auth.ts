@@ -5,7 +5,7 @@ import { MOCK_BASE_URL as BASE } from '../config';
 /** Default product info — vex with checkbox age gate */
 const vexProductInfo = {
   product: 'vex',
-  display_name: 'vex.pics',
+  display_name: 'Vex.pics',
   age_gate: 'checkbox',
   allowed_auth_methods: ['email_password'],
   content_rating: 'permissive',

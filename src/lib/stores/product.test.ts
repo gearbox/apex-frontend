@@ -4,7 +4,7 @@ import { productInfo, isNsfwAllowed, type ProductInfo } from './product';
 
 const vexProduct: ProductInfo = {
   product: 'vex',
-  display_name: 'vex.pics',
+  display_name: 'Vex.pics',
   age_gate: 'checkbox',
   allowed_auth_methods: ['email_password'],
   content_rating: 'permissive',

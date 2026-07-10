@@ -80,9 +80,6 @@ body {
   transition:
     background-color 0.35s ease,
     color 0.35s ease;
-  position: fixed;
-  inset: 0;
-  width: 100%;
   height: 100%;
   overflow: hidden;
 }
