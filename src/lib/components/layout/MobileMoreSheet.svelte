@@ -66,12 +66,12 @@
 {/if}
 
 <style>
-  @keyframes slideUp {
+  @keyframes sheetFadeIn {
     from {
-      transform: translateY(100%);
+      opacity: 0;
     }
     to {
-      transform: translateY(0);
+      opacity: 1;
     }
   }
 
@@ -91,7 +91,7 @@
     width: 100%;
     max-width: 480px;
     padding: 12px 0 max(16px, env(safe-area-inset-bottom));
-    animation: slideUp 0.25s ease-out;
+    animation: sheetFadeIn 0.25s ease-out;
   }
 
   .sheet-handle {
