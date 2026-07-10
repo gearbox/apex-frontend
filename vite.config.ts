@@ -18,8 +18,8 @@ const productManifests: Record<
   }
 > = {
   vex: {
-    name: 'vex.pics',
-    short_name: 'vex.pics',
+    name: 'Vex.pics',
+    short_name: 'Vex.pics',
     description: 'AI-powered image and video generation',
     theme_color: '#110f0b',
     background_color: '#110f0b',
