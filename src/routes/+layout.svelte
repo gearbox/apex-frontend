@@ -8,6 +8,7 @@
   import { initNetworkListener } from '$lib/stores/network';
   import { initPwaInstallListener } from '$lib/stores/pwaInstall';
   import NetworkToastWatcher from '$lib/components/ui/NetworkToastWatcher.svelte';
+  import ViewportDebug from '$lib/components/debug/ViewportDebug.svelte';
   import { locale } from '$lib/stores/locale';
   import { API_BASE_URL, STORAGE_KEYS } from '$lib/utils/constants';
   import { isBrowser } from '$lib/utils/env';
@@ -28,8 +29,21 @@
   // Derive app title from productInfo for <title> tag
   let appTitle = $derived($productInfo?.display_name ?? 'Apex');
 
+  const CLAMP_TO_SCREEN = true; // kill switch: flip to false if clamping proves wrong on device
+
   const updateAppHeight = () => {
-    const h = window.visualViewport?.height ?? window.innerHeight;
+    let h = window.visualViewport?.height ?? window.innerHeight;
+    const standalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      ('standalone' in navigator && (navigator as { standalone?: boolean }).standalone === true);
+    if (CLAMP_TO_SCREEN && standalone) {
+      // iOS reports screen.width/height portrait-fixed regardless of orientation
+      const portrait = window.matchMedia('(orientation: portrait)').matches;
+      const screenH = portrait
+        ? Math.max(window.screen.width, window.screen.height)
+        : Math.min(window.screen.width, window.screen.height);
+      h = Math.max(h, screenH);
+    }
     document.documentElement.style.setProperty('--app-height', `${Math.round(h)}px`);
   };
 
@@ -101,3 +115,4 @@
     {@render children()}
   {/key}
 </QueryClientProvider>
+<ViewportDebug />
