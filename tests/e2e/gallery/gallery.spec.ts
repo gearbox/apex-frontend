@@ -187,10 +187,15 @@ test.describe('Gallery deletion', () => {
     ).toBeVisible({ timeout: 3000 });
 
     await page.getByRole('button', { name: /delete/i }).click();
+
+    const deleteResponse = page.waitForResponse(
+      (res) => res.request().method() === 'DELETE' && res.url().includes('/v1/content/'),
+    );
     await page
       .getByRole('button', { name: /delete/i })
       .last()
       .click(); // confirm button in modal
+    await deleteResponse;
 
     // Should have called DELETE /v1/content/{output_id}
     expect(deleteRequested).toBe(true);
