@@ -47,6 +47,15 @@ export function formatUsd(price: string | number, localeOverride?: string): stri
   }).format(num);
 }
 
+/** Format a whole-dollar USD amount with no cents. e.g. 5 → "$5" */
+export function formatUsdWhole(amount: number, localeOverride?: string): string {
+  return new Intl.NumberFormat(localeOverride ?? currentLocale(), {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
 /** Format a token amount with the ◈ symbol. */
 export function formatTokens(amount: number): string {
   return `◈ ${formatNumber(amount)}`;

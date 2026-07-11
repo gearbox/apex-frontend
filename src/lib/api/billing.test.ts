@@ -107,12 +107,7 @@ describe('topUpStripe()', () => {
     server.use(
       http.post(`${BASE}/v1/billing/topup/stripe`, () =>
         HttpResponse.json(
-          {
-            error: 'payment_provider_disabled',
-            message: 'Stripe is currently unavailable',
-            status_code: 409,
-            detail: { provider: 'stripe' },
-          },
+          { code: 'payment_provider_disabled', provider: 'stripe' },
           { status: 409 },
         ),
       ),

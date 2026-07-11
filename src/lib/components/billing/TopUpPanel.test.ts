@@ -108,9 +108,9 @@ describe('TopUpPanel', () => {
   it('renders preset cards from topup options, prepending the min-amount card', () => {
     render(TopUpPanel);
 
-    expect(screen.getByText('$5.00')).toBeTruthy();
-    expect(screen.getByText('$25.00')).toBeTruthy();
-    expect(screen.getByText('$50.00')).toBeTruthy();
+    expect(screen.getByText('$5')).toBeTruthy();
+    expect(screen.getByText('$25')).toBeTruthy();
+    expect(screen.getByText('$50')).toBeTruthy();
     expect(screen.getByText('-5%')).toBeTruthy();
     expect(screen.getByText('-10%')).toBeTruthy();
   });
@@ -121,6 +121,7 @@ describe('TopUpPanel', () => {
     await fireEvent.input(input, { target: { value: '2000' } });
 
     expect(screen.getByText(/must be between/i)).toBeTruthy();
+    expect(screen.getByText(/\$1,000/)).toBeTruthy();
   });
 
   it('disables checkout while the amount is invalid', async () => {
@@ -167,7 +168,7 @@ describe('TopUpPanel', () => {
     stripeMutateAsync = vi.fn().mockRejectedValue(
       new ApiRequestError({
         error: 'payment_provider_disabled',
-        message: 'Stripe is disabled',
+        message: 'Payment provider stripe is currently disabled',
         status_code: 409,
         detail: { provider: 'stripe' },
       }),

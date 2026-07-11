@@ -64,6 +64,46 @@
   }
 </script>
 
+{#snippet providerToggle(item: PaymentProviderInfo)}
+  <ToggleSwitch
+    checked={item.is_enabled}
+    loading={pendingProviders.has(item.provider)}
+    ontoggle={() => onToggle(item)}
+  />
+{/snippet}
+
+{#snippet credentialsBadge(item: PaymentProviderInfo, showOk = false)}
+  {#if !item.credentials_configured}
+    <span class="warning-badge" title="Credentials not configured">
+      <AlertCircle size={13} />
+      Credentials not configured
+    </span>
+  {:else if showOk}
+    <span class="ok-text">Configured</span>
+  {/if}
+{/snippet}
+
+{#snippet reorderButtons(item: PaymentProviderInfo, index: number)}
+  <div class="reorder-actions">
+    <button
+      class="action-btn"
+      aria-label="Move {providerLabel(item.provider)} up"
+      disabled={index === 0 || pendingProviders.has(item.provider)}
+      onclick={() => move(index, -1)}
+    >
+      <ChevronUp size={14} />
+    </button>
+    <button
+      class="action-btn"
+      aria-label="Move {providerLabel(item.provider)} down"
+      disabled={index === sortedProviders.length - 1 || pendingProviders.has(item.provider)}
+      onclick={() => move(index, 1)}
+    >
+      <ChevronDown size={14} />
+    </button>
+  </div>
+{/snippet}
+
 <div class="tab-content">
   {#if providersQuery.isPending}
     <div class="skeleton-list">
@@ -100,43 +140,14 @@
             <tr>
               <td class="provider-cell">{providerLabel(item.provider)}</td>
               <td>
-                <ToggleSwitch
-                  checked={item.is_enabled}
-                  loading={pendingProviders.has(item.provider)}
-                  ontoggle={() => onToggle(item)}
-                />
+                {@render providerToggle(item)}
               </td>
               <td class="order-cell">{item.display_order}</td>
               <td>
-                {#if !item.credentials_configured}
-                  <span class="warning-badge" title="Credentials not configured">
-                    <AlertCircle size={13} />
-                    Credentials not configured
-                  </span>
-                {:else}
-                  <span class="ok-text">Configured</span>
-                {/if}
+                {@render credentialsBadge(item, true)}
               </td>
               <td>
-                <div class="reorder-actions">
-                  <button
-                    class="action-btn"
-                    aria-label="Move {providerLabel(item.provider)} up"
-                    disabled={index === 0 || pendingProviders.has(item.provider)}
-                    onclick={() => move(index, -1)}
-                  >
-                    <ChevronUp size={14} />
-                  </button>
-                  <button
-                    class="action-btn"
-                    aria-label="Move {providerLabel(item.provider)} down"
-                    disabled={index === sortedProviders.length - 1 ||
-                      pendingProviders.has(item.provider)}
-                    onclick={() => move(index, 1)}
-                  >
-                    <ChevronDown size={14} />
-                  </button>
-                </div>
+                {@render reorderButtons(item, index)}
               </td>
             </tr>
           {/each}
@@ -150,39 +161,12 @@
         <div class="provider-card">
           <div class="card-header">
             <span class="card-provider">{providerLabel(item.provider)}</span>
-            <ToggleSwitch
-              checked={item.is_enabled}
-              loading={pendingProviders.has(item.provider)}
-              ontoggle={() => onToggle(item)}
-            />
+            {@render providerToggle(item)}
           </div>
-          {#if !item.credentials_configured}
-            <span class="warning-badge" title="Credentials not configured">
-              <AlertCircle size={13} />
-              Credentials not configured
-            </span>
-          {/if}
+          {@render credentialsBadge(item)}
           <div class="card-footer">
             <span class="card-order">Order: {item.display_order}</span>
-            <div class="reorder-actions">
-              <button
-                class="action-btn"
-                aria-label="Move {providerLabel(item.provider)} up"
-                disabled={index === 0 || pendingProviders.has(item.provider)}
-                onclick={() => move(index, -1)}
-              >
-                <ChevronUp size={14} />
-              </button>
-              <button
-                class="action-btn"
-                aria-label="Move {providerLabel(item.provider)} down"
-                disabled={index === sortedProviders.length - 1 ||
-                  pendingProviders.has(item.provider)}
-                onclick={() => move(index, 1)}
-              >
-                <ChevronDown size={14} />
-              </button>
-            </div>
+            {@render reorderButtons(item, index)}
           </div>
         </div>
       {/each}

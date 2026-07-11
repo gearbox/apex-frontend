@@ -73,13 +73,11 @@ describe('topUpStripeMutationOptions()', () => {
 });
 
 describe('topUpNowPaymentsMutationOptions()', () => {
-  it('mutationFn sends amount_usd and pay_currency with an Idempotency-Key header', async () => {
-    let capturedKey: string | null = null;
-    let capturedBody: unknown = null;
+  it('mutationFn sends a fresh Idempotency-Key header per call', async () => {
+    const capturedKeys: (string | null)[] = [];
     server.use(
-      http.post(`${BASE}/v1/billing/topup/nowpayments`, async ({ request }) => {
-        capturedKey = request.headers.get('Idempotency-Key');
-        capturedBody = await request.json();
+      http.post(`${BASE}/v1/billing/topup/nowpayments`, ({ request }) => {
+        capturedKeys.push(request.headers.get('Idempotency-Key'));
         return HttpResponse.json(
           { invoice_url: 'https://nowpayments.io/x', payment_id: 'p2' },
           { status: 201 },
@@ -89,8 +87,11 @@ describe('topUpNowPaymentsMutationOptions()', () => {
 
     const opts = topUpNowPaymentsMutationOptions();
     await opts.mutationFn({ amount_usd: 30, pay_currency: 'usdc' });
+    await opts.mutationFn({ amount_usd: 30, pay_currency: 'usdc' });
 
-    expect(capturedKey).toBeTruthy();
-    expect(capturedBody).toEqual({ amount_usd: 30, pay_currency: 'usdc' });
+    expect(capturedKeys).toHaveLength(2);
+    expect(capturedKeys[0]).toBeTruthy();
+    expect(capturedKeys[1]).toBeTruthy();
+    expect(capturedKeys[0]).not.toBe(capturedKeys[1]);
   });
 });

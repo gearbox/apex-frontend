@@ -28,6 +28,27 @@ export function isApiError(value: unknown): value is ApiError {
  */
 export function parseApiError(body: unknown, status: number): ApiError {
   if (isApiError(body)) return body;
+
+  // Compact compatibility body used by the top-up routes:
+  // { code: "payment_provider_disabled", provider: "stripe" }
+  if (
+    typeof body === 'object' &&
+    body !== null &&
+    'code' in body &&
+    typeof (body as { code: unknown }).code === 'string'
+  ) {
+    const b = body as { code: string; provider?: string };
+    return {
+      error: b.code,
+      message:
+        b.code === 'payment_provider_disabled'
+          ? `Payment provider ${b.provider ?? ''} is currently disabled`.trim()
+          : `Request failed (${status})`,
+      status_code: status,
+      detail: b.provider ? { provider: b.provider } : null,
+    };
+  }
+
   return {
     error: 'unknown_error',
     message: `Request failed (${status})`,

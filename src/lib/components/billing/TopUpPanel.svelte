@@ -1,7 +1,7 @@
 <script lang="ts">
   import { createQuery, createMutation, useQueryClient } from '@tanstack/svelte-query';
   import * as m from '$paraglide/messages';
-  import { formatUsd, formatNumber } from '$lib/utils/format';
+  import { formatUsd, formatUsdWhole, formatNumber } from '$lib/utils/format';
   import { ApiRequestError } from '$lib/api/errors';
   import { PAY_CURRENCIES, computeSummary } from '$lib/api/billing';
   import {
@@ -46,8 +46,8 @@
     if (!isIntegerAmount) return m.billing_topup_amount_integer();
     if (amountUsd < options.min_amount_usd || amountUsd > options.max_amount_usd) {
       return m.billing_topup_amount_bounds({
-        min: formatUsd(options.min_amount_usd),
-        max: formatUsd(options.max_amount_usd),
+        min: formatUsdWhole(options.min_amount_usd),
+        max: formatUsdWhole(options.max_amount_usd),
       });
     }
     return '';
@@ -62,31 +62,29 @@
     return computeSummary(options, amountUsd);
   });
 
-  const sortedProviders = $derived(
-    [...(providersQuery.data ?? [])].sort((a, b) => a.display_order - b.display_order),
-  );
-
   const isCheckingOut = $derived(stripeMutation.isPending || nowPaymentsMutation.isPending);
+
+  function clearErrors() {
+    errorMsg = '';
+    providerDisabledMsg = '';
+  }
 
   function selectPreset(amount: number) {
     selectedPreset = amount;
     amountInput = String(amount);
-    errorMsg = '';
-    providerDisabledMsg = '';
+    clearErrors();
   }
 
   function onAmountInput(value: string) {
     amountInput = value.replace(/[^0-9]/g, '');
     const numeric = amountInput === '' ? null : Number(amountInput);
     selectedPreset = presets.some((p) => p.amount === numeric) ? numeric : null;
-    errorMsg = '';
-    providerDisabledMsg = '';
+    clearErrors();
   }
 
   async function handleCheckout(provider: 'stripe' | 'nowpayments') {
     if (!isAmountValid || amountUsd === null) return;
-    errorMsg = '';
-    providerDisabledMsg = '';
+    clearErrors();
     try {
       if (provider === 'stripe') {
         const result = await stripeMutation.mutateAsync({ amount_usd: amountUsd });
@@ -139,7 +137,7 @@
             ? 'border-accent bg-accent-glow'
             : 'border-border bg-surface hover:border-border-active'}"
         >
-          <p class="font-mono text-lg font-extrabold text-text">{formatUsd(preset.amount)}</p>
+          <p class="font-mono text-lg font-extrabold text-text">{formatUsdWhole(preset.amount)}</p>
           <p class="mt-0.5 text-xs text-text-muted">
             ◈{formatNumber(preset.amount * options.tokens_per_usd)}
           </p>
@@ -176,8 +174,8 @@
       {:else}
         <p class="mt-1 text-xs text-text-dim">
           {m.billing_topup_amount_hint({
-            min: formatUsd(options.min_amount_usd),
-            max: formatUsd(options.max_amount_usd),
+            min: formatUsdWhole(options.min_amount_usd),
+            max: formatUsdWhole(options.max_amount_usd),
           })}
         </p>
       {/if}
@@ -204,13 +202,13 @@
     <!-- Provider CTAs -->
     {#if providersQuery.isPending}
       <div class="h-12 animate-pulse rounded-xl bg-surface"></div>
-    {:else if sortedProviders.length === 0}
+    {:else if (providersQuery.data ?? []).length === 0}
       <div class="rounded-xl border border-border bg-surface p-4 text-center text-sm text-text-dim">
         {m.billing_topup_providers_unavailable()}
       </div>
     {:else}
       <div class="flex flex-col gap-2">
-        {#each sortedProviders as p (p.provider)}
+        {#each providersQuery.data ?? [] as p (p.provider)}
           {#if p.provider === 'stripe'}
             <button
               type="button"
