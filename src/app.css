@@ -79,6 +79,7 @@ body {
     background-color 0.35s ease,
     color 0.35s ease;
   min-height: 100dvh;
+  overflow: hidden;
 }
 
 /* ─── Scrollbar Styling ─── */

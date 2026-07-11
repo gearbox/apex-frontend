@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { afterNavigate } from '$app/navigation';
+  import { viewportDebug } from '$lib/stores/debug.svelte';
 
-  let enabled = $state(false);
   let screenStr = $state('');
   let innerStr = $state('');
   let docClientH = $state(0);
@@ -19,11 +19,10 @@
   const syncFlag = () => {
     const flag = new URLSearchParams(location.search).get('vpdebug');
     if (flag === '1') {
-      sessionStorage.setItem('vpdebug', '1');
+      viewportDebug.set(true);
     } else if (flag === '0') {
-      sessionStorage.removeItem('vpdebug');
+      viewportDebug.set(false);
     }
-    enabled = sessionStorage.getItem('vpdebug') === '1';
   };
 
   const update = () => {
@@ -77,7 +76,7 @@
   });
 </script>
 
-{#if enabled}
+{#if viewportDebug.enabled}
   <div class="vpdebug-overlay">
     <div>screen: {screenStr}</div>
     <div>inner: {innerStr}</div>
