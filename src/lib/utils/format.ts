@@ -26,6 +26,19 @@ export function timeAgo(dateStr: string): string {
   return `${Math.floor(seconds / YEAR)}y ago`;
 }
 
+/** Format a future date string as relative time until, e.g. "in 3d", "in 2h". */
+export function timeUntil(dateStr: string): string {
+  const seconds = Math.floor((new Date(dateStr).getTime() - Date.now()) / 1000);
+  if (seconds <= 0) return 'expired';
+  if (seconds < MINUTE) return 'in a moment';
+  if (seconds < HOUR) return `in ${Math.floor(seconds / MINUTE)}m`;
+  if (seconds < DAY) return `in ${Math.floor(seconds / HOUR)}h`;
+  if (seconds < WEEK) return `in ${Math.floor(seconds / DAY)}d`;
+  if (seconds < MONTH) return `in ${Math.floor(seconds / WEEK)}w`;
+  if (seconds < YEAR) return `in ${Math.floor(seconds / MONTH)}mo`;
+  return `in ${Math.floor(seconds / YEAR)}y`;
+}
+
 /** Format a date string as locale-aware medium date. e.g. "Mar 14, 2026" */
 export function formatDate(iso: string, localeOverride?: string): string {
   return new Intl.DateTimeFormat(localeOverride ?? currentLocale(), {

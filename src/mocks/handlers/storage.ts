@@ -19,6 +19,11 @@ function makeUploadMediaObject(uploadId: string) {
 }
 
 export const storageHandlers = [
+  // Storage stats
+  http.get(`${BASE}/v1/storage/stats`, () =>
+    HttpResponse.json({ upload_count: 6, output_count: 14, total_bytes: 3145728, total_mb: 3 }),
+  ),
+
   // Upload list — cursor-based pagination
   http.get(`${BASE}/v1/storage/uploads`, ({ request }) => {
     const url = new URL(request.url);

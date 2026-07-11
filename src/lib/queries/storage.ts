@@ -6,6 +6,7 @@ import { UPLOADS_LIST_STALE_MS } from '$lib/utils/constants';
 export const storageKeys = {
   all: ['storage'] as const,
   uploads: (params?: object) => ['storage', 'uploads', params ?? {}] as const,
+  stats: () => ['storage', 'stats'] as const,
 };
 
 /* ─── Query Options ─── */
@@ -31,5 +32,17 @@ export function uploadsInfiniteQueryOptions() {
     getNextPageParam: (lastPage: { has_more: boolean; next_cursor?: string | null }) =>
       lastPage.has_more ? lastPage.next_cursor : undefined,
     staleTime: UPLOADS_LIST_STALE_MS,
+  };
+}
+
+export function storageStatsQueryOptions() {
+  return {
+    queryKey: storageKeys.stats(),
+    queryFn: async () => {
+      const { data, error } = await apiClient.GET('/v1/storage/stats');
+      if (error) throw error;
+      return data;
+    },
+    staleTime: 60 * 1000,
   };
 }
