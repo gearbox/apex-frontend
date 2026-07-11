@@ -7,6 +7,7 @@ export const STORAGE_KEYS = {
   REFRESH_TOKEN: 'apex-refresh-token',
   SIDEBAR_COLLAPSED: 'apex-sidebar-collapsed',
   PWA_INSTALL_DISMISSED: 'apex-pwa-install-dismissed',
+  VPDEBUG: 'apex-vpdebug',
 } as const;
 
 /* ─── Breakpoints ─── */

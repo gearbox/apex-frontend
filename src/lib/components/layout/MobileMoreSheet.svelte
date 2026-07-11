@@ -1,8 +1,39 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
   import { moreSheetOpen, closeMoreSheet } from '$lib/stores/ui';
   import { isAdmin } from '$lib/stores/auth';
   import * as m from '$paraglide/messages';
   import { Coins, Activity, User, Shield, Server, ChevronRight } from 'lucide-svelte';
+  import AppVersionBadge from '$lib/components/shared/AppVersionBadge.svelte';
+  import { viewportDebug } from '$lib/stores/debug.svelte';
+  import { addToast } from '$lib/stores/toasts';
+
+  const DEBUG_TAP_THRESHOLD = 5;
+  const DEBUG_TAP_WINDOW_MS = 2000;
+
+  let debugTapCount = 0;
+  let debugTapResetTimer: ReturnType<typeof setTimeout> | undefined;
+
+  function handleVersionTap() {
+    debugTapCount += 1;
+    clearTimeout(debugTapResetTimer);
+
+    if (debugTapCount >= DEBUG_TAP_THRESHOLD) {
+      debugTapCount = 0;
+      viewportDebug.toggle();
+      addToast({
+        type: 'info',
+        message: `Viewport debug ${viewportDebug.enabled ? 'on' : 'off'}`,
+      });
+      return;
+    }
+
+    debugTapResetTimer = setTimeout(() => {
+      debugTapCount = 0;
+    }, DEBUG_TAP_WINDOW_MS);
+  }
+
+  onDestroy(() => clearTimeout(debugTapResetTimer));
 
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') closeMoreSheet();
@@ -61,17 +92,26 @@
       <div class="sheet-cancel-wrap">
         <button onclick={closeMoreSheet} class="sheet-cancel">{m.common_cancel()}</button>
       </div>
+
+      <button
+        type="button"
+        class="version-tap-target"
+        onclick={handleVersionTap}
+        aria-label="App version"
+      >
+        <AppVersionBadge />
+      </button>
     </div>
   </div>
 {/if}
 
 <style>
-  @keyframes sheetFadeIn {
+  @keyframes slideUp {
     from {
-      opacity: 0;
+      transform: translateY(100%);
     }
     to {
-      opacity: 1;
+      transform: translateY(0);
     }
   }
 
@@ -79,6 +119,8 @@
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
     z-index: 200;
     display: flex;
     align-items: flex-end;
@@ -91,7 +133,7 @@
     width: 100%;
     max-width: 480px;
     padding: 12px 0 max(16px, env(safe-area-inset-bottom));
-    animation: sheetFadeIn 0.25s ease-out;
+    animation: slideUp 0.25s ease-out;
   }
 
   .sheet-handle {
@@ -147,5 +189,21 @@
     font-weight: 600;
     cursor: pointer;
     font-family: inherit;
+  }
+
+  .version-tap-target {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    padding: 10px 0 0;
+    background: transparent;
+    border: none;
+    cursor: default;
+  }
+  .version-tap-target :global(.version-badge) {
+    justify-content: center;
+    background: transparent;
+    border-bottom: none;
+    padding: 0;
   }
 </style>
