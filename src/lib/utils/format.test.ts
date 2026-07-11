@@ -14,6 +14,7 @@ import {
   formatTokens,
   formatBytes,
   truncate,
+  timeUntil,
 } from './format';
 
 describe('formatNumber()', () => {
@@ -83,6 +84,28 @@ describe('formatBytes()', () => {
 
   it('formats megabytes', () => {
     expect(formatBytes(1048576)).toBe('1.0 MB');
+  });
+});
+
+describe('timeUntil()', () => {
+  it('returns "expired" for a date in the past', () => {
+    expect(timeUntil(new Date(Date.now() - 1000).toISOString())).toBe('expired');
+  });
+
+  it('returns minutes for a date under an hour away', () => {
+    expect(timeUntil(new Date(Date.now() + 5 * 60000).toISOString())).toBe('in 5m');
+  });
+
+  it('returns hours for a date under a day away', () => {
+    expect(timeUntil(new Date(Date.now() + 3 * 3600000).toISOString())).toBe('in 3h');
+  });
+
+  it('returns days for a date under a week away', () => {
+    expect(timeUntil(new Date(Date.now() + 2 * 86400000).toISOString())).toBe('in 2d');
+  });
+
+  it('returns weeks for a date under a month away', () => {
+    expect(timeUntil(new Date(Date.now() + 2 * 604800000).toISOString())).toBe('in 2w');
   });
 });
 

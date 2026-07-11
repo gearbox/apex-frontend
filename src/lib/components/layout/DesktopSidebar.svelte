@@ -4,9 +4,11 @@
   import { isAdmin } from '$lib/stores/auth';
   import { productInfo } from '$lib/stores/product';
   import * as m from '$paraglide/messages';
+  import { ROUTES } from '$lib/utils/routes';
   import {
     Plus,
     Image,
+    Images,
     Activity,
     Coins,
     User,
@@ -19,6 +21,7 @@
   const iconMap: Record<string, typeof Plus> = {
     plus: Plus,
     image: Image,
+    images: Images,
     activity: Activity,
     coins: Coins,
     user: User,
@@ -29,6 +32,7 @@
   const mainItems = [
     { label: () => m.topbar_create(), href: '/app/create', icon: 'plus' },
     { label: () => m.topbar_gallery(), href: '/app/gallery', icon: 'image' },
+    { label: () => 'My Uploads', href: ROUTES.uploads, icon: 'images' },
     { label: () => m.nav_sessions(), href: '/app/sessions', icon: 'server' },
     { label: () => m.topbar_jobs(), href: '/app/jobs', icon: 'activity' },
     { label: () => m.topbar_billing(), href: '/app/billing', icon: 'coins' },

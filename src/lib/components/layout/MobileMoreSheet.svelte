@@ -3,10 +3,11 @@
   import { moreSheetOpen, closeMoreSheet } from '$lib/stores/ui';
   import { isAdmin } from '$lib/stores/auth';
   import * as m from '$paraglide/messages';
-  import { Coins, Activity, User, Shield, Server, ChevronRight } from 'lucide-svelte';
+  import { Coins, Activity, User, Shield, Server, Images, ChevronRight } from 'lucide-svelte';
   import AppVersionBadge from '$lib/components/shared/AppVersionBadge.svelte';
   import { viewportDebug } from '$lib/stores/debug.svelte';
   import { addToast } from '$lib/stores/toasts';
+  import { ROUTES } from '$lib/utils/routes';
 
   const DEBUG_TAP_THRESHOLD = 5;
   const DEBUG_TAP_WINDOW_MS = 2000;
@@ -59,6 +60,11 @@
         <a href="/app/sessions" onclick={closeMoreSheet} class="sheet-item">
           <span class="sheet-item-icon"><Server size={20} strokeWidth={1.75} /></span>
           <span class="sheet-item-label">{m.nav_sessions()}</span>
+          <span class="sheet-item-chevron"><ChevronRight size={16} /></span>
+        </a>
+        <a href={ROUTES.uploads} onclick={closeMoreSheet} class="sheet-item">
+          <span class="sheet-item-icon"><Images size={20} strokeWidth={1.75} /></span>
+          <span class="sheet-item-label">My Uploads</span>
           <span class="sheet-item-chevron"><ChevronRight size={16} /></span>
         </a>
         <a href="/app/billing" onclick={closeMoreSheet} class="sheet-item">
