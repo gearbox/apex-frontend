@@ -29,6 +29,15 @@
   // Derive app title from productInfo for <title> tag
   let appTitle = $derived($productInfo?.display_name ?? 'Apex');
 
+  // iOS standalone (measured on iOS, 2026-07, device screen 440×956):
+  // during navigations that pass through a layout remount (e.g. auth-guard
+  // skeleton on More-sheet destinations), WebKit transiently reports
+  // innerHeight/visualViewport.height = screen.height − safe-area-inset-top
+  // (956 → 894 → 956) and does not reliably emit the restoring resize event.
+  // Without the clamp, --app-height captures the dip and the shell renders
+  // ~62px short for the rest of the session. Clamping to screen.height floors
+  // the dip; screen.* is the only session-invariant metric.
+  // Debug overlay: 5 taps on the version badge in the More sheet (or ?vpdebug=1).
   const CLAMP_TO_SCREEN = true; // kill switch: flip to false if clamping proves wrong on device
 
   const updateAppHeight = () => {
