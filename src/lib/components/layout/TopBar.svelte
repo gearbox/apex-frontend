@@ -11,6 +11,8 @@
     '/app/jobs': m.topbar_jobs,
     '/app/billing': m.topbar_billing,
     '/app/profile': m.topbar_profile,
+    '/app/sessions': m.nav_sessions,
+    '/app/admin': m.nav_admin_panel,
   };
 
   let pageTitle = $derived((pageTitleFns[$page.url.pathname] ?? (() => ''))());
