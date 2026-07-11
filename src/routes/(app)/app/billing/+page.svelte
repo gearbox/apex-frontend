@@ -1,9 +1,10 @@
 <script lang="ts">
   import { createQuery } from '@tanstack/svelte-query';
   import apiClient from '$lib/api/client';
-  import { formatUsd, formatNumber } from '$lib/utils/format';
+  import { formatNumber } from '$lib/utils/format';
   import { productInfo } from '$lib/stores/product';
   import { isSSEConnected } from '$lib/stores/eventStream';
+  import TopUpPanel from '$lib/components/billing/TopUpPanel.svelte';
 
   let activeTab = $state<'overview' | 'buy' | 'history'>('overview');
 
@@ -22,15 +23,6 @@
     queryKey: ['pricing'],
     queryFn: async () => {
       const { data } = await apiClient.GET('/v1/billing/pricing');
-      return data ?? [];
-    },
-    staleTime: 60 * 60 * 1000,
-  }));
-
-  const packagesQuery = createQuery(() => ({
-    queryKey: ['packages'],
-    queryFn: async () => {
-      const { data } = await apiClient.GET('/v1/billing/packages');
       return data ?? [];
     },
     staleTime: 60 * 60 * 1000,
@@ -61,10 +53,6 @@
     i2i: { icon: '◈', label: 'Image → Image' },
     i2v: { icon: '▶', label: 'Image → Video' },
   };
-
-  // Payment provider availability from product info (default true when not yet loaded)
-  let hasStripe = $derived($productInfo?.payment_providers.includes('stripe') ?? true);
-  let hasCrypto = $derived($productInfo?.payment_providers.includes('nowpayments') ?? true);
 
   // Derive app title from productInfo for <title> tag
   let appTitle = $derived($productInfo?.display_name ?? 'Apex');
@@ -158,60 +146,7 @@
       {/if}
     </div>
   {:else if activeTab === 'buy'}
-    {#if packagesQuery.isLoading}
-      <div class="grid grid-cols-1 gap-2.5 md:grid-cols-2">
-        {#each Array(4) as _, i (i)}
-          <div class="h-24 animate-pulse rounded-xl bg-surface"></div>
-        {/each}
-      </div>
-    {:else}
-      <div class="grid grid-cols-1 gap-2.5 md:grid-cols-2">
-        {#each packagesQuery.data ?? [] as pkg (pkg.id)}
-          <div
-            class="relative cursor-pointer rounded-xl border p-4 transition-colors border-border bg-surface hover:border-border-active"
-          >
-            <div class="flex items-baseline justify-between">
-              <p class="text-sm font-bold text-text">{pkg.name}</p>
-              <p class="font-mono text-[22px] font-extrabold text-text">
-                {formatUsd(pkg.price_usd)}
-              </p>
-            </div>
-            <div class="mt-1 flex items-center gap-2">
-              <span class="font-mono text-xs font-semibold text-accent"
-                >◈{formatNumber(pkg.total_tokens)}</span
-              >
-              {#if pkg.bonus_tokens > 0}
-                <span
-                  class="rounded px-1.5 py-0.5 text-[10px] font-semibold text-success bg-success/10"
-                >
-                  +{Math.round((pkg.bonus_tokens / pkg.tokens) * 100)}%
-                </span>
-              {/if}
-            </div>
-          </div>
-        {/each}
-      </div>
-    {/if}
-    {#if hasStripe || hasCrypto}
-      <div class="mt-4 flex gap-2">
-        {#if hasStripe}
-          <button
-            class="flex-1 rounded-2.5 bg-[#635bff] py-3 text-sm font-bold text-white"
-            disabled
-          >
-            Stripe
-          </button>
-        {/if}
-        {#if hasCrypto}
-          <button
-            class="flex-1 rounded-2.5 border border-border bg-transparent py-3 text-sm font-semibold text-text"
-            disabled
-          >
-            Crypto
-          </button>
-        {/if}
-      </div>
-    {/if}
+    <TopUpPanel />
   {:else if transactionsQuery.isLoading}
     <div class="flex flex-col gap-2">
       {#each Array(5) as _, i (i)}

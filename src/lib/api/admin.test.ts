@@ -11,6 +11,7 @@ import {
   makePricingRule,
   makeDetailedHealthResponse,
   makeHealthSnapshotResponse,
+  makePaymentProviderInfo,
 } from '../../mocks/factories/admin';
 import {
   fetchAdminUsers,
@@ -37,6 +38,8 @@ import {
   sendBroadcast,
   fetchHealth,
   fetchHealthHistory,
+  fetchPaymentProviderRegistry,
+  updatePaymentProvider,
 } from './admin';
 
 const BASE = 'http://localhost:8000';
@@ -390,6 +393,7 @@ describe('createPricingRule()', () => {
       provider: 'grok',
       generation_type: 't2i',
       token_cost: 15,
+      input_token_cost: 0,
     });
     expect(result.id).toBe('rule_new');
     expect(result.provider).toBe('grok');
@@ -403,7 +407,12 @@ describe('createPricingRule()', () => {
       ),
     );
     await expect(
-      createPricingRule({ provider: 'grok', generation_type: 't2i', token_cost: 10 }),
+      createPricingRule({
+        provider: 'grok',
+        generation_type: 't2i',
+        token_cost: 10,
+        input_token_cost: 0,
+      }),
     ).rejects.toThrow();
   });
 });
@@ -807,5 +816,65 @@ describe('fetchHealthHistory()', () => {
       ),
     );
     await expect(fetchHealthHistory()).rejects.toThrow();
+  });
+});
+
+describe('fetchPaymentProviderRegistry()', () => {
+  it('returns the full registry, including disabled providers', async () => {
+    server.use(
+      http.get(`${BASE}/v1/admin/payments/providers`, () =>
+        HttpResponse.json([
+          makePaymentProviderInfo({ provider: 'stripe', display_order: 0 }),
+          makePaymentProviderInfo({
+            provider: 'nowpayments',
+            is_enabled: false,
+            display_order: 1,
+            credentials_configured: false,
+          }),
+        ]),
+      ),
+    );
+    const result = await fetchPaymentProviderRegistry();
+    expect(result).toHaveLength(2);
+    expect(result[1].is_enabled).toBe(false);
+    expect(result[1].credentials_configured).toBe(false);
+  });
+
+  it('throws on error response', async () => {
+    server.use(
+      http.get(`${BASE}/v1/admin/payments/providers`, () =>
+        HttpResponse.json({ error: 'Forbidden' }, { status: 403 }),
+      ),
+    );
+    await expect(fetchPaymentProviderRegistry()).rejects.toThrow();
+  });
+});
+
+describe('updatePaymentProvider()', () => {
+  it('sends a PATCH with the given body and returns the updated provider', async () => {
+    let capturedBody: unknown = null;
+    server.use(
+      http.patch(`${BASE}/v1/admin/payments/providers/:provider`, async ({ request, params }) => {
+        capturedBody = await request.json();
+        return HttpResponse.json(
+          makePaymentProviderInfo({ provider: params.provider as 'stripe', is_enabled: false }),
+        );
+      }),
+    );
+    const result = await updatePaymentProvider('stripe', { is_enabled: false });
+    expect(capturedBody).toEqual({ is_enabled: false });
+    expect(result.is_enabled).toBe(false);
+  });
+
+  it('passes through a 400 error when neither field is supplied', async () => {
+    server.use(
+      http.patch(`${BASE}/v1/admin/payments/providers/:provider`, () =>
+        HttpResponse.json(
+          { error: 'validation_error', message: 'No fields supplied', status_code: 400 },
+          { status: 400 },
+        ),
+      ),
+    );
+    await expect(updatePaymentProvider('stripe', {})).rejects.toThrow('No fields supplied');
   });
 });

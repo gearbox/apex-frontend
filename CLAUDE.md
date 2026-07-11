@@ -76,7 +76,7 @@ src/
 │   │   │   └── ToggleSwitch.svelte
 │   │   ├── billing/
 │   │   │   ├── BalanceCard.svelte
-│   │   │   ├── PackageGrid.svelte
+│   │   │   ├── TopUpPanel.svelte          # Tiered top-up: preset cards, free amount, provider checkout
 │   │   │   ├── TransactionList.svelte
 │   │   │   └── CostReference.svelte
 │   │   └── profile/

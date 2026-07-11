@@ -6,7 +6,15 @@ vi.mock('$lib/stores/locale', async () => {
   return { locale: writable('en') };
 });
 
-import { formatNumber, formatDate, formatUsd, formatTokens, formatBytes, truncate } from './format';
+import {
+  formatNumber,
+  formatDate,
+  formatUsd,
+  formatUsdWhole,
+  formatTokens,
+  formatBytes,
+  truncate,
+} from './format';
 
 describe('formatNumber()', () => {
   it('formats with English thousands separator', () => {
@@ -41,6 +49,16 @@ describe('formatUsd()', () => {
 
   it('accepts string input', () => {
     expect(formatUsd('12.50', 'en')).toBe('$12.50');
+  });
+});
+
+describe('formatUsdWhole()', () => {
+  it('formats a whole-dollar amount with no cents', () => {
+    expect(formatUsdWhole(5, 'en')).toBe('$5');
+  });
+
+  it('rounds a fractional amount to the nearest whole dollar', () => {
+    expect(formatUsdWhole(5.5, 'en')).toBe('$6');
   });
 });
 

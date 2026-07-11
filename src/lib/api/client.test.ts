@@ -234,13 +234,13 @@ describe('body-safe retries (C1)', () => {
     );
 
     const { response, data } = await apiClient.POST('/v1/billing/topup/stripe', {
-      body: { package_id: 'pkg_100' },
+      body: { amount_usd: 100 },
       params: { header: { 'Idempotency-Key': 'idem-key-123' } },
     });
 
     expect(response.status).toBe(200);
     expect(callCount).toBe(2);
-    expect(capturedBodies).toEqual([{ package_id: 'pkg_100' }, { package_id: 'pkg_100' }]);
+    expect(capturedBodies).toEqual([{ amount_usd: 100 }, { amount_usd: 100 }]);
     expect(capturedIdempotencyKeys).toEqual(['idem-key-123', 'idem-key-123']);
     expect(data).toMatchObject({ checkout_url: expect.any(String) });
   });
@@ -270,13 +270,13 @@ describe('body-safe retries (C1)', () => {
     );
 
     const { response } = await apiClient.POST('/v1/billing/topup/stripe', {
-      body: { package_id: 'pkg_100' },
+      body: { amount_usd: 100 },
       params: { header: { 'Idempotency-Key': 'idem-key-456' } },
     });
 
     expect(response.status).toBe(200);
     expect(callCount).toBe(2);
-    expect(capturedBodies).toEqual([{ package_id: 'pkg_100' }, { package_id: 'pkg_100' }]);
+    expect(capturedBodies).toEqual([{ amount_usd: 100 }, { amount_usd: 100 }]);
     expect(lastAuthHeader).toBe('Bearer new-access-token');
   });
 

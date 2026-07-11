@@ -7,6 +7,8 @@ import {
   adminPaymentsQueryOptions,
   patchAdminUserMutationOptions,
   sendBroadcastMutationOptions,
+  adminPaymentProvidersQueryOptions,
+  updatePaymentProviderMutationOptions,
 } from './admin';
 
 describe('adminKeys', () => {
@@ -85,6 +87,10 @@ describe('adminKeys', () => {
       'audit',
       { target_user_id: 'usr_001' },
     ]);
+  });
+
+  it('generates paymentProviders key', () => {
+    expect(adminKeys.paymentProviders()).toEqual(['admin', 'payment-providers']);
   });
 });
 
@@ -167,5 +173,51 @@ describe('sendBroadcastMutationOptions()', () => {
 
     expect(capturedKey).toBeTruthy();
     expect(typeof capturedKey).toBe('string');
+  });
+});
+
+describe('adminPaymentProvidersQueryOptions()', () => {
+  it('uses adminKeys.paymentProviders() as the queryKey', () => {
+    const opts = adminPaymentProvidersQueryOptions();
+    expect(opts.queryKey).toEqual(adminKeys.paymentProviders());
+  });
+});
+
+describe('updatePaymentProviderMutationOptions()', () => {
+  it('onSuccess invalidates adminKeys.paymentProviders()', async () => {
+    const queryClient = new QueryClient();
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+
+    const opts = updatePaymentProviderMutationOptions(queryClient);
+    await opts.onSuccess();
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: adminKeys.paymentProviders() });
+  });
+
+  it('mutationFn calls updatePaymentProvider with provider and body', async () => {
+    const { http, HttpResponse } = await import('msw');
+    const { server } = await import('../../mocks/server');
+
+    let capturedBody: unknown = null;
+    server.use(
+      http.patch(
+        'http://localhost:8000/v1/admin/payments/providers/:provider',
+        async ({ request }) => {
+          capturedBody = await request.json();
+          return HttpResponse.json({
+            provider: 'stripe',
+            is_enabled: false,
+            display_order: 0,
+            credentials_configured: true,
+          });
+        },
+      ),
+    );
+
+    const queryClient = new QueryClient();
+    const opts = updatePaymentProviderMutationOptions(queryClient);
+    await opts.mutationFn({ provider: 'stripe', body: { is_enabled: false } });
+
+    expect(capturedBody).toEqual({ is_enabled: false });
   });
 });

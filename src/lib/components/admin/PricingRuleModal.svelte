@@ -78,6 +78,7 @@
           generation_type: generationType,
           model: model || null,
           token_cost: tokenCost,
+          input_token_cost: 0,
           notes: notes.trim() || null,
         });
         addToast({ type: 'success', message: 'Pricing rule created.' });
