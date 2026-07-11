@@ -347,23 +347,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/billing/packages": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** GetPackages */
-        get: operations["V1BillingPackagesGetPackages"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/v1/billing/pricing": {
         parameters: {
             query?: never;
@@ -373,6 +356,23 @@ export interface paths {
         };
         /** GetPricing */
         get: operations["V1BillingPricingGetPricing"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/billing/topup/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetTopupOptions */
+        get: operations["V1BillingTopupOptionsGetTopupOptions"];
         put?: never;
         post?: never;
         delete?: never;
@@ -426,6 +426,23 @@ export interface paths {
         put?: never;
         /** TopupStripe */
         post: operations["V1BillingTopupStripeTopupStripe"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/billing/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListPaymentProviders */
+        get: operations["V1BillingProvidersListPaymentProviders"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -913,6 +930,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/payments/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListProviders */
+        get: operations["V1AdminPaymentsProvidersListProviders"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/payments/providers/{provider}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** UpdateProvider */
+        patch: operations["V1AdminPaymentsProvidersUpdateProvider"];
+        trace?: never;
+    };
     "/v1/generate": {
         parameters: {
             query?: never;
@@ -1357,6 +1408,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/push/subscriptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** CreateSubscription */
+        post: operations["V1PushSubscriptionsCreateSubscription"];
+        /** DeleteSubscription */
+        delete: operations["V1PushSubscriptionsDeleteSubscription"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/push/vapid-public-key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetVapidPublicKey */
+        get: operations["V1PushVapidPublicKeyGetVapidPublicKey"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1461,8 +1547,7 @@ export interface components {
             id: string;
             /** Format: uuid */
             actor_id: string;
-            /** Format: uuid */
-            target_user_id: string;
+            target_user_id: string | null;
             action: string;
             detail: string;
             source: string;
@@ -1517,6 +1602,8 @@ export interface components {
             generation_type: string;
             model?: string | null;
             token_cost: number;
+            /** @default 0 */
+            input_token_cost: number;
             notes?: string | null;
         };
         /** CursorPage[AdminOrgResponse] */
@@ -1939,9 +2026,21 @@ export interface components {
         /** PatchPricingRuleRequest */
         PatchPricingRuleRequest: {
             token_cost?: number | null;
+            input_token_cost?: number | null;
             is_active?: boolean | null;
             effective_until?: string | null;
             notes?: string | null;
+        };
+        /**
+         * PaymentProvider
+         * @description Supported payment providers.
+         * @enum {string}
+         */
+        PaymentProvider: "stripe" | "nowpayments";
+        /** PaymentProviderPatchRequest */
+        PaymentProviderPatchRequest: {
+            is_enabled?: boolean | null;
+            display_order?: number | null;
         };
         /** PaymentResponse */
         PaymentResponse: {
@@ -1964,6 +2063,7 @@ export interface components {
             generation_type: string;
             model: string | null;
             token_cost: number;
+            input_token_cost: number;
             is_active: boolean;
             /** Format: date-time */
             effective_from: string;
@@ -1985,17 +2085,9 @@ export interface components {
          * @enum {string}
          */
         Provider: "aisha" | "grok";
-        /** ProviderInfo */
-        ProviderInfo: {
-            provider: string;
-            name: string;
-            available: boolean;
-            provisioning_mode: string;
-            models: components["schemas"]["ModelInfo"][];
-        };
         /** ProvidersResponse */
         ProvidersResponse: {
-            providers: components["schemas"]["ProviderInfo"][];
+            providers: components["schemas"]["schemas_providers_ProviderInfo"][];
             user_context?: components["schemas"]["UserContext"] | null;
         };
         /** ProvisioningCallbackBody */
@@ -2012,12 +2104,41 @@ export interface components {
             /** Format: date-time */
             ts: string;
         };
+        /** PublicPaymentProvider */
+        PublicPaymentProvider: {
+            provider: components["schemas"]["PaymentProvider"];
+            display_order: number;
+        };
+        /** PushSubscriptionDeleteRequest */
+        PushSubscriptionDeleteRequest: {
+            endpoint: string;
+        };
+        /** PushSubscriptionKeys */
+        PushSubscriptionKeys: {
+            p256dh: string;
+            auth: string;
+        };
+        /** PushSubscriptionRequest */
+        PushSubscriptionRequest: {
+            endpoint: string;
+            keys: components["schemas"]["PushSubscriptionKeys"];
+            user_agent?: string | null;
+        };
+        /** PushSubscriptionResponse */
+        PushSubscriptionResponse: {
+            /** Format: uuid */
+            id: string;
+            endpoint: string;
+            /** Format: date-time */
+            created_at: string;
+        };
         /** ReadinessResponse */
         ReadinessResponse: {
             status: string;
             checks: {
                 [key: string]: string;
             };
+            build_sha: string;
         };
         /** RefreshTokenRequest */
         RefreshTokenRequest: {
@@ -2063,6 +2184,11 @@ export interface components {
         /** SetModelEnabledRequest */
         SetModelEnabledRequest: {
             is_enabled: boolean;
+        };
+        /** SourceImageReference */
+        SourceImageReference: {
+            input_image_id?: string | null;
+            source_output_id?: string | null;
         };
         /** StartSessionRequest */
         StartSessionRequest: {
@@ -2121,15 +2247,6 @@ export interface components {
             message: string;
             expires_at?: string | null;
         };
-        /** TokenPackageResponse */
-        TokenPackageResponse: {
-            id: string;
-            name: string;
-            tokens: number;
-            bonus_tokens: number;
-            total_tokens: number;
-            price_usd: string;
-        };
         /** TokenResponse */
         TokenResponse: {
             access_token: string;
@@ -2142,12 +2259,24 @@ export interface components {
         };
         /** TopUpNowPaymentsRequest */
         TopUpNowPaymentsRequest: {
-            package_id: string;
+            amount_usd: number;
             pay_currency: string;
+        };
+        /** TopUpOptionsResponse */
+        TopUpOptionsResponse: {
+            min_amount_usd: number;
+            max_amount_usd: number;
+            tokens_per_usd: number;
+            tiers: components["schemas"]["TopUpTierResponse"][];
         };
         /** TopUpStripeRequest */
         TopUpStripeRequest: {
-            package_id: string;
+            amount_usd: number;
+        };
+        /** TopUpTierResponse */
+        TopUpTierResponse: {
+            threshold_usd: number;
+            discount_pct: number;
         };
         /** TransactionResponse */
         TransactionResponse: {
@@ -2173,6 +2302,7 @@ export interface components {
             model: components["schemas"]["ModelType"];
             input_image_id?: string | null;
             source_output_id?: string | null;
+            source_images?: components["schemas"]["SourceImageReference"][] | null;
             input_video_url?: string | null;
             negative_prompt?: string | null;
             aspect_ratio?: components["schemas"]["AspectRatio"];
@@ -2276,6 +2406,10 @@ export interface components {
             total_uploads: number;
             storage_used_bytes: number;
         };
+        /** VapidPublicKeyResponse */
+        VapidPublicKeyResponse: {
+            public_key: string;
+        };
         /** VerifyEmailRequest */
         VerifyEmailRequest: {
             token: string;
@@ -2292,6 +2426,21 @@ export interface components {
          * @enum {string}
          */
         VideoResolution: "480p" | "720p";
+        /** ProviderInfo */
+        schemas_providers_ProviderInfo: {
+            provider: string;
+            name: string;
+            available: boolean;
+            provisioning_mode: string;
+            models: components["schemas"]["ModelInfo"][];
+        };
+        /** ProviderInfo */
+        services_payment_provider_state_ProviderInfo: {
+            provider: components["schemas"]["PaymentProvider"];
+            is_enabled: boolean;
+            display_order: number;
+            credentials_configured: boolean;
+        };
     };
     responses: never;
     parameters: never;
@@ -2970,26 +3119,6 @@ export interface operations {
             };
         };
     };
-    V1BillingPackagesGetPackages: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Request fulfilled, document follows */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TokenPackageResponse"][];
-                };
-            };
-        };
-    };
     V1BillingPricingGetPricing: {
         parameters: {
             query?: never;
@@ -3006,6 +3135,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PricingRuleResponse"][];
+                };
+            };
+        };
+    };
+    V1BillingTopupOptionsGetTopupOptions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TopUpOptionsResponse"];
                 };
             };
         };
@@ -3129,6 +3278,26 @@ export interface operations {
                             [key: string]: unknown;
                         } | unknown[];
                     };
+                };
+            };
+        };
+    };
+    V1BillingProvidersListPaymentProviders: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicPaymentProvider"][];
                 };
             };
         };
@@ -4370,6 +4539,67 @@ export interface operations {
             };
         };
     };
+    V1AdminPaymentsProvidersListProviders: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["services_payment_provider_state_ProviderInfo"][];
+                };
+            };
+        };
+    };
+    V1AdminPaymentsProvidersUpdateProvider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PaymentProviderPatchRequest"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["services_payment_provider_state_ProviderInfo"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
     V1GenerateGenerate: {
         parameters: {
             query?: never;
@@ -5382,6 +5612,102 @@ export interface operations {
                             [key: string]: unknown;
                         } | unknown[];
                     };
+                };
+            };
+        };
+    };
+    V1PushSubscriptionsCreateSubscription: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PushSubscriptionRequest"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PushSubscriptionResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1PushSubscriptionsDeleteSubscription: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PushSubscriptionDeleteRequest"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, nothing follows */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1PushVapidPublicKeyGetVapidPublicKey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VapidPublicKeyResponse"] | unknown;
                 };
             };
         };

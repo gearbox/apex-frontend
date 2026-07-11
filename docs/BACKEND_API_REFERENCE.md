@@ -1,6 +1,6 @@
 # Backend API Reference — Apex REST API
 
-> _Last updated: 2026-07-02 — Critical-fixes audit (no request/response schema changes; no `types.ts` regen needed). Idempotency (top of doc): a key stuck `processing` for longer than `IDEMPOTENCY_PROCESSING_STALE_SECONDS` (default 120s) is now reclaimed by the next retry instead of returning `409 idempotency_conflict` for the full 24h TTL — retry logic that gives up on repeated 409s no longer needs to wait a day. `POST /v1/billing/topup/stripe` (§11): `checkout_url`'s success/cancel redirects now correctly point at the requesting product's own frontend domain (`vex.pics` / `synthara.app`); previously fell through to a placeholder `https://app.example.com`. `POST /v1/generate` (§4): internal (non-domain) failures now always return a fixed generic `generation_failed` message — never backend-specific exception text — the error **code** and status are unchanged._
+> _Last updated: 2026-07-10 — Added the payment gateway protocol and per-product runtime provider registry. Checkout clients must discover enabled providers through public `GET /v1/billing/providers`; superadmins manage capability members through `GET/PATCH /v1/admin/payments/providers`. Disabling a provider blocks new charges with a stable `409` body but never blocks webhook settlement. Provider changes are appended to the admin audit log with a nullable `target_user_id`._
 >
 > _Prior (2026-06-30): MediaObject contract tightening (§5b): `ImageVariant.width`/`height` are now required non-null integers (serializer skips and logs any legacy dimensionless variant row rather than emitting null). `MediaObject.variants` is now required (was optional with a default) — OpenAPI marks it in `required`. Content cookie `Domain` is now omitted (host-only) in dev mode so the `apex_content` cookie is stored correctly over `http://localhost`; production posture unchanged (`Domain=<product>`, `Secure`). Frontend must re-run `gen:api` to pick up the updated types, then drop `?? []` on `variants` and `.filter(v => v.width)` guards. Prior (2026-06-29): Cursor pagination on audit log (§14): `GET /v1/admin/manage/audit` now returns `CursorPage<AuditLogEntry>` instead of a bare array. Pass `cursor=next_cursor` for subsequent pages. Frontend must regenerate types and switch to cursor-scroll. Prior (2026-06-27): Unified Image Variants (§6, §8, §10): `MediaObject` replaces all per-output presigned URL fields across the Jobs, Storage, and Gallery APIs. Jobs API no longer presigns URLs — all content URLs are stable content-proxy paths. Gallery cover logic now always uses the job's own primary output (no longer sources input images). Upload thumbnails (sm=150px, md=512px WEBP) generated automatically on upload._
 >
@@ -9,7 +9,11 @@
 > **Source:** `gearbox/apex` repository
 > **Framework:** Litestar 2.5+ / Python 3.13
 > **Schema:** `GET /docs/openapi.json` from running backend (Litestar OpenAPIConfig has `path="/docs"`)
-> **Last synced:** 2026-06-18 — `master` @ `4ffc1c7f18954f1520a0333f38d5965f84b55708`
+> **Last synced:** 2026-07-10 — `master` @ `4d4105c75f6069bf646c1fb3e30e731af9c14dd8`
+>
+> _2026-07-08: **Breaking change** — replaced fixed token packages with tiered free-amount top-up (§11). `POST /v1/billing/topup/{stripe,nowpayments}` now take `{ amount_usd: int }` instead of `{ package_id: string }`; `GET /v1/billing/packages` is removed, replaced by `GET /v1/billing/topup/options`. Frontend must regenerate types (`gen:api`) and update the top-up UI to a preset-amounts + free-input flow (separate prompt)._
+>
+> _2026-07-08: Added Web Push notifications (§15b) — `GET /v1/push/vapid-public-key`, `POST /v1/push/subscriptions`, `DELETE /v1/push/subscriptions`. Delivers notifications even when the app is closed, unlike SSE (§15). Frontend must regenerate types._
 
 This document captures the API surface that the frontend depends on. It is a **stable reference**, not a live mirror. When endpoints change in the backend, update this document and regenerate `types.ts`.
 
@@ -314,6 +318,10 @@ Request: {
   input_image_id?: UUID,          // required for i2i / i2v / flf2v if source_output_id not set
   source_output_id?: UUID,        // alternative to input_image_id — use an existing generation output as input
                                   // mutually exclusive with input_image_id
+  source_images?: Array<{         // Grok I2I multi-reference inputs (1–4 items); backend resolves refs to provider URLs
+    input_image_id?: UUID,        // exactly one of input_image_id or source_output_id per item
+    source_output_id?: UUID
+  }>,                             // mutually exclusive with top-level input_image_id/source_output_id
   input_video_url?: string,       // required for v2v (public URL)
   negative_prompt?: string (≤2048 chars),  // applied by Aisha; stored but ignored by Grok
   aspect_ratio?: AspectRatio (default "1:1"),
@@ -341,10 +349,16 @@ Request: {
 }
 Response: JobCreatedResponse
 Status:   201 Created
-Errors:   400 (model_disabled | validation_error | generation_failed), 402 insufficient_balance, 403 (model_not_allowed | age_verification_required), 409 (idempotency_conflict | no_active_gpu_session), 429 rate_limited, 503 service_unavailable
+Errors:   400 (model_disabled | validation_error | generation_failed | not_implemented), 402 insufficient_balance, 403 (model_not_allowed | age_verification_required), 409 (idempotency_conflict | no_active_gpu_session), 429 rate_limited, 503 service_unavailable
 Headers:  Idempotency-Key: <string> (required, max 64 chars)
 Note:     source_output_id enables "remix from gallery" — the backend resolves lineage automatically
           (source_job_id + source_output_id) and records it on the new job.
+          source_images is storage-reference based (1–4 items); clients send upload/output IDs, not public URLs.
+          If source_images contains output references and no top-level source_output_id is set,
+          lineage is recorded from the first output-typed item in list order.
+          Tokens charged scale as (token_cost + input_token_cost × k) × n, where k is the
+          input-image count: 0 for text-to-image, 1 for input_image_id/source_output_id, or
+          source_images.length for multi-reference image inputs.
           Idempotency-Key prevents duplicate jobs on network retries — supply a UUIDv4 per submission attempt.
           Aisha (ComfyUI) models require an active GPU session — start one via
           POST /v1/sessions before submitting an Aisha generation, otherwise 409 no_active_gpu_session is returned.
@@ -952,11 +966,13 @@ Provides stable, non-expiring authenticated URLs for user content. The server re
 ### Response Headers
 
 All successful responses include:
-- `Content-Type` — from R2 object metadata
+- `Content-Type` — the stored R2 `ContentType` **only if it's on the inline-safe allowlist** (`image/png`, `image/jpeg`, `image/webp`, `video/mp4`); otherwise `application/octet-stream`
 - `Content-Length` — from R2 object metadata
 - `Cache-Control: private, max-age=10800, immutable` — 3-hour client cache (default; configurable via `CONTENT_URL_TTL`)
 - `ETag: "<content_id>"` — the output/upload UUID, for conditional requests
 - `X-Content-Id: <content_id>` — same UUID, without quotes
+- `X-Content-Type-Options: nosniff` — always present, blocks MIME-sniffing
+- `Content-Disposition: inline` for inline-safe content types, `attachment` otherwise — a stored content-type outside the allowlist (e.g. `text/html`, `image/svg+xml`) is forced to download rather than rendered inline, even though it streams with a coerced `Content-Type`
 
 #### `GET /v1/content/outputs/{output_id}`
 
@@ -1133,7 +1149,8 @@ PricingRuleResponse: {
   provider: string,
   generation_type: string,
   model: string | null,
-  token_cost: int,
+  token_cost: int,               // per-output token cost
+  input_token_cost: int,         // per input image, charged per output sample
   is_active: bool,
   effective_from: datetime,
   effective_until: datetime | null,
@@ -1141,20 +1158,33 @@ PricingRuleResponse: {
 }
 ```
 
-#### `GET /v1/billing/packages`
+Total generation charge is `(token_cost + input_token_cost × k) × n`, where `n` is the
+requested output count and `k` is the input-image count: `0` for T2I, `1` when
+`input_image_id` or `source_output_id` is set, or `source_images.length` when
+`source_images` is set.
+
+#### `GET /v1/billing/topup/options`
 
 ```
-Response: TokenPackageResponse[]
+Response: TopUpOptionsResponse
 
-TokenPackageResponse: {
-  id: string,
-  name: string,
-  tokens: int,
-  bonus_tokens: int,
-  total_tokens: int,
-  price_usd: string      // decimal string e.g. "9.99"
+TopUpOptionsResponse: {
+  min_amount_usd: int,
+  max_amount_usd: int,
+  tokens_per_usd: int,
+  tiers: TopUpTierResponse[]     // ascending by threshold_usd; presets for the UI cards
+}
+
+TopUpTierResponse: {
+  threshold_usd: int,
+  discount_pct: int
 }
 ```
+
+Note: an `amount_usd` qualifies for the highest tier whose `threshold_usd <= amount_usd` (0% if
+none match). The discount reduces the price paid, not the token count — see the `POST` endpoints
+below. This same tier table is the single source of truth for both this endpoint and the actual
+charge (`src/core/topup_pricing.py`), so the UI summary and the charge can never disagree.
 
 #### `GET /v1/billing/account`
 
@@ -1173,37 +1203,54 @@ Note:     Sets preferred billing account (personal vs enterprise)
 #### `POST /v1/billing/topup/stripe`
 
 ```
-Request:  { package_id: string }
+Request:  { amount_usd: int }   // whole USD, the nominal credits amount before discount
 Response: { checkout_url: string, session_id: string, payment_id: UUID }
 Status:   201 Created
 Headers:  Idempotency-Key: <string> (required, max 64 chars)
 Errors:   409 idempotency_conflict
-Note:     Redirect user to checkout_url for Stripe Checkout.
+          409 { "code": "payment_provider_disabled", "provider": "stripe" }
+          400 if amount_usd is outside the configured min/max top-up bounds
+              (see GET /v1/billing/topup/options)
+Note:     Redirect user to checkout_url for Stripe Checkout. The amount charged
+          (Stripe unit_amount, and the stored Payment.amount_usd) is amount_usd with
+          the resolved tier discount applied; tokens_granted is always the full,
+          pre-discount value (amount_usd * tokens_per_usd).
           Supply a fresh UUIDv4 Idempotency-Key per checkout attempt to prevent duplicate payments.
 ```
 
 #### `POST /v1/billing/topup/nowpayments`
 
 ```
-Request:  { package_id: string, pay_currency: string }
+Request:  { amount_usd: int, pay_currency: string }
 Response: { invoice_url: string, payment_id: UUID }
 Status:   201 Created
 Headers:  Idempotency-Key: <string> (required, max 64 chars)
 Errors:   409 idempotency_conflict
+          409 { "code": "payment_provider_disabled", "provider": "nowpayments" }
+          400 if amount_usd is outside the configured min/max top-up bounds
+Note:     Same discount-on-price semantics as the Stripe path. NowPayments IPN
+          under/overpayments are credited proportionally to actually_paid/amount_usd
+          (uncapped on overpayment) — never held for manual review.
 ```
 
 ### Billing — Public (no auth)
 
-> **Correction (was inaccurate):** there are currently **no unauthenticated billing endpoints**.
-> The `PublicBillingController` exists in the codebase but is **not mounted** in the app, and the
-> `{ packages, prices }` / `PricingRulePublicResponse` shape it described is **not exposed** by the
-> running API.
->
-> `GET /v1/billing/packages` and `GET /v1/billing/pricing` live on the authenticated
-> `BillingController` (whole controller is behind `auth_guard`) and require
-> `Authorization: Bearer <access_token>`. Their responses are exactly the authenticated shapes
-> documented at the top of this section (`TokenPackageResponse[]` and `PricingRuleResponse[]`).
-> If a genuinely public pricing surface is needed, it must be mounted first.
+#### `GET /v1/billing/providers`
+
+```
+Auth:     none
+Response: Array<{
+  provider: "stripe" | "nowpayments",
+  display_order: int
+}>
+```
+
+Returns the ordered effective provider set for the product resolved from the request host/header.
+Effective means the provider is present in the product's static capability set and is not disabled
+by a runtime override. An absent override row means enabled. Disabled providers are omitted.
+Checkout UIs should render this list rather than hardcoding provider availability.
+
+`GET /v1/billing/topup/options` and `GET /v1/billing/pricing` remain authenticated.
 
 ### Billing — Webhooks (no auth)
 
@@ -1212,6 +1259,7 @@ Errors:   409 idempotency_conflict
 ```
 Request:  Stripe webhook payload (raw body + Stripe-Signature header)
 Note:     Internal endpoint for Stripe payment events
+          Webhook settlement remains active when Stripe is runtime-disabled.
 ```
 
 #### `POST /v1/billing/webhooks/nowpayments`
@@ -1219,7 +1267,11 @@ Note:     Internal endpoint for Stripe payment events
 ```
 Request:  NowPayments webhook payload (raw body + x-nowpayments-sig header)
 Note:     Internal endpoint for NowPayments events
+          Webhook settlement remains active when NowPayments is runtime-disabled.
 ```
+
+`NOWPAYMENTS_API_BASE` defaults to `https://api.nowpayments.io` and may be pointed at the
+NowPayments sandbox without a code change.
 
 ---
 
@@ -1437,17 +1489,23 @@ Response: PricingRuleResponse[]
 #### `POST /v1/admin/pricing`
 
 ```
-Request:  { provider: string, generation_type: string, model?: string, token_cost: int, notes?: string }
+Request:  { provider: string, generation_type: string, model?: string | null, token_cost: int, input_token_cost?: int, notes?: string | null }
 Response: PricingRuleResponse
 Status:   201 Created
 ```
 
+`token_cost` is the per-output cost. `input_token_cost` defaults to `0` and is charged per
+input image per output sample.
+
 #### `PATCH /v1/admin/pricing/{rule_id}`
 
 ```
-Request:  { token_cost?: int, is_active?: bool, effective_until?: datetime, notes?: string }
+Request:  { token_cost?: int, input_token_cost?: int, is_active?: bool, effective_until?: datetime | null, notes?: string | null }
 Response: PricingRuleResponse
 ```
+
+Patch fields are optional. Omitted nullable fields are left unchanged; explicit `null` clears
+`effective_until` or `notes`.
 
 #### `DELETE /v1/admin/pricing/{rule_id}`
 
@@ -1536,8 +1594,8 @@ AdminRoleResponse: {
 AuditLogEntry: {
   id: UUID,
   actor_id: UUID,
-  target_user_id: UUID,
-  action: string,   // "role.grant" | "role.revoke" | "permission.grant" | "permission.revoke"
+  target_user_id: UUID | null,
+  action: string,   // role.*, permission.*, or payment_provider.enable/disable/reorder
   detail: string,   // human-readable, e.g. "Role changed from 'user' to 'admin'"
   source: string,   // "api" | "cli"
   created_at: datetime
@@ -1607,6 +1665,39 @@ Note:     Entries are returned newest-first. Optionally filter to a specific tar
           AuditLogEntry[] response: the body is now wrapped in the standard CursorPage
           envelope (items / limit / has_more / next_cursor). Regenerate OpenAPI types
           and update the admin audit-log table in apex-frontend (gen:api → cursor scroll).
+```
+
+### Payment Provider Registry
+
+All endpoints under `/v1/admin/payments/providers` require the **SUPERADMIN** role and are scoped
+to the product resolved for the request.
+
+```typescript
+ProviderInfo: {
+  provider: "stripe" | "nowpayments",
+  is_enabled: boolean,            // effective runtime state
+  display_order: number,
+  credentials_configured: boolean // warning signal only; does not gate listing
+}
+```
+
+#### `GET /v1/admin/payments/providers/`
+
+```
+Response: ProviderInfo[]
+Note:     Includes every provider in the product's static capability set, including disabled
+          providers, ordered by display_order then provider name.
+```
+
+#### `PATCH /v1/admin/payments/providers/{provider}`
+
+```
+Request:  { is_enabled?: boolean | null, display_order?: int | null }
+Response: ProviderInfo
+Errors:   400 when neither field is supplied
+          404 when provider is unknown or outside the product's static capability set
+Note:     Writes payment_provider.enable, payment_provider.disable, or
+          payment_provider.reorder to the append-only audit log with target_user_id=null.
 ```
 
 ---
@@ -1814,6 +1905,137 @@ async function openEventStream(apiFetch: Fetcher) {
 
 ---
 
+## 15b. Push Notifications (Web Push)
+
+Backend-driven **Web Push** notifications, delivered via the browser Push API and a service worker — unlike SSE (§15), these arrive **even when the app is closed or the tab isn't open**. Requires the frontend PWA to register a service worker and a `PushSubscription`.
+
+> **Requires VAPID + Redis**: Push is only active when `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, and `REDIS_URL` are all configured on the server. When disabled, all three endpoints below return `503 Service Unavailable`.
+
+### Flow
+
+```
+1. Client (authenticated)  GET  /v1/push/vapid-public-key       →  { public_key: "..." }
+2. Client                  navigator.serviceWorker.register(...) + pushManager.subscribe({ applicationServerKey: public_key })
+3. Client                  POST /v1/push/subscriptions           →  registers the PushSubscription with the backend
+4. Server                  pushes notifications as relevant events occur (see mapping table below)
+5. Client (on logout / permission revoked)  DELETE /v1/push/subscriptions
+```
+
+### Endpoints
+
+#### `GET /v1/push/vapid-public-key` *(authenticated)*
+
+```
+Response: { public_key: string }   // base64url, pass directly as applicationServerKey
+Status:   200 OK
+Errors:   401 unauthorized, 503 (push not configured)
+```
+
+#### `POST /v1/push/subscriptions` *(authenticated)*
+
+```
+Request: {
+  endpoint: string,               // from PushSubscription.toJSON().endpoint
+  keys: { p256dh: string, auth: string },
+  user_agent?: string | null
+}
+Response: { id: string, endpoint: string, created_at: string }
+Status:   201 Created
+Errors:   401 unauthorized, 422 validation_error, 503 (push not configured)
+Note:     Upserts by endpoint. If the endpoint was previously registered under a
+          different user (shared device, account switch), it is reassigned to the
+          current user.
+```
+
+#### `DELETE /v1/push/subscriptions` *(authenticated)*
+
+```
+Request: { endpoint: string }
+Response: (empty body)
+Status:   204 No Content
+Errors:   401 unauthorized, 503 (push not configured)
+Note:     Idempotent — returns 204 even if the endpoint was never registered, or
+          already belongs to a different user (no ownership leak).
+```
+
+### Wire Payload Contract
+
+Every push message body is exactly this JSON shape — the service worker's `push` event handler should parse it directly and call `registration.showNotification(payload.title, {...})`:
+
+```typescript
+interface PushNotificationPayload {
+  title: string;
+  body: string;
+  url: string;    // relative deep link to open on notification click
+  tag: string;     // used for OS-level notification coalescing (repeat tag replaces prior)
+  category: "job" | "gpu_credit" | "system" | "balance";
+  level: "info" | "warning" | "critical";
+}
+```
+
+### Event → Notification Mapping
+
+The backend maps a subset of the same real-time events used by SSE (§15) into push notifications. Mapping logic is pure and one-way — it never affects SSE delivery.
+
+| SSE event | Pushed when | Notes |
+|-----------|-------------|-------|
+| `job.status_changed` | Only terminal states: `completed`, `failed` | `tag: "job-{job_id}"`, `url: "/gallery/{job_id}"` |
+| `gpu_session.credit_warning` | Every level (`warning`, `critical`) | `tag: "gpu-credit-{session_id}"` — repeated warnings coalesce instead of stacking |
+| `system.notification` | Always — broadcast to **every** subscription | `tag: "system-notification"` |
+| `balance.updated` | Only `delta > 0` **and** `transaction_type` is `credit` or `admin_adjustment` | Per-generation debits and refunds never push (avoids spam) |
+| `job.progress`, `gpu_session.status_changed` | Never | Ignored entirely |
+
+### Delivery Guarantees
+
+- **Best-effort**, same as SSE — if the push dispatcher process is down or Redis drops the connection, notifications are lost (no replay/persistence queue).
+- **Expired subscriptions** (the push service returns HTTP 404/410) are pruned automatically — no client action needed; the next `POST /v1/push/subscriptions` re-registers.
+- **No per-category preferences yet** — a subscribed user receives all four categories above. Granular opt-out is planned for a future release.
+- **No presence suppression** — a user with an open SSE connection still receives push notifications for the same event today.
+
+### Frontend Usage Example
+
+```typescript
+async function registerPushNotifications(apiFetch: Fetcher) {
+  const registration = await navigator.serviceWorker.register('/sw.js');
+
+  const { public_key } = await apiFetch<{ public_key: string }>('/v1/push/vapid-public-key');
+
+  const subscription = await registration.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: public_key,
+  });
+
+  const { endpoint, keys } = subscription.toJSON() as {
+    endpoint: string;
+    keys: { p256dh: string; auth: string };
+  };
+
+  await apiFetch('/v1/push/subscriptions', {
+    method: 'POST',
+    body: JSON.stringify({ endpoint, keys, user_agent: navigator.userAgent }),
+  });
+}
+
+// sw.js — service worker push handler
+self.addEventListener('push', (event) => {
+  const payload = event.data.json();
+  event.waitUntil(
+    self.registration.showNotification(payload.title, {
+      body: payload.body,
+      tag: payload.tag,
+      data: { url: payload.url },
+    })
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(clients.openWindow(event.notification.data.url));
+});
+```
+
+---
+
 ## 16. Product Reference
 
 ### Products
@@ -2007,7 +2229,7 @@ Values: `"owner"`, `"admin"`, `"member"`
 
 ### PaymentStatus
 
-Values: `"pending"`, `"completed"`, `"failed"`, `"refunded"`
+Values: `"pending"`, `"partially_paid"`, `"completed"`, `"failed"`, `"refunded"`
 
 ### SupportedLocale
 
@@ -2037,7 +2259,7 @@ Used in `GalleryLineage.source_type` to indicate whether the input came from a d
 
 ## 18. Error Response Format
 
-All non-2xx responses use a single unified envelope:
+Non-2xx responses normally use a single unified envelope:
 
 ```typescript
 interface ApiError {
@@ -2076,6 +2298,13 @@ The `error` code is always a stable snake_case string — treat it like an enum.
 
 // 422
 { "error": "moderation", "message": "Content moderated by grok (policy: nsfw)", "status_code": 422, "detail": { "provider": "grok", "policy": "nsfw" } }
+```
+
+Provider disablement is the one deliberately compact compatibility response used by both top-up
+routes:
+
+```json
+{ "code": "payment_provider_disabled", "provider": "stripe" }
 ```
 
 **Frontend usage:**
@@ -2161,10 +2390,15 @@ Note:     Always 200 — use this for Docker/container restart decisions only.
 Checks PostgreSQL and Redis connectivity. Returns 200 if ready, 503 if not.
 
 ```
-Response: { status: "ready" | "not_ready", checks: { postgres: string, redis?: string, r2?: string } }
+Response: { status: "ready" | "not_ready", checks: { postgres: string, redis?: string, r2?: string }, build_sha: string }
 Status:   200 if ready, 503 if not ready
 Note:     R2 is checked but excluded from the ready/not_ready determination (slow HeadBucket).
           Use this for CI readiness waits and traffic-routing decisions.
+          build_sha is the git SHA baked into the running image (Settings.build_sha,
+          default "unknown" if not injected at build time) — populated on both the
+          ready and not-ready branches. The staging deploy workflow polls this field
+          to confirm a redeploy actually swapped in the new image, not just that some
+          container is answering on the ready path.
 ```
 
 #### `GET /v1/admin/health/`
@@ -2284,7 +2518,15 @@ The registry timeout for this checker is 15 s (increased from the 5 s default fo
 
 ## 22. OpenAPI Documentation Endpoints
 
-The backend's `OpenAPIConfig` is configured with `path="/docs"`, so all schema and documentation UI endpoints live under `/docs/`:
+**Gated behind `ENABLE_DOCS` — off by default.** The OpenAPI schema and every
+endpoint under `/docs/` enumerate the full API surface, including
+`/v1/internal/*` and admin routes, which is free reconnaissance if left
+public. `Settings.enable_docs` (env: `ENABLE_DOCS`) defaults to `false`; when
+false, `create_app()` passes `openapi_config=None` and every path below
+returns 404. Set `ENABLE_DOCS=true` in dev/staging to expose them — **never
+enable in production.** This is independent of `DEBUG`.
+
+When enabled, the backend's `OpenAPIConfig` is configured with `path="/docs"`, so all schema and documentation UI endpoints live under `/docs/`:
 
 | Endpoint | Description |
 |----------|-------------|
@@ -2295,7 +2537,7 @@ The backend's `OpenAPIConfig` is configured with `path="/docs"`, so all schema a
 | `GET /docs/elements` | Stoplight Elements UI |
 | `GET /docs/rapidoc` | RapiDoc UI |
 
-**Export command:**
+**Export command** (requires `ENABLE_DOCS=true` on the target server):
 ```bash
 curl http://localhost:8000/docs/openapi.json > src/lib/api/schema.json
 npx openapi-typescript src/lib/api/schema.json -o src/lib/api/types.ts

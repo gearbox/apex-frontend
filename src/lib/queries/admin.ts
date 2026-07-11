@@ -23,6 +23,8 @@ import {
   sendBroadcast,
   fetchHealth,
   fetchHealthHistory,
+  fetchPaymentProviderRegistry,
+  updatePaymentProvider,
   type AuditLogPage,
   type CreatePricingRuleRequest,
   type PatchPricingRuleRequest,
@@ -46,6 +48,7 @@ export const adminKeys = {
   audit: (params?: object) => ['admin', 'manage', 'audit', params ?? {}] as const,
   health: () => ['admin', 'health'] as const,
   healthHistory: (p?: object) => ['admin', 'health', 'history', p ?? {}] as const,
+  paymentProviders: () => ['admin', 'payment-providers'] as const,
 };
 
 /* ─── Query Options ─── */
@@ -306,5 +309,31 @@ export function adminHealthHistoryQueryOptions(params: { limit?: number } = { li
     queryKey: adminKeys.healthHistory(params),
     queryFn: () => fetchHealthHistory(params),
     staleTime: 30_000,
+  };
+}
+
+/* ─── Payment Provider Registry (Superadmin only) ─── */
+
+export function adminPaymentProvidersQueryOptions() {
+  return {
+    queryKey: adminKeys.paymentProviders(),
+    queryFn: () => fetchPaymentProviderRegistry(),
+    staleTime: 30_000,
+    refetchOnWindowFocus: true,
+  };
+}
+
+export function updatePaymentProviderMutationOptions(queryClient: QueryClient) {
+  return {
+    mutationFn: ({
+      provider,
+      body,
+    }: {
+      provider: string;
+      body: { is_enabled?: boolean | null; display_order?: number | null };
+    }) => updatePaymentProvider(provider, body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.paymentProviders() });
+    },
   };
 }

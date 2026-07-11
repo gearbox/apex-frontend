@@ -27,6 +27,8 @@ export type PatchPricingRuleRequest = components['schemas']['PatchPricingRuleReq
 export type BroadcastRequest = components['schemas']['SystemBroadcastRequest'];
 export type DetailedHealthResponse = components['schemas']['DetailedHealthResponse'];
 export type HealthSnapshotResponse = components['schemas']['HealthSnapshotResponse'];
+export type PaymentProviderInfo =
+  components['schemas']['services_payment_provider_state_ProviderInfo'];
 export type PatchAdminUserBody = {
   role?: string;
   subscription_tier?: string;
@@ -282,6 +284,26 @@ export async function fetchHealthHistory(params?: {
   });
   if (error || !data) throwApiError(error, 'Failed to fetch health history');
   return data as HealthSnapshotResponse[];
+}
+
+/* ─── Payment Provider Registry (Superadmin only) ─── */
+
+export async function fetchPaymentProviderRegistry(): Promise<PaymentProviderInfo[]> {
+  const { data, error } = await apiClient.GET('/v1/admin/payments/providers');
+  if (error || !data) throwApiError(error, 'Failed to fetch payment provider registry');
+  return data as PaymentProviderInfo[];
+}
+
+export async function updatePaymentProvider(
+  provider: string,
+  body: { is_enabled?: boolean | null; display_order?: number | null },
+): Promise<PaymentProviderInfo> {
+  const { data, error } = await apiClient.PATCH('/v1/admin/payments/providers/{provider}', {
+    params: { path: { provider } },
+    body,
+  });
+  if (error || !data) throwApiError(error, 'Failed to update payment provider');
+  return data as PaymentProviderInfo;
 }
 
 /* ─── Broadcast ─── */

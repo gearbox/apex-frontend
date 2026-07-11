@@ -3,7 +3,16 @@ import { http, HttpResponse } from 'msw';
 import { server } from '../../mocks/server';
 import { setAuth } from '$lib/stores/auth';
 import { makeUserProfile } from '../../mocks/factories/user';
-import { topUpStripe, topUpNowPayments } from './billing';
+import {
+  topUpStripe,
+  topUpNowPayments,
+  fetchTopUpOptions,
+  fetchPaymentProviders,
+  resolveTier,
+  computeSummary,
+  type TopUpTierResponse,
+  type TopUpOptionsResponse,
+} from './billing';
 
 const BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
@@ -16,13 +25,54 @@ beforeEach(() => {
   setAuth(tokens, makeUserProfile());
 });
 
+describe('fetchTopUpOptions()', () => {
+  it('returns top-up bounds and tiers', async () => {
+    server.use(
+      http.get(`${BASE}/v1/billing/topup/options`, () =>
+        HttpResponse.json({
+          min_amount_usd: 5,
+          max_amount_usd: 1000,
+          tokens_per_usd: 100,
+          tiers: [
+            { threshold_usd: 25, discount_pct: 5 },
+            { threshold_usd: 50, discount_pct: 10 },
+          ],
+        }),
+      ),
+    );
+
+    const result = await fetchTopUpOptions();
+    expect(result.min_amount_usd).toBe(5);
+    expect(result.tiers).toHaveLength(2);
+  });
+});
+
+describe('fetchPaymentProviders()', () => {
+  it('returns the ordered provider list', async () => {
+    server.use(
+      http.get(`${BASE}/v1/billing/providers`, () =>
+        HttpResponse.json([
+          { provider: 'stripe', display_order: 0 },
+          { provider: 'nowpayments', display_order: 1 },
+        ]),
+      ),
+    );
+
+    const result = await fetchPaymentProviders();
+    expect(result).toHaveLength(2);
+    expect(result[0].provider).toBe('stripe');
+  });
+});
+
 describe('topUpStripe()', () => {
-  it('sends Idempotency-Key header and returns checkout response', async () => {
+  it('sends Idempotency-Key header and amount_usd body, returns checkout response', async () => {
     let capturedIdempotencyKey: string | null = null;
+    let capturedBody: unknown = null;
 
     server.use(
-      http.post(`${BASE}/v1/billing/topup/stripe`, ({ request }) => {
+      http.post(`${BASE}/v1/billing/topup/stripe`, async ({ request }) => {
         capturedIdempotencyKey = request.headers.get('Idempotency-Key');
+        capturedBody = await request.json();
         return HttpResponse.json(
           {
             checkout_url: 'https://checkout.stripe.com/test',
@@ -34,8 +84,9 @@ describe('topUpStripe()', () => {
       }),
     );
 
-    const result = await topUpStripe({ package_id: 'pkg_001' }, 'test-idem-key-123');
+    const result = await topUpStripe({ amount_usd: 50 }, 'test-idem-key-123');
     expect(capturedIdempotencyKey).toBe('test-idem-key-123');
+    expect(capturedBody).toEqual({ amount_usd: 50 });
     expect(result).toHaveProperty('checkout_url');
   });
 
@@ -49,19 +100,40 @@ describe('topUpStripe()', () => {
       ),
     );
 
-    await expect(topUpStripe({ package_id: 'pkg_001' }, 'duplicate-key')).rejects.toThrow(
-      'Key in use',
+    await expect(topUpStripe({ amount_usd: 50 }, 'duplicate-key')).rejects.toThrow('Key in use');
+  });
+
+  it('throws ApiRequestError with payment_provider_disabled code on 409', async () => {
+    server.use(
+      http.post(`${BASE}/v1/billing/topup/stripe`, () =>
+        HttpResponse.json(
+          {
+            error: 'payment_provider_disabled',
+            message: 'Stripe is currently unavailable',
+            status_code: 409,
+            detail: { provider: 'stripe' },
+          },
+          { status: 409 },
+        ),
+      ),
     );
+
+    await expect(topUpStripe({ amount_usd: 50 }, 'key-1')).rejects.toMatchObject({
+      error: 'payment_provider_disabled',
+      detail: { provider: 'stripe' },
+    });
   });
 });
 
 describe('topUpNowPayments()', () => {
-  it('sends Idempotency-Key header and returns invoice response', async () => {
+  it('sends Idempotency-Key header and amount_usd/pay_currency body, returns invoice response', async () => {
     let capturedIdempotencyKey: string | null = null;
+    let capturedBody: unknown = null;
 
     server.use(
-      http.post(`${BASE}/v1/billing/topup/nowpayments`, ({ request }) => {
+      http.post(`${BASE}/v1/billing/topup/nowpayments`, async ({ request }) => {
         capturedIdempotencyKey = request.headers.get('Idempotency-Key');
+        capturedBody = await request.json();
         return HttpResponse.json(
           { invoice_url: 'https://nowpayments.io/test', payment_id: 'pay_002' },
           { status: 201 },
@@ -70,10 +142,63 @@ describe('topUpNowPayments()', () => {
     );
 
     const result = await topUpNowPayments(
-      { package_id: 'pkg_001', pay_currency: 'btc' },
+      { amount_usd: 50, pay_currency: 'usdttrc20' },
       'test-idem-key-456',
     );
     expect(capturedIdempotencyKey).toBe('test-idem-key-456');
+    expect(capturedBody).toEqual({ amount_usd: 50, pay_currency: 'usdttrc20' });
     expect(result).toHaveProperty('invoice_url');
+  });
+});
+
+describe('resolveTier()', () => {
+  const tiers: TopUpTierResponse[] = [
+    { threshold_usd: 25, discount_pct: 5 },
+    { threshold_usd: 50, discount_pct: 10 },
+    { threshold_usd: 100, discount_pct: 15 },
+  ];
+
+  it('returns null when amount is below the first threshold', () => {
+    expect(resolveTier(tiers, 10)).toBeNull();
+  });
+
+  it('resolves the exact threshold boundary', () => {
+    expect(resolveTier(tiers, 25)).toEqual({ threshold_usd: 25, discount_pct: 5 });
+  });
+
+  it('picks the lower tier when amount is between thresholds', () => {
+    expect(resolveTier(tiers, 40)).toEqual({ threshold_usd: 25, discount_pct: 5 });
+  });
+
+  it('picks the highest tier when amount is above the max threshold', () => {
+    expect(resolveTier(tiers, 500)).toEqual({ threshold_usd: 100, discount_pct: 15 });
+  });
+});
+
+describe('computeSummary()', () => {
+  const options: TopUpOptionsResponse = {
+    min_amount_usd: 5,
+    max_amount_usd: 1000,
+    tokens_per_usd: 100,
+    tiers: [
+      { threshold_usd: 25, discount_pct: 5 },
+      { threshold_usd: 50, discount_pct: 10 },
+    ],
+  };
+
+  it('computes an undiscounted amount below the first tier', () => {
+    expect(computeSummary(options, 10)).toEqual({
+      tokensGranted: 1000,
+      discountPct: 0,
+      amountCharged: 10,
+    });
+  });
+
+  it('computes a discounted amount at a qualifying tier', () => {
+    expect(computeSummary(options, 50)).toEqual({
+      tokensGranted: 5000,
+      discountPct: 10,
+      amountCharged: 45,
+    });
   });
 });

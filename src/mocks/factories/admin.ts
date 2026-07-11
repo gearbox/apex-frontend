@@ -11,6 +11,7 @@ type TransactionResponse = components['schemas']['TransactionResponse'];
 type PricingRuleResponse = components['schemas']['PricingRuleResponse'];
 type DetailedHealthResponse = components['schemas']['DetailedHealthResponse'];
 type HealthSnapshotResponse = components['schemas']['HealthSnapshotResponse'];
+type PaymentProviderInfo = components['schemas']['services_payment_provider_state_ProviderInfo'];
 
 export function makeAdminUser(overrides: Partial<AdminUserResponse> = {}): AdminUserResponse {
   return {
@@ -133,6 +134,7 @@ export function makePricingRule(overrides: Partial<PricingRuleResponse> = {}): P
     generation_type: 't2i',
     model: null,
     token_cost: 10,
+    input_token_cost: 0,
     is_active: true,
     effective_from: '2025-01-01T00:00:00Z',
     effective_until: null,
@@ -185,6 +187,18 @@ export function makeHealthSnapshotResponse(
     checked_at: '2026-06-22T12:00:00Z',
     overall_status: 'healthy',
     snapshot_data: {},
+    ...overrides,
+  };
+}
+
+export function makePaymentProviderInfo(
+  overrides: Partial<PaymentProviderInfo> = {},
+): PaymentProviderInfo {
+  return {
+    provider: 'stripe',
+    is_enabled: true,
+    display_order: 0,
+    credentials_configured: true,
     ...overrides,
   };
 }

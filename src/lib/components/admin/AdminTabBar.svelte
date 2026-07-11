@@ -8,6 +8,7 @@
     Megaphone,
     ShieldCheck,
     Activity,
+    Landmark,
   } from 'lucide-svelte';
 
   interface TabDef {
@@ -34,7 +35,10 @@
     { id: 'health', label: 'Health', icon: Activity },
   ];
 
-  const manageTabs: TabDef[] = [{ id: 'admins', label: 'Admins', icon: ShieldCheck }];
+  const manageTabs: TabDef[] = [
+    { id: 'admins', label: 'Admins', icon: ShieldCheck },
+    { id: 'providers', label: 'Providers', icon: Landmark },
+  ];
 
   const tabs = $derived(showManageTab ? [...baseTabs, ...manageTabs] : baseTabs);
 </script>
