@@ -7,6 +7,7 @@ import { adminHandlers } from './admin';
 import { eventHandlers } from './events';
 import { storageHandlers } from './storage';
 import { sessionHandlers } from './sessions';
+import { pushHandlers } from './push';
 
 export const handlers = [
   ...authHandlers,
@@ -18,4 +19,5 @@ export const handlers = [
   ...eventHandlers,
   ...storageHandlers,
   ...sessionHandlers,
+  ...pushHandlers,
 ];

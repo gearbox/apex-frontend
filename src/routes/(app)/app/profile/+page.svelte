@@ -11,6 +11,7 @@
   import LogoutAllModal from '$lib/components/profile/LogoutAllModal.svelte';
   import DeleteAccountModal from '$lib/components/profile/DeleteAccountModal.svelte';
   import InstallAppButton from '$lib/components/pwa/InstallAppButton.svelte';
+  import PushNotificationToggle from '$lib/components/profile/PushNotificationToggle.svelte';
   import * as m from '$paraglide/messages';
 
   let loggingOut = $state(false);
@@ -48,6 +49,12 @@
   <div class="appearance-section">
     <p class="section-header">{m.profile_section_language()}</p>
     <LanguageSelector />
+  </div>
+
+  <!-- Notifications -->
+  <div class="appearance-section">
+    <p class="section-header">{m.profile_section_notifications()}</p>
+    <PushNotificationToggle />
   </div>
 
   <!-- Actions -->
