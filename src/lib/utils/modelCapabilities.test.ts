@@ -1,46 +1,20 @@
 import { describe, it, expect } from 'vitest';
-import { supportsAishaImageParams, getEditAspectRatios } from './modelCapabilities';
+import {
+  supportsAishaImageParams,
+  getEditAspectRatios,
+  KNOWN_ASPECT_RATIOS,
+} from './modelCapabilities';
 import type { components } from '$lib/api/types';
+import { makeGrokImageModelInfo, makeAishaImageModelInfo } from '../../mocks/factories/providers';
 
 type ModelInfo = components['schemas']['ModelInfo'];
 
-const aishaModelInfo: ModelInfo = {
-  model_key: 'aisha-image',
-  name: 'Aisha',
-  description: 'Aisha image generation model',
-  capabilities: ['t2i', 'i2i'],
-  is_enabled: true,
-  max_images: 4,
-  max_prompt_length: 4096,
-  supports_negative_prompt: true,
-  aspect_ratios: ['1:1'],
-  requires_age_verification: false,
-  image: {
-    min_height: 256,
-    max_height: 2048,
-    default_height: 1024,
-    output_resolutions: null,
-    supported_tiers: ['draft', 'standard', 'high', 'ultra'],
-    default_tier: 'standard',
-    tier_megapixels: { draft: 0.25, standard: 1.0, high: 2.0, ultra: 4.0 },
-  },
-  video: null,
-};
+const aishaModelInfo: ModelInfo = makeAishaImageModelInfo();
 
-const grokModelInfo: ModelInfo = {
-  model_key: 'grok-imagine-image',
-  name: 'Grok Imagine',
-  description: 'Fast image generation model',
-  capabilities: ['t2i', 'i2i'],
-  is_enabled: true,
-  max_images: 10,
-  max_prompt_length: 4096,
-  supports_negative_prompt: false,
-  aspect_ratios: ['1:1', '16:9', '9:16'],
-  requires_age_verification: false,
-  image: null,
-  video: null,
-};
+// image: null is explicitly tested here — Grok's real contract shape is
+// `image: { edit_aspect_ratios: [] }` (see the factory default), but null is still a
+// valid input to guard against for older/degraded backend responses.
+const grokModelInfo: ModelInfo = makeGrokImageModelInfo({ image: null });
 
 describe('supportsAishaImageParams', () => {
   it('returns true for Aisha model with supported_tiers', () => {
@@ -78,18 +52,10 @@ describe('getEditAspectRatios', () => {
       ...aishaModelInfo,
       image: {
         ...aishaModelInfo.image!,
-        edit_aspect_ratios: ['2:3', '3:2', '1:1', '9:16', '16:9', '3:4', '4:3'],
+        edit_aspect_ratios: [...KNOWN_ASPECT_RATIOS],
       },
     };
-    expect(getEditAspectRatios(aishaWithEdit)).toEqual([
-      '2:3',
-      '3:2',
-      '1:1',
-      '9:16',
-      '16:9',
-      '3:4',
-      '4:3',
-    ]);
+    expect(getEditAspectRatios(aishaWithEdit)).toEqual([...KNOWN_ASPECT_RATIOS]);
   });
 
   it('filters out unknown/unrecognized values from the backend', () => {

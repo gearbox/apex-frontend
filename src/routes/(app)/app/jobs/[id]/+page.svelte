@@ -8,7 +8,7 @@
   import JobOutputGrid from '$lib/components/jobs/JobOutputGrid.svelte';
   import type { components } from '$lib/api/types';
   import { productInfo } from '$lib/stores/product';
-  import * as m from '$paraglide/messages';
+  import { formatAspectRatio } from '$lib/utils/format';
 
   type JobStatus = components['schemas']['JobStatus'];
 
@@ -153,7 +153,7 @@
           <div class="flex justify-between">
             <dt class="text-text-dim">Aspect ratio</dt>
             <dd class="font-medium text-text">
-              {job.aspect_ratio ?? m.media_aspect_auto_source()}
+              {formatAspectRatio(job.aspect_ratio)}
             </dd>
           </div>
           {#if job.token_cost != null}

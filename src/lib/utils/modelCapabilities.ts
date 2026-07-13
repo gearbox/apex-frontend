@@ -3,7 +3,7 @@ import type { components } from '$lib/api/types';
 type ModelInfo = components['schemas']['ModelInfo'];
 type AspectRatio = components['schemas']['AspectRatio'];
 
-const KNOWN_ASPECT_RATIOS: readonly AspectRatio[] = [
+export const KNOWN_ASPECT_RATIOS: readonly AspectRatio[] = [
   '2:3',
   '3:2',
   '1:1',
@@ -22,7 +22,9 @@ const KNOWN_ASPECT_RATIOS: readonly AspectRatio[] = [
  */
 export function getEditAspectRatios(modelInfo: ModelInfo | null | undefined): AspectRatio[] {
   const editRatios = modelInfo?.image?.edit_aspect_ratios ?? [];
-  return editRatios.filter((r): r is AspectRatio => KNOWN_ASPECT_RATIOS.includes(r as AspectRatio));
+  return editRatios.filter((r): r is AspectRatio =>
+    (KNOWN_ASPECT_RATIOS as readonly string[]).includes(r),
+  );
 }
 
 /**

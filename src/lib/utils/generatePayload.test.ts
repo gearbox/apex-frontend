@@ -1,9 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { buildGeneratePayload } from './generatePayload';
 import type { GenerationState } from '$lib/stores/generation';
-import type { components } from '$lib/api/types';
-
-type ModelInfo = components['schemas']['ModelInfo'];
+import { makeGrokImageModelInfo, makeAishaImageModelInfo } from '../../mocks/factories/providers';
 
 const baseState: GenerationState = {
   provider: 'grok',
@@ -35,41 +33,9 @@ const baseState: GenerationState = {
   progress: null,
 };
 
-const grokModelInfo: ModelInfo = {
-  model_key: 'grok-imagine-image',
-  name: 'Grok Imagine',
-  description: '',
-  capabilities: ['t2i'],
-  is_enabled: true,
-  max_images: 4,
-  max_prompt_length: 4096,
-  supports_negative_prompt: false,
-  aspect_ratios: ['1:1'],
-  requires_age_verification: false,
-  image: null,
-};
+const grokModelInfo = makeGrokImageModelInfo();
 
-const aishaModelInfo: ModelInfo = {
-  model_key: 'aisha-image',
-  name: 'Aisha',
-  description: '',
-  capabilities: ['t2i'],
-  is_enabled: true,
-  max_images: 4,
-  max_prompt_length: 4096,
-  supports_negative_prompt: true,
-  aspect_ratios: ['1:1'],
-  requires_age_verification: false,
-  image: {
-    min_height: 256,
-    max_height: 2048,
-    default_height: 1024,
-    output_resolutions: null,
-    supported_tiers: ['draft', 'standard', 'high', 'ultra'],
-    default_tier: 'standard',
-    tier_megapixels: { draft: 0.25, standard: 1.0, high: 2.0, ultra: 4.0 },
-  },
-};
+const aishaModelInfo = makeAishaImageModelInfo();
 
 describe('buildGeneratePayload — Grok model', () => {
   it('always includes prompt, model, generation_type, aspect_ratio, n, duration', () => {

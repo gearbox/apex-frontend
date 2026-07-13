@@ -193,11 +193,12 @@
   // ── i2i aspect-reshape 400 error (inline, under the aspect control)
   let aspectError = $state<string | null>(null);
   const aspectErrorResetKey = $derived(
-    `${$generationStore.mode}|${$generationStore.model}|${$generationStore.editAspectRatio}|${$generationStore.aspectRatio}`,
+    `${$generationStore.mode}|${$generationStore.model}|${$generationStore.editAspectRatio}`,
   );
 
   $effect(() => {
-    if (aspectErrorResetKey) aspectError = null;
+    void aspectErrorResetKey; // dependency: clear the inline 400 on mode/model/aspect change
+    aspectError = null;
   });
 
   function handleJobError(error: unknown): void {

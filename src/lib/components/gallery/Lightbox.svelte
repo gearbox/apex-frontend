@@ -3,7 +3,7 @@
   import { createQuery, createMutation, useQueryClient } from '@tanstack/svelte-query';
   import { goto } from '$app/navigation';
   import { generationStore } from '$lib/stores/generation';
-  import { timeAgo } from '$lib/utils/format';
+  import { timeAgo, formatAspectRatio } from '$lib/utils/format';
   import { toMediaSrc } from '$lib/media/index';
   import { isDesktop } from '$lib/utils/breakpoints';
   import { X, Download, ChevronLeft, ChevronRight, Repeat2, Trash2 } from 'lucide-svelte';
@@ -268,9 +268,7 @@
       </div>
       <div class="flex justify-between">
         <span class="text-text-dim">Aspect Ratio</span>
-        <span class="font-medium text-text"
-          >{detail.aspect_ratio ?? m.media_aspect_auto_source()}</span
-        >
+        <span class="font-medium text-text">{formatAspectRatio(detail.aspect_ratio)}</span>
       </div>
       {#if detail.token_cost != null}
         <div class="flex justify-between">

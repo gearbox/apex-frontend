@@ -6,6 +6,10 @@ vi.mock('$lib/stores/locale', async () => {
   return { locale: writable('en') };
 });
 
+vi.mock('$paraglide/messages', () => ({
+  media_aspect_auto_source: () => 'Auto (source)',
+}));
+
 import {
   formatNumber,
   formatDate,
@@ -15,6 +19,7 @@ import {
   formatBytes,
   truncate,
   timeUntil,
+  formatAspectRatio,
 } from './format';
 
 describe('formatNumber()', () => {
@@ -106,6 +111,20 @@ describe('timeUntil()', () => {
 
   it('returns weeks for a date under a month away', () => {
     expect(timeUntil(new Date(Date.now() + 2 * 604800000).toISOString())).toBe('in 2w');
+  });
+});
+
+describe('formatAspectRatio()', () => {
+  it('returns the value when set', () => {
+    expect(formatAspectRatio('16:9')).toBe('16:9');
+  });
+
+  it('falls back to the auto-source label when null', () => {
+    expect(formatAspectRatio(null)).toBe('Auto (source)');
+  });
+
+  it('falls back to the auto-source label when undefined', () => {
+    expect(formatAspectRatio(undefined)).toBe('Auto (source)');
   });
 });
 
