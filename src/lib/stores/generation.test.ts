@@ -43,6 +43,16 @@ describe('generationStore — image source mutual exclusion', () => {
     expect(get(generationStore).selectedImagePreviewUrl).toBeNull();
   });
 
+  it('setUploadedImageId stores a supplied previewUrl', () => {
+    generationStore.setSourceOutputId('output_001', '/v1/content/outputs/output_001');
+    generationStore.setUploadedImageId('upload_001', '/v1/content/uploads/upload_001');
+
+    const state = get(generationStore);
+    expect(state.uploadedImageId).toBe('upload_001');
+    expect(state.sourceOutputId).toBeNull();
+    expect(state.selectedImagePreviewUrl).toBe('/v1/content/uploads/upload_001');
+  });
+
   it('clearing sourceOutputId also clears selectedImagePreviewUrl', () => {
     generationStore.setSourceOutputId('output_001', '/v1/content/outputs/output_001');
     generationStore.setSourceOutputId(null);

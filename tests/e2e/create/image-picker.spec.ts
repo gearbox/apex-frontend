@@ -31,6 +31,13 @@ const mockUploads = {
       expires_at: '2025-07-02T00:00:00Z',
       media: makeMedia('/v1/content/uploads/upload_002'),
     },
+    {
+      id: 'upload_003',
+      filename: 'clip.mp4',
+      created_at: '2025-06-03T00:00:00Z',
+      expires_at: '2025-07-03T00:00:00Z',
+      media: makeMedia('/v1/content/uploads/upload_003', 'video'),
+    },
   ],
   limit: 30,
   has_more: false,
@@ -226,6 +233,17 @@ test.describe('Image Picker', () => {
 
     // Preview should show "From uploads"
     await expect(page.getByText('From uploads')).toBeVisible();
+  });
+
+  test('uploads tab excludes videos from source-image selection', async ({
+    authenticatedPage: page,
+  }) => {
+    await page.goto('/app/create');
+    await page.getByRole('button', { name: 'Image → Image' }).click();
+    await page.getByRole('button', { name: /Choose from library/i }).click();
+
+    await expect(page.getByRole('button', { name: 'Upload: photo.jpg' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Upload: clip.mp4' })).not.toBeVisible();
   });
 
   test('6. Selecting a generated output auto-fills prompt', async ({ authenticatedPage: page }) => {

@@ -8,6 +8,7 @@ import { eventHandlers } from './events';
 import { storageHandlers } from './storage';
 import { sessionHandlers } from './sessions';
 import { pushHandlers } from './push';
+import { frameHandlers } from './frames';
 
 export const handlers = [
   ...authHandlers,
@@ -20,4 +21,5 @@ export const handlers = [
   ...storageHandlers,
   ...sessionHandlers,
   ...pushHandlers,
+  ...frameHandlers,
 ];

@@ -70,7 +70,12 @@
     enabled: open,
   }));
 
-  const uploadItems = $derived((uploadsQuery.data?.pages ?? []).flatMap((p) => p.items));
+  // Uploads can include videos, but image-to-image generation only accepts image inputs.
+  const uploadItems = $derived(
+    (uploadsQuery.data?.pages ?? [])
+      .flatMap((p) => p.items)
+      .filter((item) => item.media.media_type === 'image'),
+  );
   const generatedItems = $derived((generatedQuery.data?.pages ?? []).flatMap((p) => p.items));
 
   /* ─── Confirm ─── */

@@ -3,7 +3,7 @@ import { http, HttpResponse } from 'msw';
 import { server } from '../../mocks/server';
 import { makeTokenResponse } from '../../mocks/factories/auth';
 import { makeUserProfile } from '../../mocks/factories/user';
-import { uploadImage } from './upload';
+import { uploadMedia } from './upload';
 import { setAuth, clearAuth, getAccessToken } from '$lib/stores/auth';
 import { clearRateLimits } from '$lib/stores/rateLimit';
 import { STORAGE_KEYS } from '$lib/utils/constants';
@@ -48,7 +48,7 @@ const mockUploadResponse = {
   },
 };
 
-describe('uploadImage', () => {
+describe('uploadMedia', () => {
   it('sends request with auth header and returns UploadResponse with media', async () => {
     setAuth(authTokens('mock-token', 'mock-refresh-token'), makeUserProfile());
 
@@ -64,7 +64,7 @@ describe('uploadImage', () => {
     );
 
     const file = new File(['test'], 'test.jpg', { type: 'image/jpeg' });
-    const result = await uploadImage(file);
+    const result = await uploadMedia(file);
 
     expect(result.id).toBe('upload_001');
     expect(result.media.original.url).toBe('/v1/content/uploads/upload_001');
@@ -72,20 +72,34 @@ describe('uploadImage', () => {
     expect(capturedAuth).toBe('Bearer mock-token');
   });
 
-  it('throws ApiRequestError on non-ok response', async () => {
+  it('uploads MP4 files and returns a video response without poster variants', async () => {
+    const file = new File(['test'], 'clip.mp4', { type: 'video/mp4' });
+    const result = await uploadMedia(file);
+
+    expect(result.id).toBe('upload_new_video_001');
+    expect(result.media.media_type).toBe('video');
+    expect(result.media.original.content_type).toBe('video/mp4');
+    expect(result.media.variants).toEqual([]);
+  });
+
+  it('surfaces a server video-validation message verbatim', async () => {
     server.use(
       http.post(UPLOAD_URL, () =>
         HttpResponse.json(
-          { error: 'file_too_large', message: 'File must be under 20 MB', status_code: 400 },
+          {
+            error: 'invalid_video',
+            message: 'File is not a decodable video',
+            status_code: 400,
+          },
           { status: 400 },
         ),
       ),
     );
 
-    const file = new File(['test'], 'test.jpg', { type: 'image/jpeg' });
-    await expect(uploadImage(file)).rejects.toMatchObject({
-      error: 'file_too_large',
-      message: 'File must be under 20 MB',
+    const file = new File(['test'], 'broken.mp4', { type: 'video/mp4' });
+    await expect(uploadMedia(file)).rejects.toMatchObject({
+      error: 'invalid_video',
+      message: 'File is not a decodable video',
     });
   });
 
@@ -102,13 +116,13 @@ describe('uploadImage', () => {
     );
 
     const file = new File(['test'], 'test.jpg', { type: 'image/jpeg' });
-    await expect(uploadImage(file)).rejects.toMatchObject({
+    await expect(uploadMedia(file)).rejects.toMatchObject({
       status_code: 500,
     });
   });
 });
 
-describe('uploadImage() — 401 refresh-and-retry (H2)', () => {
+describe('uploadMedia() — 401 refresh-and-retry (H2)', () => {
   it('first call 401, silentRefresh succeeds, second call 201: returns UploadResponse', async () => {
     setAuth(authTokens('stale-access-token', 'valid-refresh-token'), makeUserProfile());
     localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, 'valid-refresh-token');
@@ -133,7 +147,7 @@ describe('uploadImage() — 401 refresh-and-retry (H2)', () => {
     );
 
     const file = new File(['test'], 'test.jpg', { type: 'image/jpeg' });
-    const result = await uploadImage(file);
+    const result = await uploadMedia(file);
 
     expect(uploadCallCount).toBe(2);
     expect(capturedAuthHeaders).toEqual(['Bearer stale-access-token', 'Bearer fresh-access-token']);
@@ -161,7 +175,7 @@ describe('uploadImage() — 401 refresh-and-retry (H2)', () => {
     );
 
     const file = new File(['test'], 'test.jpg', { type: 'image/jpeg' });
-    await expect(uploadImage(file)).rejects.toThrow();
+    await expect(uploadMedia(file)).rejects.toThrow();
     expect(uploadCallCount).toBe(1);
   });
 });

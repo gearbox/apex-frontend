@@ -18,6 +18,21 @@ function makeUploadMediaObject(uploadId: string) {
   });
 }
 
+function makeVideoUploadMediaObject(uploadId: string) {
+  return makeMediaObject({
+    media_type: 'video',
+    original: {
+      url: `/v1/content/uploads/${uploadId}`,
+      width: null,
+      height: null,
+      content_type: 'video/mp4',
+      size_bytes: 5_000_000,
+    },
+    // Video poster generation is best-effort, so callers must support no variants.
+    variants: [],
+  });
+}
+
 export const storageHandlers = [
   // Storage stats
   http.get(`${BASE}/v1/storage/stats`, () =>
@@ -48,19 +63,23 @@ export const storageHandlers = [
     return HttpResponse.json({ items, limit, has_more: false, next_cursor: null });
   }),
 
-  // File upload — returns UploadResponse with media
-  http.post(`${BASE}/v1/storage/upload`, () =>
-    HttpResponse.json(
+  // File upload — video fixture intentionally has no poster variants.
+  // Do not read request.formData() here: MSW's Node interceptor can hang on
+  // jsdom File bodies. Endpoint-specific tests override this handler when they
+  // need to assert a particular image or video response.
+  http.post(`${BASE}/v1/storage/upload`, () => {
+    const uploadId = 'upload_new_video_001';
+    return HttpResponse.json(
       {
-        id: 'upload_new_001',
-        filename: 'uploaded.jpg',
+        id: uploadId,
+        filename: 'uploaded.mp4',
         created_at: new Date().toISOString(),
         expires_at: new Date(Date.now() + 30 * 86400000).toISOString(),
-        media: makeUploadMediaObject('upload_new_001'),
+        media: makeVideoUploadMediaObject(uploadId),
       },
       { status: 201 },
-    ),
-  ),
+    );
+  }),
 
   // Content proxy stubs for upload thumbnails
   http.get(

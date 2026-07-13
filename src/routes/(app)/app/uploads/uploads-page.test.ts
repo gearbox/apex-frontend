@@ -82,4 +82,68 @@ describe('/app/uploads page', () => {
     expect(screen.getByText('No uploads yet')).toBeTruthy();
     expect(screen.queryByText('sunset.jpg')).toBeNull();
   });
+
+  it('accepts the supported image and video MIME types', () => {
+    const { container } = render(Page);
+
+    expect(container.querySelector('input[type="file"]')?.getAttribute('accept')).toBe(
+      'image/png,image/jpeg,image/webp,video/mp4,video/webm,video/quicktime',
+    );
+  });
+
+  it('renders a video poster when one is available', () => {
+    uploadItems = [
+      makeUpload({
+        filename: 'clip.mp4',
+        media: {
+          media_type: 'video',
+          original: {
+            url: '/v1/content/uploads/clip_001',
+            width: null,
+            height: null,
+            content_type: 'video/mp4',
+            size_bytes: 5_000_000,
+          },
+          variants: [
+            {
+              label: 'md',
+              width: 512,
+              height: 288,
+              url: '/v1/content/uploads/clip_001_poster',
+            },
+          ],
+        },
+      }),
+    ];
+
+    const { container } = render(Page);
+
+    expect(container.querySelector('img')?.getAttribute('src')).toBe(
+      'http://localhost:8000/v1/content/uploads/clip_001_poster',
+    );
+  });
+
+  it('renders a neutral video tile when no poster variant is available', () => {
+    uploadItems = [
+      makeUpload({
+        filename: 'clip.mp4',
+        media: {
+          media_type: 'video',
+          original: {
+            url: '/v1/content/uploads/clip_001',
+            width: null,
+            height: null,
+            content_type: 'video/mp4',
+            size_bytes: 5_000_000,
+          },
+          variants: [],
+        },
+      }),
+    ];
+
+    const { container } = render(Page);
+
+    expect(screen.getByRole('img', { name: 'Video file: clip.mp4' })).toBeTruthy();
+    expect(container.querySelector('img')).toBeNull();
+  });
 });

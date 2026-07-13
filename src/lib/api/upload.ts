@@ -27,17 +27,17 @@ async function doUpload(file: File): Promise<Response> {
 }
 
 /**
- * Upload an image file to R2 storage.
+ * Upload an image or video file to R2 storage.
  *
  * Uses raw fetch (not openapi-fetch) because openapi-fetch has limited
  * multipart/form-data support. Auth header is injected manually using the
  * same static helpers used by the openapi-fetch middleware. On a 401 (expired
  * access token), attempts a silent refresh and retries once.
  *
- * @param file - The image file to upload (PNG, JPEG, or WebP, max 20MB)
- * @returns The upload response with the new image ID
+ * @param file - The media file to upload (supported images or videos, max 20MB)
+ * @returns The upload response with the new media ID
  */
-export async function uploadImage(file: File): Promise<UploadResponse> {
+export async function uploadMedia(file: File): Promise<UploadResponse> {
   let res = await doUpload(file);
 
   if (res.status === 401 && (await silentRefresh())) {

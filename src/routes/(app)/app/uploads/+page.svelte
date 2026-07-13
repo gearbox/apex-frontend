@@ -1,31 +1,35 @@
 <script lang="ts">
   import { createInfiniteQuery, createQuery, useQueryClient } from '@tanstack/svelte-query';
-  import { Upload as UploadIcon } from 'lucide-svelte';
+  import { Upload as UploadIcon, Video as VideoIcon } from 'lucide-svelte';
   import {
     uploadsInfiniteQueryOptions,
     storageStatsQueryOptions,
     storageKeys,
   } from '$lib/queries/storage';
-  import { uploadImage } from '$lib/api/upload';
+  import { uploadMedia } from '$lib/api/upload';
   import { ApiRequestError } from '$lib/api/errors';
   import { addToast } from '$lib/stores/toasts';
   import { timeAgo, timeUntil } from '$lib/utils/format';
+  import { ACCEPTED_IMAGE_TYPES, ACCEPTED_VIDEO_TYPES } from '$lib/utils/constants';
+  import { posterSrc } from '$lib/media';
   import MediaImage from '$lib/media/MediaImage.svelte';
   import InfiniteScrollSentinel from '$lib/components/gallery/InfiniteScrollSentinel.svelte';
   import UploadLightbox from '$lib/components/uploads/UploadLightbox.svelte';
   import type { components } from '$lib/api/types';
   import { productInfo } from '$lib/stores/product';
+  import * as m from '$paraglide/messages';
 
   type ImageListItem = components['schemas']['ImageListItem'];
 
   const MAX_SIZE_BYTES = 20 * 1024 * 1024; // 20 MB
-  const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
+  const ACCEPTED_TYPES = [...ACCEPTED_IMAGE_TYPES, ...ACCEPTED_VIDEO_TYPES];
   const EXPIRES_SOON_MS = 7 * 24 * 60 * 60 * 1000;
 
   let appTitle = $derived($productInfo?.display_name ?? 'Apex');
 
   let lightboxItem = $state<ImageListItem | null>(null);
   let uploading = $state(false);
+  let failedVideoPosterIds = $state<string[]>([]);
   let fileInput: HTMLInputElement;
 
   const queryClient = useQueryClient();
@@ -44,12 +48,22 @@
     }
   }
 
+  function videoPoster(item: ImageListItem): string | undefined {
+    return failedVideoPosterIds.includes(item.id) ? undefined : posterSrc(item.media);
+  }
+
+  function handlePosterError(id: string) {
+    if (!failedVideoPosterIds.includes(id)) {
+      failedVideoPosterIds = [...failedVideoPosterIds, id];
+    }
+  }
+
   async function handleFileChange(e: Event) {
     const file = (e.target as HTMLInputElement).files?.[0];
     if (!file) return;
 
     if (!ACCEPTED_TYPES.includes(file.type)) {
-      addToast({ type: 'error', message: 'Only PNG, JPEG, and WebP are supported' });
+      addToast({ type: 'error', message: m.upload_accepted_types_video() });
       if (fileInput) fileInput.value = '';
       return;
     }
@@ -61,7 +75,7 @@
 
     uploading = true;
     try {
-      await uploadImage(file);
+      await uploadMedia(file);
       queryClient.invalidateQueries({ queryKey: storageKeys.all });
       addToast({ type: 'success', message: 'Upload complete' });
     } catch (err) {
@@ -144,12 +158,33 @@
           <div
             class="aspect-square w-full overflow-hidden rounded-xl border border-border bg-surface"
           >
-            <MediaImage
-              media={item.media}
-              alt={item.filename}
-              sizes="(max-width: 768px) 33vw, 160px"
-              class="h-full w-full object-cover transition-transform group-hover:scale-105"
-            />
+            {#if item.media.media_type === 'video'}
+              {@const poster = videoPoster(item)}
+              {#if poster}
+                <img
+                  src={poster}
+                  alt={`${item.filename} poster`}
+                  class="h-full w-full object-cover transition-transform group-hover:scale-105"
+                  onerror={() => handlePosterError(item.id)}
+                />
+              {:else}
+                <div
+                  class="flex h-full w-full flex-col items-center justify-center gap-2 bg-surface-hover px-3 text-center text-text-dim"
+                  role="img"
+                  aria-label={`Video file: ${item.filename}`}
+                >
+                  <VideoIcon size={24} aria-hidden="true" />
+                  <span class="line-clamp-2 text-[11px] font-medium">{item.filename}</span>
+                </div>
+              {/if}
+            {:else}
+              <MediaImage
+                media={item.media}
+                alt={item.filename}
+                sizes="(max-width: 768px) 33vw, 160px"
+                class="h-full w-full object-cover transition-transform group-hover:scale-105"
+              />
+            {/if}
           </div>
           <p class="truncate text-xs font-medium text-text">{item.filename}</p>
           <p class="text-[11px] text-text-dim">{timeAgo(item.created_at)}</p>

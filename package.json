@@ -1,6 +1,6 @@
 {
   "name": "apex-frontend",
-  "version": "0.11.1",
+  "version": "0.12.0",
   "private": true,
   "type": "module",
   "description": "Apex AI Content Studio — Progressive Web App",
@@ -35,6 +35,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@inlang/cli": "^3.1.7",
+    "@inlang/paraglide-js": "1.11.8",
     "@playwright/test": "^1.58.2",
     "@sveltejs/adapter-static": "^3.0.10",
     "@sveltejs/kit": "^2.60.1",
