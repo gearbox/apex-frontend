@@ -114,7 +114,12 @@
       : 'READY', // no model selected yet → don't block UI
   );
 
-  const generateEnabled = $derived(isGenerateEnabled(cardState));
+  // Providers query hasn't resolved yet (data is undefined only during the very first
+  // load) → currentModelInfo is a false null and the stored aspectRatio hasn't been
+  // validated against the real model yet. Block generation until it settles instead of
+  // letting a stale default aspect ratio slip through buildGeneratePayload.
+  const providersReady = $derived(providerQuery.data !== undefined);
+  const generateEnabled = $derived(providersReady && isGenerateEnabled(cardState));
 
   // ── Start session mutation
   const startMutation = createMutation(() => startSessionMutationOptions(queryClient));
@@ -269,7 +274,7 @@
   }
 
   async function handleGenerate() {
-    if (submitting || $isGenerating) return;
+    if (submitting || $isGenerating || !generateEnabled) return;
 
     const state = $generationStore;
 
