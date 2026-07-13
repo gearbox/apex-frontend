@@ -12,6 +12,7 @@
     loop = false,
     playsinline = false,
     poster,
+    onvideoelement,
     class: className = '',
   }: {
     media: MediaObject;
@@ -21,8 +22,12 @@
     loop?: boolean;
     playsinline?: boolean;
     poster?: string;
+    /** Receives the rendered <video> element for controlled seeking clients. */
+    onvideoelement?: (element: HTMLVideoElement) => void;
     class?: string;
   } = $props();
+
+  let videoElement = $state<HTMLVideoElement | null>(null);
 
   $effect(() => {
     if (import.meta.env.DEV && media.media_type !== 'video') {
@@ -30,11 +35,16 @@
     }
   });
 
+  $effect(() => {
+    if (videoElement) onvideoelement?.(videoElement);
+  });
+
   const resolvedPoster = $derived(poster ?? posterSrc(media));
   const src = $derived(toMediaSrc(media.original.url));
 </script>
 
 <video
+  bind:this={videoElement}
   {src}
   poster={resolvedPoster}
   {controls}

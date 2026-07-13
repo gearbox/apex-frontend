@@ -33,7 +33,7 @@ src/
 │   ├── api/
 │   │   ├── client.ts              # openapi-fetch instance + auth interceptor
 │   │   ├── auth.ts                # JWT token management, refresh rotation
-│   │   ├── upload.ts              # uploadImage() — multipart upload wrapper (raw fetch, static auth)
+│   │   ├── upload.ts              # uploadMedia() — multipart upload wrapper (raw fetch, static auth)
 │   │   ├── user.ts                # fetchUserStats, changePassword, logoutAllDevices, deleteAccount
 │   │   ├── billing.ts             # topUpStripe, topUpNowPayments — billing mutation wrappers
 │   │   ├── types.ts               # Generated from backend OpenAPI schema

@@ -13,6 +13,7 @@
   import { addToast } from '$lib/stores/toasts';
   import MediaImage from '$lib/media/MediaImage.svelte';
   import MediaVideo from '$lib/media/MediaVideo.svelte';
+  import FrameExtractModal from '$lib/components/frames/FrameExtractModal.svelte';
   import ConfirmDeleteModal from '$lib/components/shared/ConfirmDeleteModal.svelte';
   import type { components } from '$lib/api/types';
   import type { GenerationMode } from '$lib/stores/generation';
@@ -37,6 +38,7 @@
   let downloading = $state(false);
   let selectedOutputIndex = $state(0);
   let showDeleteConfirm = $state(false);
+  let frameExtractionOutput = $state<GalleryOutputItem | null>(null);
 
   const queryClient = useQueryClient();
   const deleteMutation = createMutation(() => deleteContentMutationOptions(queryClient));
@@ -197,7 +199,7 @@
 {/snippet}
 
 {#snippet actionsBlock(detail: GalleryGroupDetail)}
-  <div class="flex gap-2">
+  <div class="flex flex-wrap gap-2">
     {#if detail.outputs.length > 0}
       {@const output = detail.outputs[selectedOutputIndex] ?? detail.outputs[0]}
       <button
@@ -216,6 +218,18 @@
     >
       <Repeat2 size={13} /> Re-Generate
     </button>
+
+    {#if detail.outputs.length > 0}
+      {@const output = detail.outputs[selectedOutputIndex] ?? detail.outputs[0]}
+      {#if output.media.media_type === 'video'}
+        <button
+          onclick={() => (frameExtractionOutput = output)}
+          class="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-accent/15 px-3 py-2 text-xs font-semibold text-accent transition-colors hover:bg-accent/25"
+        >
+          {m.frames_extract_action()}
+        </button>
+      {/if}
+    {/if}
 
     <button
       onclick={() => (showDeleteConfirm = true)}
@@ -504,5 +518,13 @@
     isPending={deleteMutation.isPending}
     onconfirm={handleDeleteOutput}
     oncancel={() => (showDeleteConfirm = false)}
+  />
+{/if}
+
+{#if frameExtractionOutput}
+  <FrameExtractModal
+    source={{ type: 'output', id: frameExtractionOutput.id }}
+    media={frameExtractionOutput.media}
+    onclose={() => (frameExtractionOutput = null)}
   />
 {/if}

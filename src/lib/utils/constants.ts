@@ -1,6 +1,10 @@
 /** API base URL — injected via Vite env */
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
 
+/* ─── Upload Media ─── */
+export const ACCEPTED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
+export const ACCEPTED_VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/quicktime'];
+
 /* ─── LocalStorage Keys ─── */
 export const STORAGE_KEYS = {
   THEME_PREFS: 'apex-theme-prefs',
@@ -18,6 +22,8 @@ export const BREAKPOINT_MD = 768;
 /* ─── Job Polling ─── */
 export const JOB_POLL_INTERVAL_MS = 2000;
 export const POLL_INTERVAL_MS = 2000;
+export const FRAME_POLL_INTERVAL_MS = 1000;
+export const FRAME_POLL_BUDGET_MS = 7 * 60_000;
 export const TERMINAL_JOB_STATUSES = ['completed', 'failed', 'cancelled', 'moderated'] as const;
 export const ACTIVE_JOB_STATUSES = ['pending', 'queued', 'running'] as const;
 

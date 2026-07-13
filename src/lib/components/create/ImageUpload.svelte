@@ -6,14 +6,14 @@
   import ImagePickerModal from './ImagePickerModal.svelte';
   import type { ImagePickerSelection } from './ImagePickerModal.svelte';
   import { mediaFallbackSrc } from '$lib/media/index';
-  import { uploadImage } from '$lib/api/upload';
+  import { uploadMedia } from '$lib/api/upload';
   import { useQueryClient } from '@tanstack/svelte-query';
   import { storageKeys } from '$lib/queries/storage';
+  import { ACCEPTED_IMAGE_TYPES } from '$lib/utils/constants';
 
   const queryClient = useQueryClient();
 
   const MAX_SIZE_BYTES = 20 * 1024 * 1024; // 20 MB
-  const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 
   let dragOver = $state(false);
   let uploading = $state(false);
@@ -40,7 +40,7 @@
   });
 
   function validateFile(file: File): string | null {
-    if (!ACCEPTED_TYPES.includes(file.type)) {
+    if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
       return 'Only PNG, JPEG, and WebP are supported';
     }
     if (file.size > MAX_SIZE_BYTES) {
@@ -62,7 +62,7 @@
     fileSize = file.size;
 
     try {
-      const result = await uploadImage(file);
+      const result = await uploadMedia(file);
       generationStore.setUploadedImageId(result.id);
       queryClient.invalidateQueries({ queryKey: storageKeys.uploads() });
       // Switch to picker-selection preview using the immediate media from the response
@@ -222,7 +222,7 @@
   <input
     bind:this={fileInput}
     type="file"
-    accept={ACCEPTED_TYPES.join(',')}
+    accept={ACCEPTED_IMAGE_TYPES.join(',')}
     class="hidden"
     onchange={handleFileChange}
   />

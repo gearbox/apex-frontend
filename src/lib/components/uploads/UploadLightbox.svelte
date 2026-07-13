@@ -11,6 +11,8 @@
   import { isDesktop } from '$lib/utils/breakpoints';
   import { ROUTES } from '$lib/utils/routes';
   import MediaImage from '$lib/media/MediaImage.svelte';
+  import MediaVideo from '$lib/media/MediaVideo.svelte';
+  import FrameExtractModal from '$lib/components/frames/FrameExtractModal.svelte';
   import ConfirmDeleteModal from '$lib/components/shared/ConfirmDeleteModal.svelte';
   import type { components } from '$lib/api/types';
   import * as m from '$paraglide/messages';
@@ -26,6 +28,7 @@
   } = $props();
 
   let showDeleteConfirm = $state(false);
+  let showFrameExtraction = $state(false);
 
   const queryClient = useQueryClient();
   const deleteMutation = createMutation(() => deleteContentMutationOptions(queryClient));
@@ -68,13 +71,23 @@
 </script>
 
 {#snippet actionsBlock()}
-  <div class="flex gap-2">
-    <button
-      onclick={handleUseInGeneration}
-      class="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-accent/15 px-3 py-2 text-xs font-semibold text-accent transition-colors hover:bg-accent/25"
-    >
-      <Repeat2 size={13} /> Use in generation
-    </button>
+  <div class="flex flex-wrap gap-2">
+    {#if item.media.media_type === 'image'}
+      <button
+        onclick={handleUseInGeneration}
+        class="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-accent/15 px-3 py-2 text-xs font-semibold text-accent transition-colors hover:bg-accent/25"
+      >
+        <Repeat2 size={13} />
+        {m.frames_use_as_input()}
+      </button>
+    {:else if item.media.media_type === 'video'}
+      <button
+        onclick={() => (showFrameExtraction = true)}
+        class="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-accent/15 px-3 py-2 text-xs font-semibold text-accent transition-colors hover:bg-accent/25"
+      >
+        {m.frames_extract_action()}
+      </button>
+    {/if}
 
     <button
       onclick={() => (showDeleteConfirm = true)}
@@ -148,13 +161,22 @@
         <X size={18} />
       </button>
 
-      <MediaImage
-        media={item.media}
-        alt={item.filename}
-        sizes="(max-width: 768px) 100vw, 66vw"
-        loading="eager"
-        class="max-h-[60vh] w-full object-contain md:max-h-full"
-      />
+      {#if item.media.media_type === 'video'}
+        <MediaVideo
+          media={item.media}
+          controls
+          playsinline
+          class="max-h-[60vh] w-full object-contain md:max-h-full"
+        />
+      {:else}
+        <MediaImage
+          media={item.media}
+          alt={item.filename}
+          sizes="(max-width: 768px) 100vw, 66vw"
+          loading="eager"
+          class="max-h-[60vh] w-full object-contain md:max-h-full"
+        />
+      {/if}
     </div>
 
     <!-- Panel -->
@@ -180,5 +202,13 @@
     isPending={deleteMutation.isPending}
     onconfirm={handleDelete}
     oncancel={() => (showDeleteConfirm = false)}
+  />
+{/if}
+
+{#if showFrameExtraction}
+  <FrameExtractModal
+    source={{ type: 'upload', id: item.id }}
+    media={item.media}
+    onclose={() => (showFrameExtraction = false)}
   />
 {/if}
