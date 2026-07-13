@@ -1,8 +1,16 @@
 <script lang="ts">
   import { generationStore } from '$lib/stores/generation';
+  import { getEditAspectRatios } from '$lib/utils/modelCapabilities';
   import type { components } from '$lib/api/types';
+  import * as m from '$paraglide/messages';
 
   type AspectRatio = components['schemas']['AspectRatio'];
+  type ModelInfo = components['schemas']['ModelInfo'];
+
+  let {
+    modelInfo = null,
+    aspectError = null,
+  }: { modelInfo?: ModelInfo | null; aspectError?: string | null } = $props();
 
   interface RatioMeta {
     w: number;
@@ -20,39 +28,92 @@
     '2:3': { w: 9, h: 14, label: '2:3' },
   };
 
+  // Display order only — ratio membership is owned by KNOWN_ASPECT_RATIOS in modelCapabilities.ts
   const RATIOS: AspectRatio[] = ['3:4', '4:3', '1:1', '9:16', '16:9', '2:3', '3:2'];
+
+  const isEditMode = $derived($generationStore.mode === 'i2i');
+  const editRatios = $derived(getEditAspectRatios(modelInfo));
+  // Capability unknown while the providers query is still loading — never show the
+  // "no reshape" notice or explicit ratio chips until modelInfo actually resolves.
+  const capabilityLoading = $derived(isEditMode && modelInfo == null);
+  const noReshape = $derived(isEditMode && modelInfo != null && editRatios.length === 0);
+
+  function ratioIcon(meta: RatioMeta) {
+    const cx = (18 - meta.w) / 2;
+    const cy = (18 - meta.h) / 2;
+    return { cx, cy };
+  }
 </script>
+
+{#snippet chip(label: string, isActive: boolean, onclick: () => void, meta?: RatioMeta)}
+  <button
+    {onclick}
+    class="flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-1.5 text-[11px] font-semibold transition-all
+      {isActive
+      ? 'border-accent-dim bg-accent-glow text-accent'
+      : 'border-border text-text-muted hover:border-border-active hover:text-text'}"
+  >
+    {#if meta}
+      {@const { cx, cy } = ratioIcon(meta)}
+      <svg
+        viewBox="0 0 18 18"
+        width="18"
+        height="18"
+        aria-hidden="true"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+      >
+        <rect x={cx} y={cy} width={meta.w} height={meta.h} rx="1" />
+      </svg>
+      <span class="font-mono">{label}</span>
+    {:else}
+      {label}
+    {/if}
+  </button>
+{/snippet}
 
 <div class="flex flex-col gap-2">
   <span class="text-[11px] font-semibold uppercase tracking-wider text-text-muted"
     >Aspect Ratio</span
   >
-  <div class="flex gap-1 overflow-x-auto">
-    {#each RATIOS as ratio (ratio)}
-      {@const meta = RATIO_META[ratio]}
-      {@const isActive = $generationStore.aspectRatio === ratio}
-      {@const cx = (18 - meta.w) / 2}
-      {@const cy = (18 - meta.h) / 2}
-      <button
-        onclick={() => generationStore.setAspectRatio(ratio)}
-        class="flex items-center gap-1.5 rounded-md border px-2 py-1.5 transition-all
-          {isActive
-          ? 'border-accent-dim bg-accent-glow text-accent'
-          : 'border-border text-text-muted hover:border-border-active hover:text-text'}"
-      >
-        <svg
-          viewBox="0 0 18 18"
-          width="18"
-          height="18"
-          aria-hidden="true"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.5"
-        >
-          <rect x={cx} y={cy} width={meta.w} height={meta.h} rx="1" />
-        </svg>
-        <span class="font-mono text-[11px] font-semibold">{meta.label}</span>
-      </button>
-    {/each}
-  </div>
+  {#if noReshape}
+    <p class="rounded-md border border-border bg-surface px-2.5 py-2 text-xs text-text-muted">
+      {m.create_aspect_no_reshape()}
+    </p>
+  {:else if capabilityLoading}
+    <div class="flex gap-1 overflow-x-auto opacity-60 pointer-events-none">
+      {@render chip(m.create_aspect_auto(), $generationStore.editAspectRatio === null, () =>
+        generationStore.setEditAspectRatio(null),
+      )}
+    </div>
+  {:else if isEditMode}
+    <div class="flex gap-1 overflow-x-auto">
+      {@render chip(m.create_aspect_auto(), $generationStore.editAspectRatio === null, () =>
+        generationStore.setEditAspectRatio(null),
+      )}
+      {#each editRatios as ratio (ratio)}
+        {@render chip(
+          RATIO_META[ratio].label,
+          $generationStore.editAspectRatio === ratio,
+          () => generationStore.setEditAspectRatio(ratio),
+          RATIO_META[ratio],
+        )}
+      {/each}
+    </div>
+  {:else}
+    <div class="flex gap-1 overflow-x-auto">
+      {#each RATIOS as ratio (ratio)}
+        {@render chip(
+          RATIO_META[ratio].label,
+          $generationStore.aspectRatio === ratio,
+          () => generationStore.setAspectRatio(ratio),
+          RATIO_META[ratio],
+        )}
+      {/each}
+    </div>
+  {/if}
+  {#if aspectError}
+    <p class="text-xs text-danger">{aspectError}</p>
+  {/if}
 </div>

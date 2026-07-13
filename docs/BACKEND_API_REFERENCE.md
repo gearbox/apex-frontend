@@ -1,6 +1,12 @@
 # Backend API Reference — Apex REST API
 
-> _Last updated: 2026-07-10 — Added the payment gateway protocol and per-product runtime provider registry. Checkout clients must discover enabled providers through public `GET /v1/billing/providers`; superadmins manage capability members through `GET/PATCH /v1/admin/payments/providers`. Disabling a provider blocks new charges with a stable `409` body but never blocks webhook settlement. Provider changes are appended to the admin audit log with a nullable `target_user_id`._
+> _Last updated: 2026-07-13 — **Breaking change:** fixed i2i aspect-ratio distortion. `aspect_ratio` on `POST /v1/generate` (§4) is now **optional** — `None`/omitted means "provider default" for t2i (1:1 image, 16:9 video) and "follow the source image's aspect" for i2i. For i2i, an explicit `aspect_ratio` is now capability-gated per model: `GET /v1/providers` `ImageConstraints` (§5) gained `edit_aspect_ratios` — an empty list means the model cannot reshape on edit (it would silently stretch the source) and any explicit `aspect_ratio` on an i2i request for that model now returns `400 validation_error`; `grok-imagine-image` currently has an empty list, `aisha-image` supports the full ratio list. t2i requests are now also validated against the model's `aspect_ratios` list (previously unenforced — any value silently passed through). `aspect_ratio: null` on job/gallery responses (§6, §10) now additionally means "generation followed the source image's aspect" for i2i jobs, alongside its prior meanings. Frontend must regenerate types (`gen:api`) and stop hardcoding an `aspect_ratio` default on i2i requests for non-reshaping models._
+>
+> _Prior (2026-07-12): Added **Video Frame Extraction** (new §9b): `POST /v1/frames/preview` and `POST /v1/frames/extract` run as free, non-billed background jobs (no `Idempotency-Key`) against either a `GenerationOutput` video or a user-uploaded video; poll `GET /v1/frames/jobs/{id}` until `completed`/`failed`. Preview frames are presigned R2 URLs generated fresh per poll (never cache beyond the current session — see §9b); extracted frames become ordinary uploads (standard `MediaObject`, stable `/v1/content/uploads/{id}` URLs) with new source-video lineage. Also: `POST /v1/storage/upload` (§8) now accepts video (`video/mp4`, `video/webm`, `video/quicktime`, ≤20MB, ffprobe-validated server-side — the declared `Content-Type` is never trusted); the Content Proxy (§9) inline-safe `Content-Type` allowlist grew to match. New enums `FrameExtractionKind`/`FrameExtractionStatus` (§17); `MediaFormat` gained `webm`/`mov`. Frontend must regenerate types (`gen:api`) — see `docs/contracts/video-frame-extraction.md` for the full contract._
+>
+> _Prior (2026-07-12): Gallery items now expose `expires_at` (§10): `GalleryGridItem.expires_at` (sourced from the cover output) and `GalleryOutputItem.expires_at` (per-output), matching the existing `ImageListItem`/`OutputListItem` contract in Storage (§8). Frontend can now render a "Delete in N days/hours/minutes" badge directly from the gallery grid/detail responses without a separate Storage lookup. Also: content retention is now actively enforced by a periodic sweeper — see the new retention note in §8. Frontend must regenerate types (`gen:api`)._
+>
+> _Prior (2026-07-10): Added the payment gateway protocol and per-product runtime provider registry. Checkout clients must discover enabled providers through public `GET /v1/billing/providers`; superadmins manage capability members through `GET/PATCH /v1/admin/payments/providers`. Disabling a provider blocks new charges with a stable `409` body but never blocks webhook settlement. Provider changes are appended to the admin audit log with a nullable `target_user_id`._
 >
 > _Prior (2026-06-30): MediaObject contract tightening (§5b): `ImageVariant.width`/`height` are now required non-null integers (serializer skips and logs any legacy dimensionless variant row rather than emitting null). `MediaObject.variants` is now required (was optional with a default) — OpenAPI marks it in `required`. Content cookie `Domain` is now omitted (host-only) in dev mode so the `apex_content` cookie is stored correctly over `http://localhost`; production posture unchanged (`Domain=<product>`, `Secure`). Frontend must re-run `gen:api` to pick up the updated types, then drop `?? []` on `variants` and `.filter(v => v.width)` guards. Prior (2026-06-29): Cursor pagination on audit log (§14): `GET /v1/admin/manage/audit` now returns `CursorPage<AuditLogEntry>` instead of a bare array. Pass `cursor=next_cursor` for subsequent pages. Frontend must regenerate types and switch to cursor-scroll. Prior (2026-06-27): Unified Image Variants (§6, §8, §10): `MediaObject` replaces all per-output presigned URL fields across the Jobs, Storage, and Gallery APIs. Jobs API no longer presigns URLs — all content URLs are stable content-proxy paths. Gallery cover logic now always uses the job's own primary output (no longer sources input images). Upload thumbnails (sm=150px, md=512px WEBP) generated automatically on upload._
 >
@@ -9,7 +15,7 @@
 > **Source:** `gearbox/apex` repository
 > **Framework:** Litestar 2.5+ / Python 3.13
 > **Schema:** `GET /docs/openapi.json` from running backend (Litestar OpenAPIConfig has `path="/docs"`)
-> **Last synced:** 2026-07-10 — `master` @ `4d4105c75f6069bf646c1fb3e30e731af9c14dd8`
+> **Last synced:** 2026-07-13 — `master` @ `20bec2ec71a432f8cdb1325da4f816fe38641a7a` (+ pending i2i aspect-ratio capability fix, v0.26.0)
 >
 > _2026-07-08: **Breaking change** — replaced fixed token packages with tiered free-amount top-up (§11). `POST /v1/billing/topup/{stripe,nowpayments}` now take `{ amount_usd: int }` instead of `{ package_id: string }`; `GET /v1/billing/packages` is removed, replaced by `GET /v1/billing/topup/options`. Frontend must regenerate types (`gen:api`) and update the top-up UI to a preset-amounts + free-input flow (separate prompt)._
 >
@@ -324,7 +330,12 @@ Request: {
   }>,                             // mutually exclusive with top-level input_image_id/source_output_id
   input_video_url?: string,       // required for v2v (public URL)
   negative_prompt?: string (≤2048 chars),  // applied by Aisha; stored but ignored by Grok
-  aspect_ratio?: AspectRatio (default "1:1"),
+  aspect_ratio?: AspectRatio | null,  // omit/null ⇒ provider default for t2i (1:1 image, 16:9 video);
+                                      //   for i2i, omit/null ⇒ output follows the source image's aspect.
+                                      //   For i2i, an explicit value is only accepted when the model's
+                                      //   edit_aspect_ratios (see GET /v1/providers, §5) includes it —
+                                      //   otherwise 400 validation_error (the model would silently stretch
+                                      //   the source to fit instead of recomposing it).
   n?: int (1–10, default 1),      // number of outputs; clamped to model max (see ModelType.max_images)
   name?: string,                  // auto-generated from prompt[:50] if omitted
 
@@ -375,6 +386,14 @@ Note:     source_output_id enables "remix from gallery" — the backend resolves
           is not set, the request returns 403 age_verification_required and no job is created / no tokens
           are charged. Capture verification first via PATCH /v1/users/me (§3). The gate is per-model and
           authoritative regardless of the product's age_gate policy.
+
+          Aspect-ratio capability gate: t2i requests validate aspect_ratio against the model's
+          aspect_ratios list (GET /v1/providers). i2i requests validate against the model's
+          edit_aspect_ratios list instead — a separate, usually smaller/empty capability, since
+          reshaping the *output* canvas of an edit is a different (and not universally supported)
+          operation from generating a fresh canvas from scratch. An unsupported value on either path
+          returns 400 validation_error with an actionable message (e.g. "omit aspect_ratio to preserve
+          the source aspect"); no job is created and no tokens are charged.
 ```
 
 ### JobCreatedResponse Schema
@@ -428,7 +447,7 @@ ModelInfo: {
   max_images: int,                   // max outputs per request
   max_prompt_length: int,
   supports_negative_prompt: bool,
-  aspect_ratios: string[],           // e.g. ["1:1", "16:9"]
+  aspect_ratios: string[],           // e.g. ["1:1", "16:9"] — t2i only; see ImageConstraints.edit_aspect_ratios for i2i
   requires_age_verification: bool,   // true ⇒ user must be age-verified (PATCH /v1/users/me) before
                                      //   generating; enforced at POST /v1/generate. Collect the 18+
                                      //   confirmation before starting a (billable) GPU session.
@@ -449,8 +468,15 @@ ImageConstraints: {
   supported_tiers: string[] | null,  // image quality tiers, e.g. ["draft","standard","high","ultra"]
                                       // null for models with fixed sizing (e.g. Grok)
   default_tier: string | null,       // default quality tier; null for fixed-sizing models
-  tier_megapixels: { [tier: string]: number } | null  // target megapixel budget per tier
+  tier_megapixels: { [tier: string]: number } | null,  // target megapixel budget per tier
                                       // actual W×H depends on model + aspect ratio
+  edit_aspect_ratios: string[]       // aspect ratios this model can reshape TO during image editing
+                                      // (i2i). Empty array ⇒ the model cannot reshape on edit — clients
+                                      // must omit aspect_ratio on i2i requests for this model, and the
+                                      // output follows the source image's own aspect. e.g. grok-imagine-image
+                                      // → [] (accepts the param on edits but stretches instead of
+                                      // recomposing); aisha-image → full AspectRatio list (recomposes
+                                      // natively onto the requested canvas).
 }
 
 VideoConstraints: {
@@ -561,7 +587,8 @@ interface UnifiedJobResponse {
   generation_type: GenerationType;
   prompt: string;
   negative_prompt: string | null;
-  aspect_ratio: string | null;
+  aspect_ratio: string | null;  // null ⇒ i2i generation that followed the source image's aspect
+                                 // (no explicit aspect_ratio was requested/capability-approved)
   token_cost: number | null;
   created_at: string;       // ISO datetime
   started_at: string | null;
@@ -846,12 +873,23 @@ Errors:   401 unauthorized (missing / empty / invalid Bearer token),
 
 ## 8. Storage *(authenticated)*
 
+> **Retention:** every upload and output row carries `expires_at`, set at creation to `now +
+> RETENTION_DAYS` (default 7 days). A periodic background sweeper (`ContentRetentionWorker`)
+> deletes expired rows and their R2 objects on a fixed interval. Once swept: the item drops out
+> of Storage/Gallery list responses, and `GET /v1/content/...` (§9) for that ID returns `404`.
+> `expires_at` is a plain timestamp (not a countdown) so the frontend can derive and tick a
+> "Delete in N days/hours/minutes" badge client-side — see `ImageListItem`/`OutputListItem`
+> below and `GalleryGridItem`/`GalleryOutputItem` (§10).
+
 ### Uploads
 
 #### `POST /v1/storage/upload`
 
 ```
-Request:  multipart/form-data, field "data" (max 20MB, PNG/JPEG/WebP)
+Request:  multipart/form-data, field "data" (max 20MB)
+          Images:  PNG, JPEG, WebP, HEIC/HEIF, AVIF — non-PNG/JPEG/WebP inputs
+                    are converted to PNG.
+          Videos:  MP4, WebM, QuickTime (.mov) — stored as-is, never re-encoded.
 Response: {
   id: UUID,
   filename: string,
@@ -860,9 +898,22 @@ Response: {
   media: MediaObject    // original + sm/md WEBP variants (generated synchronously)
 }
 Status:   201 Created
-Errors:   400 (invalid_file_type | file_too_large | empty_file)
-Note:     Returns image id used for I2I/I2V generation requests.
-          Thumbnail generation is non-fatal; variants may be empty on failure.
+Errors:   400 (invalid_file_type | file_too_large | empty_file | validation_error)
+Note:     Returns image id used for I2I/I2V generation requests, or (for
+          videos) as source_upload_id on POST /v1/frames/preview|extract (§9b).
+          Thumbnail/poster generation is non-fatal; variants may be empty on failure.
+
+          Videos are probed server-side (ffprobe) before acceptance — the
+          declared Content-Type is never trusted. A validation_error 400 is
+          returned if the bytes aren't a decodable video, or if duration
+          exceeds the server's configured maximum (default 300s):
+            { "error": "validation_error",
+              "message": "File is not a decodable video", "status_code": 400 }
+            { "error": "validation_error",
+              "message": "Video duration 620.0s exceeds maximum 300s", "status_code": 400 }
+
+          Video duration is not currently exposed on any response — poll a
+          preview job (§9b) to learn frame timestamps within the clip.
 ```
 
 #### `GET /v1/storage/uploads`
@@ -966,7 +1017,7 @@ Provides stable, non-expiring authenticated URLs for user content. The server re
 ### Response Headers
 
 All successful responses include:
-- `Content-Type` — the stored R2 `ContentType` **only if it's on the inline-safe allowlist** (`image/png`, `image/jpeg`, `image/webp`, `video/mp4`); otherwise `application/octet-stream`
+- `Content-Type` — the stored R2 `ContentType` **only if it's on the inline-safe allowlist** (`image/png`, `image/jpeg`, `image/webp`, `video/mp4`, `video/webm`, `video/quicktime`); otherwise `application/octet-stream`
 - `Content-Length` — from R2 object metadata
 - `Cache-Control: private, max-age=10800, immutable` — 3-hour client cache (default; configurable via `CONTENT_URL_TTL`)
 - `ETag: "<content_id>"` — the output/upload UUID, for conditional requests
@@ -1003,6 +1054,84 @@ Errors:   404 not_found (content does not exist, not owned, or wrong product)
 Note:     Permanently deletes the file from R2 and removes the DB record.
           Checks generation_outputs first, then user_images.
           Lineage references (source_output_id, input_image_id) are SET NULL automatically.
+```
+
+---
+
+## 9b. Video Frame Extraction *(authenticated)*
+
+> Full contract: `docs/contracts/video-frame-extraction.md`.
+
+Takes any video — a `GenerationOutput` (Grok T2V/I2V) or a user-uploaded video (§8, `video/*` content type) — and either previews it as a low-res frame strip or extracts full-resolution frames at chosen timestamps. **Free** — no token charge, no `Idempotency-Key` header on any endpoint below. Both endpoints return `202` immediately with a `job_id`; the actual ffmpeg work runs on a background worker (`FrameExtractionWorker`) — poll `GET /v1/frames/jobs/{job_id}` until `status` is `completed` or `failed`.
+
+Exactly one of `source_output_id` / `source_upload_id` must be set on every request below (`400 invalid_source` otherwise); the resolved source must be owned by the caller, belong to the current product, and have a video content type (`400 not_a_video` / `404 not_found` otherwise).
+
+#### `POST /v1/frames/preview`
+
+```
+Request:  {
+  source_output_id?: UUID | null,   // exactly one of these two
+  source_upload_id?: UUID | null,
+  frame_count?: int                 // 2-60, default 12
+}
+Response: { job_id: UUID, status: "queued" }
+Status:   202 Accepted
+Errors:   400 invalid_source | not_a_video, 404 not_found
+```
+
+#### `POST /v1/frames/extract`
+
+```
+Request:  {
+  source_output_id?: UUID | null,
+  source_upload_id?: UUID | null,
+  timestamps_ms: int[]              // 1-50 entries, each >= 0
+}
+Response: { job_id: UUID, status: "queued" }
+Status:   202 Accepted
+Errors:   400 invalid_source | not_a_video, 404 not_found
+Note:     Whether each timestamp is within the video's actual duration is
+          checked once the worker probes the file (after the job starts
+          running) — an out-of-range timestamp fails the *job*
+          (status=failed, precise error), not the request.
+```
+
+#### `GET /v1/frames/jobs/{job_id}`
+
+```
+Response: {
+  job_id: UUID,
+  kind: "preview" | "extract",
+  status: "queued" | "running" | "completed" | "failed",
+  created_at: datetime,
+  started_at: datetime | null,
+  finished_at: datetime | null,
+  error: string | null,             // populated only when status=failed
+  source: { type: "output" | "upload", id: UUID },
+  preview?: {                       // present iff kind=preview AND status=completed
+    frames: [ { index: int, timestamp_ms: int, url: string } ],
+    expires_in_seconds: int
+  },
+  extracted?: {                     // present iff kind=extract AND status=completed
+    frames: [ { timestamp_ms: int, upload_id: UUID, media: MediaObject } ]
+  }
+}
+Errors:   404 not_found (job doesn't exist or isn't owned by the caller)
+Note:     preview.frames[].url is a presigned R2 URL generated FRESH on every
+          call — never persisted, never the same URL twice. expires_in_seconds
+          is that response's TTL (default 3600s); re-poll for fresh URLs
+          rather than caching. Preview frames live at a non-authenticated,
+          top-level R2 prefix that expires via an R2 lifecycle rule (default
+          2 days) — there is no /v1/content/... proxy indirection for them
+          (by design: stateless, no DB rows).
+
+          extracted.frames[].media is the same MediaObject as everything else
+          (§5b) — its urls are stable /v1/content/uploads/{id} proxy paths,
+          cacheable indefinitely, same as any other upload. Once an extract
+          job completes its frames are ordinary uploads: same download (§8),
+          same delete (DELETE /v1/content/{id}, §9), same retention/expiry.
+          Deleting the source video does NOT delete frames already extracted
+          from it.
 ```
 
 ---
@@ -1046,9 +1175,13 @@ interface GalleryGridItem {
   output_count: number;     // non-thumbnail outputs in this group
   generation_type: GenerationType;
   model: string | null;
-  aspect_ratio: string | null; // e.g. "16:9"
+  aspect_ratio: string | null; // e.g. "16:9"; null ⇒ i2i job that followed the source image's aspect
   prompt_snippet: string;   // first 100 chars of the prompt
   created_at: string;       // ISO datetime
+  expires_at: string;       // ISO datetime — sourced from the cover output; all outputs in a
+                            // group share the same retention window. Drive a "Delete in N
+                            // days/hours/minutes" badge from this client-side (server sends a
+                            // timestamp, not a countdown, so it survives caching and ticks live).
 }
 
 interface GalleryGroupDetail {
@@ -1066,7 +1199,7 @@ interface GalleryGroupDetail {
   model: string | null;
   provider: string;
   generation_type: GenerationType;
-  aspect_ratio: string | null;
+  aspect_ratio: string | null;  // null ⇒ i2i job that followed the source image's aspect
   token_cost: number | null;
   created_at: string;
   completed_at: string | null;
@@ -1078,6 +1211,7 @@ interface GalleryOutputItem {
   id: string;               // UUID
   output_index: number;     // 0-based
   created_at: string;
+  expires_at: string;       // ISO datetime — this output's own retention deletion timestamp
   media: MediaObject;       // original asset + sm/md WEBP variants
 }
 
@@ -1096,6 +1230,12 @@ interface GalleryLineage {
 > `GalleryGroupDetail.input_image_url` → `input_media: MediaObject | null`.
 > `GalleryOutputItem` drops `url`, `thumbnail_url`, `content_type`, `media_type`, `format`,
 > `size_bytes` — all in `media: MediaObject`.
+
+> **New field (2026-07-12, additive):** `expires_at` on `GalleryGridItem` and
+> `GalleryOutputItem` — brings the gallery contract to parity with `ImageListItem`/
+> `OutputListItem` (§8), which have exposed `expires_at` all along. `DELETE
+> /v1/content/{content_id}` (§9) already supported uploads before this change — no new
+> delete endpoint was added for the uploads-delete UI; reuse the existing one.
 
 ### Gallery Badge Logic
 
@@ -2154,6 +2294,10 @@ Per-user readiness of an `on_demand` model. Surfaced as `ModelInfo.session_state
 
 Values: `"1:1"`, `"16:9"`, `"9:16"`, `"4:3"`, `"3:4"`, `"2:3"`, `"3:2"`
 
+> `aspect_ratio` on `POST /v1/generate` (§4) is optional. Omitting it means "provider default" for
+> t2i and "follow the source image's aspect" for i2i. For i2i, an explicit value is only accepted for
+> models whose `edit_aspect_ratios` (`GET /v1/providers`, §5) includes it — see §4 for the full gate.
+
 ### VideoResolution
 
 Values: `"480p"`, `"720p"`
@@ -2187,9 +2331,9 @@ ComfyUI scheduler names accepted on `POST /v1/generate` (`scheduler`, Aisha imag
 
 ### MediaFormat
 
-Values: `"png"`, `"jpeg"`, `"webp"` (images), `"mp4"` (video)
+Values: `"png"`, `"jpeg"`, `"webp"` (images), `"mp4"`, `"webm"`, `"mov"` (video)
 
-> Surfaced as the `format` field on job/gallery outputs. Generated image thumbnails are `webp`.
+> Surfaced as the `format` field on job/gallery outputs. Generated image thumbnails are `webp`. `"webm"`/`"mov"` apply only to user-uploaded videos (§8/§9b) — generated video outputs are always `"mp4"`.
 
 ### AccountType
 
@@ -2254,6 +2398,23 @@ Indicates the primary input type for a gallery item:
 Values: `"upload"`, `"generation"`
 
 Used in `GalleryLineage.source_type` to indicate whether the input came from a direct upload or a previous generation output.
+
+### FrameExtractionKind
+
+Values: `"preview"`, `"extract"`
+
+The `kind` field on a video frame extraction job (§9b) — which of the two flows a job performs.
+
+### FrameExtractionStatus
+
+| Value | Terminal? | Description |
+|-------|----------|-------------|
+| `queued` | No | Job created, awaiting the worker |
+| `running` | No | Worker has claimed the job and is running ffmpeg |
+| `completed` | Yes | Done — `preview`/`extracted` populated on `GET /v1/frames/jobs/{id}` |
+| `failed` | Yes | Error occurred — `error` populated with a human-readable message |
+
+**Polling strategy:** Poll `GET /v1/frames/jobs/{id}` (§9b) every ~1s while status is `queued` or `running`. Jobs are short-lived (typically low single-digit seconds) — no SSE variant exists for this.
 
 ---
 

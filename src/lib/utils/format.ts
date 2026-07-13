@@ -1,5 +1,6 @@
 import { get } from 'svelte/store';
 import { locale } from '$lib/stores/locale';
+import * as m from '$paraglide/messages';
 
 const MINUTE = 60;
 const HOUR = 3600;
@@ -95,6 +96,11 @@ export function formatRelativeTime(iso: string): string {
 /** Format file size in human-readable form. e.g. "1.4 MB", "340 KB" */
 export function formatFileSize(bytes: number): string {
   return formatBytes(bytes);
+}
+
+/** Format an aspect ratio value, falling back to the "Auto (source)" label when unset. */
+export function formatAspectRatio(value: string | null | undefined): string {
+  return value ?? m.media_aspect_auto_source();
 }
 
 /** Format milliseconds as MM:SS countdown, clamped to 00:00. */

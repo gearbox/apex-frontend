@@ -103,6 +103,7 @@ export function makeGalleryGridItem(overrides: Partial<GalleryGridItem> = {}): G
     aspect_ratio: '1:1',
     prompt_snippet: 'A beautiful sunset over mountains with golden light',
     created_at: '2025-06-01T12:00:00Z',
+    expires_at: '2025-07-01T12:00:00Z',
     ...overrides,
   };
 }
@@ -114,6 +115,7 @@ export function makeGalleryOutputItem(
     id: 'out_mock_001',
     output_index: 0,
     created_at: '2025-06-01T12:01:00Z',
+    expires_at: '2025-07-01T12:00:00Z',
     media: makeMediaObject(),
     ...overrides,
   };

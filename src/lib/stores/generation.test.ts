@@ -104,6 +104,49 @@ describe('generationStore — remix flow', () => {
   });
 });
 
+describe('generationStore — editAspectRatio hygiene', () => {
+  it('defaults to null (Auto)', () => {
+    expect(get(generationStore).editAspectRatio).toBeNull();
+  });
+
+  it('setEditAspectRatio sets and clears the value', () => {
+    generationStore.setEditAspectRatio('16:9');
+    expect(get(generationStore).editAspectRatio).toBe('16:9');
+    generationStore.setEditAspectRatio(null);
+    expect(get(generationStore).editAspectRatio).toBeNull();
+  });
+
+  it('setMode resets editAspectRatio to null', () => {
+    generationStore.setEditAspectRatio('16:9');
+    generationStore.setMode('i2i');
+    expect(get(generationStore).editAspectRatio).toBeNull();
+  });
+
+  it('setModel resets editAspectRatio to null', () => {
+    generationStore.setEditAspectRatio('16:9');
+    generationStore.setModel('aisha-image');
+    expect(get(generationStore).editAspectRatio).toBeNull();
+  });
+
+  it('prefill resets editAspectRatio to null unless explicitly passed', () => {
+    generationStore.setEditAspectRatio('16:9');
+    generationStore.prefill({ prompt: 'remix' });
+    expect(get(generationStore).editAspectRatio).toBeNull();
+  });
+
+  it('prefill preserves editAspectRatio when explicitly passed', () => {
+    generationStore.prefill({ prompt: 'remix', editAspectRatio: '4:3' });
+    expect(get(generationStore).editAspectRatio).toBe('4:3');
+  });
+
+  it('a t2i aspect selection cannot leak into i2i editAspectRatio on mode switch', () => {
+    generationStore.setAspectRatio('9:16');
+    generationStore.setMode('i2i');
+    expect(get(generationStore).editAspectRatio).toBeNull();
+    expect(get(generationStore).aspectRatio).toBe('9:16');
+  });
+});
+
 describe('generationStore — Aisha image param setters', () => {
   it('setSizingMode toggles between tier and custom', () => {
     generationStore.setSizingMode('custom');

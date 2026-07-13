@@ -1,9 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { buildGeneratePayload } from './generatePayload';
 import type { GenerationState } from '$lib/stores/generation';
-import type { components } from '$lib/api/types';
-
-type ModelInfo = components['schemas']['ModelInfo'];
+import { makeGrokImageModelInfo, makeAishaImageModelInfo } from '../../mocks/factories/providers';
 
 const baseState: GenerationState = {
   provider: 'grok',
@@ -15,6 +13,7 @@ const baseState: GenerationState = {
   sourceOutputId: null,
   selectedImagePreviewUrl: null,
   aspectRatio: '1:1',
+  editAspectRatio: null,
   imageCount: 1,
   videoDuration: 5,
   videoResolution: '720p',
@@ -34,41 +33,9 @@ const baseState: GenerationState = {
   progress: null,
 };
 
-const grokModelInfo: ModelInfo = {
-  model_key: 'grok-imagine-image',
-  name: 'Grok Imagine',
-  description: '',
-  capabilities: ['t2i'],
-  is_enabled: true,
-  max_images: 4,
-  max_prompt_length: 4096,
-  supports_negative_prompt: false,
-  aspect_ratios: ['1:1'],
-  requires_age_verification: false,
-  image: null,
-};
+const grokModelInfo = makeGrokImageModelInfo();
 
-const aishaModelInfo: ModelInfo = {
-  model_key: 'aisha-image',
-  name: 'Aisha',
-  description: '',
-  capabilities: ['t2i'],
-  is_enabled: true,
-  max_images: 4,
-  max_prompt_length: 4096,
-  supports_negative_prompt: true,
-  aspect_ratios: ['1:1'],
-  requires_age_verification: false,
-  image: {
-    min_height: 256,
-    max_height: 2048,
-    default_height: 1024,
-    output_resolutions: null,
-    supported_tiers: ['draft', 'standard', 'high', 'ultra'],
-    default_tier: 'standard',
-    tier_megapixels: { draft: 0.25, standard: 1.0, high: 2.0, ultra: 4.0 },
-  },
-};
+const aishaModelInfo = makeAishaImageModelInfo();
 
 describe('buildGeneratePayload — Grok model', () => {
   it('always includes prompt, model, generation_type, aspect_ratio, n, duration', () => {
@@ -280,6 +247,66 @@ describe('buildGeneratePayload — Aisha sampler overrides', () => {
     expect(payload.sampler).toBeUndefined();
     expect(payload.scheduler).toBeUndefined();
     expect(payload.denoise).toBeUndefined();
+  });
+});
+
+describe('buildGeneratePayload — i2i aspect_ratio serialization', () => {
+  it('i2i + editAspectRatio: null → aspect_ratio key absent from payload', () => {
+    const state: GenerationState = {
+      ...baseState,
+      mode: 'i2i',
+      aspectRatio: '3:4',
+      editAspectRatio: null,
+      sourceOutputId: 'out_001',
+    };
+    const payload = buildGeneratePayload(state, grokModelInfo);
+    expect(payload).not.toHaveProperty('aspect_ratio');
+  });
+
+  it('i2i + editAspectRatio: "16:9" → sent as 16:9', () => {
+    const state: GenerationState = {
+      ...baseState,
+      mode: 'i2i',
+      aspectRatio: '3:4',
+      editAspectRatio: '16:9',
+      sourceOutputId: 'out_001',
+    };
+    const payload = buildGeneratePayload(state, aishaModelInfo);
+    expect(payload.aspect_ratio).toBe('16:9');
+  });
+
+  it('t2i still sends state.aspectRatio regardless of editAspectRatio (regression)', () => {
+    const state: GenerationState = {
+      ...baseState,
+      mode: 't2i',
+      aspectRatio: '1:1',
+      editAspectRatio: '16:9',
+    };
+    const payload = buildGeneratePayload(state, grokModelInfo);
+    expect(payload.aspect_ratio).toBe('1:1');
+  });
+
+  it('t2v still sends state.aspectRatio, unaffected by editAspectRatio (regression)', () => {
+    const state: GenerationState = {
+      ...baseState,
+      mode: 't2v',
+      aspectRatio: '16:9',
+      editAspectRatio: '1:1',
+    };
+    const payload = buildGeneratePayload(state, grokModelInfo);
+    expect(payload.aspect_ratio).toBe('16:9');
+  });
+
+  it('i2v still sends state.aspectRatio, unaffected by editAspectRatio (regression)', () => {
+    const state: GenerationState = {
+      ...baseState,
+      mode: 'i2v',
+      aspectRatio: '9:16',
+      editAspectRatio: '1:1',
+      uploadedImageId: 'img_001',
+    };
+    const payload = buildGeneratePayload(state, grokModelInfo);
+    expect(payload.aspect_ratio).toBe('9:16');
   });
 });
 

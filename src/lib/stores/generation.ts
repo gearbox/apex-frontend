@@ -24,7 +24,8 @@ export interface GenerationState {
   selectedImagePreviewUrl: string | null; // content proxy URL for picker preview display
 
   // Parameters
-  aspectRatio: AspectRatio;
+  aspectRatio: AspectRatio; // t2i / video default aspect
+  editAspectRatio: AspectRatio | null; // i2i aspect; null = Auto (match source)
   imageCount: number;
   videoDuration: number;
   videoResolution: '480p' | '720p';
@@ -64,6 +65,7 @@ function createGenerationStore() {
     sourceOutputId: null,
     selectedImagePreviewUrl: null,
     aspectRatio: '3:4',
+    editAspectRatio: null,
     imageCount: 1,
     videoDuration: 5,
     videoResolution: '720p',
@@ -105,11 +107,19 @@ function createGenerationStore() {
         sampler: null,
         scheduler: null,
         denoise: null,
+        editAspectRatio: null,
       }));
     },
 
     setMode(mode: GenerationMode) {
-      update((s) => ({ ...s, mode, activeJobId: null, jobStatus: null, completedJob: null }));
+      update((s) => ({
+        ...s,
+        mode,
+        activeJobId: null,
+        jobStatus: null,
+        completedJob: null,
+        editAspectRatio: null,
+      }));
     },
 
     setPrompt(prompt: string) {
@@ -142,6 +152,10 @@ function createGenerationStore() {
 
     setAspectRatio(aspectRatio: AspectRatio) {
       update((s) => ({ ...s, aspectRatio }));
+    },
+
+    setEditAspectRatio(editAspectRatio: AspectRatio | null) {
+      update((s) => ({ ...s, editAspectRatio }));
     },
 
     setImageCount(imageCount: number) {
@@ -252,6 +266,8 @@ function createGenerationStore() {
         ...(!params.uploadedImageId && !params.sourceOutputId
           ? { uploadedImageId: null, sourceOutputId: null, selectedImagePreviewUrl: null }
           : {}),
+        // Reset i2i aspect to Auto unless explicitly provided in params
+        editAspectRatio: params.editAspectRatio !== undefined ? params.editAspectRatio : null,
       }));
     },
 
