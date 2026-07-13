@@ -1,4 +1,5 @@
 import { Buffer } from 'node:buffer';
+import type { Locator, Page } from '@playwright/test';
 import { test, expect } from '../fixtures/auth.fixture';
 import { jsonRoute } from '../helpers/api';
 
@@ -130,6 +131,46 @@ const mockProvidersResponse = {
   user_context: null,
 };
 
+async function swipeLeft(swipeContent: Locator, distance: number) {
+  await swipeContent.evaluate((element, swipeDistance) => {
+    const startX = 200;
+    const startY = 100;
+
+    function dispatchTouch(type: string, clientX?: number) {
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      Object.defineProperty(event, 'touches', {
+        value: clientX === undefined ? [] : [{ clientX, clientY: startY }],
+      });
+      element.dispatchEvent(event);
+    }
+
+    dispatchTouch('touchstart', startX);
+    dispatchTouch('touchmove', startX - swipeDistance);
+    dispatchTouch('touchend');
+  }, distance);
+}
+
+async function revealDeleteAction(page: Page) {
+  const swipeWrapper = page.locator('.swipe-wrapper').first();
+  const swipeContent = swipeWrapper.locator('.swipe-content');
+  const deleteAction = swipeWrapper.locator('.delete-action');
+
+  await swipeLeft(swipeContent, 80);
+  await expect(swipeContent).toHaveAttribute('style', /translateX\(-80px\)/);
+  await expect
+    .poll(async () => {
+      const [contentBox, actionBox] = await Promise.all([
+        swipeContent.boundingBox(),
+        deleteAction.boundingBox(),
+      ]);
+      if (!contentBox || !actionBox) return Number.POSITIVE_INFINITY;
+      return Math.round(contentBox.x + contentBox.width - actionBox.x);
+    })
+    .toBe(0);
+
+  return { swipeWrapper, swipeContent };
+}
+
 test.describe('Gallery deletion', () => {
   test.beforeEach(async ({ authenticatedPage: page }) => {
     await page.route('**/v1/content/**', (route) => {
@@ -138,6 +179,70 @@ test.describe('Gallery deletion', () => {
       }
       return route.fulfill({ status: 200, contentType: 'image/jpeg', body: Buffer.from('fake') });
     });
+  });
+
+  test('Mobile revealed swipe delete action opens the confirmation dialog', async ({
+    authenticatedPage: page,
+  }, testInfo) => {
+    test.skip(!testInfo.project.use.isMobile, 'Swipe-to-delete is mobile-only.');
+    await page.route((url) => url.pathname === '/v1/gallery', jsonRoute(mockGalleryPage));
+
+    await page.goto('/app/gallery');
+    await expect(page.getByText(/loaded/i)).toBeVisible({ timeout: 5000 });
+
+    const { swipeWrapper } = await revealDeleteAction(page);
+    const deleteAction = swipeWrapper.locator('.delete-action');
+    const box = await deleteAction.boundingBox();
+    if (!box) throw new Error('Expected delete action to have a bounding box');
+
+    // Use a real browser coordinate in the exposed 80px action. This catches an overlay
+    // that visually reveals Delete while still intercepting its click target.
+    const actionPoint = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    const hitTarget = await page.evaluate(({ x, y }) => {
+      const element = document.elementFromPoint(x, y);
+      return element?.closest('.delete-action')?.className ?? element?.className ?? null;
+    }, actionPoint);
+    expect(hitTarget).toContain('delete-action');
+    await page.mouse.click(actionPoint.x, actionPoint.y);
+
+    await expect(page.getByText(/permanently deleted/i)).toHaveCount(1);
+  });
+
+  test('Mobile open card tap closes the swipe without opening or deleting the card', async ({
+    authenticatedPage: page,
+  }, testInfo) => {
+    test.skip(!testInfo.project.use.isMobile, 'Swipe-to-delete is mobile-only.');
+    await page.route((url) => url.pathname === '/v1/gallery', jsonRoute(mockGalleryPage));
+
+    await page.goto('/app/gallery');
+    await expect(page.getByText(/loaded/i)).toBeVisible({ timeout: 5000 });
+
+    const { swipeWrapper, swipeContent } = await revealDeleteAction(page);
+    const closeOverlay = swipeWrapper.locator('.swipe-close-overlay');
+    const box = await closeOverlay.boundingBox();
+    if (!box) throw new Error('Expected close overlay to have a bounding box');
+
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+
+    await expect(closeOverlay).toHaveCount(0);
+    await expect(swipeContent).toHaveAttribute('style', /translateX\(0px\)/);
+    await expect(page.getByRole('dialog', { name: /image lightbox/i })).toHaveCount(0);
+    await expect(page.getByText(/permanently deleted/i)).toHaveCount(0);
+  });
+
+  test('Mobile overswipe still opens the deletion confirmation dialog', async ({
+    authenticatedPage: page,
+  }, testInfo) => {
+    test.skip(!testInfo.project.use.isMobile, 'Swipe-to-delete is mobile-only.');
+    await page.route((url) => url.pathname === '/v1/gallery', jsonRoute(mockGalleryPage));
+
+    await page.goto('/app/gallery');
+    await expect(page.getByText(/loaded/i)).toBeVisible({ timeout: 5000 });
+
+    const swipeContent = page.locator('.swipe-wrapper').first().locator('.swipe-content');
+    await swipeLeft(swipeContent, 130);
+
+    await expect(page.getByText(/permanently deleted/i)).toHaveCount(1);
   });
 
   test('Delete button in Lightbox shows confirm dialog', async ({ authenticatedPage: page }) => {

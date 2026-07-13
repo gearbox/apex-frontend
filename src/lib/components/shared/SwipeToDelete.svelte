@@ -1,3 +1,8 @@
+<script module lang="ts">
+  // Shared across card instances so opening one card closes any other open card.
+  let activeSwipeId = $state<string | null>(null);
+</script>
+
 <script lang="ts">
   import { isDesktop } from '$lib/utils/breakpoints';
   import { Trash2 } from 'lucide-svelte';
@@ -11,9 +16,6 @@
   }
 
   let { ondelete, disabled = false, children }: Props = $props();
-
-  // Module-level singleton: only one card open at a time
-  let activeSwipeId = $state<string | null>(null);
 
   const instanceId = crypto.randomUUID();
 
@@ -139,6 +141,18 @@
       ontouchcancel={handleTouchEnd}
     >
       {@render children()}
+
+      <!-- Tap-to-close layer moves with the card, leaving the revealed action tappable. -->
+      {#if isOpen}
+        <div
+          class="swipe-close-overlay"
+          role="button"
+          tabindex="-1"
+          aria-label="Close"
+          onclick={snapClose}
+          onkeydown={(e) => e.key === 'Enter' && snapClose()}
+        ></div>
+      {/if}
     </div>
 
     <!-- Red action area (absolutely positioned behind the card, aria-hidden) -->
@@ -148,18 +162,6 @@
         <span>{m.common_delete()}</span>
       </div>
     </div>
-
-    <!-- Tap-to-close overlay when card is swiped open -->
-    {#if isOpen}
-      <div
-        class="swipe-close-overlay"
-        role="button"
-        tabindex="-1"
-        aria-label="Close"
-        onclick={snapClose}
-        onkeydown={(e) => e.key === 'Enter' && snapClose()}
-      ></div>
-    {/if}
   </div>
 {/if}
 
