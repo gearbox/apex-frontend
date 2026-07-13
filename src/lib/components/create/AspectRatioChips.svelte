@@ -1,6 +1,6 @@
 <script lang="ts">
   import { generationStore } from '$lib/stores/generation';
-  import { getEditAspectRatios } from '$lib/utils/modelCapabilities';
+  import { getEditAspectRatios, getT2iAspectRatios } from '$lib/utils/modelCapabilities';
   import type { components } from '$lib/api/types';
   import * as m from '$paraglide/messages';
 
@@ -37,6 +37,24 @@
   // "no reshape" notice or explicit ratio chips until modelInfo actually resolves.
   const capabilityLoading = $derived(isEditMode && modelInfo == null);
   const noReshape = $derived(isEditMode && modelInfo != null && editRatios.length === 0);
+  // Preserve the canonical display order, narrowed to what the selected model actually advertises.
+  const t2iRatios = $derived(
+    RATIOS.filter((ratio) => getT2iAspectRatios(modelInfo).includes(ratio)),
+  );
+
+  // If the current model doesn't advertise the stored t2i aspect ratio (e.g. after
+  // switching models), snap to the first ratio it does support instead of letting a
+  // stale selection reach buildGeneratePayload and 400 at submit time.
+  $effect(() => {
+    if (
+      !isEditMode &&
+      modelInfo != null &&
+      t2iRatios.length > 0 &&
+      !t2iRatios.includes($generationStore.aspectRatio)
+    ) {
+      generationStore.setAspectRatio(t2iRatios[0]);
+    }
+  });
 
   function ratioIcon(meta: RatioMeta) {
     const cx = (18 - meta.w) / 2;
@@ -103,7 +121,7 @@
     </div>
   {:else}
     <div class="flex gap-1 overflow-x-auto">
-      {#each RATIOS as ratio (ratio)}
+      {#each t2iRatios as ratio (ratio)}
         {@render chip(
           RATIO_META[ratio].label,
           $generationStore.aspectRatio === ratio,

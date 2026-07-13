@@ -28,6 +28,20 @@ export function getEditAspectRatios(modelInfo: ModelInfo | null | undefined): As
 }
 
 /**
+ * The aspect ratios a model accepts for t2i generation.
+ *
+ * `aspect_ratios` is the t2i-only field — never fall back to `image.edit_aspect_ratios`,
+ * which governs i2i reshaping instead. Falls back to the full known set while modelInfo
+ * hasn't resolved yet, so chips don't disappear during the providers query load.
+ */
+export function getT2iAspectRatios(modelInfo: ModelInfo | null | undefined): AspectRatio[] {
+  const ratios = modelInfo?.aspect_ratios ?? KNOWN_ASPECT_RATIOS;
+  return ratios.filter((r): r is AspectRatio =>
+    (KNOWN_ASPECT_RATIOS as readonly string[]).includes(r),
+  );
+}
+
+/**
  * Whether the model exposes Aisha-style configurable image params
  * (quality tiers, custom width/height, sampler overrides).
  *

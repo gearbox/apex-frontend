@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
+import { get } from 'svelte/store';
 import { generationStore } from '$lib/stores/generation';
 import {
   makeGrokImageModelInfo,
@@ -26,6 +27,24 @@ describe('AspectRatioChips — t2i mode', () => {
     render(AspectRatioChips, { modelInfo: null });
     expect(screen.getAllByRole('button')).toHaveLength(7);
     expect(screen.queryByText(/does not support/)).toBeNull();
+  });
+
+  it('only shows chips the selected model advertises via aspect_ratios', () => {
+    const modelInfo = makeGrokImageModelInfo();
+    render(AspectRatioChips, { modelInfo });
+    expect(screen.getAllByRole('button')).toHaveLength(3);
+    expect(screen.getByText('1:1')).not.toBeNull();
+    expect(screen.getByText('16:9')).not.toBeNull();
+    expect(screen.getByText('9:16')).not.toBeNull();
+    expect(screen.queryByText('3:4')).toBeNull();
+  });
+
+  it('resets a stale stored aspect ratio to one the model supports', () => {
+    // Store default is '3:4', which Grok does not advertise.
+    expect(get(generationStore).aspectRatio).toBe('3:4');
+    const modelInfo = makeGrokImageModelInfo();
+    render(AspectRatioChips, { modelInfo });
+    expect(['1:1', '16:9', '9:16']).toContain(get(generationStore).aspectRatio);
   });
 });
 
