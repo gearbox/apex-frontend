@@ -24,7 +24,7 @@ export const jobHandlers = [
               max_prompt_length: 4096,
               supports_negative_prompt: false,
               aspect_ratios: ['1:1', '16:9', '9:16'],
-              image: null,
+              image: { edit_aspect_ratios: [] },
               video: null,
             },
             {

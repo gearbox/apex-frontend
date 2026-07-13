@@ -22,7 +22,6 @@
   type GalleryOutputItem = components['schemas']['GalleryOutputItem'];
   type GalleryGroupDetail = components['schemas']['GalleryGroupDetail'];
   type ModelType = components['schemas']['ModelType'];
-  type AspectRatio = components['schemas']['AspectRatio'];
 
   let {
     item,
@@ -105,7 +104,6 @@
       negativePrompt: detail.negative_prompt ?? undefined,
       model: (detail.model ?? 'grok-imagine-image') as ModelType,
       mode: 'i2i' as GenerationMode,
-      aspectRatio: (detail.aspect_ratio ?? '1:1') as AspectRatio,
     });
 
     // Must happen AFTER prefill — prefill resets image source fields
@@ -268,12 +266,12 @@
             : 'Unknown'}</span
         >
       </div>
-      {#if detail.aspect_ratio}
-        <div class="flex justify-between">
-          <span class="text-text-dim">Aspect Ratio</span>
-          <span class="font-medium text-text">{detail.aspect_ratio}</span>
-        </div>
-      {/if}
+      <div class="flex justify-between">
+        <span class="text-text-dim">Aspect Ratio</span>
+        <span class="font-medium text-text"
+          >{detail.aspect_ratio ?? m.media_aspect_auto_source()}</span
+        >
+      </div>
       {#if detail.token_cost != null}
         <div class="flex justify-between">
           <span class="text-text-dim">Cost</span>

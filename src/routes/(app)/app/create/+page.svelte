@@ -190,6 +190,16 @@
   let stopPoller: (() => void) | null = null;
   let submitting = $state(false);
 
+  // ── i2i aspect-reshape 400 error (inline, under the aspect control)
+  let aspectError = $state<string | null>(null);
+  const aspectErrorResetKey = $derived(
+    `${$generationStore.mode}|${$generationStore.model}|${$generationStore.editAspectRatio}|${$generationStore.aspectRatio}`,
+  );
+
+  $effect(() => {
+    if (aspectErrorResetKey) aspectError = null;
+  });
+
   function handleJobError(error: unknown): void {
     const apiErr = parseApiError(error, 0);
     if (apiErr.error === 'age_verification_required') {
@@ -292,7 +302,7 @@
 
     try {
       const body = buildGeneratePayload(state, currentModelInfo);
-      const { data, error } = await apiClient.POST('/v1/generate', {
+      const { data, error, response } = await apiClient.POST('/v1/generate', {
         body,
         params: {
           header: { 'Idempotency-Key': idempotencyKey },
@@ -300,6 +310,10 @@
       });
 
       if (error) {
+        if (response.status === 400 && state.mode === 'i2i' && state.editAspectRatio !== null) {
+          aspectError = parseApiError(error, response.status).message;
+          return;
+        }
         handleJobError(error);
         return;
       }
@@ -355,7 +369,7 @@
     {#if currentModelInfo?.supports_negative_prompt === true}
       <NegativePromptInput />
     {/if}
-    <ParamsPanel modelInfo={currentModelInfo} />
+    <ParamsPanel modelInfo={currentModelInfo} {aspectError} />
 
     <!-- Results (mobile: inline below form) -->
     <div class="md:hidden">

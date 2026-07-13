@@ -8,6 +8,7 @@
   import JobOutputGrid from '$lib/components/jobs/JobOutputGrid.svelte';
   import type { components } from '$lib/api/types';
   import { productInfo } from '$lib/stores/product';
+  import * as m from '$paraglide/messages';
 
   type JobStatus = components['schemas']['JobStatus'];
 
@@ -149,12 +150,12 @@
       <div class="rounded-xl border border-border bg-surface p-4">
         <p class="mb-3 text-xs font-semibold uppercase tracking-wide text-text-muted">Parameters</p>
         <dl class="flex flex-col gap-2 text-xs">
-          {#if job.aspect_ratio}
-            <div class="flex justify-between">
-              <dt class="text-text-dim">Aspect ratio</dt>
-              <dd class="font-medium text-text">{job.aspect_ratio}</dd>
-            </div>
-          {/if}
+          <div class="flex justify-between">
+            <dt class="text-text-dim">Aspect ratio</dt>
+            <dd class="font-medium text-text">
+              {job.aspect_ratio ?? m.media_aspect_auto_source()}
+            </dd>
+          </div>
           {#if job.token_cost != null}
             <div class="flex justify-between">
               <dt class="text-text-dim">Token cost</dt>

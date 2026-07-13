@@ -15,6 +15,7 @@ const baseState: GenerationState = {
   sourceOutputId: null,
   selectedImagePreviewUrl: null,
   aspectRatio: '1:1',
+  editAspectRatio: null,
   imageCount: 1,
   videoDuration: 5,
   videoResolution: '720p',
@@ -280,6 +281,66 @@ describe('buildGeneratePayload — Aisha sampler overrides', () => {
     expect(payload.sampler).toBeUndefined();
     expect(payload.scheduler).toBeUndefined();
     expect(payload.denoise).toBeUndefined();
+  });
+});
+
+describe('buildGeneratePayload — i2i aspect_ratio serialization', () => {
+  it('i2i + editAspectRatio: null → aspect_ratio key absent from payload', () => {
+    const state: GenerationState = {
+      ...baseState,
+      mode: 'i2i',
+      aspectRatio: '3:4',
+      editAspectRatio: null,
+      sourceOutputId: 'out_001',
+    };
+    const payload = buildGeneratePayload(state, grokModelInfo);
+    expect(payload).not.toHaveProperty('aspect_ratio');
+  });
+
+  it('i2i + editAspectRatio: "16:9" → sent as 16:9', () => {
+    const state: GenerationState = {
+      ...baseState,
+      mode: 'i2i',
+      aspectRatio: '3:4',
+      editAspectRatio: '16:9',
+      sourceOutputId: 'out_001',
+    };
+    const payload = buildGeneratePayload(state, aishaModelInfo);
+    expect(payload.aspect_ratio).toBe('16:9');
+  });
+
+  it('t2i still sends state.aspectRatio regardless of editAspectRatio (regression)', () => {
+    const state: GenerationState = {
+      ...baseState,
+      mode: 't2i',
+      aspectRatio: '1:1',
+      editAspectRatio: '16:9',
+    };
+    const payload = buildGeneratePayload(state, grokModelInfo);
+    expect(payload.aspect_ratio).toBe('1:1');
+  });
+
+  it('t2v still sends state.aspectRatio, unaffected by editAspectRatio (regression)', () => {
+    const state: GenerationState = {
+      ...baseState,
+      mode: 't2v',
+      aspectRatio: '16:9',
+      editAspectRatio: '1:1',
+    };
+    const payload = buildGeneratePayload(state, grokModelInfo);
+    expect(payload.aspect_ratio).toBe('16:9');
+  });
+
+  it('i2v still sends state.aspectRatio, unaffected by editAspectRatio (regression)', () => {
+    const state: GenerationState = {
+      ...baseState,
+      mode: 'i2v',
+      aspectRatio: '9:16',
+      editAspectRatio: '1:1',
+      uploadedImageId: 'img_001',
+    };
+    const payload = buildGeneratePayload(state, grokModelInfo);
+    expect(payload.aspect_ratio).toBe('9:16');
   });
 });
 

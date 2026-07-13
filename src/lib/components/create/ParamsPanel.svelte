@@ -9,7 +9,10 @@
 
   type ModelInfo = components['schemas']['ModelInfo'];
 
-  let { modelInfo }: { modelInfo: ModelInfo | null } = $props();
+  let {
+    modelInfo,
+    aspectError = null,
+  }: { modelInfo: ModelInfo | null; aspectError?: string | null } = $props();
 
   const isVideo = $derived($generationStore.mode === 't2v' || $generationStore.mode === 'i2v');
   const showAishaParams = $derived(!isVideo && supportsAishaImageParams(modelInfo));
@@ -19,7 +22,7 @@
   <VideoParams />
 {:else}
   <div class="flex flex-col gap-3">
-    <AspectRatioChips />
+    <AspectRatioChips {modelInfo} {aspectError} />
     <ImageCountStepper />
     {#if showAishaParams && modelInfo}
       <AishaImageParams {modelInfo} />

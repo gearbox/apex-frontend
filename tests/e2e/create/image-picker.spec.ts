@@ -287,7 +287,7 @@ test.describe('Image Picker', () => {
     await page.getByRole('button', { name: /Choose from library/i }).click();
     await page.getByRole('tab', { name: /Generated/i }).click();
 
-    await expect(page.getByText('source')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('Source Image')).toBeVisible({ timeout: 5000 });
   });
 
   test('10. Clearing the selection resets the preview', async ({ authenticatedPage: page }) => {

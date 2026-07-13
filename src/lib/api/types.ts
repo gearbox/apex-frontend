@@ -1254,6 +1254,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/frames/extract": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** CreateExtract */
+        post: operations["V1FramesExtractCreateExtract"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/frames/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** CreatePreview */
+        post: operations["V1FramesPreviewCreatePreview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/frames/jobs/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetJob */
+        get: operations["V1FramesJobsJobIdGetJob"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/jobs/{job_id}": {
         parameters: {
             query?: never;
@@ -1537,7 +1588,6 @@ export interface components {
         /**
          * AspectRatio
          * @description Supported aspect ratios.
-         * @default 1:1
          * @enum {string}
          */
         AspectRatio: "2:3" | "3:2" | "1:1" | "9:16" | "16:9" | "3:4" | "4:3";
@@ -1702,9 +1752,66 @@ export interface components {
                 [key: string]: unknown;
             } | null;
         };
+        /** ExtractedFrame */
+        ExtractedFrame: {
+            timestamp_ms: number;
+            /** Format: uuid */
+            upload_id: string;
+            media: components["schemas"]["MediaObject"];
+        };
         /** ForgotPasswordRequest */
         ForgotPasswordRequest: {
             email: string;
+        };
+        /** FrameExtractRequest */
+        FrameExtractRequest: {
+            source_output_id?: string | null;
+            source_upload_id?: string | null;
+            timestamps_ms: number[];
+        };
+        /** FrameExtractResult */
+        FrameExtractResult: {
+            frames: components["schemas"]["ExtractedFrame"][];
+        };
+        /** FrameJobCreatedResponse */
+        FrameJobCreatedResponse: {
+            /** Format: uuid */
+            job_id: string;
+            status: string;
+        };
+        /** FrameJobResponse */
+        FrameJobResponse: {
+            /** Format: uuid */
+            job_id: string;
+            kind: string;
+            status: string;
+            /** Format: date-time */
+            created_at: string;
+            started_at?: string | null;
+            finished_at?: string | null;
+            error?: string | null;
+            source: components["schemas"]["FrameJobSource"];
+            preview?: components["schemas"]["FramePreviewResult"] | null;
+            extracted?: components["schemas"]["FrameExtractResult"] | null;
+        };
+        /** FrameJobSource */
+        FrameJobSource: {
+            type: string;
+            /** Format: uuid */
+            id: string;
+        };
+        /** FramePreviewRequest */
+        FramePreviewRequest: {
+            source_output_id?: string | null;
+            source_upload_id?: string | null;
+            /** @default 12 */
+            frame_count: number;
+        };
+        /** FramePreviewResult */
+        FramePreviewResult: {
+            frames: components["schemas"]["PreviewFrame"][];
+            expires_in_seconds: number;
+            duration_ms: number;
         };
         /**
          * GalleryBadge
@@ -1725,6 +1832,8 @@ export interface components {
             prompt_snippet: string;
             /** Format: date-time */
             created_at: string;
+            /** Format: date-time */
+            expires_at: string;
         };
         /** GalleryGroupDetail */
         GalleryGroupDetail: {
@@ -1761,6 +1870,8 @@ export interface components {
             output_index: number;
             /** Format: date-time */
             created_at: string;
+            /** Format: date-time */
+            expires_at: string;
             media: components["schemas"]["MediaObject"];
         };
         /**
@@ -1856,6 +1967,7 @@ export interface components {
             tier_megapixels?: {
                 [key: string]: number;
             } | null;
+            edit_aspect_ratios?: string[];
         };
         /** ImageListItem */
         ImageListItem: {
@@ -2054,6 +2166,12 @@ export interface components {
             /** Format: date-time */
             created_at: string;
             completed_at: string | null;
+        };
+        /** PreviewFrame */
+        PreviewFrame: {
+            index: number;
+            timestamp_ms: number;
+            url: string;
         };
         /** PricingRuleResponse */
         PricingRuleResponse: {
@@ -2305,7 +2423,7 @@ export interface components {
             source_images?: components["schemas"]["SourceImageReference"][] | null;
             input_video_url?: string | null;
             negative_prompt?: string | null;
-            aspect_ratio?: components["schemas"]["AspectRatio"];
+            aspect_ratio?: components["schemas"]["AspectRatio"] | null;
             /** @default 1 */
             n: number;
             name?: string | null;
@@ -5240,6 +5358,121 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UploadResponse"] | components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1FramesExtractCreateExtract: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FrameExtractRequest"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FrameJobCreatedResponse"] | components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1FramesPreviewCreatePreview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FramePreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FrameJobCreatedResponse"] | components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1FramesJobsJobIdGetJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FrameJobResponse"] | components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Bad request syntax or unsupported method */

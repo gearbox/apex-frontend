@@ -41,7 +41,11 @@ export function buildGeneratePayload(
     prompt: state.prompt,
     generation_type: state.mode,
     model: state.model,
-    aspect_ratio: state.aspectRatio,
+    ...(state.mode === 'i2i'
+      ? state.editAspectRatio !== null
+        ? { aspect_ratio: state.editAspectRatio }
+        : {}
+      : { aspect_ratio: state.aspectRatio }),
     n: state.imageCount,
     duration: state.videoDuration,
     resolution: state.videoResolution,

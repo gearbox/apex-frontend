@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { supportsAishaImageParams } from './modelCapabilities';
+import { supportsAishaImageParams, getEditAspectRatios } from './modelCapabilities';
 import type { components } from '$lib/api/types';
 
 type ModelInfo = components['schemas']['ModelInfo'];
@@ -61,5 +61,57 @@ describe('supportsAishaImageParams', () => {
       image: { ...aishaModelInfo.image!, supported_tiers: null },
     };
     expect(supportsAishaImageParams(modelWithNullTiers)).toBe(false);
+  });
+});
+
+describe('getEditAspectRatios', () => {
+  it('returns [] when edit_aspect_ratios is an empty list (Grok — cannot reshape on edit)', () => {
+    const grokWithEmptyEdit: ModelInfo = {
+      ...grokModelInfo,
+      image: { edit_aspect_ratios: [] },
+    };
+    expect(getEditAspectRatios(grokWithEmptyEdit)).toEqual([]);
+  });
+
+  it('returns the full list when the model supports all known ratios (Aisha)', () => {
+    const aishaWithEdit: ModelInfo = {
+      ...aishaModelInfo,
+      image: {
+        ...aishaModelInfo.image!,
+        edit_aspect_ratios: ['2:3', '3:2', '1:1', '9:16', '16:9', '3:4', '4:3'],
+      },
+    };
+    expect(getEditAspectRatios(aishaWithEdit)).toEqual([
+      '2:3',
+      '3:2',
+      '1:1',
+      '9:16',
+      '16:9',
+      '3:4',
+      '4:3',
+    ]);
+  });
+
+  it('filters out unknown/unrecognized values from the backend', () => {
+    const modelWithUnknown: ModelInfo = {
+      ...aishaModelInfo,
+      image: {
+        ...aishaModelInfo.image!,
+        edit_aspect_ratios: ['1:1', '21:9', '16:9', 'panorama'],
+      },
+    };
+    expect(getEditAspectRatios(modelWithUnknown)).toEqual(['1:1', '16:9']);
+  });
+
+  it('returns [] for null modelInfo', () => {
+    expect(getEditAspectRatios(null)).toEqual([]);
+  });
+
+  it('returns [] for undefined modelInfo', () => {
+    expect(getEditAspectRatios(undefined)).toEqual([]);
+  });
+
+  it('returns [] when image block is missing (image: null)', () => {
+    expect(getEditAspectRatios(grokModelInfo)).toEqual([]);
   });
 });
