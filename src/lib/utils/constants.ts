@@ -8,6 +8,8 @@ export const STORAGE_KEYS = {
   SIDEBAR_COLLAPSED: 'apex-sidebar-collapsed',
   PWA_INSTALL_DISMISSED: 'apex-pwa-install-dismissed',
   VPDEBUG: 'apex-vpdebug',
+  PUSH_ENDPOINT: 'apex:push:endpoint',
+  PUSH_NUDGE_DISMISSED: 'apex:push:nudge-dismissed',
 } as const;
 
 /* ─── Breakpoints ─── */

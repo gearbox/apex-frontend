@@ -13,12 +13,15 @@
   import SystemBanner from '$lib/components/ui/SystemBanner.svelte';
   import OfflineBanner from '$lib/components/ui/OfflineBanner.svelte';
   import InstallPromptSheet from '$lib/components/pwa/InstallPromptSheet.svelte';
+  import PushNudgeBanner from '$lib/components/pwa/PushNudgeBanner.svelte';
+  import { pushSubscription } from '$lib/stores/pushSubscription.svelte';
 
   let { children }: { children: Snippet } = $props();
   let checking = $state(true);
 
   const queryClient = useQueryClient();
   let eventStream: EventStreamService | null = null;
+  let pushInitialized = false;
 
   onMount(async () => {
     await initAuth();
@@ -34,6 +37,11 @@
         eventStream = new EventStreamService({ queryClient });
       }
       eventStream.connect();
+
+      if (!pushInitialized) {
+        pushInitialized = true;
+        pushSubscription.init();
+      }
     } else {
       eventStream?.disconnect();
     }
@@ -74,6 +82,7 @@
   <SessionCreditBanner />
   <ToastContainer />
   <InstallPromptSheet />
+  <PushNudgeBanner />
 {/if}
 
 <style>

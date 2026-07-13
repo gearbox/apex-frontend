@@ -14,6 +14,7 @@ import { addNotification } from '$lib/stores/notifications';
 import { activeJobStore } from '$lib/stores/jobs';
 import { generationStore } from '$lib/stores/generation';
 import { addToast } from '$lib/stores/toasts';
+import { pushNudge } from '$lib/stores/pushNudge.svelte';
 import { jobKeys } from '$lib/queries/jobs';
 import {
   SSE_EVENTS,
@@ -193,6 +194,7 @@ export class EventStreamService {
           this.queryClient.invalidateQueries({ queryKey: jobKeys.detail(job_id) });
           generationStore.setStatus(status);
           activeJobStore.updateStatus(status);
+          pushNudge.maybeShow();
         } else {
           // Failed/cancelled/moderated
           generationStore.setStatus(status);

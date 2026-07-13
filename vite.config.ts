@@ -57,6 +57,14 @@ export default defineConfig({
     sveltekit(),
     SvelteKitPWA({
       registerType: 'autoUpdate',
+      // Custom SW (push notifications need push/notificationclick/pushsubscriptionchange
+      // handlers, which generateSW's declarative config can't express).
+      // @vite-pwa/sveltekit's injectManifest strategy rides on SvelteKit's native
+      // service worker pipeline: the source lives at src/service-worker.ts (SvelteKit
+      // builds/bundles it), and workbox-build then injects the precache manifest into
+      // the already-built output in place. It reproduces the previous generateSW
+      // behavior exactly — see comments in src/service-worker.ts.
+      strategies: 'injectManifest',
       // Absolute base + scope: this is an SPA (ssr=false) whose root route
       // client-redirects to /app/create. The plugin's default relative './'
       // scope resolves against whatever URL is current when registerSW() runs
@@ -81,20 +89,8 @@ export default defineConfig({
           },
         ],
       },
-      workbox: {
+      injectManifest: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
-        navigateFallback: '/',
-        navigateFallbackDenylist: [/^\/v1\//, /^\/api\//, /^\/docs\//],
-        runtimeCaching: [
-          {
-            urlPattern: /\/v1\/billing\/(packages|pricing)/,
-            handler: 'StaleWhileRevalidate',
-            options: {
-              cacheName: 'billing-cache',
-              expiration: { maxAgeSeconds: 3600 },
-            },
-          },
-        ],
       },
     }),
   ],
