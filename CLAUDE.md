@@ -267,7 +267,7 @@ npx openapi-typescript src/lib/api/schema.json -o src/lib/api/types.ts
 pnpm check
 ```
 
-The `BACKEND_API_REFERENCE.md` document in this project's Claude Project knowledge provides a stable reference for the full API surface, enums, and auth model.
+The `docs/BACKEND_API_REFERENCE.md` document in this project's Claude Project knowledge provides a stable reference for the full API surface, enums, and auth model.
 
 ---
 

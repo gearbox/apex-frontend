@@ -5,16 +5,20 @@ import { server } from '../../../mocks/server';
 import { MOCK_BASE_URL as BASE } from '../../../mocks/config';
 import type { components } from '$lib/api/types';
 
-const { gotoMock, invalidateQueriesMock, setUploadedImageIdMock } = vi.hoisted(() => ({
+const { gotoMock, invalidateQueriesMock, setModeMock, setUploadedImageIdMock } = vi.hoisted(() => ({
   gotoMock: vi.fn(),
   invalidateQueriesMock: vi.fn(),
+  setModeMock: vi.fn(),
   setUploadedImageIdMock: vi.fn(),
 }));
 
 vi.mock('$app/navigation', () => ({ goto: gotoMock }));
 
 vi.mock('$lib/stores/generation', () => ({
-  generationStore: { setUploadedImageId: setUploadedImageIdMock },
+  generationStore: {
+    setMode: setModeMock,
+    setUploadedImageId: setUploadedImageIdMock,
+  },
 }));
 
 // The query layer itself remains real and is backed by MSW below. This small
@@ -234,7 +238,11 @@ describe('FrameExtractModal', () => {
     expect(invalidateQueriesMock).toHaveBeenCalledWith({ queryKey: ['storage'] });
 
     await fireEvent.click(screen.getAllByRole('button', { name: 'Use as input' })[0]);
-    expect(setUploadedImageIdMock).toHaveBeenCalledWith('extracted-upload-1');
+    expect(setModeMock).toHaveBeenCalledWith('i2i');
+    expect(setUploadedImageIdMock).toHaveBeenCalledWith(
+      'extracted-upload-1',
+      'http://localhost:8000/v1/content/uploads/extracted-upload-1',
+    );
     expect(gotoMock).toHaveBeenCalledWith('/app/create');
     expect(onclose).toHaveBeenCalledOnce();
   });

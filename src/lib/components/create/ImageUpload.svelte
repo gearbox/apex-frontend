@@ -25,13 +25,19 @@
 
   let fileInput: HTMLInputElement;
 
-  // Sync external selections (from Lightbox Remix, ResultsPanel "Use as input")
+  // Sync external selections (generated-output reuse and extracted frames).
   $effect(() => {
     const storeState = $generationStore;
     if (storeState.sourceOutputId && storeState.selectedImagePreviewUrl && !pickerSelection) {
       pickerSelection = {
         previewUrl: storeState.selectedImagePreviewUrl,
         label: 'From generated',
+      };
+    }
+    if (storeState.uploadedImageId && storeState.selectedImagePreviewUrl && !pickerSelection) {
+      pickerSelection = {
+        previewUrl: storeState.selectedImagePreviewUrl,
+        label: 'From uploads',
       };
     }
     if (!storeState.sourceOutputId && !storeState.uploadedImageId && pickerSelection) {

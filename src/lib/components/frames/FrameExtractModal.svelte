@@ -15,6 +15,7 @@
   import { storageKeys } from '$lib/queries/storage';
   import { createFrameJobPoller } from '$lib/services/frameJobPoller';
   import { generationStore } from '$lib/stores/generation';
+  import { toMediaSrc } from '$lib/media';
   import { ROUTES } from '$lib/utils/routes';
   import type { components } from '$lib/api/types';
   import * as m from '$paraglide/messages';
@@ -268,7 +269,8 @@
   }
 
   function useAsInput(frame: ExtractedFrame) {
-    generationStore.setUploadedImageId(frame.upload_id);
+    generationStore.setMode('i2i');
+    generationStore.setUploadedImageId(frame.upload_id, toMediaSrc(frame.media.original.url));
     void goto(ROUTES.create);
     onclose();
   }

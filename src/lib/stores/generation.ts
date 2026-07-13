@@ -130,13 +130,13 @@ function createGenerationStore() {
       update((s) => ({ ...s, negativePrompt }));
     },
 
-    setUploadedImageId(id: string | null) {
+    setUploadedImageId(id: string | null, previewUrl: string | null = null) {
       update((s) => ({
         ...s,
         uploadedImageId: id,
         // Clear sourceOutputId — mutually exclusive
         sourceOutputId: id ? null : s.sourceOutputId,
-        selectedImagePreviewUrl: null,
+        selectedImagePreviewUrl: id ? previewUrl : null,
       }));
     },
 
