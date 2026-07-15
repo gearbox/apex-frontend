@@ -21,7 +21,11 @@ class PushNudgeState {
     this.enabling = false;
   }
 
-  /** Called after the first successful generation (SSE job.status_changed → completed). */
+  /**
+   * Evaluate the current account's push state and show the nudge when eligible.
+   * Called both by standalone-launch orchestration and after a successful generation
+   * (SSE job.status_changed → completed) as a contextual fallback trigger.
+   */
   maybeShow(): void {
     const userId = pushSubscription.userId;
     if (!isBrowser() || this.visible || !userId) return;

@@ -16,6 +16,8 @@
   import PushNudgeBanner from '$lib/components/pwa/PushNudgeBanner.svelte';
   import { pushNudge } from '$lib/stores/pushNudge.svelte';
   import { pushSubscription } from '$lib/stores/pushSubscription.svelte';
+  import { pushNudgeLaunch } from '$lib/stores/pushNudgeLaunch';
+  import { isStandalone } from '$lib/utils/platform';
 
   let { children }: { children: Snippet } = $props();
   let checking = $state(true);
@@ -44,6 +46,7 @@
       if (pushInitializedForUserId !== userId) {
         disposePushSubscription?.();
         pushNudge.reset();
+        pushNudgeLaunch.reset();
         pushInitializedForUserId = userId;
         disposePushSubscription = pushSubscription.init(userId);
       }
@@ -53,8 +56,21 @@
       disposePushSubscription = undefined;
       pushInitializedForUserId = undefined;
       pushNudge.reset();
+      pushNudgeLaunch.reset();
       pushSubscription.reset();
     }
+  });
+
+  // Standalone-launch push nudge — evaluate once per user, after that user's
+  // initial push sync has settled. pushSubscription.initialSyncComplete is read
+  // (transitively, via pushNudgeLaunch.evaluate) so this effect reruns when it flips.
+  $effect(() => {
+    if (checking) return;
+    pushNudgeLaunch.evaluate({
+      userId: $currentUser?.id,
+      authenticated: $currentAuthStatus === 'authenticated',
+      standalone: isStandalone(),
+    });
   });
 
   onDestroy(() => {
@@ -63,6 +79,7 @@
     disposePushSubscription?.();
     disposePushSubscription = undefined;
     pushSubscription.reset();
+    pushNudgeLaunch.reset();
   });
 
   // Redirect when auth resolves to unauthenticated

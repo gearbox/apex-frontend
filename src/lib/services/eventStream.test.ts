@@ -14,6 +14,7 @@ import { generationStore } from '$lib/stores/generation';
 import { toasts, removeToast } from '$lib/stores/toasts';
 import { sessionKeys } from '$lib/queries/sessions';
 import { creditWarnings, dismissAllCreditWarnings } from '$lib/stores/creditWarnings';
+import { pushNudge } from '$lib/stores/pushNudge.svelte';
 
 /* ─── Mock EventSource ─── */
 
@@ -242,6 +243,29 @@ describe('EventStreamService — job.status_changed dispatch', () => {
     );
 
     svc.dispose();
+  });
+
+  it('evaluates the push nudge as a contextual fallback on successful generation completion', async () => {
+    const maybeShow = vi.spyOn(pushNudge, 'maybeShow').mockImplementation(() => {});
+    activeJobStore.setJob('job-1', 'running');
+    const queryClient = makeMockQueryClient();
+    const svc = new EventStreamService({ queryClient: queryClient as never });
+
+    await svc.connect();
+
+    const es = MockEventSource.instances[0];
+    es._emit('job.status_changed', {
+      job_id: 'job-1',
+      status: 'completed',
+      previous_status: 'running',
+      generation_type: 't2i',
+      provider: 'grok',
+    });
+
+    expect(maybeShow).toHaveBeenCalledOnce();
+
+    svc.dispose();
+    maybeShow.mockRestore();
   });
 });
 
