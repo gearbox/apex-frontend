@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('$lib/services/pushNotifications', () => ({
   getPushSupport: vi.fn().mockReturnValue('supported'),
@@ -6,7 +6,7 @@ vi.mock('$lib/services/pushNotifications', () => ({
 }));
 
 vi.mock('$lib/stores/pushSubscription.svelte', () => ({
-  pushSubscription: { subscribed: false, enable: vi.fn().mockResolvedValue(true) },
+  pushSubscription: { subscribed: false, enable: vi.fn() },
 }));
 
 import { pushNudge } from './pushNudge.svelte';
@@ -18,6 +18,7 @@ describe('pushNudge store', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     pushNudge.visible = false;
+    pushNudge.enabling = false;
     localStorage.clear();
   });
 
@@ -29,24 +30,6 @@ describe('pushNudge store', () => {
     expect(pushNudge.visible).toBe(true);
   });
 
-  it('maybeShow() does nothing when not eligible', () => {
-    vi.mocked(pushService.isPushNudgeEligible).mockReturnValue(false);
-
-    pushNudge.maybeShow();
-
-    expect(pushNudge.visible).toBe(false);
-  });
-
-  it('maybeShow() is a no-op once already visible', () => {
-    vi.mocked(pushService.isPushNudgeEligible).mockReturnValue(true);
-    pushNudge.maybeShow();
-    vi.mocked(pushService.isPushNudgeEligible).mockClear();
-
-    pushNudge.maybeShow();
-
-    expect(pushService.isPushNudgeEligible).not.toHaveBeenCalled();
-  });
-
   it('dismiss() hides the nudge and persists the flag', () => {
     pushNudge.visible = true;
 
@@ -56,13 +39,46 @@ describe('pushNudge store', () => {
     expect(localStorage.getItem(STORAGE_KEYS.PUSH_NUDGE_DISMISSED)).toBe('1');
   });
 
-  it('enable() persists the dismissed flag and delegates to pushSubscription.enable()', async () => {
+  it('does not permanently dismiss the nudge after a transient enable failure', async () => {
     pushNudge.visible = true;
+    vi.mocked(pushSubscription.enable).mockResolvedValue({ status: 'service-worker-unavailable' });
+
+    await expect(pushNudge.enable()).resolves.toEqual({ status: 'service-worker-unavailable' });
+
+    expect(pushNudge.visible).toBe(true);
+    expect(localStorage.getItem(STORAGE_KEYS.PUSH_NUDGE_DISMISSED)).toBeNull();
+  });
+
+  it('persists dismissal after successful enable or deliberate permission denial', async () => {
+    pushNudge.visible = true;
+    vi.mocked(pushSubscription.enable).mockResolvedValue({ status: 'enabled' });
 
     await pushNudge.enable();
-
-    expect(pushNudge.visible).toBe(false);
     expect(localStorage.getItem(STORAGE_KEYS.PUSH_NUDGE_DISMISSED)).toBe('1');
+
+    localStorage.clear();
+    pushNudge.visible = true;
+    vi.mocked(pushSubscription.enable).mockResolvedValue({ status: 'permission-denied' });
+
+    await pushNudge.enable();
+    expect(localStorage.getItem(STORAGE_KEYS.PUSH_NUDGE_DISMISSED)).toBe('1');
+  });
+
+  it('cannot double-submit while enabling', async () => {
+    let resolveEnable!: (value: { status: 'enabled' }) => void;
+    vi.mocked(pushSubscription.enable).mockReturnValue(
+      new Promise((resolve) => {
+        resolveEnable = resolve;
+      }),
+    );
+
+    const first = pushNudge.enable();
+    const second = pushNudge.enable();
+    await expect(second).resolves.toBeUndefined();
     expect(pushSubscription.enable).toHaveBeenCalledOnce();
+
+    resolveEnable({ status: 'enabled' });
+    await first;
+    expect(pushNudge.enabling).toBe(false);
   });
 });

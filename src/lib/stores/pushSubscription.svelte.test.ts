@@ -1,7 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('$lib/services/pushNotifications', () => ({
+  getLivePushSubscription: vi.fn(),
   getPushSupport: vi.fn().mockReturnValue('supported'),
+  preparePushResources: vi.fn().mockResolvedValue({ status: 'prepared' }),
   reconcileOnLaunch: vi.fn().mockResolvedValue(undefined),
   subscribe: vi.fn(),
   unsubscribe: vi.fn(),
@@ -12,51 +14,68 @@ vi.mock('$lib/stores/toasts', () => ({ addToast: vi.fn() }));
 import { pushSubscription } from './pushSubscription.svelte';
 import * as pushService from '$lib/services/pushNotifications';
 import { addToast } from '$lib/stores/toasts';
+import { STORAGE_KEYS } from '$lib/utils/constants';
+
+function fakeSubscription(endpoint = 'https://push.example.com/subscription') {
+  return { endpoint };
+}
+
+async function flush(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
+}
 
 describe('pushSubscription store', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(pushService.getPushSupport).mockReturnValue('supported');
+    vi.mocked(pushService.preparePushResources).mockResolvedValue({ status: 'prepared' });
+    vi.mocked(pushService.reconcileOnLaunch).mockResolvedValue(undefined);
+    vi.mocked(pushService.getLivePushSubscription).mockResolvedValue(null);
     pushSubscription.subscribed = false;
     pushSubscription.loading = false;
+    pushSubscription.lastResult = null;
+    pushSubscription.support = 'supported';
+    pushSubscription.permission = 'default';
+    localStorage.clear();
   });
 
-  it('enable() sets subscribed=true on success, without a toast', async () => {
-    vi.mocked(pushService.subscribe).mockResolvedValue(true);
+  it('enable() sets subscribed=true on an enabled result, without a toast', async () => {
+    vi.mocked(pushService.subscribe).mockResolvedValue({ status: 'enabled' });
 
-    const ok = await pushSubscription.enable();
+    await expect(pushSubscription.enable()).resolves.toEqual({ status: 'enabled' });
 
-    expect(ok).toBe(true);
     expect(pushSubscription.subscribed).toBe(true);
     expect(pushSubscription.loading).toBe(false);
     expect(addToast).not.toHaveBeenCalled();
   });
 
-  it('enable() surfaces a toast and leaves subscribed=false when subscribe() returns false', async () => {
-    vi.mocked(pushService.subscribe).mockResolvedValue(false);
+  it('keeps the toggle off and shows a retryable error on a transient failure', async () => {
+    vi.mocked(pushService.subscribe).mockResolvedValue({ status: 'backend-registration-failed' });
 
-    const ok = await pushSubscription.enable();
+    await expect(pushSubscription.enable()).resolves.toEqual({
+      status: 'backend-registration-failed',
+    });
 
-    expect(ok).toBe(false);
     expect(pushSubscription.subscribed).toBe(false);
+    expect(pushSubscription.lastResult).toBe('backend-registration-failed');
     expect(addToast).toHaveBeenCalledOnce();
   });
 
-  it('enable() surfaces a toast when subscribe() throws', async () => {
-    vi.mocked(pushService.subscribe).mockRejectedValue(new Error('boom'));
+  it('does not show a generic error toast for a deliberate permission denial', async () => {
+    vi.mocked(pushService.subscribe).mockResolvedValue({ status: 'permission-denied' });
 
-    const ok = await pushSubscription.enable();
+    await expect(pushSubscription.enable()).resolves.toEqual({ status: 'permission-denied' });
 
-    expect(ok).toBe(false);
     expect(pushSubscription.subscribed).toBe(false);
-    expect(addToast).toHaveBeenCalledOnce();
+    expect(pushSubscription.lastResult).toBe('permission-denied');
+    expect(addToast).not.toHaveBeenCalled();
   });
 
-  it('enable() is a no-op while already loading', async () => {
+  it('returns an in-progress result without double-subscribing while already loading', async () => {
     pushSubscription.loading = true;
 
-    const ok = await pushSubscription.enable();
-
-    expect(ok).toBe(false);
+    await expect(pushSubscription.enable()).resolves.toEqual({ status: 'in-progress' });
     expect(pushService.subscribe).not.toHaveBeenCalled();
   });
 
@@ -70,11 +89,39 @@ describe('pushSubscription store', () => {
     expect(pushSubscription.loading).toBe(false);
   });
 
-  it('disable() is a no-op while already loading', async () => {
-    pushSubscription.loading = true;
+  it('refreshes permission and subscription after pageshow from Settings', async () => {
+    const notification = { permission: 'granted' as NotificationPermission };
+    vi.stubGlobal('Notification', notification);
+    const subscription = fakeSubscription();
+    vi.mocked(pushService.getLivePushSubscription).mockResolvedValue(
+      subscription as PushSubscription,
+    );
+    localStorage.setItem(STORAGE_KEYS.PUSH_ENDPOINT, subscription.endpoint);
 
-    await pushSubscription.disable();
+    const cleanup = pushSubscription.init();
+    await flush();
+    expect(pushSubscription.permission).toBe('granted');
+    expect(pushSubscription.subscribed).toBe(true);
 
-    expect(pushService.unsubscribe).not.toHaveBeenCalled();
+    notification.permission = 'denied';
+    window.dispatchEvent(new Event('pageshow'));
+    await flush();
+
+    expect(pushSubscription.permission).toBe('denied');
+    expect(pushSubscription.subscribed).toBe(false);
+    cleanup();
+  });
+
+  it('removes foreground listeners on teardown', async () => {
+    vi.stubGlobal('Notification', { permission: 'granted' as NotificationPermission });
+    const cleanup = pushSubscription.init();
+    await flush();
+    const callsBeforeCleanup = vi.mocked(pushService.getLivePushSubscription).mock.calls.length;
+
+    cleanup();
+    window.dispatchEvent(new Event('pageshow'));
+    await flush();
+
+    expect(pushService.getLivePushSubscription).toHaveBeenCalledTimes(callsBeforeCleanup);
   });
 });

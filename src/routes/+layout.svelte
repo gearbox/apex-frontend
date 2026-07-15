@@ -12,6 +12,7 @@
   import { locale } from '$lib/stores/locale';
   import { API_BASE_URL, STORAGE_KEYS } from '$lib/utils/constants';
   import { isBrowser } from '$lib/utils/env';
+  import { setPushServiceWorkerRegistration } from '$lib/services/pushNotifications';
   import '../app.css';
 
   let { children }: { children: Snippet } = $props();
@@ -76,7 +77,12 @@
 
     if (pwaInfo) {
       import('virtual:pwa-register').then(({ registerSW }) => {
-        registerSW({ immediate: true });
+        registerSW({
+          immediate: true,
+          onRegisteredSW: (_swScriptUrl, registration) => {
+            if (registration) setPushServiceWorkerRegistration(registration);
+          },
+        });
       });
     }
 

@@ -22,6 +22,7 @@
   const queryClient = useQueryClient();
   let eventStream: EventStreamService | null = null;
   let pushInitialized = false;
+  let disposePushSubscription: (() => void) | undefined;
 
   onMount(async () => {
     await initAuth();
@@ -40,7 +41,7 @@
 
       if (!pushInitialized) {
         pushInitialized = true;
-        pushSubscription.init();
+        disposePushSubscription = pushSubscription.init();
       }
     } else {
       eventStream?.disconnect();
@@ -50,6 +51,8 @@
   onDestroy(() => {
     eventStream?.dispose();
     eventStream = null;
+    disposePushSubscription?.();
+    disposePushSubscription = undefined;
   });
 
   // Redirect when auth resolves to unauthenticated

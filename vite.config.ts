@@ -75,6 +75,8 @@ export default defineConfig({
       scope: '/',
       manifest: {
         ...manifest,
+        // Stable app identity for installed-app/Focus synchronization. Product builds deploy separately.
+        id: '/',
         display: 'standalone',
         scope: '/',
         start_url: '/',

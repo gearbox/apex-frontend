@@ -12,7 +12,12 @@
       </div>
       <p class="nudge-text">{m.push_nudge_message()}</p>
       <div class="nudge-actions">
-        <button class="btn-enable" onclick={() => pushNudge.enable()}>
+        <button
+          class="btn-enable"
+          disabled={pushNudge.enabling}
+          aria-busy={pushNudge.enabling}
+          onclick={() => pushNudge.enable()}
+        >
           {m.push_nudge_enable()}
         </button>
         <button
