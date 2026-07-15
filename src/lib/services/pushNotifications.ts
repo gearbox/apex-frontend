@@ -549,15 +549,30 @@ export async function detachPushOnLogout(userId: string): Promise<void> {
   }
 
   const ownedRegistration = stored?.userId === userId ? stored : null;
-  const endpoint = ownedRegistration?.endpoint ?? subscription?.endpoint;
-  if (!endpoint) return;
+  const liveEndpoint = subscription?.endpoint;
+  const endpoints = [
+    ...new Set(
+      [liveEndpoint, ownedRegistration?.endpoint].filter(
+        (endpoint): endpoint is string => typeof endpoint === 'string' && endpoint.length > 0,
+      ),
+    ),
+  ];
+  if (endpoints.length === 0) return;
 
-  try {
-    await deletePushSubscription(endpoint);
+  let liveEndpointDeleteFailed = false;
+  for (const endpoint of endpoints) {
+    try {
+      await deletePushSubscription(endpoint);
+    } catch (error) {
+      reportPushFailure('logout-backend-detach', error);
+      if (endpoint === liveEndpoint) liveEndpointDeleteFailed = true;
+    }
+  }
+
+  // A successful live-endpoint delete detaches browser delivery even if an old marker was stale.
+  if (!liveEndpointDeleteFailed) {
     if (ownedRegistration) clearStoredPushRegistration();
     return;
-  } catch (error) {
-    reportPushFailure('logout-backend-detach', error);
   }
 
   if (!subscription) {
@@ -654,6 +669,7 @@ export interface PushNudgeEligibilityInput {
 export function isPushNudgeEligible(input: PushNudgeEligibilityInput): boolean {
   return (
     input.support === 'supported' &&
+    input.permission !== 'denied' &&
     !input.subscribed &&
     !input.dismissed &&
     (input.permission === 'default' || input.retryPending)

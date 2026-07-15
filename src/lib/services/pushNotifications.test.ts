@@ -453,6 +453,28 @@ describe('reconcileOnLaunch', () => {
 });
 
 describe('detachPushOnLogout', () => {
+  it('deletes both a live endpoint and a different stale current-user marker', async () => {
+    const liveSubscription = makeFakeSubscription('https://push.example.com/logout-live');
+    const storedEndpoint = 'https://push.example.com/logout-stale';
+    stubPushSupported({
+      pushManager: { getSubscription: vi.fn().mockResolvedValue(liveSubscription) },
+    });
+    storePushRegistration({ version: 1, endpoint: storedEndpoint, userId: USER_A });
+    const deletedEndpoints: string[] = [];
+    server.use(
+      http.delete(`${BASE}/v1/push/subscriptions`, async ({ request }) => {
+        deletedEndpoints.push(((await request.json()) as { endpoint: string }).endpoint);
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+
+    await detachPushOnLogout(USER_A);
+
+    expect(deletedEndpoints).toEqual([liveSubscription.endpoint, storedEndpoint]);
+    expect(liveSubscription.unsubscribe).not.toHaveBeenCalled();
+    expect(readStoredPushRegistration()).toBeNull();
+  });
+
   it('detaches the backend registration before auth cleanup and keeps a reusable browser subscription', async () => {
     const fakeSub = makeFakeSubscription('https://push.example.com/logout');
     stubPushSupported({ pushManager: { getSubscription: vi.fn().mockResolvedValue(fakeSub) } });
@@ -520,6 +542,15 @@ describe('isPushNudgeEligible', () => {
         permission: 'granted',
         subscribed: false,
         dismissed: true,
+        retryPending: true,
+      }),
+    ).toBe(false);
+    expect(
+      isPushNudgeEligible({
+        support: 'supported',
+        permission: 'denied',
+        subscribed: false,
+        dismissed: false,
         retryPending: true,
       }),
     ).toBe(false);
