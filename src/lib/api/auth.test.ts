@@ -9,9 +9,13 @@ import {
   rateLimitWarningLoginHandler,
 } from '../../mocks/handlers/auth';
 import { login, logout, silentRefresh, initAuth, register, AuthError } from './auth';
-import { clearAuth, getAccessToken, getRefreshToken } from '$lib/stores/auth';
+import { clearAuth, getAccessToken, getRefreshToken, setAuth } from '$lib/stores/auth';
 import { clearRateLimits, getRateLimitState } from '$lib/stores/rateLimit';
 import { STORAGE_KEYS } from '$lib/utils/constants';
+import {
+  resetPushNotificationStateForTesting,
+  storePushRegistration,
+} from '$lib/services/pushNotifications';
 
 const BASE = 'http://localhost:8000';
 
@@ -254,6 +258,50 @@ describe('logout()', () => {
     expect(logoutCalled).toBe(true);
     expect(getAccessToken()).toBeNull();
     expect(localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN)).toBeNull();
+  });
+
+  it('detaches a confirmed push registration before the access token is cleared', async () => {
+    const profile = makeUserProfile({ id: 'logout-user' });
+    setAuth(
+      { accessToken: 'logout-access', refreshToken: 'logout-refresh', expiresAt: 'later' },
+      profile,
+    );
+    const subscription = {
+      endpoint: 'https://push.example.com/logout-order',
+      unsubscribe: vi.fn().mockResolvedValue(true),
+    };
+    vi.stubGlobal('navigator', {
+      userAgent: 'test-agent',
+      platform: 'Win32',
+      maxTouchPoints: 0,
+      serviceWorker: {
+        getRegistration: vi.fn().mockResolvedValue({
+          pushManager: { getSubscription: vi.fn().mockResolvedValue(subscription) },
+        }),
+      },
+    });
+    vi.stubGlobal('PushManager', class {});
+    vi.stubGlobal('Notification', { permission: 'granted' });
+    storePushRegistration({ version: 1, endpoint: subscription.endpoint, userId: profile.id });
+
+    const calls: string[] = [];
+    server.use(
+      http.delete(`${BASE}/v1/push/subscriptions`, () => {
+        calls.push(`detach:${getAccessToken()}`);
+        return new HttpResponse(null, { status: 204 });
+      }),
+      http.post(`${BASE}/v1/auth/logout`, () => {
+        calls.push(`logout:${getAccessToken()}`);
+        return HttpResponse.json({ message: 'Logged out successfully' });
+      }),
+    );
+
+    await logout();
+
+    expect(calls).toEqual(['detach:logout-access', 'logout:logout-access']);
+    expect(getAccessToken()).toBeNull();
+    resetPushNotificationStateForTesting();
+    vi.unstubAllGlobals();
   });
 });
 

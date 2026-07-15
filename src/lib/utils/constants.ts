@@ -12,7 +12,11 @@ export const STORAGE_KEYS = {
   SIDEBAR_COLLAPSED: 'apex-sidebar-collapsed',
   PWA_INSTALL_DISMISSED: 'apex-pwa-install-dismissed',
   VPDEBUG: 'apex-vpdebug',
+  /** Legacy, unscoped marker. It is never considered proof of an active registration. */
   PUSH_ENDPOINT: 'apex:push:endpoint',
+  PUSH_REGISTRATION: 'apex:push:registration',
+  PUSH_PROMPT_STATE: 'apex:push:prompt-state',
+  /** Legacy, unscoped preference. It is never applied to a signed-in user. */
   PUSH_NUDGE_DISMISSED: 'apex:push:nudge-dismissed',
 } as const;
 

@@ -1,11 +1,12 @@
 import { isBrowser } from '$lib/utils/env';
-import { STORAGE_KEYS } from '$lib/utils/constants';
-import { getPushSupport, isPushNudgeEligible } from '$lib/services/pushNotifications';
+import {
+  getPushPromptPreference,
+  getPushSupport,
+  isPushNudgeEligible,
+  updatePushPromptPreference,
+  type PushEnableResult,
+} from '$lib/services/pushNotifications';
 import { pushSubscription } from '$lib/stores/pushSubscription.svelte';
-
-function isDismissed(): boolean {
-  return isBrowser() && localStorage.getItem(STORAGE_KEYS.PUSH_NUDGE_DISMISSED) === '1';
-}
 
 function currentPermission(): NotificationPermission {
   return isBrowser() && 'Notification' in window ? Notification.permission : 'denied';
@@ -13,34 +14,49 @@ function currentPermission(): NotificationPermission {
 
 class PushNudgeState {
   visible = $state(false);
+  enabling = $state(false);
+
+  reset(): void {
+    this.visible = false;
+    this.enabling = false;
+  }
 
   /** Called after the first successful generation (SSE job.status_changed → completed). */
   maybeShow(): void {
-    if (!isBrowser() || this.visible) return;
+    const userId = pushSubscription.userId;
+    if (!isBrowser() || this.visible || !userId) return;
 
+    const preference = getPushPromptPreference(userId);
     const eligible = isPushNudgeEligible({
       support: getPushSupport(),
       permission: currentPermission(),
       subscribed: pushSubscription.subscribed,
-      dismissed: isDismissed(),
+      dismissed: preference.dismissed,
+      retryPending: preference.retryPending,
     });
 
     if (eligible) this.visible = true;
   }
 
-  /** Marks the nudge as seen so it never shows again — used by both Enable and Dismiss. */
-  private markSeen(): void {
-    this.visible = false;
-    if (isBrowser()) localStorage.setItem(STORAGE_KEYS.PUSH_NUDGE_DISMISSED, '1');
-  }
-
   dismiss(): void {
-    this.markSeen();
+    const userId = pushSubscription.userId;
+    this.visible = false;
+    if (userId) updatePushPromptPreference(userId, { dismissed: true, retryPending: false });
   }
 
-  async enable(): Promise<void> {
-    this.markSeen();
-    await pushSubscription.enable();
+  async enable(): Promise<PushEnableResult | undefined> {
+    if (this.enabling) return undefined;
+    this.enabling = true;
+    try {
+      const result = await pushSubscription.enable();
+      // The store persists retry state; only completed decisions dismiss this visible instance.
+      if (result.status === 'enabled' || result.status === 'permission-denied') {
+        this.visible = false;
+      }
+      return result;
+    } finally {
+      this.enabling = false;
+    }
   }
 }
 

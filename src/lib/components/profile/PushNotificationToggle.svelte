@@ -1,13 +1,15 @@
 <script lang="ts">
   import ToggleSwitch from '$lib/components/shared/ToggleSwitch.svelte';
   import { pushSubscription } from '$lib/stores/pushSubscription.svelte';
+  import { productInfo } from '$lib/stores/product';
   import * as m from '$paraglide/messages';
 
-  function handleToggle(checked: boolean) {
+  async function handleToggle(checked: boolean) {
     if (checked) {
-      pushSubscription.enable();
+      // `enable()` calls Notification.requestPermission() before its first await.
+      await pushSubscription.enable();
     } else {
-      pushSubscription.disable();
+      await pushSubscription.disable();
     }
   }
 </script>
@@ -22,7 +24,13 @@
     <div class="push-row-main">
       <span class="push-label">{m.push_settings_label()}</span>
       {#if pushSubscription.permission === 'denied'}
-        <p class="push-hint">{m.push_denied_hint()}</p>
+        <p class="push-hint">
+          {m.push_denied_hint({ appName: $productInfo?.display_name ?? 'Vex.pics' })}
+        </p>
+      {:else if pushSubscription.lastResult === 'permission-dismissed'}
+        <p class="push-hint">{m.push_permission_dismissed_hint()}</p>
+      {:else if pushSubscription.lastResult && pushSubscription.lastResult !== 'enabled'}
+        <p class="push-hint">{m.push_retry_hint()}</p>
       {/if}
     </div>
     <ToggleSwitch

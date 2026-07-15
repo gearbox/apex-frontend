@@ -1,68 +1,100 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const { pushSubscription } = vi.hoisted(() => ({
+  pushSubscription: { userId: 'user-a', subscribed: false, enable: vi.fn() },
+}));
 
 vi.mock('$lib/services/pushNotifications', () => ({
+  getPushPromptPreference: vi.fn().mockReturnValue({ dismissed: false, retryPending: false }),
   getPushSupport: vi.fn().mockReturnValue('supported'),
   isPushNudgeEligible: vi.fn(),
+  updatePushPromptPreference: vi.fn(),
 }));
 
-vi.mock('$lib/stores/pushSubscription.svelte', () => ({
-  pushSubscription: { subscribed: false, enable: vi.fn().mockResolvedValue(true) },
-}));
+vi.mock('$lib/stores/pushSubscription.svelte', () => ({ pushSubscription }));
 
 import { pushNudge } from './pushNudge.svelte';
 import * as pushService from '$lib/services/pushNotifications';
-import { pushSubscription } from '$lib/stores/pushSubscription.svelte';
-import { STORAGE_KEYS } from '$lib/utils/constants';
 
 describe('pushNudge store', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    pushNudge.visible = false;
-    localStorage.clear();
+    pushNudge.reset();
+    pushSubscription.userId = 'user-a';
+    pushSubscription.subscribed = false;
+    vi.mocked(pushService.getPushPromptPreference).mockReturnValue({
+      dismissed: false,
+      retryPending: false,
+    });
   });
 
-  it('maybeShow() shows the nudge when eligible', () => {
+  it('maybeShow() uses the active user preference and shows an eligible nudge', () => {
     vi.mocked(pushService.isPushNudgeEligible).mockReturnValue(true);
 
     pushNudge.maybeShow();
 
+    expect(pushService.getPushPromptPreference).toHaveBeenCalledWith('user-a');
     expect(pushNudge.visible).toBe(true);
   });
 
-  it('maybeShow() does nothing when not eligible', () => {
-    vi.mocked(pushService.isPushNudgeEligible).mockReturnValue(false);
-
-    pushNudge.maybeShow();
-
-    expect(pushNudge.visible).toBe(false);
-  });
-
-  it('maybeShow() is a no-op once already visible', () => {
-    vi.mocked(pushService.isPushNudgeEligible).mockReturnValue(true);
-    pushNudge.maybeShow();
-    vi.mocked(pushService.isPushNudgeEligible).mockClear();
-
-    pushNudge.maybeShow();
-
-    expect(pushService.isPushNudgeEligible).not.toHaveBeenCalled();
-  });
-
-  it('dismiss() hides the nudge and persists the flag', () => {
+  it('dismiss() persists only the active user preference', () => {
     pushNudge.visible = true;
 
     pushNudge.dismiss();
 
     expect(pushNudge.visible).toBe(false);
-    expect(localStorage.getItem(STORAGE_KEYS.PUSH_NUDGE_DISMISSED)).toBe('1');
+    expect(pushService.updatePushPromptPreference).toHaveBeenCalledWith('user-a', {
+      dismissed: true,
+      retryPending: false,
+    });
   });
 
-  it('enable() persists the dismissed flag and delegates to pushSubscription.enable()', async () => {
+  it('keeps a retryable failure visible and lets the store persist its retry state', async () => {
     pushNudge.visible = true;
+    vi.mocked(pushSubscription.enable).mockResolvedValue({ status: 'service-worker-unavailable' });
 
+    await expect(pushNudge.enable()).resolves.toEqual({ status: 'service-worker-unavailable' });
+
+    expect(pushNudge.visible).toBe(true);
+    expect(pushService.updatePushPromptPreference).not.toHaveBeenCalled();
+  });
+
+  it('hides after successful enable or a deliberate permission denial', async () => {
+    pushNudge.visible = true;
+    vi.mocked(pushSubscription.enable).mockResolvedValue({ status: 'enabled' });
     await pushNudge.enable();
-
     expect(pushNudge.visible).toBe(false);
-    expect(localStorage.getItem(STORAGE_KEYS.PUSH_NUDGE_DISMISSED)).toBe('1');
+
+    pushNudge.visible = true;
+    vi.mocked(pushSubscription.enable).mockResolvedValue({ status: 'permission-denied' });
+    await pushNudge.enable();
+    expect(pushNudge.visible).toBe(false);
+  });
+
+  it('does not allow one account preference to be read for another account', () => {
+    pushSubscription.userId = 'user-b';
+    vi.mocked(pushService.isPushNudgeEligible).mockReturnValue(true);
+
+    pushNudge.maybeShow();
+
+    expect(pushService.getPushPromptPreference).toHaveBeenCalledWith('user-b');
+  });
+
+  it('cannot double-submit while enabling', async () => {
+    let resolveEnable!: (value: { status: 'enabled' }) => void;
+    vi.mocked(pushSubscription.enable).mockReturnValue(
+      new Promise((resolve) => {
+        resolveEnable = resolve;
+      }),
+    );
+
+    const first = pushNudge.enable();
+    const second = pushNudge.enable();
+    await expect(second).resolves.toBeUndefined();
     expect(pushSubscription.enable).toHaveBeenCalledOnce();
+
+    resolveEnable({ status: 'enabled' });
+    await first;
+    expect(pushNudge.enabling).toBe(false);
   });
 });

@@ -1,4 +1,4 @@
-import { writable, derived } from 'svelte/store';
+import { get, writable, derived } from 'svelte/store';
 import { STORAGE_KEYS } from '$lib/utils/constants';
 import { isBrowser } from '$lib/utils/env';
 import { locale } from '$lib/stores/locale';
@@ -48,6 +48,11 @@ export const isAgeVerified = derived(user, ($u) => $u?.age_verified ?? false);
 /* ─── Token Access ─── */
 export function getAccessToken(): string | null {
   return accessToken;
+}
+
+/** Snapshot access for logout coordination while credentials are still valid. */
+export function getCurrentUser(): UserProfile | null {
+  return get(user);
 }
 
 export function getRefreshToken(): string | null {
