@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { pushSubscription } = vi.hoisted(() => ({
   pushSubscription: { userId: 'user-a', subscribed: false, enable: vi.fn() },
@@ -26,6 +26,10 @@ describe('pushNudge store', () => {
       dismissed: false,
       retryPending: false,
     });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it('maybeShow() uses the active user preference and shows an eligible nudge', () => {
@@ -78,6 +82,71 @@ describe('pushNudge store', () => {
     pushNudge.maybeShow();
 
     expect(pushService.getPushPromptPreference).toHaveBeenCalledWith('user-b');
+  });
+
+  it('is idempotent when maybeShow() is re-evaluated while already visible', () => {
+    pushNudge.visible = true;
+
+    pushNudge.maybeShow();
+
+    expect(pushService.getPushPromptPreference).not.toHaveBeenCalled();
+    expect(pushService.isPushNudgeEligible).not.toHaveBeenCalled();
+    expect(pushNudge.visible).toBe(true);
+  });
+
+  it('stays hidden when the account is already subscribed', () => {
+    pushSubscription.subscribed = true;
+    vi.mocked(pushService.isPushNudgeEligible).mockReturnValue(false);
+
+    pushNudge.maybeShow();
+
+    expect(pushService.isPushNudgeEligible).toHaveBeenCalledWith(
+      expect.objectContaining({ subscribed: true }),
+    );
+    expect(pushNudge.visible).toBe(false);
+  });
+
+  it('stays hidden once the user has dismissed the prompt', () => {
+    vi.mocked(pushService.getPushPromptPreference).mockReturnValue({
+      dismissed: true,
+      retryPending: false,
+    });
+    vi.mocked(pushService.isPushNudgeEligible).mockReturnValue(false);
+
+    pushNudge.maybeShow();
+
+    expect(pushService.isPushNudgeEligible).toHaveBeenCalledWith(
+      expect.objectContaining({ dismissed: true }),
+    );
+    expect(pushNudge.visible).toBe(false);
+  });
+
+  it('stays hidden when notification permission is denied', () => {
+    vi.stubGlobal('Notification', { permission: 'denied' as NotificationPermission });
+    vi.mocked(pushService.isPushNudgeEligible).mockReturnValue(false);
+
+    pushNudge.maybeShow();
+
+    expect(pushService.isPushNudgeEligible).toHaveBeenCalledWith(
+      expect.objectContaining({ permission: 'denied' }),
+    );
+    expect(pushNudge.visible).toBe(false);
+  });
+
+  it('shows for a retry-pending account with granted permission', () => {
+    vi.stubGlobal('Notification', { permission: 'granted' as NotificationPermission });
+    vi.mocked(pushService.getPushPromptPreference).mockReturnValue({
+      dismissed: false,
+      retryPending: true,
+    });
+    vi.mocked(pushService.isPushNudgeEligible).mockReturnValue(true);
+
+    pushNudge.maybeShow();
+
+    expect(pushService.isPushNudgeEligible).toHaveBeenCalledWith(
+      expect.objectContaining({ permission: 'granted', retryPending: true }),
+    );
+    expect(pushNudge.visible).toBe(true);
   });
 
   it('cannot double-submit while enabling', async () => {

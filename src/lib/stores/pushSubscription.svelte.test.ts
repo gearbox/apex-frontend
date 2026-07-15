@@ -243,6 +243,127 @@ describe('pushSubscription store', () => {
   });
 });
 
+describe('pushSubscription initialSyncComplete readiness', () => {
+  it('is false immediately after init(userId)', () => {
+    const pending = deferred<PushSubscription | null>();
+    vi.mocked(pushService.getLivePushSubscription).mockReturnValue(pending.promise);
+
+    pushSubscription.init(USER_A);
+
+    expect(pushSubscription.initialSyncComplete).toBe(false);
+  });
+
+  it('becomes true only after the initial refresh settles', async () => {
+    const pending = deferred<PushSubscription | null>();
+    vi.mocked(pushService.getLivePushSubscription).mockReturnValue(pending.promise);
+
+    pushSubscription.init(USER_A);
+    await flush();
+    expect(pushSubscription.initialSyncComplete).toBe(false);
+
+    pending.resolve(null);
+    await flush();
+
+    expect(pushSubscription.initialSyncComplete).toBe(true);
+  });
+
+  it('reset() returns readiness to false', async () => {
+    pushSubscription.init(USER_A);
+    await flush();
+    expect(pushSubscription.initialSyncComplete).toBe(true);
+
+    pushSubscription.reset();
+
+    expect(pushSubscription.initialSyncComplete).toBe(false);
+  });
+
+  it('a foreground refresh does not represent a second initial launch', async () => {
+    vi.stubGlobal('Notification', { permission: 'granted' as NotificationPermission });
+    const cleanup = pushSubscription.init(USER_A);
+    await flush();
+    expect(pushSubscription.initialSyncComplete).toBe(true);
+
+    const pending = deferred<PushSubscription | null>();
+    vi.mocked(pushService.getLivePushSubscription).mockReturnValue(pending.promise);
+    window.dispatchEvent(new Event('pageshow'));
+    // A foreground refresh must never flip readiness back to false while in flight.
+    expect(pushSubscription.initialSyncComplete).toBe(true);
+
+    pending.resolve(null);
+    await flush();
+    expect(pushSubscription.initialSyncComplete).toBe(true);
+
+    cleanup();
+  });
+
+  it('a deferred User A refresh cannot mark readiness after switching to User B', async () => {
+    vi.stubGlobal('Notification', { permission: 'granted' as NotificationPermission });
+    const pendingA = deferred<PushSubscription | null>();
+    const pendingB = deferred<PushSubscription | null>();
+    vi.mocked(pushService.getLivePushSubscription)
+      .mockReturnValueOnce(pendingA.promise)
+      .mockReturnValueOnce(pendingB.promise);
+
+    pushSubscription.init(USER_A);
+    pushSubscription.init(USER_B);
+    await flush();
+    expect(pushSubscription.initialSyncComplete).toBe(false);
+
+    pendingA.resolve(null);
+    await flush();
+    expect(pushSubscription.userId).toBe(USER_B);
+    expect(pushSubscription.initialSyncComplete).toBe(false);
+
+    pendingB.resolve(null);
+    await flush();
+    expect(pushSubscription.initialSyncComplete).toBe(true);
+  });
+
+  it('gives User B independent readiness after switching from an already-settled User A', async () => {
+    vi.stubGlobal('Notification', { permission: 'granted' as NotificationPermission });
+    pushSubscription.init(USER_A);
+    await flush();
+    expect(pushSubscription.initialSyncComplete).toBe(true);
+
+    const pendingB = deferred<PushSubscription | null>();
+    vi.mocked(pushService.getLivePushSubscription).mockReturnValue(pendingB.promise);
+    pushSubscription.init(USER_B);
+    await flush();
+    expect(pushSubscription.initialSyncComplete).toBe(false);
+
+    pendingB.resolve(null);
+    await flush();
+    expect(pushSubscription.initialSyncComplete).toBe(true);
+  });
+
+  it('settles readiness immediately when push is unsupported', () => {
+    vi.mocked(pushService.getPushSupport).mockReturnValue('unsupported');
+
+    pushSubscription.init(USER_A);
+
+    expect(pushSubscription.initialSyncComplete).toBe(true);
+  });
+
+  it('settles readiness immediately when iOS needs-install', () => {
+    vi.mocked(pushService.getPushSupport).mockReturnValue('needs-install');
+
+    pushSubscription.init(USER_A);
+
+    expect(pushSubscription.initialSyncComplete).toBe(true);
+  });
+
+  it('settles readiness conservatively after a retryable initial refresh failure', async () => {
+    vi.stubGlobal('Notification', { permission: 'granted' as NotificationPermission });
+    vi.mocked(pushService.reconcileOnLaunch).mockRejectedValue(new Error('network error'));
+
+    pushSubscription.init(USER_A);
+    await flush();
+
+    expect(pushSubscription.initialSyncComplete).toBe(true);
+    expect(pushSubscription.subscribed).toBe(false);
+  });
+});
+
 describe('push subscription pure helpers', () => {
   const subscription = fakeSubscription('https://push.example.com/owned');
   const owned = { version: 1 as const, endpoint: subscription.endpoint, userId: USER_A };

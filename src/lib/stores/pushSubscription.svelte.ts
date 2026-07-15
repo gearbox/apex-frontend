@@ -75,6 +75,8 @@ export class PushSubscriptionState {
   subscribed = $state(false);
   loading = $state(false);
   lastResult: PushUiStatus | null = $state(null);
+  /** True once the current user's first refresh/reconciliation attempt has settled. */
+  initialSyncComplete = $state(false);
   private refreshPromise: Promise<void> | undefined;
   private refreshUserId: string | undefined;
   private refreshGeneration = 0;
@@ -117,6 +119,21 @@ export class PushSubscriptionState {
   }
 
   /**
+   * Runs the initial post-init refresh and marks initialSyncComplete once it settles —
+   * success or failure — but only if this is still the current user/generation/revision.
+   * A later foreground refresh (visibilitychange/pageshow) never touches this flag.
+   */
+  private performInitialSync(userId: string, generation: number, revision: number): void {
+    this.refresh(true)
+      .catch((error: unknown) => reportPushFailure('state-refresh', error))
+      .finally(() => {
+        if (this.isCurrent(userId, generation, revision)) {
+          this.initialSyncComplete = true;
+        }
+      });
+  }
+
+  /**
    * Call after authentication becomes available. Switching users invalidates every previous
    * async result and replaces foreground listeners so account state cannot leak across sessions.
    */
@@ -131,15 +148,22 @@ export class PushSubscriptionState {
     this.loading = false;
     this.subscribed = false;
     this.lastResult = null;
+    this.initialSyncComplete = false;
+    const generation = this.generation;
+    const revision = this.stateRevision;
 
     const support = isBrowser() ? getPushSupport() : 'unsupported';
     const permission = currentPermission();
     this.normalizeUnavailableState(support, permission);
 
-    if (!isBrowser() || support !== 'supported') return () => {};
+    if (!isBrowser() || support !== 'supported') {
+      // Nothing to reconcile — settle immediately so launch orchestration never hangs.
+      this.initialSyncComplete = true;
+      return () => {};
+    }
 
     preparePushResourcesInBackground();
-    this.refreshInBackground(true);
+    this.performInitialSync(userId, generation, revision);
 
     const refreshWhenVisible = () => {
       if (document.visibilityState === 'visible') this.refreshInBackground();
@@ -169,6 +193,7 @@ export class PushSubscriptionState {
     this.loading = false;
     this.subscribed = false;
     this.lastResult = null;
+    this.initialSyncComplete = false;
     this.support = isBrowser() ? getPushSupport() : 'unsupported';
     this.permission = currentPermission();
   }
