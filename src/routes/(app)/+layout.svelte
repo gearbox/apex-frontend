@@ -3,7 +3,7 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { useQueryClient } from '@tanstack/svelte-query';
-  import { currentAuthStatus } from '$lib/stores/auth';
+  import { currentAuthStatus, currentUser } from '$lib/stores/auth';
   import { initAuth } from '$lib/api/auth';
   import { EventStreamService } from '$lib/services/eventStream';
   import * as m from '$paraglide/messages';
@@ -14,6 +14,7 @@
   import OfflineBanner from '$lib/components/ui/OfflineBanner.svelte';
   import InstallPromptSheet from '$lib/components/pwa/InstallPromptSheet.svelte';
   import PushNudgeBanner from '$lib/components/pwa/PushNudgeBanner.svelte';
+  import { pushNudge } from '$lib/stores/pushNudge.svelte';
   import { pushSubscription } from '$lib/stores/pushSubscription.svelte';
 
   let { children }: { children: Snippet } = $props();
@@ -21,7 +22,7 @@
 
   const queryClient = useQueryClient();
   let eventStream: EventStreamService | null = null;
-  let pushInitialized = false;
+  let pushInitializedForUserId: string | undefined;
   let disposePushSubscription: (() => void) | undefined;
 
   onMount(async () => {
@@ -33,18 +34,26 @@
   $effect(() => {
     if (checking) return;
 
-    if ($currentAuthStatus === 'authenticated') {
+    const userId = $currentUser?.id;
+    if ($currentAuthStatus === 'authenticated' && userId) {
       if (!eventStream) {
         eventStream = new EventStreamService({ queryClient });
       }
       eventStream.connect();
 
-      if (!pushInitialized) {
-        pushInitialized = true;
-        disposePushSubscription = pushSubscription.init();
+      if (pushInitializedForUserId !== userId) {
+        disposePushSubscription?.();
+        pushNudge.reset();
+        pushInitializedForUserId = userId;
+        disposePushSubscription = pushSubscription.init(userId);
       }
     } else {
       eventStream?.disconnect();
+      disposePushSubscription?.();
+      disposePushSubscription = undefined;
+      pushInitializedForUserId = undefined;
+      pushNudge.reset();
+      pushSubscription.reset();
     }
   });
 
@@ -53,6 +62,7 @@
     eventStream = null;
     disposePushSubscription?.();
     disposePushSubscription = undefined;
+    pushSubscription.reset();
   });
 
   // Redirect when auth resolves to unauthenticated

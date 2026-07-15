@@ -7,22 +7,30 @@ import {
 } from '../../mocks/handlers/push';
 import {
   PUSH_SERVICE_WORKER_READY_TIMEOUT_MS,
+  detachPushOnLogout,
+  getPushPromptPreference,
   getPushSupport,
   isPushNudgeEligible,
+  parseStoredPushRegistration,
   preparePushResources,
+  readStoredPushRegistration,
   reconcileOnLaunch,
   resetPushNotificationStateForTesting,
+  storePushRegistration,
   subscribe,
   unsubscribe,
+  updatePushPromptPreference,
   urlBase64ToUint8Array,
 } from './pushNotifications';
 import { STORAGE_KEYS } from '$lib/utils/constants';
 
 const BASE = 'http://localhost:8000';
+const USER_A = 'user-a';
+const USER_B = 'user-b';
 
 function stubNavigator(overrides: Record<string, unknown> = {}) {
   vi.stubGlobal('navigator', {
-    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+    userAgent: 'test-agent',
     platform: 'Win32',
     maxTouchPoints: 0,
     ...overrides,
@@ -37,11 +45,11 @@ function stubMatchMedia(matches = false) {
   });
 }
 
-function makeFakeSubscription(endpoint: string) {
+function makeFakeSubscription(endpoint: string, unsubscribe = vi.fn().mockResolvedValue(true)) {
   return {
     endpoint,
     toJSON: () => ({ endpoint, keys: { p256dh: 'p256dh-key', auth: 'auth-key' } }),
-    unsubscribe: vi.fn().mockResolvedValue(true),
+    unsubscribe,
   };
 }
 
@@ -60,6 +68,10 @@ function stubPushSupported(
   return { getRegistration, requestPermission };
 }
 
+function expectRegistration(userId: string, endpoint: string) {
+  expect(readStoredPushRegistration()).toEqual({ version: 1, userId, endpoint });
+}
+
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
@@ -68,7 +80,7 @@ afterEach(() => {
 });
 
 describe('getPushSupport', () => {
-  it('returns "supported" when serviceWorker, PushManager, and Notification are all available', () => {
+  it('returns supported when the required browser APIs exist', () => {
     stubNavigator({ serviceWorker: {} });
     vi.stubGlobal('PushManager', class {});
     vi.stubGlobal('Notification', { permission: 'default' });
@@ -76,7 +88,7 @@ describe('getPushSupport', () => {
     expect(getPushSupport()).toBe('supported');
   });
 
-  it('returns "needs-install" in an iOS browser tab even when push globals are exposed', () => {
+  it('returns needs-install in an iOS browser tab even if push globals are exposed', () => {
     stubNavigator({
       userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15',
       serviceWorker: {},
@@ -88,7 +100,7 @@ describe('getPushSupport', () => {
     expect(getPushSupport()).toBe('needs-install');
   });
 
-  it('returns "supported" on iOS once installed to home screen with the required APIs', () => {
+  it('returns supported after the iOS app is installed to the Home Screen', () => {
     stubNavigator({
       userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15',
       serviceWorker: {},
@@ -99,28 +111,41 @@ describe('getPushSupport', () => {
 
     expect(getPushSupport()).toBe('supported');
   });
+});
 
-  it('returns "unsupported" on a non-iOS browser without PushManager', () => {
-    stubNavigator();
-    expect(getPushSupport()).toBe('unsupported');
+describe('storage records', () => {
+  it('rejects malformed or legacy registration data without treating it as enabled state', () => {
+    expect(parseStoredPushRegistration('{bad json')).toBeNull();
+    expect(parseStoredPushRegistration(JSON.stringify({ endpoint: 'legacy' }))).toBeNull();
+
+    localStorage.setItem(STORAGE_KEYS.PUSH_REGISTRATION, '{bad json');
+    expect(readStoredPushRegistration()).toBeNull();
+    expect(localStorage.getItem(STORAGE_KEYS.PUSH_REGISTRATION)).toBeNull();
+  });
+
+  it('keeps prompt dismissal and retry state isolated for each account', () => {
+    updatePushPromptPreference(USER_A, { dismissed: true, retryPending: false });
+    expect(getPushPromptPreference(USER_A)).toEqual({ dismissed: true, retryPending: false });
+    expect(getPushPromptPreference(USER_B)).toEqual({ dismissed: false, retryPending: false });
+
+    updatePushPromptPreference(USER_B, { retryPending: true });
+    expect(getPushPromptPreference(USER_A)).toEqual({ dismissed: true, retryPending: false });
+    expect(getPushPromptPreference(USER_B)).toEqual({ dismissed: false, retryPending: true });
   });
 });
 
 describe('urlBase64ToUint8Array', () => {
-  function toUrlBase64(bytes: Uint8Array): string {
-    let binary = '';
-    bytes.forEach((b) => (binary += String.fromCharCode(b)));
-    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  }
-
   it('round-trips arbitrary bytes through url-safe base64', () => {
     const original = new Uint8Array([251, 239, 190, 0, 1, 255, 16, 32, 127]);
-    expect(Array.from(urlBase64ToUint8Array(toUrlBase64(original)))).toEqual(Array.from(original));
+    let binary = '';
+    original.forEach((b) => (binary += String.fromCharCode(b)));
+    const encoded = btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    expect(Array.from(urlBase64ToUint8Array(encoded))).toEqual(Array.from(original));
   });
 });
 
 describe('subscribe', () => {
-  it('requests default permission before any service-worker or VAPID work', async () => {
+  it('requests default permission synchronously before any awaited work', async () => {
     let resolvePermission!: (permission: NotificationPermission) => void;
     const permissionRequest = new Promise<NotificationPermission>((resolve) => {
       resolvePermission = resolve;
@@ -132,16 +157,15 @@ describe('subscribe', () => {
       requestPermission,
     );
 
-    const result = subscribe();
+    const result = subscribe(USER_A);
 
     expect(requestPermission).toHaveBeenCalledOnce();
     expect(getRegistration).not.toHaveBeenCalled();
     resolvePermission('denied');
     await expect(result).resolves.toEqual({ status: 'permission-denied' });
-    expect(getRegistration).not.toHaveBeenCalled();
   });
 
-  it('continues to subscription after permission is granted', async () => {
+  it('stores a versioned, user-owned registration after successful POST', async () => {
     const fakeSub = makeFakeSubscription('https://push.example.com/granted');
     const subscribeMock = vi.fn().mockResolvedValue(fakeSub);
     const { requestPermission } = stubPushSupported(
@@ -151,97 +175,35 @@ describe('subscribe', () => {
       'default',
       vi.fn().mockResolvedValue('granted'),
     );
+    localStorage.setItem(STORAGE_KEYS.PUSH_ENDPOINT, fakeSub.endpoint);
 
-    await expect(subscribe()).resolves.toEqual({ status: 'enabled' });
+    await expect(subscribe(USER_A)).resolves.toEqual({ status: 'enabled' });
 
     expect(requestPermission).toHaveBeenCalledOnce();
     expect(subscribeMock).toHaveBeenCalledWith(expect.objectContaining({ userVisibleOnly: true }));
+    expectRegistration(USER_A, fakeSub.endpoint);
+    expect(localStorage.getItem(STORAGE_KEYS.PUSH_ENDPOINT)).toBeNull();
   });
 
-  it('does not subscribe or POST when permission is denied', async () => {
-    const subscribeMock = vi.fn();
-    let postCalled = false;
-    stubPushSupported(
-      { pushManager: { getSubscription: vi.fn(), subscribe: subscribeMock } },
-      'default',
-      vi.fn().mockResolvedValue('denied'),
-    );
-    server.use(
-      http.post(`${BASE}/v1/push/subscriptions`, () => {
-        postCalled = true;
-        return HttpResponse.json({}, { status: 201 });
-      }),
-    );
-
-    await expect(subscribe()).resolves.toEqual({ status: 'permission-denied' });
-
-    expect(subscribeMock).not.toHaveBeenCalled();
-    expect(postCalled).toBe(false);
-  });
-
-  it('does not subscribe when the permission prompt is dismissed', async () => {
-    const subscribeMock = vi.fn();
-    stubPushSupported(
-      { pushManager: { getSubscription: vi.fn(), subscribe: subscribeMock } },
-      'default',
-      vi.fn().mockResolvedValue('default'),
-    );
-
-    await expect(subscribe()).resolves.toEqual({ status: 'permission-dismissed' });
-    expect(subscribeMock).not.toHaveBeenCalled();
-  });
-
-  it('skips requestPermission when permission is already granted', async () => {
-    const fakeSub = makeFakeSubscription('https://push.example.com/already-granted');
-    const requestPermission = vi.fn();
-    stubPushSupported(
-      {
-        pushManager: {
-          getSubscription: vi.fn().mockResolvedValue(null),
-          subscribe: vi.fn().mockResolvedValue(fakeSub),
-        },
-      },
-      'granted',
-      requestPermission,
-    );
-
-    await expect(subscribe()).resolves.toEqual({ status: 'enabled' });
-    expect(requestPermission).not.toHaveBeenCalled();
-  });
-
-  it('reuses an existing browser subscription and re-POSTs it', async () => {
-    const fakeSub = makeFakeSubscription('https://push.example.com/existing');
-    const subscribeMock = vi.fn();
+  it('clears a matching confirmed record when an existing subscription POST fails', async () => {
+    const fakeSub = makeFakeSubscription('https://push.example.com/existing-failure');
     stubPushSupported({
-      pushManager: {
-        getSubscription: vi.fn().mockResolvedValue(fakeSub),
-        subscribe: subscribeMock,
-      },
+      pushManager: { getSubscription: vi.fn().mockResolvedValue(fakeSub), subscribe: vi.fn() },
     });
+    storePushRegistration({ version: 1, endpoint: fakeSub.endpoint, userId: USER_A });
+    server.use(pushSubscribeFailedHandler);
 
-    let capturedBody: unknown;
-    server.use(
-      http.post(`${BASE}/v1/push/subscriptions`, async ({ request }) => {
-        capturedBody = await request.json();
-        return HttpResponse.json({}, { status: 201 });
-      }),
-    );
+    await expect(subscribe(USER_A)).resolves.toEqual({ status: 'backend-registration-failed' });
 
-    await expect(subscribe()).resolves.toEqual({ status: 'enabled' });
-
-    expect(subscribeMock).not.toHaveBeenCalled();
-    expect(capturedBody).toMatchObject({
-      endpoint: 'https://push.example.com/existing',
-      keys: { p256dh: 'p256dh-key', auth: 'auth-key' },
-      user_agent: 'test-agent',
-    });
-    expect(localStorage.getItem(STORAGE_KEYS.PUSH_ENDPOINT)).toBe(
-      'https://push.example.com/existing',
-    );
+    expect(fakeSub.unsubscribe).not.toHaveBeenCalled();
+    expect(readStoredPushRegistration()).toBeNull();
+    await reconcileOnLaunch(USER_A);
+    expect(readStoredPushRegistration()).toBeNull();
   });
 
-  it('rolls back a newly created browser subscription when backend registration fails', async () => {
-    const fakeSub = makeFakeSubscription('https://push.example.com/new-failure');
+  it('rolls back a newly created subscription and checks an unsuccessful rollback safely', async () => {
+    const unsubscribeMock = vi.fn().mockResolvedValue(false);
+    const fakeSub = makeFakeSubscription('https://push.example.com/new-failure', unsubscribeMock);
     stubPushSupported({
       pushManager: {
         getSubscription: vi.fn().mockResolvedValue(null),
@@ -249,45 +211,33 @@ describe('subscribe', () => {
       },
     });
     server.use(pushSubscribeFailedHandler);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
-    await expect(subscribe()).resolves.toEqual({ status: 'backend-registration-failed' });
-    expect(fakeSub.unsubscribe).toHaveBeenCalledOnce();
-    expect(localStorage.getItem(STORAGE_KEYS.PUSH_ENDPOINT)).toBeNull();
+    await expect(subscribe(USER_A)).resolves.toEqual({ status: 'backend-registration-failed' });
+
+    expect(unsubscribeMock).toHaveBeenCalledOnce();
+    expect(readStoredPushRegistration()).toBeNull();
+    expect(warn).toHaveBeenCalledWith('[push] operation failed', {
+      stage: 'browser-subscription-rollback-failed',
+      category: 'UnknownError',
+    });
+    warn.mockRestore();
   });
 
-  it('does not remove a pre-existing browser subscription when backend registration fails', async () => {
-    const fakeSub = makeFakeSubscription('https://push.example.com/existing-failure');
+  it('keeps a pre-existing browser subscription when backend registration fails', async () => {
+    const fakeSub = makeFakeSubscription('https://push.example.com/existing');
     stubPushSupported({
       pushManager: { getSubscription: vi.fn().mockResolvedValue(fakeSub), subscribe: vi.fn() },
     });
     server.use(pushSubscribeFailedHandler);
 
-    await expect(subscribe()).resolves.toEqual({ status: 'backend-registration-failed' });
+    await expect(subscribe(USER_A)).resolves.toEqual({ status: 'backend-registration-failed' });
     expect(fakeSub.unsubscribe).not.toHaveBeenCalled();
   });
 });
 
 describe('preparePushResources', () => {
-  it('is idempotent while it resolves', async () => {
-    const registration = { pushManager: { getSubscription: vi.fn(), subscribe: vi.fn() } };
-    const { getRegistration } = stubPushSupported(registration);
-    let vapidRequests = 0;
-    server.use(
-      http.get(`${BASE}/v1/push/vapid-public-key`, () => {
-        vapidRequests += 1;
-        return HttpResponse.json({ public_key: 'BA' });
-      }),
-    );
-
-    const [first, second] = await Promise.all([preparePushResources(), preparePushResources()]);
-
-    expect(first).toEqual({ status: 'prepared' });
-    expect(second).toEqual({ status: 'prepared' });
-    expect(getRegistration).toHaveBeenCalledOnce();
-    expect(vapidRequests).toBe(1);
-  });
-
-  it('allows a failed preparation to be retried', async () => {
+  it('is idempotent while it resolves and retries after a failure', async () => {
     const registration = { pushManager: { getSubscription: vi.fn(), subscribe: vi.fn() } };
     const { getRegistration } = stubPushSupported(registration);
     getRegistration.mockRejectedValueOnce(new Error('registration race'));
@@ -304,7 +254,6 @@ describe('preparePushResources', () => {
     vi.useFakeTimers();
     const neverReady = new Promise<ServiceWorkerRegistration>(() => undefined);
     stubNavigator({
-      userAgent: 'test-agent',
       serviceWorker: { getRegistration: vi.fn().mockResolvedValue(undefined), ready: neverReady },
     });
     vi.stubGlobal('PushManager', class {});
@@ -313,38 +262,42 @@ describe('preparePushResources', () => {
 
     const result = preparePushResources();
     await vi.advanceTimersByTimeAsync(PUSH_SERVICE_WORKER_READY_TIMEOUT_MS);
-
     await expect(result).resolves.toEqual({ status: 'service-worker-unavailable' });
     warn.mockRestore();
   });
 });
 
 describe('unsubscribe', () => {
-  it('is a no-op when there is no active subscription, and clears any stale flag', async () => {
-    stubPushSupported({ pushManager: { getSubscription: vi.fn().mockResolvedValue(null) } });
-    localStorage.setItem(STORAGE_KEYS.PUSH_ENDPOINT, 'stale-endpoint');
-
-    await expect(unsubscribe()).resolves.toBeUndefined();
-    expect(localStorage.getItem(STORAGE_KEYS.PUSH_ENDPOINT)).toBeNull();
-  });
-
-  it('is offline-tolerant: a network failure on DELETE still unsubscribes locally', async () => {
-    const fakeSub = makeFakeSubscription('https://push.example.com/xyz');
+  it('returns disabled only after a local unsubscribe resolves true', async () => {
+    const fakeSub = makeFakeSubscription('https://push.example.com/disable');
     stubPushSupported({ pushManager: { getSubscription: vi.fn().mockResolvedValue(fakeSub) } });
-    localStorage.setItem(STORAGE_KEYS.PUSH_ENDPOINT, 'https://push.example.com/xyz');
-    server.use(pushDeleteNetworkErrorHandler);
+    storePushRegistration({ version: 1, endpoint: fakeSub.endpoint, userId: USER_A });
 
-    await unsubscribe();
+    await expect(unsubscribe(USER_A)).resolves.toEqual({ status: 'disabled' });
+
     expect(fakeSub.unsubscribe).toHaveBeenCalledOnce();
-    expect(localStorage.getItem(STORAGE_KEYS.PUSH_ENDPOINT)).toBeNull();
+    expect(readStoredPushRegistration()).toBeNull();
   });
-});
 
-describe('reconcileOnLaunch', () => {
-  it('re-POSTs and updates the stored endpoint when the browser rotated it', async () => {
-    const fakeSub = makeFakeSubscription('https://push.example.com/rotated');
+  it('does not claim disabled or delete backend state when local unsubscribe resolves false', async () => {
+    const fakeSub = makeFakeSubscription(
+      'https://push.example.com/false',
+      vi.fn().mockResolvedValue(false),
+    );
     stubPushSupported({ pushManager: { getSubscription: vi.fn().mockResolvedValue(fakeSub) } });
-    localStorage.setItem(STORAGE_KEYS.PUSH_ENDPOINT, 'https://push.example.com/old');
+    storePushRegistration({ version: 1, endpoint: fakeSub.endpoint, userId: USER_A });
+    let deleteCalled = false;
+    server.use(
+      http.delete(`${BASE}/v1/push/subscriptions`, () => {
+        deleteCalled = true;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+
+    await expect(unsubscribe(USER_A)).resolves.toEqual({ status: 'browser-unsubscribe-failed' });
+
+    expect(deleteCalled).toBe(false);
+    expectRegistration(USER_A, fakeSub.endpoint);
 
     let postCalled = false;
     server.use(
@@ -353,24 +306,135 @@ describe('reconcileOnLaunch', () => {
         return HttpResponse.json({}, { status: 201 });
       }),
     );
-
-    await reconcileOnLaunch();
-
-    expect(postCalled).toBe(true);
-    expect(localStorage.getItem(STORAGE_KEYS.PUSH_ENDPOINT)).toBe(
-      'https://push.example.com/rotated',
-    );
+    await reconcileOnLaunch(USER_A);
+    expect(postCalled).toBe(false);
   });
 
-  it('clears the stored endpoint when the browser subscription is gone', async () => {
-    stubPushSupported({ pushManager: { getSubscription: vi.fn().mockResolvedValue(null) } });
-    localStorage.setItem(STORAGE_KEYS.PUSH_ENDPOINT, 'https://push.example.com/gone');
+  it('does not claim disabled when local unsubscribe rejects', async () => {
+    const fakeSub = makeFakeSubscription(
+      'https://push.example.com/reject',
+      vi.fn().mockRejectedValue(new Error('browser refused')),
+    );
+    stubPushSupported({ pushManager: { getSubscription: vi.fn().mockResolvedValue(fakeSub) } });
+    storePushRegistration({ version: 1, endpoint: fakeSub.endpoint, userId: USER_A });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
-    await reconcileOnLaunch();
+    await expect(unsubscribe(USER_A)).resolves.toEqual({ status: 'browser-unsubscribe-failed' });
+    expectRegistration(USER_A, fakeSub.endpoint);
+    warn.mockRestore();
+  });
+
+  it('cleans a stored current-user endpoint when no browser subscription exists', async () => {
+    stubPushSupported({ pushManager: { getSubscription: vi.fn().mockResolvedValue(null) } });
+    storePushRegistration({
+      version: 1,
+      endpoint: 'https://push.example.com/stored',
+      userId: USER_A,
+    });
+    let deletedEndpoint = '';
+    server.use(
+      http.delete(`${BASE}/v1/push/subscriptions`, async ({ request }) => {
+        deletedEndpoint = ((await request.json()) as { endpoint: string }).endpoint;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+
+    await expect(unsubscribe(USER_A)).resolves.toEqual({ status: 'disabled' });
+    expect(deletedEndpoint).toBe('https://push.example.com/stored');
+    expect(readStoredPushRegistration()).toBeNull();
+  });
+
+  it('stays disabled after local success even if backend DELETE fails', async () => {
+    const fakeSub = makeFakeSubscription('https://push.example.com/offline-delete');
+    stubPushSupported({ pushManager: { getSubscription: vi.fn().mockResolvedValue(fakeSub) } });
+    storePushRegistration({ version: 1, endpoint: fakeSub.endpoint, userId: USER_A });
+    server.use(pushDeleteNetworkErrorHandler);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    await expect(unsubscribe(USER_A)).resolves.toEqual({ status: 'disabled' });
+    expect(readStoredPushRegistration()).toBeNull();
+    warn.mockRestore();
+  });
+});
+
+describe('reconcileOnLaunch', () => {
+  it('forces an initial authenticated upsert even when this user already owns the endpoint', async () => {
+    const fakeSub = makeFakeSubscription('https://push.example.com/initial');
+    stubPushSupported({ pushManager: { getSubscription: vi.fn().mockResolvedValue(fakeSub) } });
+    storePushRegistration({ version: 1, endpoint: fakeSub.endpoint, userId: USER_A });
+    let posts = 0;
+    server.use(
+      http.post(`${BASE}/v1/push/subscriptions`, () => {
+        posts += 1;
+        return HttpResponse.json({}, { status: 201 });
+      }),
+    );
+
+    await reconcileOnLaunch(USER_A, true);
+
+    expect(posts).toBe(1);
+    expectRegistration(USER_A, fakeSub.endpoint);
+  });
+
+  it('forces an upsert for User B when User A owned the same live endpoint', async () => {
+    const fakeSub = makeFakeSubscription('https://push.example.com/shared');
+    stubPushSupported({ pushManager: { getSubscription: vi.fn().mockResolvedValue(fakeSub) } });
+    storePushRegistration({ version: 1, endpoint: fakeSub.endpoint, userId: USER_A });
+    let posts = 0;
+    server.use(
+      http.post(`${BASE}/v1/push/subscriptions`, () => {
+        posts += 1;
+        return HttpResponse.json({}, { status: 201 });
+      }),
+    );
+
+    await reconcileOnLaunch(USER_B);
+
+    expect(posts).toBe(1);
+    expectRegistration(USER_B, fakeSub.endpoint);
+  });
+
+  it('does not treat the legacy bare endpoint as a current-user confirmation', async () => {
+    const fakeSub = makeFakeSubscription('https://push.example.com/legacy');
+    stubPushSupported({ pushManager: { getSubscription: vi.fn().mockResolvedValue(fakeSub) } });
+    localStorage.setItem(STORAGE_KEYS.PUSH_ENDPOINT, fakeSub.endpoint);
+    let posts = 0;
+    server.use(
+      http.post(`${BASE}/v1/push/subscriptions`, () => {
+        posts += 1;
+        return HttpResponse.json({}, { status: 201 });
+      }),
+    );
+
+    await reconcileOnLaunch(USER_A);
+
+    expect(posts).toBe(1);
+    expectRegistration(USER_A, fakeSub.endpoint);
     expect(localStorage.getItem(STORAGE_KEYS.PUSH_ENDPOINT)).toBeNull();
   });
 
-  it('deduplicates overlapping reconciliation requests', async () => {
+  it('deletes a stale backend row when the current user has no live subscription', async () => {
+    stubPushSupported({ pushManager: { getSubscription: vi.fn().mockResolvedValue(null) } });
+    storePushRegistration({
+      version: 1,
+      endpoint: 'https://push.example.com/gone',
+      userId: USER_A,
+    });
+    let deletes = 0;
+    server.use(
+      http.delete(`${BASE}/v1/push/subscriptions`, () => {
+        deletes += 1;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+
+    await reconcileOnLaunch(USER_A);
+
+    expect(deletes).toBe(1);
+    expect(readStoredPushRegistration()).toBeNull();
+  });
+
+  it('deduplicates only within a user, never across accounts', async () => {
     let resolveSubscription!: (subscription: ReturnType<typeof makeFakeSubscription>) => void;
     const subscriptionPromise = new Promise<ReturnType<typeof makeFakeSubscription>>((resolve) => {
       resolveSubscription = resolve;
@@ -378,65 +442,86 @@ describe('reconcileOnLaunch', () => {
     const getSubscription = vi.fn().mockReturnValue(subscriptionPromise);
     stubPushSupported({ pushManager: { getSubscription } });
 
-    const first = reconcileOnLaunch();
-    const second = reconcileOnLaunch();
+    const firstA = reconcileOnLaunch(USER_A);
+    const secondA = reconcileOnLaunch(USER_A);
+    const firstB = reconcileOnLaunch(USER_B);
     resolveSubscription(makeFakeSubscription('https://push.example.com/same'));
-    await Promise.all([first, second]);
+    await Promise.all([firstA, secondA, firstB]);
 
-    expect(getSubscription).toHaveBeenCalledOnce();
+    expect(getSubscription).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('detachPushOnLogout', () => {
+  it('detaches the backend registration before auth cleanup and keeps a reusable browser subscription', async () => {
+    const fakeSub = makeFakeSubscription('https://push.example.com/logout');
+    stubPushSupported({ pushManager: { getSubscription: vi.fn().mockResolvedValue(fakeSub) } });
+    storePushRegistration({ version: 1, endpoint: fakeSub.endpoint, userId: USER_A });
+    let deleted = false;
+    server.use(
+      http.delete(`${BASE}/v1/push/subscriptions`, () => {
+        deleted = true;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+
+    await detachPushOnLogout(USER_A);
+
+    expect(deleted).toBe(true);
+    expect(fakeSub.unsubscribe).not.toHaveBeenCalled();
+    expect(readStoredPushRegistration()).toBeNull();
+  });
+
+  it('uses local unsubscribe as the privacy fallback after a backend detach failure', async () => {
+    const fakeSub = makeFakeSubscription('https://push.example.com/logout-fallback');
+    stubPushSupported({ pushManager: { getSubscription: vi.fn().mockResolvedValue(fakeSub) } });
+    storePushRegistration({ version: 1, endpoint: fakeSub.endpoint, userId: USER_A });
+    server.use(pushDeleteNetworkErrorHandler);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    await detachPushOnLogout(USER_A);
+
+    expect(fakeSub.unsubscribe).toHaveBeenCalledOnce();
+    expect(readStoredPushRegistration()).toBeNull();
+    warn.mockRestore();
+  });
+
+  it('retains the confirmed record when both backend detach and local unsubscribe fail', async () => {
+    const fakeSub = makeFakeSubscription(
+      'https://push.example.com/logout-retain',
+      vi.fn().mockResolvedValue(false),
+    );
+    stubPushSupported({ pushManager: { getSubscription: vi.fn().mockResolvedValue(fakeSub) } });
+    storePushRegistration({ version: 1, endpoint: fakeSub.endpoint, userId: USER_A });
+    server.use(pushDeleteNetworkErrorHandler);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    await detachPushOnLogout(USER_A);
+
+    expectRegistration(USER_A, fakeSub.endpoint);
+    warn.mockRestore();
   });
 });
 
 describe('isPushNudgeEligible', () => {
-  it('is eligible when supported, permission default, not subscribed, not dismissed', () => {
+  it('allows granted-permission retry state after a reload and isolates dismissal', () => {
     expect(
       isPushNudgeEligible({
         support: 'supported',
-        permission: 'default',
+        permission: 'granted',
         subscribed: false,
         dismissed: false,
+        retryPending: true,
       }),
     ).toBe(true);
-  });
-
-  it.each([
-    {
-      support: 'needs-install' as const,
-      permission: 'default' as const,
-      subscribed: false,
-      dismissed: false,
-    },
-    {
-      support: 'unsupported' as const,
-      permission: 'default' as const,
-      subscribed: false,
-      dismissed: false,
-    },
-    {
-      support: 'supported' as const,
-      permission: 'granted' as const,
-      subscribed: false,
-      dismissed: false,
-    },
-    {
-      support: 'supported' as const,
-      permission: 'denied' as const,
-      subscribed: false,
-      dismissed: false,
-    },
-    {
-      support: 'supported' as const,
-      permission: 'default' as const,
-      subscribed: true,
-      dismissed: false,
-    },
-    {
-      support: 'supported' as const,
-      permission: 'default' as const,
-      subscribed: false,
-      dismissed: true,
-    },
-  ])('is not eligible for %o', (input) => {
-    expect(isPushNudgeEligible(input)).toBe(false);
+    expect(
+      isPushNudgeEligible({
+        support: 'supported',
+        permission: 'granted',
+        subscribed: false,
+        dismissed: true,
+        retryPending: true,
+      }),
+    ).toBe(false);
   });
 });

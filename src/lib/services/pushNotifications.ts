@@ -21,6 +21,16 @@ export interface PushEnableResult {
   status: PushEnableStatus;
 }
 
+export type PushDisableStatus =
+  | 'disabled'
+  | 'service-worker-unavailable'
+  | 'browser-unsubscribe-failed'
+  | 'unsupported';
+
+export interface PushDisableResult {
+  status: PushDisableStatus;
+}
+
 export type PushPreparationStatus =
   | 'prepared'
   | 'needs-install'
@@ -30,6 +40,23 @@ export type PushPreparationStatus =
 
 export interface PushPreparationResult {
   status: PushPreparationStatus;
+}
+
+/** A browser endpoint is confirmed only for the user who last registered it with the API. */
+export interface StoredPushRegistration {
+  version: 1;
+  endpoint: string;
+  userId: string;
+}
+
+interface StoredPushPromptState {
+  version: 1;
+  users: Record<string, PushPromptPreference>;
+}
+
+export interface PushPromptPreference {
+  dismissed: boolean;
+  retryPending: boolean;
 }
 
 interface PreparedPushResources {
@@ -57,7 +84,125 @@ export const PUSH_SERVICE_WORKER_READY_TIMEOUT_MS = 10_000;
 
 let capturedRegistration: ServiceWorkerRegistration | undefined;
 let preparationPromise: Promise<PreparedPushResources> | undefined;
-let reconciliationPromise: Promise<void> | undefined;
+const reconciliationPromises = new Map<string, Promise<void>>();
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** Pure parser so corrupted storage can never break push initialization. */
+export function parseStoredPushRegistration(raw: string | null): StoredPushRegistration | null {
+  if (!raw) return null;
+  try {
+    const value: unknown = JSON.parse(raw);
+    if (
+      !isRecord(value) ||
+      value.version !== 1 ||
+      typeof value.endpoint !== 'string' ||
+      !value.endpoint ||
+      typeof value.userId !== 'string' ||
+      !value.userId
+    ) {
+      return null;
+    }
+    return { version: 1, endpoint: value.endpoint, userId: value.userId };
+  } catch {
+    return null;
+  }
+}
+
+function parseStoredPushPromptState(raw: string | null): StoredPushPromptState | null {
+  if (!raw) return null;
+  try {
+    const value: unknown = JSON.parse(raw);
+    if (!isRecord(value) || value.version !== 1 || !isRecord(value.users)) return null;
+
+    const users: Record<string, PushPromptPreference> = {};
+    for (const [userId, preference] of Object.entries(value.users)) {
+      if (
+        !userId ||
+        !isRecord(preference) ||
+        typeof preference.dismissed !== 'boolean' ||
+        typeof preference.retryPending !== 'boolean'
+      ) {
+        return null;
+      }
+      users[userId] = {
+        dismissed: preference.dismissed,
+        retryPending: preference.retryPending,
+      };
+    }
+    return { version: 1, users };
+  } catch {
+    return null;
+  }
+}
+
+function readStorage(key: string): string | null {
+  if (!isBrowser()) return null;
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function removeStorage(key: string): void {
+  if (!isBrowser()) return;
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    // Storage can be disabled in private browsing; push should remain retryable.
+  }
+}
+
+function writeStorage(key: string, value: string): void {
+  if (!isBrowser()) return;
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // A failed local marker means the UI remains conservatively off after a refresh.
+  }
+}
+
+/** Read a valid, versioned registration and discard malformed data. */
+export function readStoredPushRegistration(): StoredPushRegistration | null {
+  const raw = readStorage(STORAGE_KEYS.PUSH_REGISTRATION);
+  const registration = parseStoredPushRegistration(raw);
+  if (raw !== null && !registration) removeStorage(STORAGE_KEYS.PUSH_REGISTRATION);
+  return registration;
+}
+
+/** Persist the confirmed API registration before retiring the unscoped legacy marker. */
+export function storePushRegistration(registration: StoredPushRegistration): void {
+  writeStorage(STORAGE_KEYS.PUSH_REGISTRATION, JSON.stringify(registration));
+  removeStorage(STORAGE_KEYS.PUSH_ENDPOINT);
+}
+
+export function clearStoredPushRegistration(): void {
+  removeStorage(STORAGE_KEYS.PUSH_REGISTRATION);
+}
+
+export function getPushPromptPreference(userId: string): PushPromptPreference {
+  const raw = readStorage(STORAGE_KEYS.PUSH_PROMPT_STATE);
+  const state = parseStoredPushPromptState(raw);
+  if (raw !== null && !state) removeStorage(STORAGE_KEYS.PUSH_PROMPT_STATE);
+  // The old global dismissal must never suppress a different account's prompt.
+  removeStorage(STORAGE_KEYS.PUSH_NUDGE_DISMISSED);
+  return state?.users[userId] ?? { dismissed: false, retryPending: false };
+}
+
+export function updatePushPromptPreference(
+  userId: string,
+  updates: Partial<PushPromptPreference>,
+): void {
+  const raw = readStorage(STORAGE_KEYS.PUSH_PROMPT_STATE);
+  const state = parseStoredPushPromptState(raw) ?? { version: 1 as const, users: {} };
+  const current = state.users[userId] ?? { dismissed: false, retryPending: false };
+  state.users[userId] = { ...current, ...updates };
+  writeStorage(STORAGE_KEYS.PUSH_PROMPT_STATE, JSON.stringify(state));
+  removeStorage(STORAGE_KEYS.PUSH_NUDGE_DISMISSED);
+}
 
 /**
  * `needs-install` is deliberately checked first on iOS: Web Push is only available to
@@ -80,6 +225,12 @@ export function setPushServiceWorkerRegistration(registration: ServiceWorkerRegi
   capturedRegistration = registration;
 }
 
+/** Logs only a stage and error category; never credentials, endpoints, or push keys. */
+export function reportPushFailure(stage: string, error?: unknown): void {
+  const category = error instanceof Error ? error.name : 'UnknownError';
+  console.warn('[push] operation failed', { stage, category });
+}
+
 /** Converts a VAPID public key (URL-safe base64) into the Uint8Array `applicationServerKey` needs. */
 export function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -90,18 +241,6 @@ export function urlBase64ToUint8Array(base64String: string): Uint8Array {
     outputArray[i] = rawData.charCodeAt(i);
   }
   return outputArray;
-}
-
-function safeErrorDetails(error: unknown): { name: string; message: string } {
-  if (error instanceof Error) {
-    return { name: error.name, message: error.message };
-  }
-  return { name: 'UnknownError', message: 'Unknown push setup error' };
-}
-
-/** Diagnostics intentionally contain no endpoint, VAPID key, subscription key, or auth data. */
-function reportPushFailure(stage: string, error: unknown): void {
-  console.warn('[push] setup failed', { stage, error: safeErrorDetails(error) });
 }
 
 function isPushSetupError(error: unknown): error is PushSetupError {
@@ -227,18 +366,43 @@ function subscriptionToRequestBody(subscription: PushSubscription, userAgent: st
   };
 }
 
+async function registerPushSubscription(
+  subscription: PushSubscription,
+  userId: string,
+): Promise<void> {
+  const body = subscriptionToRequestBody(subscription, navigator.userAgent);
+  const { error } = await apiClient.POST('/v1/push/subscriptions', { body });
+  if (error) throw new Error('Push subscription registration was rejected');
+  storePushRegistration({ version: 1, endpoint: body.endpoint, userId });
+}
+
+async function deletePushSubscription(endpoint: string): Promise<void> {
+  const { error } = await apiClient.DELETE('/v1/push/subscriptions', { body: { endpoint } });
+  if (error) throw new Error('Push subscription deletion was rejected');
+}
+
 /** Read the live browser subscription without requiring a VAPID request. */
 export async function getLivePushSubscription(): Promise<PushSubscription | null> {
   const registration = await getPushRegistration();
   return registration.pushManager.getSubscription();
 }
 
+/** True for only the failures that should keep a granted-permission retry nudge eligible. */
+export function isRetryablePushEnableStatus(status: PushEnableStatus): boolean {
+  return (
+    status === 'service-worker-unavailable' ||
+    status === 'vapid-unavailable' ||
+    status === 'browser-subscribe-failed' ||
+    status === 'backend-registration-failed'
+  );
+}
+
 /**
  * The `Notification.requestPermission()` call is intentionally made before this function awaits
  * anything. Its invocation remains in the click call stack, which Safari/iOS requires.
  */
-export function subscribe(): Promise<PushEnableResult> {
-  if (!isBrowser()) return Promise.resolve({ status: 'unsupported' });
+export function subscribe(userId: string): Promise<PushEnableResult> {
+  if (!isBrowser() || !userId) return Promise.resolve({ status: 'unsupported' });
 
   const support = getPushSupport();
   if (support !== 'supported') return Promise.resolve({ status: support });
@@ -255,27 +419,28 @@ export function subscribe(): Promise<PushEnableResult> {
       reportPushFailure('permission-request', error);
       return Promise.resolve({ status: 'permission-dismissed' });
     }
-    return continueAfterPermissionRequest(permissionRequest);
+    return continueAfterPermissionRequest(permissionRequest, userId);
   }
 
-  return subscribeAfterPermissionGranted();
+  return subscribeAfterPermissionGranted(userId);
 }
 
 async function continueAfterPermissionRequest(
   permissionRequest: Promise<NotificationPermission>,
+  userId: string,
 ): Promise<PushEnableResult> {
   try {
     const permission = await permissionRequest;
     if (permission === 'denied') return { status: 'permission-denied' };
     if (permission !== 'granted') return { status: 'permission-dismissed' };
-    return subscribeAfterPermissionGranted();
+    return subscribeAfterPermissionGranted(userId);
   } catch (error) {
     reportPushFailure('permission-request', error);
     return { status: 'permission-dismissed' };
   }
 }
 
-async function subscribeAfterPermissionGranted(): Promise<PushEnableResult> {
+async function subscribeAfterPermissionGranted(userId: string): Promise<PushEnableResult> {
   let resources: PreparedPushResources;
   try {
     resources = await getPreparedPushResources();
@@ -301,91 +466,171 @@ async function subscribeAfterPermissionGranted(): Promise<PushEnableResult> {
     return { status: 'browser-subscribe-failed' };
   }
 
-  let body: ReturnType<typeof subscriptionToRequestBody>;
   try {
-    body = subscriptionToRequestBody(subscription, navigator.userAgent);
+    await registerPushSubscription(subscription, userId);
   } catch (error) {
-    reportPushFailure('subscription-payload', error);
-    return { status: 'browser-subscribe-failed' };
-  }
-
-  try {
-    const { error } = await apiClient.POST('/v1/push/subscriptions', { body });
-    if (error) throw new Error('Push subscription registration was rejected');
-  } catch (error) {
+    // A matching old marker is never valid after the current registration request was rejected.
+    clearStoredPushRegistration();
     reportPushFailure('backend-registration', error);
     if (createdSubscription) {
       try {
-        await subscription.unsubscribe();
+        const rolledBack = await subscription.unsubscribe();
+        if (!rolledBack) reportPushFailure('browser-subscription-rollback-failed');
       } catch (unsubscribeError) {
-        reportPushFailure('browser-subscription-rollback', unsubscribeError);
+        reportPushFailure('browser-subscription-rollback-failed', unsubscribeError);
       }
     }
     return { status: 'backend-registration-failed' };
   }
 
-  localStorage.setItem(STORAGE_KEYS.PUSH_ENDPOINT, body.endpoint);
   return { status: 'enabled' };
 }
 
-/** Backend failure must not block the local unsubscribe (offline-tolerant). */
-export async function unsubscribe(): Promise<void> {
-  if (!isBrowser()) return;
+/**
+ * Local unsubscribe is authoritative for an explicit disable. Backend cleanup follows it only as
+ * best effort, so a failed DELETE cannot resurrect an endpoint that no longer exists locally.
+ */
+export async function unsubscribe(userId: string): Promise<PushDisableResult> {
+  if (!isBrowser() || !userId) return { status: 'unsupported' };
+
+  const stored = readStoredPushRegistration();
+  let subscription: PushSubscription | null;
+  try {
+    subscription = await getLivePushSubscription();
+  } catch (error) {
+    reportPushFailure('browser-subscription-read', error);
+    return { status: 'service-worker-unavailable' };
+  }
+
+  if (subscription) {
+    try {
+      const removed = await subscription.unsubscribe();
+      if (!removed) {
+        reportPushFailure('browser-unsubscribe-failed');
+        return { status: 'browser-unsubscribe-failed' };
+      }
+    } catch (error) {
+      reportPushFailure('browser-unsubscribe-failed', error);
+      return { status: 'browser-unsubscribe-failed' };
+    }
+
+    try {
+      await deletePushSubscription(subscription.endpoint);
+    } catch (error) {
+      reportPushFailure('backend-delete-after-local-unsubscribe', error);
+    }
+    // The live endpoint is gone, so no account can retain a confirmed local marker for it.
+    clearStoredPushRegistration();
+    removeStorage(STORAGE_KEYS.PUSH_ENDPOINT);
+    return { status: 'disabled' };
+  }
+
+  if (stored?.userId === userId) {
+    try {
+      await deletePushSubscription(stored.endpoint);
+    } catch (error) {
+      reportPushFailure('backend-delete-without-live-subscription', error);
+    }
+    clearStoredPushRegistration();
+  }
+  return { status: 'disabled' };
+}
+
+/** Detach an explicitly logged-out account before its access token is cleared. */
+export async function detachPushOnLogout(userId: string): Promise<void> {
+  if (!isBrowser() || !userId) return;
+
+  const stored = readStoredPushRegistration();
+  let subscription: PushSubscription | null = null;
+  try {
+    subscription = await getLivePushSubscription();
+  } catch (error) {
+    reportPushFailure('logout-browser-subscription-read', error);
+  }
+
+  const ownedRegistration = stored?.userId === userId ? stored : null;
+  const endpoint = ownedRegistration?.endpoint ?? subscription?.endpoint;
+  if (!endpoint) return;
 
   try {
-    const registration = await getPushRegistration();
-    const subscription = await registration.pushManager.getSubscription();
+    await deletePushSubscription(endpoint);
+    if (ownedRegistration) clearStoredPushRegistration();
+    return;
+  } catch (error) {
+    reportPushFailure('logout-backend-detach', error);
+  }
 
-    if (subscription) {
-      try {
-        await apiClient.DELETE('/v1/push/subscriptions', {
-          body: { endpoint: subscription.endpoint },
-        });
-      } catch {
-        // Ignored — proceed with local unsubscribe regardless.
-      }
-      await subscription.unsubscribe();
+  if (!subscription) {
+    // There is no live browser delivery left to detach locally.
+    if (ownedRegistration) clearStoredPushRegistration();
+    return;
+  }
+
+  try {
+    const removed = await subscription.unsubscribe();
+    if (removed) {
+      clearStoredPushRegistration();
+      removeStorage(STORAGE_KEYS.PUSH_ENDPOINT);
+    } else {
+      reportPushFailure('logout-browser-unsubscribe-failed');
     }
-  } finally {
-    localStorage.removeItem(STORAGE_KEYS.PUSH_ENDPOINT);
+  } catch (error) {
+    reportPushFailure('logout-browser-unsubscribe-failed', error);
   }
 }
 
-async function reconcile(): Promise<void> {
+async function reconcile(userId: string, forceRegistration: boolean): Promise<void> {
   if (!isBrowser() || getPushSupport() !== 'supported') return;
   if (Notification.permission !== 'granted') return;
 
   try {
     const subscription = await getLivePushSubscription();
-    const storedEndpoint = localStorage.getItem(STORAGE_KEYS.PUSH_ENDPOINT);
+    const stored = readStoredPushRegistration();
 
     if (!subscription) {
-      if (storedEndpoint) localStorage.removeItem(STORAGE_KEYS.PUSH_ENDPOINT);
+      if (stored?.userId === userId) {
+        try {
+          await deletePushSubscription(stored.endpoint);
+        } catch (error) {
+          reportPushFailure('reconciliation-stale-backend-delete', error);
+        }
+        clearStoredPushRegistration();
+      }
       return;
     }
 
-    if (subscription.endpoint === storedEndpoint) return;
-
-    const body = subscriptionToRequestBody(subscription, navigator.userAgent);
-    const { error } = await apiClient.POST('/v1/push/subscriptions', { body });
-    if (!error) {
-      localStorage.setItem(STORAGE_KEYS.PUSH_ENDPOINT, body.endpoint);
+    // A matching endpoint for another account remains untrusted: upsert it for this account.
+    if (
+      !forceRegistration &&
+      stored?.userId === userId &&
+      stored.endpoint === subscription.endpoint
+    ) {
+      return;
     }
+
+    await registerPushSubscription(subscription, userId);
   } catch (error) {
-    // Best-effort — lifecycle refreshes and the next authenticated launch retry this safely.
+    // A failed upsert must never leave an old local success marker to be mistaken for confirmation.
+    clearStoredPushRegistration();
     reportPushFailure('reconciliation', error);
   }
 }
 
-/** Prevent overlapping launch/foreground reconciliations. */
-export function reconcileOnLaunch(): Promise<void> {
-  if (reconciliationPromise) return reconciliationPromise;
+/** Prevent overlapping reconciliation for one account without allowing User A to suppress User B. */
+export function reconcileOnLaunch(userId: string, forceRegistration = false): Promise<void> {
+  const existing = reconciliationPromises.get(userId);
+  if (existing) return existing;
 
-  const pending = reconcile();
-  reconciliationPromise = pending;
-  void pending.finally(() => {
-    if (reconciliationPromise === pending) reconciliationPromise = undefined;
-  });
+  const pending = reconcile(userId, forceRegistration);
+  reconciliationPromises.set(userId, pending);
+  void pending.then(
+    () => {
+      if (reconciliationPromises.get(userId) === pending) reconciliationPromises.delete(userId);
+    },
+    () => {
+      if (reconciliationPromises.get(userId) === pending) reconciliationPromises.delete(userId);
+    },
+  );
   return pending;
 }
 
@@ -393,7 +638,7 @@ export function reconcileOnLaunch(): Promise<void> {
 export function resetPushNotificationStateForTesting(): void {
   capturedRegistration = undefined;
   preparationPromise = undefined;
-  reconciliationPromise = undefined;
+  reconciliationPromises.clear();
 }
 
 /* ─── Contextual nudge eligibility (pure) ─── */
@@ -403,13 +648,14 @@ export interface PushNudgeEligibilityInput {
   permission: NotificationPermission;
   subscribed: boolean;
   dismissed: boolean;
+  retryPending: boolean;
 }
 
 export function isPushNudgeEligible(input: PushNudgeEligibilityInput): boolean {
   return (
     input.support === 'supported' &&
-    input.permission === 'default' &&
     !input.subscribed &&
-    !input.dismissed
+    !input.dismissed &&
+    (input.permission === 'default' || input.retryPending)
   );
 }

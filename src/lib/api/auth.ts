@@ -2,6 +2,7 @@ import { API_BASE_URL } from '$lib/utils/constants';
 import {
   setAuth,
   clearAuth,
+  getCurrentUser,
   setAuthStatus,
   getRefreshToken,
   type AuthTokens,
@@ -140,6 +141,7 @@ export async function silentRefresh(): Promise<boolean> {
 }
 
 export async function logout(): Promise<void> {
+  await detachCurrentUserPush();
   const refreshToken = getRefreshToken();
   if (refreshToken) {
     try {
@@ -153,6 +155,22 @@ export async function logout(): Promise<void> {
     }
   }
   clearAuth();
+}
+
+/**
+ * Kept behind a dynamic import to avoid a module-init cycle with apiClient's auth middleware.
+ * This is deliberately best effort: an explicit logout must still complete if cleanup cannot.
+ */
+export async function detachCurrentUserPush(): Promise<void> {
+  const userId = getCurrentUser()?.id;
+  if (!userId) return;
+
+  try {
+    const { detachPushOnLogout } = await import('$lib/services/pushNotifications');
+    await detachPushOnLogout(userId);
+  } catch {
+    console.warn('[auth] push cleanup failed', { stage: 'logout' });
+  }
 }
 
 export async function forgotPassword(email: string): Promise<void> {

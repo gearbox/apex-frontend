@@ -4,6 +4,7 @@
   import { goto } from '$app/navigation';
   import { deleteAccountMutationOptions } from '$lib/queries/user';
   import { clearAuth } from '$lib/stores/auth';
+  import { detachCurrentUserPush } from '$lib/api/auth';
   import { ApiRequestError } from '$lib/api/errors';
   import * as m from '$paraglide/messages';
 
@@ -24,6 +25,7 @@
   async function handleSubmit() {
     errorMsg = '';
     try {
+      await detachCurrentUserPush();
       await mutation.mutateAsync();
       clearAuth();
       goto('/login', { replaceState: true });

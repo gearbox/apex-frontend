@@ -1,67 +1,83 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('$lib/services/pushNotifications', () => ({
-  getPushSupport: vi.fn().mockReturnValue('supported'),
-  isPushNudgeEligible: vi.fn(),
+const { pushSubscription } = vi.hoisted(() => ({
+  pushSubscription: { userId: 'user-a', subscribed: false, enable: vi.fn() },
 }));
 
-vi.mock('$lib/stores/pushSubscription.svelte', () => ({
-  pushSubscription: { subscribed: false, enable: vi.fn() },
+vi.mock('$lib/services/pushNotifications', () => ({
+  getPushPromptPreference: vi.fn().mockReturnValue({ dismissed: false, retryPending: false }),
+  getPushSupport: vi.fn().mockReturnValue('supported'),
+  isPushNudgeEligible: vi.fn(),
+  updatePushPromptPreference: vi.fn(),
 }));
+
+vi.mock('$lib/stores/pushSubscription.svelte', () => ({ pushSubscription }));
 
 import { pushNudge } from './pushNudge.svelte';
 import * as pushService from '$lib/services/pushNotifications';
-import { pushSubscription } from '$lib/stores/pushSubscription.svelte';
-import { STORAGE_KEYS } from '$lib/utils/constants';
 
 describe('pushNudge store', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    pushNudge.visible = false;
-    pushNudge.enabling = false;
-    localStorage.clear();
+    pushNudge.reset();
+    pushSubscription.userId = 'user-a';
+    pushSubscription.subscribed = false;
+    vi.mocked(pushService.getPushPromptPreference).mockReturnValue({
+      dismissed: false,
+      retryPending: false,
+    });
   });
 
-  it('maybeShow() shows the nudge when eligible', () => {
+  it('maybeShow() uses the active user preference and shows an eligible nudge', () => {
     vi.mocked(pushService.isPushNudgeEligible).mockReturnValue(true);
 
     pushNudge.maybeShow();
 
+    expect(pushService.getPushPromptPreference).toHaveBeenCalledWith('user-a');
     expect(pushNudge.visible).toBe(true);
   });
 
-  it('dismiss() hides the nudge and persists the flag', () => {
+  it('dismiss() persists only the active user preference', () => {
     pushNudge.visible = true;
 
     pushNudge.dismiss();
 
     expect(pushNudge.visible).toBe(false);
-    expect(localStorage.getItem(STORAGE_KEYS.PUSH_NUDGE_DISMISSED)).toBe('1');
+    expect(pushService.updatePushPromptPreference).toHaveBeenCalledWith('user-a', {
+      dismissed: true,
+      retryPending: false,
+    });
   });
 
-  it('does not permanently dismiss the nudge after a transient enable failure', async () => {
+  it('keeps a retryable failure visible and lets the store persist its retry state', async () => {
     pushNudge.visible = true;
     vi.mocked(pushSubscription.enable).mockResolvedValue({ status: 'service-worker-unavailable' });
 
     await expect(pushNudge.enable()).resolves.toEqual({ status: 'service-worker-unavailable' });
 
     expect(pushNudge.visible).toBe(true);
-    expect(localStorage.getItem(STORAGE_KEYS.PUSH_NUDGE_DISMISSED)).toBeNull();
+    expect(pushService.updatePushPromptPreference).not.toHaveBeenCalled();
   });
 
-  it('persists dismissal after successful enable or deliberate permission denial', async () => {
+  it('hides after successful enable or a deliberate permission denial', async () => {
     pushNudge.visible = true;
     vi.mocked(pushSubscription.enable).mockResolvedValue({ status: 'enabled' });
-
     await pushNudge.enable();
-    expect(localStorage.getItem(STORAGE_KEYS.PUSH_NUDGE_DISMISSED)).toBe('1');
+    expect(pushNudge.visible).toBe(false);
 
-    localStorage.clear();
     pushNudge.visible = true;
     vi.mocked(pushSubscription.enable).mockResolvedValue({ status: 'permission-denied' });
-
     await pushNudge.enable();
-    expect(localStorage.getItem(STORAGE_KEYS.PUSH_NUDGE_DISMISSED)).toBe('1');
+    expect(pushNudge.visible).toBe(false);
+  });
+
+  it('does not allow one account preference to be read for another account', () => {
+    pushSubscription.userId = 'user-b';
+    vi.mocked(pushService.isPushNudgeEligible).mockReturnValue(true);
+
+    pushNudge.maybeShow();
+
+    expect(pushService.getPushPromptPreference).toHaveBeenCalledWith('user-b');
   });
 
   it('cannot double-submit while enabling', async () => {

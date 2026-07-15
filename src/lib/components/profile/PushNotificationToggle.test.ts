@@ -12,6 +12,7 @@ const { pushSubscription, productInfo } = vi.hoisted(() => ({
       | 'permission-denied'
       | 'permission-dismissed'
       | 'service-worker-unavailable'
+      | 'browser-unsubscribe-failed'
       | null,
     enable: vi.fn(),
     disable: vi.fn(),
@@ -63,5 +64,24 @@ describe('PushNotificationToggle', () => {
     const { getByRole } = render(PushNotificationToggle);
 
     expect((getByRole('switch') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('shows a retry hint for a failed disable without falsely rendering the toggle off', () => {
+    pushSubscription.subscribed = true;
+    pushSubscription.lastResult = 'browser-unsubscribe-failed';
+
+    const { getByRole, getByText } = render(PushNotificationToggle);
+
+    expect((getByRole('switch') as HTMLButtonElement).getAttribute('aria-checked')).toBe('true');
+    expect(getByText('Notifications are not enabled yet. Please try again.')).toBeTruthy();
+  });
+
+  it('does not show a stale retry message once the registration is enabled', () => {
+    pushSubscription.subscribed = true;
+    pushSubscription.lastResult = 'enabled';
+
+    const { queryByText } = render(PushNotificationToggle);
+
+    expect(queryByText('Notifications are not enabled yet. Please try again.')).toBeNull();
   });
 });
