@@ -290,10 +290,6 @@ async function getPushRegistration(): Promise<ServiceWorkerRegistration> {
       return registration;
     }
 
-    if (!navigator.serviceWorker.ready) {
-      throw new PushSetupError('service-worker-unavailable', 'Service worker is not registered');
-    }
-
     const readyRegistration = await withTimeout(
       navigator.serviceWorker.ready,
       PUSH_SERVICE_WORKER_READY_TIMEOUT_MS,
@@ -323,13 +319,17 @@ async function fetchVapidPublicKey(): Promise<string> {
   }
 }
 
-function getPreparedPushResources(): Promise<PreparedPushResources> {
-  if (preparationPromise) return preparationPromise;
-
-  const pending = (async () => ({
+async function preparePushResourcesOnce(): Promise<PreparedPushResources> {
+  return {
     registration: await getPushRegistration(),
     vapidPublicKey: await fetchVapidPublicKey(),
-  }))();
+  };
+}
+
+function getPreparedPushResources(): Promise<PreparedPushResources> {
+  if (preparationPromise !== undefined) return preparationPromise;
+
+  const pending = preparePushResourcesOnce();
   preparationPromise = pending;
 
   // A transient browser/network failure must not poison all later retries.
@@ -407,7 +407,7 @@ export function subscribe(userId: string): Promise<PushEnableResult> {
   const support = getPushSupport();
   if (support !== 'supported') return Promise.resolve({ status: support });
 
-  const permission = Notification.permission;
+  const { permission } = Notification;
   if (permission === 'denied') return Promise.resolve({ status: 'permission-denied' });
 
   if (permission === 'default') {
@@ -634,7 +634,7 @@ async function reconcile(userId: string, forceRegistration: boolean): Promise<vo
 /** Prevent overlapping reconciliation for one account without allowing User A to suppress User B. */
 export function reconcileOnLaunch(userId: string, forceRegistration = false): Promise<void> {
   const existing = reconciliationPromises.get(userId);
-  if (existing) return existing;
+  if (existing !== undefined) return existing;
 
   const pending = reconcile(userId, forceRegistration);
   reconciliationPromises.set(userId, pending);

@@ -9,6 +9,7 @@ import {
   preparePushResources,
   readStoredPushRegistration,
   reconcileOnLaunch,
+  reportPushFailure,
   subscribe as subscribePush,
   unsubscribe as unsubscribePush,
   updatePushPromptPreference,
@@ -24,6 +25,10 @@ export type PushUiStatus = PushEnableStatus | PushDisableStatus;
 
 function currentPermission(): NotificationPermission {
   return isBrowser() && 'Notification' in window ? Notification.permission : 'denied';
+}
+
+function preparePushResourcesInBackground(): void {
+  preparePushResources().catch((error: unknown) => reportPushFailure('preparation', error));
 }
 
 /** Pure ownership-aware state derivation used by refresh and direct unit tests. */
@@ -105,6 +110,12 @@ export class PushSubscriptionState {
     }
   }
 
+  private refreshInBackground(forceRegistration = false): void {
+    this.refresh(forceRegistration).catch((error: unknown) => {
+      reportPushFailure('state-refresh', error);
+    });
+  }
+
   /**
    * Call after authentication becomes available. Switching users invalidates every previous
    * async result and replaces foreground listeners so account state cannot leak across sessions.
@@ -127,13 +138,13 @@ export class PushSubscriptionState {
 
     if (!isBrowser() || support !== 'supported') return () => {};
 
-    void preparePushResources();
-    void this.refresh(true);
+    preparePushResourcesInBackground();
+    this.refreshInBackground(true);
 
     const refreshWhenVisible = () => {
-      if (document.visibilityState === 'visible') void this.refresh();
+      if (document.visibilityState === 'visible') this.refreshInBackground();
     };
-    const refreshOnPageShow = () => void this.refresh();
+    const refreshOnPageShow = () => this.refreshInBackground();
     document.addEventListener('visibilitychange', refreshWhenVisible);
     window.addEventListener('pageshow', refreshOnPageShow);
 
@@ -165,11 +176,11 @@ export class PushSubscriptionState {
   /** Re-read permission + live subscription, with reconciliation de-duplicated per user. */
   async refresh(forceRegistration = false): Promise<void> {
     const userId = this.activeUserId;
-    const generation = this.generation;
+    const { generation } = this;
     const revision = this.stateRevision;
     if (!userId) return;
     if (
-      this.refreshPromise &&
+      this.refreshPromise !== undefined &&
       this.refreshUserId === userId &&
       this.refreshGeneration === generation &&
       this.refreshRevision === revision
@@ -257,7 +268,7 @@ export class PushSubscriptionState {
   async enable(): Promise<PushEnableResult> {
     if (this.loading) return { status: 'in-progress' };
     const userId = this.activeUserId;
-    const generation = this.generation;
+    const { generation } = this;
     if (!userId) return { status: 'unsupported' };
 
     const revision = ++this.stateRevision;
@@ -282,7 +293,7 @@ export class PushSubscriptionState {
 
   async disable(): Promise<PushDisableResult> {
     const userId = this.activeUserId;
-    const generation = this.generation;
+    const { generation } = this;
     if (!userId) return { status: 'unsupported' };
     if (this.loading) return { status: 'browser-unsubscribe-failed' };
 
