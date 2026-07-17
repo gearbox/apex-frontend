@@ -35,6 +35,8 @@ export default ts.config(
       'build/',
       '.svelte-kit/',
       'node_modules/',
+      'playwright-report/',
+      'test-results/',
       'public/mockServiceWorker.js',
       'src/paraglide/',
     ],

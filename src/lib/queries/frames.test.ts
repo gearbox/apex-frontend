@@ -32,16 +32,16 @@ describe('previewFramesMutationOptions()', () => {
 
     const result = await previewFramesMutationOptions().mutationFn({
       source: { type: 'output', id: 'output_001' },
-      frameCount: 12,
+      frameCount: 6,
     });
 
     expect(result).toEqual({ job_id: 'preview_job_001', status: 'queued' });
-    expect(capturedBody).toEqual({ source_output_id: 'output_001', frame_count: 12 });
+    expect(capturedBody).toEqual({ source_output_id: 'output_001', frame_count: 6 });
     expect(capturedBody).not.toHaveProperty('source_upload_id');
     expect(idempotencyKey).toBeNull();
   });
 
-  it('defaults frame_count to 12', async () => {
+  it('defaults frame_count to 6', async () => {
     let capturedBody: Record<string, unknown> | null = null;
 
     server.use(
@@ -58,7 +58,7 @@ describe('previewFramesMutationOptions()', () => {
       source: { type: 'upload', id: 'upload_001' },
     });
 
-    expect(capturedBody).toEqual({ source_upload_id: 'upload_001', frame_count: 12 });
+    expect(capturedBody).toEqual({ source_upload_id: 'upload_001', frame_count: 6 });
     expect(capturedBody).not.toHaveProperty('source_output_id');
   });
 });

@@ -26,7 +26,7 @@ interface MockFrameJob {
   pollCount: number;
 }
 
-const PREVIEW_FRAME_COUNT = 12;
+const PREVIEW_FRAME_COUNT = 6;
 const PREVIEW_DURATION_MS = 12_345;
 
 /** Use this source ID in tests or stories to exercise the terminal failure UI. */

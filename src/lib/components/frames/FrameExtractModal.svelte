@@ -1,17 +1,25 @@
 <script lang="ts">
-  import { onDestroy, onMount } from 'svelte';
+  import { onDestroy, onMount, tick } from 'svelte';
   import { goto } from '$app/navigation';
   import { createMutation, useQueryClient } from '@tanstack/svelte-query';
   import { X } from 'lucide-svelte';
   import FrameScrubber from '$lib/components/frames/FrameScrubber.svelte';
   import FrameStrip from '$lib/components/frames/FrameStrip.svelte';
+  import ManualFrameStrip, {
+    type ManualFrame,
+  } from '$lib/components/frames/ManualFrameStrip.svelte';
   import MediaImage from '$lib/media/MediaImage.svelte';
   import {
     extractFramesMutationOptions,
     frameJobQueryFn,
     previewFramesMutationOptions,
+    DEFAULT_FRAME_PREVIEW_COUNT,
     type FrameSource,
   } from '$lib/queries/frames';
+  import {
+    releaseFramePreview,
+    type CapturedVideoFrame,
+  } from '$lib/components/frames/videoFrameCapture';
   import { storageKeys } from '$lib/queries/storage';
   import { createFrameJobPoller } from '$lib/services/frameJobPoller';
   import { generationStore } from '$lib/stores/generation';
@@ -26,7 +34,6 @@
   type ExtractedFrame = components['schemas']['ExtractedFrame'];
   type Poller = { stop: () => void };
 
-  const PREVIEW_FRAME_COUNT = 12;
   const MAX_SELECTIONS = 50;
 
   let {
@@ -44,6 +51,8 @@
   let previewJobId = $state<string | null>(null);
   let extractedFrames = $state<ExtractedFrame[]>([]);
   let selection = $state<Set<number>>(new Set());
+  let manualFrames = $state<ManualFrame[]>([]);
+  let manualFeedback = $state('');
   let scrubTimestamp = $state(0);
   let staleAt = $state(0);
   let refreshingPreview = $state(false);
@@ -66,6 +75,11 @@
   const selectedTimestamps = $derived.by(() => [...selection].sort((a, b) => a - b));
   const selectedCount = $derived(selection.size);
   const canExtract = $derived(selectedCount > 0 && phase === 'ready');
+  const videoAspectRatio = $derived(
+    media.original.width && media.original.height
+      ? `${media.original.width} / ${media.original.height}`
+      : '16 / 9',
+  );
 
   function formatTimestamp(timestampMs: number): string {
     const value = Math.max(0, Math.round(timestampMs));
@@ -87,6 +101,16 @@
     staleAt = Date.now() + nextPreview.expires_in_seconds * 1_000;
     previewVersion += 1;
     scrubTimestamp = clampTimestamp(scrubTimestamp);
+  }
+
+  function clearManualFrames() {
+    manualFrames.forEach((frame) => releaseFramePreview(frame.previewUrl));
+    manualFrames = [];
+  }
+
+  function aspectRatioFor(mediaObject: MediaObject): string {
+    const { width, height } = mediaObject.original;
+    return width && height ? `${width} / ${height}` : '1 / 1';
   }
 
   function setFailure(operation: 'preview' | 'extract', error: unknown) {
@@ -116,6 +140,7 @@
       return;
     }
     poller = null;
+    clearManualFrames();
     extractedFrames = job.extracted.frames;
     retryMessage = '';
     phase = 'results';
@@ -134,6 +159,8 @@
     previewJobId = null;
     extractedFrames = [];
     selection = new Set();
+    clearManualFrames();
+    manualFeedback = '';
     scrubTimestamp = 0;
     staleAt = 0;
     previewVersion += 1;
@@ -144,7 +171,7 @@
     try {
       const created = await previewMutation.mutateAsync({
         source,
-        frameCount: PREVIEW_FRAME_COUNT,
+        frameCount: DEFAULT_FRAME_PREVIEW_COUNT,
       });
       if (disposed || version !== operationVersion) return;
       previewJobId = created.job_id;
@@ -195,11 +222,12 @@
     }
   }
 
-  function addTimestamp(timestampMs: number) {
+  function selectTimestamp(timestampMs: number): boolean {
     const clampedTimestamp = clampTimestamp(timestampMs);
-    if (selection.has(clampedTimestamp)) return;
-    if (selection.size >= MAX_SELECTIONS) return;
+    if (selection.has(clampedTimestamp)) return true;
+    if (selection.size >= MAX_SELECTIONS) return false;
     selection = new Set([...selection, clampedTimestamp]);
+    return true;
   }
 
   async function toggleTimestamp(timestampMs: number) {
@@ -210,7 +238,7 @@
       selection = new Set([...selection].filter((timestamp) => timestamp !== clampedTimestamp));
       return;
     }
-    addTimestamp(clampedTimestamp);
+    selectTimestamp(clampedTimestamp);
   }
 
   function setScrubTimestamp(timestampMs: number): number {
@@ -219,10 +247,65 @@
     return scrubTimestamp;
   }
 
-  async function handleAddFrame() {
+  function focusManualFrame(timestampMs: number) {
+    const card = document.getElementById(`manual-frame-${timestampMs}`);
+    if (card instanceof HTMLElement) {
+      card.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
+      card.focus({ preventScroll: true });
+    }
+  }
+
+  async function handleAddFrame(frame: CapturedVideoFrame) {
     await ensureFreshPreviewUrls();
-    if (disposed) return;
-    addTimestamp(scrubTimestamp);
+    if (disposed) {
+      releaseFramePreview(frame.previewUrl);
+      return;
+    }
+
+    const timestampMs = clampTimestamp(frame.timestampMs);
+    const automaticFrame = preview?.frames.find(
+      (candidate) => clampTimestamp(candidate.timestamp_ms) === timestampMs,
+    );
+    if (automaticFrame) {
+      releaseFramePreview(frame.previewUrl);
+      if (selectTimestamp(timestampMs)) {
+        manualFeedback = m.frames_already_available_automatic();
+      } else {
+        manualFeedback = m.frames_selected_limit();
+      }
+      return;
+    }
+
+    const existingFrame = manualFrames.find((candidate) => candidate.timestampMs === timestampMs);
+    if (existingFrame) {
+      releaseFramePreview(frame.previewUrl);
+      if (selectTimestamp(timestampMs)) {
+        manualFeedback = m.frames_frame_already_added();
+        await tick();
+        focusManualFrame(timestampMs);
+      } else {
+        manualFeedback = m.frames_selected_limit();
+      }
+      return;
+    }
+
+    if (manualFrames.length >= MAX_SELECTIONS || !selectTimestamp(timestampMs)) {
+      releaseFramePreview(frame.previewUrl);
+      manualFeedback = m.frames_selected_limit();
+      return;
+    }
+
+    manualFrames = [...manualFrames, { ...frame, timestampMs, id: `manual-${timestampMs}` }];
+    manualFeedback = m.frames_frame_added();
+    await tick();
+    focusManualFrame(timestampMs);
+  }
+
+  function removeManualFrame(frame: ManualFrame) {
+    releaseFramePreview(frame.previewUrl);
+    manualFrames = manualFrames.filter((candidate) => candidate.id !== frame.id);
+    selection = new Set([...selection].filter((timestampMs) => timestampMs !== frame.timestampMs));
+    manualFeedback = '';
   }
 
   async function startExtraction() {
@@ -241,7 +324,7 @@
         source,
         // All inserts are clamped, and clamp again at the final boundary so an
         // out-of-range job failure is unreachable by construction.
-        timestampsMs: selectedTimestamps.map(clampTimestamp).sort((a, b) => a - b),
+        timestampsMs: [...new Set(selectedTimestamps.map(clampTimestamp))].sort((a, b) => a - b),
       });
       if (disposed || version !== operationVersion) return;
       poller = createFrameJobPoller({
@@ -290,6 +373,7 @@
   onDestroy(() => {
     disposed = true;
     stopActivePoller();
+    clearManualFrames();
     previouslyFocused?.focus();
   });
 </script>
@@ -356,12 +440,14 @@
           <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
             {#each extractedFrames as frame (frame.upload_id)}
               <article class="overflow-hidden rounded-xl border border-border bg-surface">
-                <MediaImage
-                  media={frame.media}
-                  alt={formatTimestamp(frame.timestamp_ms)}
-                  sizes="(max-width: 640px) 45vw, 180px"
-                  class="aspect-square w-full object-cover"
-                />
+                <div class="bg-black" style={`aspect-ratio: ${aspectRatioFor(frame.media)}`}>
+                  <MediaImage
+                    media={frame.media}
+                    alt={formatTimestamp(frame.timestamp_ms)}
+                    sizes="(max-width: 640px) 45vw, 180px"
+                    class="h-full w-full object-contain"
+                  />
+                </div>
                 <div class="flex items-center justify-between gap-2 p-2">
                   <span class="text-[11px] tabular-nums text-text-dim">
                     {formatTimestamp(frame.timestamp_ms)}
@@ -407,7 +493,7 @@
 
           <section>
             <div class="mb-2 flex items-center justify-between gap-3">
-              <h3 class="text-sm font-semibold text-text">{m.frames_preview_ready()}</h3>
+              <h3 class="text-sm font-semibold text-text">{m.frames_automatic()}</h3>
               <span class="text-xs tabular-nums text-text-muted">
                 {m.frames_selected_count({ count: selectedCount })}
               </span>
@@ -416,18 +502,46 @@
               frames={preview.frames}
               {selection}
               {previewVersion}
+              sectionLabel={m.frames_automatic()}
+              aspectRatio={videoAspectRatio}
               ontoggle={(timestampMs) => void toggleTimestamp(timestampMs)}
               onthumbnailerror={(version) => void refreshPreviewUrls(version)}
             />
+          </section>
+
+          <section aria-labelledby="manually-chosen-frames-heading">
+            <h3 id="manually-chosen-frames-heading" class="mb-2 text-sm font-semibold text-text">
+              {m.frames_manually_chosen()}
+            </h3>
+            {#if manualFrames.length === 0}
+              <p
+                class="rounded-lg border border-dashed border-border bg-surface px-3 py-4 text-sm text-text-muted"
+              >
+                {m.frames_no_manual_frames()}
+              </p>
+            {:else}
+              <ManualFrameStrip
+                frames={manualFrames}
+                {selection}
+                sectionLabel={m.frames_manually_chosen()}
+                removeLabel={(timestamp) => m.frames_remove_manual_frame({ timestamp })}
+                ontoggle={(timestampMs) => void toggleTimestamp(timestampMs)}
+                onremove={removeManualFrame}
+              />
+            {/if}
+            <p class="sr-only" aria-live="polite">{manualFeedback}</p>
           </section>
 
           <FrameScrubber
             {media}
             timestamp={scrubTimestamp}
             {maxTimestamp}
-            canAdd={selectedCount < MAX_SELECTIONS || selection.has(scrubTimestamp)}
+            canAdd={manualFrames.length < MAX_SELECTIONS && selectedCount < MAX_SELECTIONS}
             onscrub={setScrubTimestamp}
-            onadd={() => void handleAddFrame()}
+            onadd={handleAddFrame}
+            addingLabel={m.frames_adding_frame()}
+            retryLabel={m.frames_retry_frame_preview()}
+            displayErrorLabel={m.frames_frame_display_error()}
           />
 
           <div class="flex items-center justify-between gap-3 border-t border-border pt-4">
