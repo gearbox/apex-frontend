@@ -53,6 +53,9 @@
   let selection = $state<Set<number>>(new Set());
   let manualFrames = $state<ManualFrame[]>([]);
   let manualFeedback = $state('');
+  let manualFeedbackSequence = $state(0);
+  let manualFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
+  let submittedTimestamps = $state<number[] | null>(null);
   let scrubTimestamp = $state(0);
   let staleAt = $state(0);
   let refreshingPreview = $state(false);
@@ -65,6 +68,9 @@
   let operationVersion = 0;
   let poller: Poller | null = null;
   let previouslyFocused: HTMLElement | null = null;
+  let addFrameButton: HTMLButtonElement | null = null;
+  const automaticFrameButtons = new Map<number, HTMLButtonElement>();
+  const manualFrameButtons = new Map<number, HTMLButtonElement>();
 
   const queryClient = useQueryClient();
   const previewMutation = createMutation(() => previewFramesMutationOptions());
@@ -74,7 +80,9 @@
   const maxTimestamp = $derived(Math.max(0, durationMs - 1));
   const selectedTimestamps = $derived.by(() => [...selection].sort((a, b) => a - b));
   const selectedCount = $derived(selection.size);
-  const canExtract = $derived(selectedCount > 0 && phase === 'ready');
+  const selectionLocked = $derived(phase === 'extracting');
+  const canEditSelection = $derived((phase === 'ready' || phase === 'failed') && !disposed);
+  const canExtract = $derived(selectedCount > 0 && canEditSelection);
   const videoAspectRatio = $derived(
     media.original.width && media.original.height
       ? `${media.original.width} / ${media.original.height}`
@@ -108,6 +116,22 @@
     manualFrames = [];
   }
 
+  function clearManualFeedback() {
+    if (manualFeedbackTimer) clearTimeout(manualFeedbackTimer);
+    manualFeedbackTimer = null;
+    manualFeedback = '';
+  }
+
+  function showManualFeedback(message: string) {
+    clearManualFeedback();
+    manualFeedback = message;
+    manualFeedbackSequence += 1;
+    manualFeedbackTimer = setTimeout(() => {
+      manualFeedback = '';
+      manualFeedbackTimer = null;
+    }, 5_000);
+  }
+
   function aspectRatioFor(mediaObject: MediaObject): string {
     const { width, height } = mediaObject.original;
     return width && height ? `${width} / ${height}` : '1 / 1';
@@ -118,6 +142,7 @@
     poller = null;
     failedOperation = operation;
     errorMessage = error instanceof Error ? error.message : String(error);
+    submittedTimestamps = null;
     phase = 'failed';
   }
 
@@ -141,6 +166,7 @@
     }
     poller = null;
     clearManualFrames();
+    submittedTimestamps = null;
     extractedFrames = job.extracted.frames;
     retryMessage = '';
     phase = 'results';
@@ -160,7 +186,8 @@
     extractedFrames = [];
     selection = new Set();
     clearManualFrames();
-    manualFeedback = '';
+    clearManualFeedback();
+    submittedTimestamps = null;
     scrubTimestamp = 0;
     staleAt = 0;
     previewVersion += 1;
@@ -223,6 +250,7 @@
   }
 
   function selectTimestamp(timestampMs: number): boolean {
+    if (!canEditSelection) return false;
     const clampedTimestamp = clampTimestamp(timestampMs);
     if (selection.has(clampedTimestamp)) return true;
     if (selection.size >= MAX_SELECTIONS) return false;
@@ -232,7 +260,7 @@
 
   async function toggleTimestamp(timestampMs: number) {
     await ensureFreshPreviewUrls();
-    if (disposed) return;
+    if (!canEditSelection) return;
     const clampedTimestamp = clampTimestamp(timestampMs);
     if (selection.has(clampedTimestamp)) {
       selection = new Set([...selection].filter((timestamp) => timestamp !== clampedTimestamp));
@@ -242,22 +270,32 @@
   }
 
   function setScrubTimestamp(timestampMs: number): number {
+    if (!canEditSelection) return scrubTimestamp;
     scrubTimestamp = clampTimestamp(timestampMs);
     void ensureFreshPreviewUrls();
     return scrubTimestamp;
   }
 
-  function focusManualFrame(timestampMs: number) {
-    const card = document.getElementById(`manual-frame-${timestampMs}`);
-    if (card instanceof HTMLElement) {
-      card.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
-      card.focus({ preventScroll: true });
-    }
+  function setFrameButton(
+    buttons: Map<number, HTMLButtonElement>,
+    timestampMs: number,
+    element: HTMLButtonElement | null,
+  ) {
+    if (element) buttons.set(timestampMs, element);
+    else buttons.delete(timestampMs);
+  }
+
+  function focusFrame(buttons: Map<number, HTMLButtonElement>, timestampMs: number) {
+    const button = buttons.get(timestampMs);
+    if (!button) return false;
+    button.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
+    button.focus({ preventScroll: true });
+    return true;
   }
 
   async function handleAddFrame(frame: CapturedVideoFrame) {
     await ensureFreshPreviewUrls();
-    if (disposed) {
+    if (!canEditSelection) {
       releaseFramePreview(frame.previewUrl);
       return;
     }
@@ -269,9 +307,11 @@
     if (automaticFrame) {
       releaseFramePreview(frame.previewUrl);
       if (selectTimestamp(timestampMs)) {
-        manualFeedback = m.frames_already_available_automatic();
+        showManualFeedback(m.frames_already_available_automatic());
+        await tick();
+        focusFrame(automaticFrameButtons, timestampMs);
       } else {
-        manualFeedback = m.frames_selected_limit();
+        showManualFeedback(m.frames_selected_limit());
       }
       return;
     }
@@ -280,43 +320,58 @@
     if (existingFrame) {
       releaseFramePreview(frame.previewUrl);
       if (selectTimestamp(timestampMs)) {
-        manualFeedback = m.frames_frame_already_added();
+        showManualFeedback(m.frames_frame_already_added());
         await tick();
-        focusManualFrame(timestampMs);
+        focusFrame(manualFrameButtons, timestampMs);
       } else {
-        manualFeedback = m.frames_selected_limit();
+        showManualFeedback(m.frames_selected_limit());
       }
       return;
     }
 
     if (manualFrames.length >= MAX_SELECTIONS || !selectTimestamp(timestampMs)) {
       releaseFramePreview(frame.previewUrl);
-      manualFeedback = m.frames_selected_limit();
+      showManualFeedback(m.frames_selected_limit());
       return;
     }
 
     manualFrames = [...manualFrames, { ...frame, timestampMs, id: `manual-${timestampMs}` }];
-    manualFeedback = m.frames_frame_added();
+    showManualFeedback(m.frames_frame_added());
     await tick();
-    focusManualFrame(timestampMs);
+    focusFrame(manualFrameButtons, timestampMs);
   }
 
-  function removeManualFrame(frame: ManualFrame) {
+  async function removeManualFrame(frame: ManualFrame) {
+    if (!canEditSelection) return;
+    const removedIndex = manualFrames.findIndex((candidate) => candidate.id === frame.id);
     releaseFramePreview(frame.previewUrl);
     manualFrames = manualFrames.filter((candidate) => candidate.id !== frame.id);
     selection = new Set([...selection].filter((timestampMs) => timestampMs !== frame.timestampMs));
-    manualFeedback = '';
+    clearManualFeedback();
+    await tick();
+    const replacement = manualFrames[removedIndex] ?? manualFrames[removedIndex - 1];
+    if (replacement) {
+      focusFrame(manualFrameButtons, replacement.timestampMs);
+    } else {
+      addFrameButton?.focus();
+    }
   }
 
   async function startExtraction() {
-    if (selectedTimestamps.length === 0) return;
+    if (!canEditSelection || selectedTimestamps.length === 0) return;
     await ensureFreshPreviewUrls();
-    if (disposed) return;
+    if (!canEditSelection) return;
+
+    const nextSubmittedTimestamps = [...new Set(selectedTimestamps.map(clampTimestamp))].sort(
+      (a, b) => a - b,
+    );
+    if (nextSubmittedTimestamps.length === 0) return;
 
     const version = ++operationVersion;
     stopActivePoller();
     errorMessage = '';
     retryMessage = '';
+    submittedTimestamps = nextSubmittedTimestamps;
     phase = 'extracting';
 
     try {
@@ -324,7 +379,7 @@
         source,
         // All inserts are clamped, and clamp again at the final boundary so an
         // out-of-range job failure is unreachable by construction.
-        timestampsMs: [...new Set(selectedTimestamps.map(clampTimestamp))].sort((a, b) => a - b),
+        timestampsMs: submittedTimestamps ?? nextSubmittedTimestamps,
       });
       if (disposed || version !== operationVersion) return;
       poller = createFrameJobPoller({
@@ -373,6 +428,7 @@
   onDestroy(() => {
     disposed = true;
     stopActivePoller();
+    clearManualFeedback();
     clearManualFrames();
     previouslyFocused?.focus();
   });
@@ -405,7 +461,7 @@
       <button
         type="button"
         onclick={onclose}
-        class="rounded-lg p-1.5 text-text-muted transition-colors hover:bg-surface-hover hover:text-text"
+        class="flex min-h-11 min-w-11 items-center justify-center rounded-lg p-1.5 text-text-muted transition-colors hover:bg-surface-hover hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
         aria-label={m.frames_close()}
       >
         <X size={18} />
@@ -418,14 +474,16 @@
           <div
             class="h-7 w-7 animate-spin rounded-full border-2 border-accent border-t-transparent"
           ></div>
-          <p class="text-sm text-text-muted">{m.frames_preview_loading()}</p>
+          <p class="text-sm text-text-muted" role="status" aria-live="polite">
+            {m.frames_preview_loading()}
+          </p>
           {#if retryMessage}
             <p class="text-xs text-text-dim">{retryMessage}</p>
           {/if}
         </div>
       {:else if phase === 'failed' && !preview}
         <div class="flex min-h-48 flex-col items-center justify-center gap-3 text-center">
-          <p class="max-w-lg text-sm text-danger">{errorMessage}</p>
+          <p class="max-w-lg text-sm text-danger" role="alert">{errorMessage}</p>
           <button
             type="button"
             onclick={retry}
@@ -470,7 +528,7 @@
             <div
               class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-danger/30 bg-danger/10 p-3"
             >
-              <p class="text-xs text-danger">{errorMessage}</p>
+              <p class="text-xs text-danger" role="alert">{errorMessage}</p>
               <button
                 type="button"
                 onclick={retry}
@@ -482,6 +540,8 @@
           {:else if phase === 'extracting'}
             <div
               class="flex items-center gap-2 rounded-lg border border-border bg-surface p-3 text-xs text-text-muted"
+              role="status"
+              aria-live="polite"
             >
               <div
                 class="h-4 w-4 animate-spin rounded-full border-2 border-accent border-t-transparent"
@@ -504,8 +564,11 @@
               {previewVersion}
               sectionLabel={m.frames_automatic()}
               aspectRatio={videoAspectRatio}
+              disabled={selectionLocked}
               ontoggle={(timestampMs) => void toggleTimestamp(timestampMs)}
               onthumbnailerror={(version) => void refreshPreviewUrls(version)}
+              onbuttonready={(timestampMs, element) =>
+                setFrameButton(automaticFrameButtons, timestampMs, element)}
             />
           </section>
 
@@ -525,11 +588,23 @@
                 {selection}
                 sectionLabel={m.frames_manually_chosen()}
                 removeLabel={(timestamp) => m.frames_remove_manual_frame({ timestamp })}
+                disabled={selectionLocked}
                 ontoggle={(timestampMs) => void toggleTimestamp(timestampMs)}
-                onremove={removeManualFrame}
+                onremove={(frame) => void removeManualFrame(frame)}
+                onbuttonready={(timestampMs, element) =>
+                  setFrameButton(manualFrameButtons, timestampMs, element)}
               />
             {/if}
-            <p class="sr-only" aria-live="polite">{manualFeedback}</p>
+            {#if manualFeedback}
+              {#key manualFeedbackSequence}
+                <p
+                  class="mt-2 rounded-md border border-border bg-surface px-2.5 py-2 text-xs text-text-muted"
+                  aria-live="polite"
+                >
+                  {manualFeedback}
+                </p>
+              {/key}
+            {/if}
           </section>
 
           <FrameScrubber
@@ -537,11 +612,14 @@
             timestamp={scrubTimestamp}
             {maxTimestamp}
             canAdd={manualFrames.length < MAX_SELECTIONS && selectedCount < MAX_SELECTIONS}
+            disabled={selectionLocked}
             onscrub={setScrubTimestamp}
             onadd={handleAddFrame}
+            onAddButtonReady={(element) => (addFrameButton = element)}
             addingLabel={m.frames_adding_frame()}
             retryLabel={m.frames_retry_frame_preview()}
             displayErrorLabel={m.frames_frame_display_error()}
+            corsCaptureErrorLabel={m.frames_frame_capture_cors_error()}
           />
 
           <div class="flex items-center justify-between gap-3 border-t border-border pt-4">

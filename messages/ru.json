@@ -174,6 +174,8 @@
   "frames_already_available_automatic": "Уже доступен в разделе «Автоматические»",
   "frames_remove_manual_frame": "Удалить выбранный вручную кадр в {timestamp}",
   "frames_frame_display_error": "Не удалось показать этот видеокадр",
+  "frames_frame_capture_cors_error": "Этот кадр нельзя сохранить, потому что доступ к видео заблокирован. Перезагрузите предпросмотр и попробуйте ещё раз.",
+  "frames_frame_loading": "Загрузка предпросмотра кадра…",
   "frames_retry_frame_preview": "Повторить предпросмотр кадра",
   "frames_selected_count": "Выбрано: {count}",
   "frames_selected_limit": "Можно выбрать не более 50 кадров.",

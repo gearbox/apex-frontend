@@ -1,18 +1,26 @@
+import { readFileSync } from 'node:fs';
 import { Buffer } from 'node:buffer';
 import { test, expect } from '../fixtures/auth.fixture';
 import { jsonRoute } from '../helpers/api';
 
 const SOURCE_ID = 'output-video-001';
-const DURATION_MS = 6_000;
+const DURATION_MS = 3_000;
+const portraitVideo = readFileSync(
+  new URL('../fixtures/media/frame-extraction-portrait.mp4', import.meta.url),
+);
+const previewImage = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WlK8ZsAAAAASUVORK5CYII=',
+  'base64',
+);
 
 const videoMedia = {
   media_type: 'video',
   original: {
     url: `/v1/content/outputs/${SOURCE_ID}`,
-    width: 720,
-    height: 1280,
+    width: 180,
+    height: 320,
     content_type: 'video/mp4',
-    size_bytes: 5_000_000,
+    size_bytes: portraitVideo.byteLength,
   },
   variants: [],
 };
@@ -76,7 +84,7 @@ function previewJob() {
       expires_in_seconds: 3600,
       frames: Array.from({ length: 6 }, (_, index) => ({
         index,
-        timestamp_ms: index * 1_000,
+        timestamp_ms: index * 500,
         url: `https://frame-previews.example.test/${index}.webp`,
       })),
     },
@@ -84,69 +92,70 @@ function previewJob() {
   };
 }
 
-function extractedJob() {
+function extractingJob() {
   return {
     ...previewJob(),
     job_id: 'frame-extract-job',
     kind: 'extract',
+    status: 'processing',
     preview: null,
-    extracted: { frames: [] },
   };
 }
 
-test.describe('Frame extraction', () => {
-  test('keeps a decoded preview, adds a manual portrait frame, and submits the selected union', async ({
+async function canvasSample(canvas: import('@playwright/test').Locator) {
+  return canvas.evaluate((element) => {
+    const preview = element as HTMLCanvasElement;
+    const context = preview.getContext('2d');
+    if (!context) throw new Error('2d context unavailable');
+    const pixels = context.getImageData(
+      Math.floor(preview.width / 2),
+      Math.floor(preview.height / 2),
+      1,
+      1,
+    ).data;
+    const rect = preview.getBoundingClientRect();
+    return {
+      width: preview.width,
+      height: preview.height,
+      cssWidth: rect.width,
+      cssHeight: rect.height,
+      pixel: Array.from(pixels),
+    };
+  });
+}
+
+test.describe('Frame extraction (real media regression)', () => {
+  test('decodes a cross-origin H.264 portrait video, captures real canvas pixels, and freezes the submitted union', async ({
     authenticatedPage: page,
   }) => {
     let previewRequest: unknown;
     let extractionRequest: unknown;
 
-    // Deterministic media primitives let this exercise the live browser UI in
-    // Chromium and WebKit without depending on a codec installed on the host.
-    await page.addInitScript(() => {
-      Object.defineProperty(HTMLMediaElement.prototype, 'readyState', {
-        configurable: true,
-        get: () => HTMLMediaElement.HAVE_METADATA,
-      });
-      Object.defineProperty(HTMLVideoElement.prototype, 'videoWidth', {
-        configurable: true,
-        get: () => 720,
-      });
-      Object.defineProperty(HTMLVideoElement.prototype, 'videoHeight', {
-        configurable: true,
-        get: () => 1280,
-      });
-      Object.defineProperty(HTMLMediaElement.prototype, 'currentTime', {
-        configurable: true,
-        get: () => 0,
-        set(this: HTMLMediaElement) {
-          queueMicrotask(() => this.dispatchEvent(new Event('seeked')));
-        },
-      });
-      Object.defineProperty(HTMLVideoElement.prototype, 'requestVideoFrameCallback', {
-        configurable: true,
-        value: (callback: (now: number, metadata: object) => void) => {
-          queueMicrotask(() => callback(performance.now(), {}));
-          return 1;
-        },
-      });
-      Object.defineProperty(HTMLVideoElement.prototype, 'cancelVideoFrameCallback', {
-        configurable: true,
-        value: () => undefined,
-      });
-      HTMLCanvasElement.prototype.getContext = () => ({ drawImage: () => undefined }) as never;
-      HTMLCanvasElement.prototype.toBlob = (callback) => {
-        callback(new Blob(['frame'], { type: 'image/webp' }));
-      };
-    });
-
     await page.route((url) => url.pathname === '/v1/gallery', jsonRoute(galleryPage));
     await page.route('**/v1/gallery/video-job-001', jsonRoute(galleryDetail));
-    await page.route('**/v1/content/**', (route) =>
-      route.fulfill({ status: 200, contentType: 'video/mp4', body: Buffer.from('video') }),
-    );
+    // The page is served from :4173 while toMediaSrc targets :8000. This
+    // response header is required for the anonymous decoder to keep canvas
+    // origin-clean; the test uses real media and real canvas APIs.
+    await page.route('http://localhost:8000/v1/content/**', (route) => {
+      const range = route.request().headers().range;
+      const match = range?.match(/bytes=(\d+)-(\d*)/);
+      const start = match ? Number(match[1]) : 0;
+      const end = match?.[2] ? Number(match[2]) : portraitVideo.length - 1;
+      const body = portraitVideo.subarray(start, end + 1);
+      return route.fulfill({
+        status: match ? 206 : 200,
+        contentType: 'video/mp4',
+        headers: {
+          'access-control-allow-origin': 'http://localhost:4173',
+          'accept-ranges': 'bytes',
+          'content-length': String(body.length),
+          ...(match ? { 'content-range': `bytes ${start}-${end}/${portraitVideo.length}` } : {}),
+        },
+        body,
+      });
+    });
     await page.route('https://frame-previews.example.test/**', (route) =>
-      route.fulfill({ status: 200, contentType: 'image/webp', body: Buffer.from('frame') }),
+      route.fulfill({ status: 200, contentType: 'image/png', body: previewImage }),
     );
     await page.route('**/v1/frames/preview', (route) => {
       previewRequest = route.request().postDataJSON();
@@ -169,52 +178,82 @@ test.describe('Frame extraction', () => {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify(
-          route.request().url().includes('frame-extract-job') ? extractedJob() : previewJob(),
+          route.request().url().includes('frame-extract-job') ? extractingJob() : previewJob(),
         ),
       }),
     );
 
     await page.goto('/app/gallery');
-    await expect(page.getByText(/loaded/i)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/loaded/i)).toBeVisible({ timeout: 5_000 });
     await page.locator('[class*="grid"]').locator('button, [role="button"]').first().click();
     await page
       .getByRole('dialog', { name: 'Image lightbox' })
-      .getByRole('button', {
-        name: 'Extract frames',
-      })
+      .getByRole('button', { name: 'Extract frames' })
       .click();
 
     const extractionDialog = page.getByRole('dialog', { name: 'Extract frames' });
+    const scrubber = extractionDialog.getByRole('slider', { name: 'Frame timestamp' });
+    const canvas = extractionDialog.locator('canvas');
+    const addButton = extractionDialog.getByRole('button', { name: 'Add frame' });
 
     await expect(extractionDialog.getByRole('heading', { name: 'Automatic' })).toBeVisible();
     await expect
       .poll(() => previewRequest)
       .toEqual({ source_output_id: SOURCE_ID, frame_count: 6 });
-    await expect(page.getByRole('button', { name: /^Automatic:/ })).toHaveCount(6);
+    await expect(extractionDialog.getByRole('button', { name: /^Automatic:/ })).toHaveCount(6);
+    await expect(addButton).toBeEnabled({ timeout: 8_000 });
 
-    const scrubber = page.getByRole('slider', { name: 'Frame timestamp' });
+    const initial = await canvasSample(canvas);
+    expect(initial.width / initial.height).toBeCloseTo(9 / 16, 3);
+    expect(initial.cssWidth / initial.cssHeight).toBeCloseTo(9 / 16, 1);
+    expect(initial.pixel[0]).toBeGreaterThan(initial.pixel[1]);
+    expect(initial.pixel[0]).toBeGreaterThan(initial.pixel[2]);
+
     await scrubber.evaluate((element) => {
       const input = element as HTMLInputElement;
-      input.value = '1500';
+      input.value = '1250';
       input.dispatchEvent(new Event('input', { bubbles: true }));
     });
-    await expect(page.getByRole('button', { name: 'Add frame' })).toBeEnabled();
-    await page.getByRole('button', { name: 'Add frame' }).click();
+    // The seek is debounced, so the existing painted canvas must stay visible
+    // rather than being cleared while the next decoded frame is pending.
+    expect((await canvasSample(canvas)).pixel).toEqual(initial.pixel);
+    await expect(addButton).toBeEnabled({ timeout: 8_000 });
 
-    const manualCard = page.getByRole('button', {
-      name: 'Manually chosen frames: 00:01.500',
+    const middle = await canvasSample(canvas);
+    expect(middle.pixel[1]).toBeGreaterThan(middle.pixel[0]);
+    expect(middle.pixel[1]).toBeGreaterThan(middle.pixel[2]);
+
+    // Repeating the exact timestamp must render without a synthetic seeked event.
+    await scrubber.evaluate((element) => {
+      const input = element as HTMLInputElement;
+      input.value = '1250';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await expect(addButton).toBeEnabled({ timeout: 8_000 });
+    expect((await canvasSample(canvas)).pixel).toEqual(middle.pixel);
+
+    await addButton.click();
+    const manualCard = extractionDialog.getByRole('button', {
+      name: 'Manually chosen frames: 00:01.250',
     });
     await expect(manualCard).toBeVisible();
+    await expect(manualCard.locator('img')).toHaveJSProperty('naturalWidth', 180);
     await expect(manualCard).toHaveAttribute('aria-pressed', 'true');
-    await expect(manualCard.locator('img')).toHaveClass(/object-contain/);
-    await page.getByRole('button', { name: 'Automatic: 00:00.000' }).click();
+
+    await extractionDialog.getByRole('button', { name: 'Automatic: 00:00.000' }).click();
     await extractionDialog.getByRole('button', { name: 'Extract frames' }).click();
 
     await expect
       .poll(() => extractionRequest)
       .toEqual({
         source_output_id: SOURCE_ID,
-        timestamps_ms: [0, 1500],
+        timestamps_ms: [0, 1250],
       });
+    await expect(
+      extractionDialog.getByRole('button', { name: 'Automatic: 00:00.000' }),
+    ).toBeDisabled();
+    await expect(manualCard).toBeDisabled();
+    await expect(scrubber).toBeDisabled();
+    await expect(addButton).toBeDisabled();
   });
 });

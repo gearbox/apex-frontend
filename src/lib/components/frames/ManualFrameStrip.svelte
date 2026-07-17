@@ -9,15 +9,19 @@
     selection,
     ontoggle,
     onremove,
+    onbuttonready,
     sectionLabel,
     removeLabel,
+    disabled = false,
   }: {
     frames: ManualFrame[];
     selection: Set<number>;
     ontoggle: (timestampMs: number) => void;
     onremove: (frame: ManualFrame) => void;
+    onbuttonready?: (timestampMs: number, element: HTMLButtonElement | null) => void;
     sectionLabel: string;
     removeLabel: (timestamp: string) => string;
+    disabled?: boolean;
   } = $props();
 
   function formatTimestamp(timestampMs: number): string {
@@ -33,6 +37,15 @@
   function aspectRatio(frame: ManualFrame): string {
     return frame.width > 0 && frame.height > 0 ? `${frame.width} / ${frame.height}` : '16 / 9';
   }
+
+  function registerToggle(node: HTMLButtonElement, timestampMs: number) {
+    onbuttonready?.(timestampMs, node);
+    return {
+      destroy() {
+        onbuttonready?.(timestampMs, null);
+      },
+    };
+  }
 </script>
 
 <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
@@ -40,8 +53,6 @@
     {@const timestamp = formatTimestamp(frame.timestampMs)}
     {@const selected = selection.has(frame.timestampMs)}
     <article
-      id={`manual-frame-${frame.timestampMs}`}
-      tabindex="-1"
       class="overflow-hidden rounded-lg border bg-surface {selected
         ? 'border-accent ring-1 ring-accent'
         : 'border-border'}"
@@ -49,9 +60,11 @@
       <button
         type="button"
         onclick={() => ontoggle(frame.timestampMs)}
+        {disabled}
+        use:registerToggle={frame.timestampMs}
         aria-pressed={selected}
         aria-label={`${sectionLabel}: ${timestamp}`}
-        class="group relative block w-full text-left"
+        class="group relative block w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50"
       >
         <div class="relative bg-black" style={`aspect-ratio: ${aspectRatio(frame)}`}>
           <img src={frame.previewUrl} alt={timestamp} class="h-full w-full object-contain" />
@@ -70,8 +83,9 @@
         <button
           type="button"
           onclick={() => onremove(frame)}
+          {disabled}
           aria-label={removeLabel(timestamp)}
-          class="rounded p-1 text-text-muted transition-colors hover:bg-danger/10 hover:text-danger"
+          class="flex min-h-11 min-w-11 items-center justify-center rounded text-text-muted transition-colors hover:bg-danger/10 hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Trash2 size={13} />
         </button>

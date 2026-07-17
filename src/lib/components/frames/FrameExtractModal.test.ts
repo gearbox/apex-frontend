@@ -50,6 +50,8 @@ vi.mock('$paraglide/messages', () => ({
   frames_remove_manual_frame: ({ timestamp }: { timestamp: string }) =>
     `Remove manually chosen frame at ${timestamp}`,
   frames_frame_display_error: () => 'Could not display this video frame',
+  frames_frame_capture_cors_error: () => 'Video access is blocked',
+  frames_frame_loading: () => 'Loading frame preview…',
   frames_retry_frame_preview: () => 'Retry frame preview',
   frames_selected_count: ({ count }: { count: number }) => `${count} selected`,
   frames_selected_limit: () => 'You can select up to 50 frames.',
@@ -81,15 +83,18 @@ function installDecodedVideoMocks(): () => void {
     });
   };
 
+  let currentTime = 0;
   replace(HTMLMediaElement.prototype, 'readyState', {
-    get: () => HTMLMediaElement.HAVE_METADATA,
+    get: () => HTMLMediaElement.HAVE_CURRENT_DATA,
   });
   replace(HTMLVideoElement.prototype, 'videoWidth', { get: () => 1920 });
   replace(HTMLVideoElement.prototype, 'videoHeight', { get: () => 1080 });
   replace(HTMLMediaElement.prototype, 'currentTime', {
-    get: () => 0,
-    set(this: HTMLMediaElement) {
-      queueMicrotask(() => this.dispatchEvent(new Event('seeked')));
+    get: () => currentTime,
+    set(this: HTMLMediaElement, value: number) {
+      const changed = Math.abs(currentTime - value) > 0.0001;
+      currentTime = value;
+      if (changed) queueMicrotask(() => this.dispatchEvent(new Event('seeked')));
     },
   });
   replace(HTMLCanvasElement.prototype, 'getContext', {
