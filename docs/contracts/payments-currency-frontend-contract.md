@@ -43,7 +43,7 @@ Product scoping is automatic via the request's origin/host (middleware) — no p
 
 ### `GET /v1/billing/currencies`
 
-The crypto currency picker for the NowPayments path. DB-cached mirror of the NowPayments dashboard, refreshed every 3h + on admin demand.
+The crypto currency picker for the NowPayments path. DB-cached mirror of the NowPayments dashboard, refreshed every 3h + on admin demand. It returns only provider-available rows that are **not** superadmin-suppressed.
 
 ```json
 [
@@ -65,6 +65,8 @@ Field-by-field contract:
 
 Recommended UX: sort/group client-side (e.g. stablecoins first, group by `network`), and always offer an explicit "Other / choose on the payment page" option that omits `pay_currency` — the backend supports any currency NowPayments can convert, not just the listed ones.
 
+A picker can be stale: a superadmin may suppress a ticker after this request but before checkout. If a pinned checkout returns `400 { "code": "pay_currency_suppressed", "pay_currency": "USDTTRC20" }`, discard that immutable intent, clear the selected ticker, remove the exact ticker from the cached public list, re-fetch `/currencies`, and ask for a new deliberate choice. Never retry the rejected body automatically. The hosted "Other" path intentionally retains the provider's own unfiltered list; that residual risk is accepted.
+
 ### `GET /v1/billing/topup/options`
 
 ```json
@@ -82,7 +84,7 @@ Both endpoints: `POST`, auth required, and an **`Idempotency-Key` header is requ
 - Generate a UUID v4 **per user intent** (per click of "Pay"), not per HTTP attempt. Retries of the same intent (network flake, timeout) reuse the same key.
 - Same key + same body ⇒ replay: you get the **original response back** (same 201 body — same `payment_id`, same `invoice_url`). Safe to blindly retry.
 - Same key + **different body** ⇒ `409` (see error table). This means "your retry logic is buggy", not "try again".
-- Same key while the first attempt is still in flight ⇒ `409` (concurrent). Disable the pay button while a request is pending.
+- Same key while the first attempt is still in flight ⇒ `409` (concurrent). Disable the pay button while a request is pending. The backend can include `Retry-After`; retain the exact immutable key/body, wait for that delay, and allow only an explicit retry. A user may explicitly discard the stored attempt; only a subsequent deliberate Pay action creates a fresh key.
 
 ### `POST /v1/billing/topup/nowpayments`
 
@@ -119,9 +121,10 @@ Stripe redirects back to the product's configured success/cancel URLs (`frontend
 | status | body | meaning | FE action |
 |---|---|---|---|
 | 400 | `{"detail": "…"}` | amount out of bounds / invalid `pay_currency` (NowPayments rejected the ticker) | show message, let user correct |
+| 400 | `{"code":"pay_currency_suppressed","pay_currency":"USDTTRC20"}` | selected catalog entry was superadmin-suppressed after picker load | clear the selected ticker and persisted intent, remove/re-fetch catalog, require a new Pay action |
 | 401 | standard auth error | not logged in | auth flow |
 | 409 | `{"code": "payment_provider_disabled", "provider": "stripe"}` | provider disabled at runtime after your page loaded | re-fetch `/providers`, re-render methods, toast "this payment method is currently unavailable" |
-| 409 | `{"code": "idempotency_conflict", …}` (detail text varies: reused key with different body, or concurrent in-flight) | client-side retry bug or double-submit | treat as terminal for this key; generate a fresh key only for a genuinely new user intent |
+| 409 | `{"code": "idempotency_conflict", …}` (detail text varies: reused key with different body, or concurrent in-flight) | request may still be processing | retain the exact key/body, respect `Retry-After`, and retry only explicitly; do not mint a new key automatically |
 | 5xx | — | server/provider failure; idempotency record marked failed | safe to retry with the **same** key |
 
 Distinguish the two 409s by `code`.
@@ -161,13 +164,23 @@ At least one field required (400 if empty). `display_order` ∈ [0, 1000]. 404 f
 
 ### `GET /v1/admin/payments/currencies`
 
-Full catalog **including unavailable rows** — the admin diff view against the public list:
+Full catalog **including unavailable and suppressed rows** — the admin diff view against the public list:
 
 ```json
-[ { "ticker": "USDCMATIC", "provider": "nowpayments", "is_available": true, "name": "USD Coin", "network": "MATIC", "logo_key": "payment-currency-logos/ab12….svg", "logo_source_url": "https://nowpayments.io/images/coins/usdc.svg", "logo_synced_at": "2026-07-16T…", "last_seen_at": "2026-07-16T…" } ]
+[ { "ticker": "USDCMATIC", "provider": "nowpayments", "is_available": true, "is_suppressed": false, "name": "USD Coin", "network": "MATIC", "logo_key": "payment-currency-logos/ab12….svg", "logo_source_url": "https://nowpayments.io/images/coins/usdc.svg", "logo_synced_at": "2026-07-16T…", "last_seen_at": "2026-07-16T…" } ]
 ```
 
 `is_available: false` rows = currencies unchecked in the NowPayments dashboard since last seen — render greyed out with `last_seen_at`.
+
+`is_suppressed` is an independent Apex deny-list flag. Display provider availability and Apex picker visibility separately; a row may be unavailable and suppressed. Suppression survives refresh and a deactivate/reappear cycle.
+
+### `PATCH /v1/admin/payments/currencies/{provider}/{ticker}`
+
+```json
+{ "is_suppressed": true }
+```
+
+Echo the exact provider and ticker from the existing catalog row; do not normalize or synthesize tickers. The operation is superadmin-only, product-scoped, and returns the updated row. `404` means the provider/capability or previously seen row no longer exists; keep the existing table visible and re-fetch it. A same-value `200` is a success no-op. Before suppressing an available row, clearly confirm that it will disappear from the Apex picker and pinned checkout; refresh does not undo it. This is deliberately a specific, already-seen ticker override—no patterns or pre-emptive entries.
 
 ### `POST /v1/admin/payments/currencies/refresh`
 
@@ -176,6 +189,8 @@ No body. Synchronous; give it a spinner (it calls NowPayments live and may fetch
 - `201/200` → `[ { "provider": "nowpayments", "upserted": 42, "deactivated": 1 } ]` — show the counts.
 - `502` with detail → NowPayments/config failure; previous catalog untouched. Message: "refresh failed, showing last known list".
 
+Refresh never reads or writes `is_suppressed`; retain those badges/toggles from the returned catalog. Await catalog invalidation/refetch before reporting refresh or suppression mutation completion.
+
 Admin workflow to surface in the UI: *edit currencies in the NowPayments dashboard → click refresh here → verify the list*. The 3h background sync makes the button optional but the immediate path is this.
 
 ## 6. Invariants the FE must uphold (the contract's spirit)
@@ -183,7 +198,7 @@ Admin workflow to surface in the UI: *edit currencies in the NowPayments dashboa
 1. **No hardcoded provider or ticker lists, anywhere.** Both are runtime data from the endpoints above; that's the entire point of the backend design.
 2. **Absence over empty string** for `pay_currency`.
 3. **Degrade, don't break**: empty providers ⇒ unavailable-state; empty currencies ⇒ no picker + omit `pay_currency`; null logo ⇒ generic icon; null name/network ⇒ ticker-only label; SSE down ⇒ poll balance.
-4. **Idempotency keys are per-intent**, and the two 409 codes mean different things.
+4. **Idempotency keys are per-intent**. A conflict may be an in-flight same request: preserve the key/body, respect `Retry-After`, and never silently mint a replacement key.
 5. **Balance from the server is truth** — render `balance`, never accumulate `delta`s.
 6. Ticker/network/name are **display data** — no client logic may branch on their values (e.g. no "if network === MATIC" special cases).
 
@@ -196,3 +211,6 @@ Admin workflow to surface in the UI: *edit currencies in the NowPayments dashboa
 - [x] Checkout distinguishes validation, provider-disabled, idempotency-conflict, and retryable failures.
 - [x] The superadmin registry includes provider controls and the currency catalog refresh workflow.
 - [x] Stripe return handling consumes the exact tab-local persisted `payment_id`.
+- [x] Superadmins can suppress/unsuppress an existing catalog row without changing provider availability or triggering a sync.
+- [x] A stale pinned currency race clears the rejected checkout intent and refreshes the public catalog.
+- [x] Persisted intents use a 24-hour recovery window and show their immutable provider/amount/currency before retry or discard.

@@ -27,6 +27,7 @@ import {
   fetchPaymentProviderRegistry,
   fetchAdminCurrencyCatalog,
   refreshAdminCurrencyCatalog,
+  setAdminCurrencySuppressed,
   updatePaymentProvider,
   type AuditLogPage,
   type CreatePricingRuleRequest,
@@ -34,6 +35,7 @@ import {
   type BroadcastRequest,
   type PatchAdminUserBody,
   type PaymentProviderPatchRequest,
+  type CurrencySuppressPatchRequest,
 } from '$lib/api/admin';
 
 /* ─── Query Key Factory ─── */
@@ -54,6 +56,8 @@ export const adminKeys = {
   healthHistory: (p?: object) => ['admin', 'health', 'history', p ?? {}] as const,
   paymentProviders: () => ['admin', 'payment-providers'] as const,
   paymentCurrencies: () => ['admin', 'payment-currencies'] as const,
+  paymentCurrency: (provider: string, ticker: string) =>
+    ['admin', 'payment-currencies', provider, ticker] as const,
 };
 
 /* ─── Query Options ─── */
@@ -341,9 +345,7 @@ export function updatePaymentProviderMutationOptions(queryClient: QueryClient) {
   return {
     mutationFn: ({ provider, body }: { provider: string; body: PaymentProviderPatchRequest }) =>
       updatePaymentProvider(provider, body),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: adminKeys.paymentProviders() });
-    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: adminKeys.paymentProviders() }),
   };
 }
 
@@ -351,9 +353,39 @@ export function refreshAdminPaymentCurrenciesMutationOptions(queryClient: QueryC
   return {
     mutationFn: refreshAdminCurrencyCatalog,
     retry: false,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: adminKeys.paymentCurrencies() });
-      queryClient.invalidateQueries({ queryKey: billingKeys.currencies() });
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: adminKeys.paymentCurrencies() }),
+        queryClient.invalidateQueries({ queryKey: billingKeys.currencies() }),
+      ]),
+  };
+}
+
+export function setAdminCurrencySuppressedMutationOptions(queryClient: QueryClient) {
+  return {
+    mutationFn: ({
+      provider,
+      ticker,
+      isSuppressed,
+    }: {
+      provider: string;
+      ticker: string;
+      isSuppressed: boolean;
+    }) =>
+      setAdminCurrencySuppressed(provider, ticker, {
+        is_suppressed: isSuppressed,
+      } satisfies CurrencySuppressPatchRequest),
+    onSuccess: (row: Awaited<ReturnType<typeof setAdminCurrencySuppressed>>) => {
+      queryClient.setQueryData(adminKeys.paymentCurrency(String(row.provider), row.ticker), row);
+      queryClient.setQueryData(adminKeys.paymentCurrencies(), (rows: (typeof row)[] | undefined) =>
+        rows?.map((current) =>
+          current.provider === row.provider && current.ticker === row.ticker ? row : current,
+        ),
+      );
+      return Promise.all([
+        queryClient.invalidateQueries({ queryKey: adminKeys.paymentCurrencies() }),
+        queryClient.invalidateQueries({ queryKey: billingKeys.currencies() }),
+      ]);
     },
   };
 }

@@ -15,6 +15,7 @@ vi.mock('@tanstack/svelte-query', () => ({
     const options = optionsFactory();
     mocks.queryOptions.push(options);
     const isProviders = mocks.queryOptions.length === 1;
+    if (options.enabled !== false) void (options.queryFn as (() => unknown) | undefined)?.();
     return {
       get data() {
         return isProviders

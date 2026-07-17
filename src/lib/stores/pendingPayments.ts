@@ -4,7 +4,7 @@ import type { TransactionResponse } from '$lib/api/billing';
 import { getPaymentStorageScope, type PaymentStorageScope } from './paymentScope';
 
 const STORAGE_VERSION = 1;
-const STORAGE_PREFIX = 'apex:pending-payments';
+export const PENDING_PAYMENT_STORAGE_PREFIX = 'apex:pending-payments';
 const RECONCILIATION_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 export type PendingPaymentScope = PaymentStorageScope;
@@ -25,7 +25,7 @@ export interface PendingPayment {
 export const pendingPaymentsRevision = writable(0);
 
 function storageKey(scope: PendingPaymentScope): string {
-  return `${STORAGE_PREFIX}:v${STORAGE_VERSION}:${encodeURIComponent(scope.product)}:${encodeURIComponent(scope.userId)}`;
+  return `${PENDING_PAYMENT_STORAGE_PREFIX}:v${STORAGE_VERSION}:${encodeURIComponent(scope.product)}:${encodeURIComponent(scope.userId)}`;
 }
 
 function isPendingPayment(value: unknown): value is PendingPayment {
@@ -108,9 +108,9 @@ export function savePendingPayment(scope: PendingPaymentScope, payment: PendingP
   writeIfChanged(scope, [...existing, payment]);
 }
 
-export function markPendingPaymentReturned(scope: PendingPaymentScope, paymentId: string): void {
+export function markPendingPaymentReturned(scope: PendingPaymentScope, paymentId: string): boolean {
   const records = read(scope);
-  writeIfChanged(
+  return writeIfChanged(
     scope,
     records.map((record) =>
       record.paymentId === paymentId && record.state === 'created'
@@ -120,9 +120,12 @@ export function markPendingPaymentReturned(scope: PendingPaymentScope, paymentId
   );
 }
 
-export function markPendingPaymentCancelled(scope: PendingPaymentScope, paymentId: string): void {
+export function markPendingPaymentCancelled(
+  scope: PendingPaymentScope,
+  paymentId: string,
+): boolean {
   const records = read(scope);
-  writeIfChanged(
+  return writeIfChanged(
     scope,
     records.map((record) =>
       record.paymentId === paymentId && record.state !== 'credited'
@@ -143,8 +146,10 @@ export function reconcilePendingPayments(
   const transactionsByPaymentId = new Map<string, TransactionResponse>();
   for (const transaction of transactions) {
     if (transaction.transaction_type !== 'topup' || !transaction.payment_id) continue;
-    const existing = transactionsByPaymentId.get(transaction.payment_id);
     const currentTime = Date.parse(transaction.created_at);
+    // A malformed timestamp must never outrank a valid partial-credit record.
+    if (!Number.isFinite(currentTime)) continue;
+    const existing = transactionsByPaymentId.get(transaction.payment_id);
     const existingTime = existing ? Date.parse(existing.created_at) : Number.NEGATIVE_INFINITY;
     if (
       !existing ||
@@ -161,6 +166,7 @@ export function reconcilePendingPayments(
     if (!transaction) return record;
 
     const transactionTime = Date.parse(transaction.created_at);
+    if (!Number.isFinite(transactionTime)) return record;
     const lastTime = record.lastCreditedAt
       ? Date.parse(record.lastCreditedAt)
       : Number.NEGATIVE_INFINITY;
@@ -212,4 +218,31 @@ export function getPendingPaymentIdsAwaitingReconciliation(scope: PendingPayment
   return getRecentPendingPaymentIds(scope).filter(
     (paymentId) => !cancelledPaymentIds.has(paymentId),
   );
+}
+
+/** State-aware fallback cadence; SSE reconciliation remains immediate. */
+export function getPendingPaymentPollingInterval(scope: PendingPaymentScope): number | false {
+  const records = getPendingPayments(scope);
+  const cutoff = Date.now() - RECONCILIATION_WINDOW_MS;
+  const active = records.filter((record) => {
+    const createdAt = Date.parse(record.createdAt);
+    return Number.isFinite(createdAt) && createdAt >= cutoff && record.state !== 'cancelled';
+  });
+  if (active.some((record) => record.state === 'created' || record.state === 'returned'))
+    return 30_000;
+  return active.some((record) => record.state === 'credited') ? 5 * 60_000 : false;
+}
+
+/** Notify this tab when another tab writes a pending-payment record. */
+export function startPendingPaymentsStorageListener(): () => void {
+  if (!isBrowser()) return () => {};
+  const prefix = `${PENDING_PAYMENT_STORAGE_PREFIX}:v${STORAGE_VERSION}:`;
+  const onStorage = (event: StorageEvent): void => {
+    if (event.storageArea !== localStorage || !event.key?.startsWith(prefix)) return;
+    // Browsers do not dispatch storage events to the writing document, so this
+    // cannot double-increment local writes and does not inspect unrelated keys.
+    pendingPaymentsRevision.update((revision) => revision + 1);
+  };
+  window.addEventListener('storage', onStorage);
+  return () => window.removeEventListener('storage', onStorage);
 }

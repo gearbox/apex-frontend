@@ -14,6 +14,7 @@ export type TransactionListResponse =
   components['schemas']['CursorPage_src.api.schemas.billing.TransactionResponse_'];
 export type TopUpStripeRequest = components['schemas']['TopUpStripeRequest'];
 export type TopUpNowPaymentsRequest = components['schemas']['TopUpNowPaymentsRequest'];
+export type PricingRuleResponse = components['schemas']['PricingRuleResponse'];
 
 /** Fetch tiered top-up bounds and discount schedule. */
 export async function fetchTopUpOptions(): Promise<TopUpOptionsResponse> {
@@ -57,6 +58,13 @@ export async function fetchBillingTransactions(
   return data;
 }
 
+export async function fetchBillingPricing(): Promise<PricingRuleResponse[]> {
+  const { data, error, response } = await apiClient.GET('/v1/billing/pricing');
+  const status = response.status;
+  if (error || !data) throwApiError(error, 'Failed to fetch billing pricing', status);
+  return data;
+}
+
 /** Initiate a Stripe checkout session for a stable user intent. */
 export async function topUpStripe(
   body: TopUpStripeRequest,
@@ -67,7 +75,8 @@ export async function topUpStripe(
     params: { header: { 'Idempotency-Key': idempotencyKey } },
   });
   const status = response.status;
-  if (error || !data) throwApiError(error, 'Failed to initiate Stripe checkout', status);
+  if (error || !data)
+    throwApiError(error, 'Failed to initiate Stripe checkout', status, response.headers);
   return data;
 }
 
@@ -81,7 +90,8 @@ export async function topUpNowPayments(
     params: { header: { 'Idempotency-Key': idempotencyKey } },
   });
   const status = response.status;
-  if (error || !data) throwApiError(error, 'Failed to initiate crypto payment', status);
+  if (error || !data)
+    throwApiError(error, 'Failed to initiate crypto payment', status, response.headers);
   return data;
 }
 

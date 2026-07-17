@@ -998,6 +998,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/payments/currencies/{provider}/{ticker}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** SetCurrencySuppressed */
+        patch: operations["V1AdminPaymentsCurrenciesProviderTickerSetCurrencySuppressed"];
+        trace?: never;
+    };
     "/v1/admin/payments/providers/{provider}": {
         parameters: {
             query?: never;
@@ -1583,6 +1600,7 @@ export interface components {
             ticker: string;
             provider: components["schemas"]["PaymentProvider"];
             is_available: boolean;
+            is_suppressed: boolean;
             name: string | null;
             network: string | null;
             logo_key: string | null;
@@ -1719,6 +1737,10 @@ export interface components {
             /** @default 0 */
             input_token_cost: number;
             notes?: string | null;
+        };
+        /** CurrencySuppressPatchRequest */
+        CurrencySuppressPatchRequest: {
+            is_suppressed: boolean;
         };
         /** CursorPage[AdminOrgResponse] */
         "CursorPage_src.api.schemas.admin.AdminOrgResponse_": {
@@ -4810,6 +4832,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SyncResult"][];
+                };
+            };
+        };
+    };
+    V1AdminPaymentsCurrenciesProviderTickerSetCurrencySuppressed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider: string;
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CurrencySuppressPatchRequest"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCurrency"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
                 };
             };
         };

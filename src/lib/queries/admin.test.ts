@@ -10,6 +10,7 @@ import {
   adminPaymentProvidersQueryOptions,
   adminPaymentCurrenciesQueryOptions,
   refreshAdminPaymentCurrenciesMutationOptions,
+  setAdminCurrencySuppressedMutationOptions,
   updatePaymentProviderMutationOptions,
 } from './admin';
 
@@ -97,6 +98,15 @@ describe('adminKeys', () => {
 
   it('generates paymentCurrencies key', () => {
     expect(adminKeys.paymentCurrencies()).toEqual(['admin', 'payment-currencies']);
+  });
+
+  it('uses provider and ticker in an individual currency-row key', () => {
+    expect(adminKeys.paymentCurrency('nowpayments', 'USDTTRC20')).toEqual([
+      'admin',
+      'payment-currencies',
+      'nowpayments',
+      'USDTTRC20',
+    ]);
   });
 });
 
@@ -241,6 +251,35 @@ describe('refreshAdminPaymentCurrenciesMutationOptions()', () => {
     const opts = refreshAdminPaymentCurrenciesMutationOptions(queryClient);
     await opts.onSuccess();
 
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: adminKeys.paymentCurrencies() });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['billing', 'currencies'] });
+  });
+});
+
+describe('setAdminCurrencySuppressedMutationOptions()', () => {
+  it('patches one exact row and updates/invalidate only catalog caches', async () => {
+    const queryClient = new QueryClient();
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+    const setQueryData = vi.spyOn(queryClient, 'setQueryData');
+    const opts = setAdminCurrencySuppressedMutationOptions(queryClient);
+    const row = {
+      ticker: 'USDTTRC20',
+      provider: 'nowpayments' as const,
+      is_available: true,
+      is_suppressed: true,
+      name: null,
+      network: null,
+      logo_key: null,
+      logo_source_url: null,
+      logo_synced_at: null,
+      last_seen_at: '2026-07-17T00:00:00Z',
+    };
+    await opts.onSuccess(row);
+
+    expect(setQueryData).toHaveBeenCalledWith(
+      adminKeys.paymentCurrency('nowpayments', 'USDTTRC20'),
+      row,
+    );
     expect(invalidate).toHaveBeenCalledWith({ queryKey: adminKeys.paymentCurrencies() });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['billing', 'currencies'] });
   });

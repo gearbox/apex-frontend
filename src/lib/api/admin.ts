@@ -32,6 +32,7 @@ export type PaymentProviderInfo =
 export type AdminCurrency = components['schemas']['AdminCurrency'];
 export type SyncResult = components['schemas']['SyncResult'];
 export type PaymentProviderPatchRequest = components['schemas']['PaymentProviderPatchRequest'];
+export type CurrencySuppressPatchRequest = components['schemas']['CurrencySuppressPatchRequest'];
 export type PatchAdminUserBody = {
   role?: string;
   subscription_tier?: string;
@@ -338,6 +339,23 @@ export async function refreshAdminCurrencyCatalog(): Promise<SyncResult[]> {
   const { data, error, response } = await apiClient.POST('/v1/admin/payments/currencies/refresh');
   const status = response.status;
   if (error || !data) throwApiError(error, 'Failed to refresh payment currency catalog', status);
+  return data;
+}
+
+export async function setAdminCurrencySuppressed(
+  provider: string,
+  ticker: string,
+  body: CurrencySuppressPatchRequest,
+): Promise<AdminCurrency> {
+  const { data, error, response } = await apiClient.PATCH(
+    '/v1/admin/payments/currencies/{provider}/{ticker}',
+    {
+      params: { path: { provider, ticker } },
+      body,
+    },
+  );
+  const status = response.status;
+  if (error || !data) throwApiError(error, 'Failed to update currency suppression', status);
   return data;
 }
 

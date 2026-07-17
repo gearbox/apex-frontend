@@ -42,7 +42,7 @@ describe('checkout intent storage', () => {
       createdAt: new Date().toISOString(),
       retryable: true,
     });
-    vi.advanceTimersByTime(2 * 60 * 60 * 1000 + 1);
+    vi.advanceTimersByTime(24 * 60 * 60 * 1000 + 1);
     expect(getCheckoutIntent(scope)).toBeNull();
 
     saveCheckoutIntent(scope, {
@@ -60,5 +60,29 @@ describe('checkout intent storage', () => {
     saveStripeReturnPointer(scope, 'pay-exact');
     expect(consumeStripeReturnPointer(scope)).toBe('pay-exact');
     expect(consumeStripeReturnPointer(scope)).toBeNull();
+  });
+
+  it('removes corrupt, expired, and tampered stored values instead of restoring them', () => {
+    const intentKey = 'apex:checkout-intent:v1:product-a:user-a';
+    sessionStorage.setItem(
+      intentKey,
+      JSON.stringify({
+        version: 1,
+        intent: {
+          provider: 'stripe',
+          body: { amount_usd: 25, unexpected: true },
+          idempotencyKey: 'safe-key',
+          createdAt: new Date().toISOString(),
+          retryable: true,
+        },
+      }),
+    );
+    expect(getCheckoutIntent(scope)).toBeNull();
+    expect(sessionStorage.getItem(intentKey)).toBeNull();
+
+    const pointerKey = 'apex:stripe-return:v1:product-a:user-a';
+    sessionStorage.setItem(pointerKey, '{not json');
+    expect(consumeStripeReturnPointer(scope)).toBeNull();
+    expect(sessionStorage.getItem(pointerKey)).toBeNull();
   });
 });

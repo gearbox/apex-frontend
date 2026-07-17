@@ -1,12 +1,15 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { get } from 'svelte/store';
 import {
   getPendingPayments,
   hasPaymentsAwaitingReconciliation,
   markPendingPaymentCancelled,
+  markPendingPaymentReturned,
+  getPendingPaymentPollingInterval,
   pendingPaymentsRevision,
   reconcilePendingPayments,
   savePendingPayment,
+  startPendingPaymentsStorageListener,
   type PendingPaymentScope,
 } from './pendingPayments';
 
@@ -164,5 +167,67 @@ describe('pending payments', () => {
       },
     ]);
     expect(getPendingPayments(scope)[0].state).toBe('credited');
+  });
+
+  it('reports whether an exact return-state record changed', () => {
+    savePendingPayment(scope, {
+      paymentId: 'pay-returned',
+      provider: 'stripe',
+      amountUsd: 25,
+      createdAt: new Date().toISOString(),
+      state: 'created',
+    });
+    expect(markPendingPaymentReturned(scope, 'missing')).toBe(false);
+    expect(markPendingPaymentReturned(scope, 'pay-returned')).toBe(true);
+    expect(markPendingPaymentReturned(scope, 'pay-returned')).toBe(false);
+  });
+
+  it('uses a slower fallback cadence after a record is credited', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-17T00:00:00Z'));
+    savePendingPayment(scope, {
+      paymentId: 'pay-cadence',
+      provider: 'stripe',
+      amountUsd: 25,
+      createdAt: new Date().toISOString(),
+      state: 'created',
+    });
+    expect(getPendingPaymentPollingInterval(scope)).toBe(30_000);
+    reconcilePendingPayments(scope, [
+      {
+        id: 'tx-cadence',
+        transaction_type: 'topup',
+        amount: 2500,
+        balance_after: 2500,
+        description: null,
+        metadata: {},
+        job_id: null,
+        payment_id: 'pay-cadence',
+        created_at: new Date().toISOString(),
+        created_by: null,
+      },
+    ]);
+    expect(getPendingPaymentPollingInterval(scope)).toBe(5 * 60_000);
+    vi.useRealTimers();
+  });
+
+  it('bumps the revision for a relevant external-tab storage event only', () => {
+    const stop = startPendingPaymentsStorageListener();
+    const revision = get(pendingPaymentsRevision);
+    window.dispatchEvent(
+      new StorageEvent('storage', {
+        key: 'unrelated-key',
+        storageArea: localStorage,
+      }),
+    );
+    expect(get(pendingPaymentsRevision)).toBe(revision);
+    window.dispatchEvent(
+      new StorageEvent('storage', {
+        key: 'apex:pending-payments:v1:product-a:user-a',
+        storageArea: localStorage,
+      }),
+    );
+    expect(get(pendingPaymentsRevision)).toBe(revision + 1);
+    stop();
   });
 });

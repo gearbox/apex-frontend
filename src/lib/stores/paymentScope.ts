@@ -23,8 +23,10 @@ export function getPaymentStorageScope(
 ): PaymentStorageScope | null {
   if (!user?.id) return null;
 
-  // VITE_PRODUCT_ID is the explicit local-development product selection. In
-  // deployed environments, product middleware supplies the same stable slug.
-  const product = configuredProductId() ?? loadedProduct?.product?.trim() ?? null;
+  // A baked VITE selector is useful in local development only. Production
+  // storage must follow the product returned by the authenticated runtime.
+  const product = import.meta.env.DEV
+    ? (configuredProductId() ?? loadedProduct?.product?.trim() ?? null)
+    : (loadedProduct?.product?.trim() ?? null);
   return product ? { userId: user.id, product } : null;
 }

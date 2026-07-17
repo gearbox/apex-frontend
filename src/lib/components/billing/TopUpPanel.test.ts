@@ -15,9 +15,14 @@ let nowPaymentsMutateAsync = vi.fn();
 let stripePendingMock = false;
 let nowPaymentsPendingMock = false;
 const invalidateQueriesMock = vi.fn();
+const setQueryDataMock = vi.fn();
+const currenciesRefetchMock = vi.fn();
 
 vi.mock('@tanstack/svelte-query', () => ({
-  useQueryClient: vi.fn(() => ({ invalidateQueries: invalidateQueriesMock })),
+  useQueryClient: vi.fn(() => ({
+    invalidateQueries: invalidateQueriesMock,
+    setQueryData: setQueryDataMock,
+  })),
   createQuery: vi.fn((optionsFn: () => { queryKey: unknown[] }) => {
     const opts = optionsFn();
     const key = JSON.stringify(opts.queryKey);
@@ -36,6 +41,7 @@ vi.mock('@tanstack/svelte-query', () => ({
         },
         isPending: false,
         isError: false,
+        refetch: currenciesRefetchMock,
       };
     }
     return {
@@ -107,6 +113,8 @@ beforeEach(() => {
     payment_id: 'pay_2',
   });
   invalidateQueriesMock.mockClear();
+  setQueryDataMock.mockClear();
+  currenciesRefetchMock.mockClear();
 
   Object.defineProperty(window, 'location', {
     value: { assign: vi.fn(), href: '' },
@@ -252,9 +260,10 @@ describe('TopUpPanel', () => {
     await fireEvent.input(input, { target: { value: '50' } });
     await fireEvent.click(screen.getByRole('button', { name: /pay with stripe/i }));
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: /retry payment/i })).toBeTruthy(),
+      expect(screen.getByRole('button', { name: /retry same attempt/i })).toBeTruthy(),
     );
 
+    await fireEvent.click(screen.getByRole('button', { name: /discard attempt/i }));
     await fireEvent.input(input, { target: { value: '25' } });
     expect(screen.queryByRole('button', { name: /retry/i })).toBeNull();
     await fireEvent.input(input, { target: { value: '50' } });
@@ -273,9 +282,10 @@ describe('TopUpPanel', () => {
     await fireEvent.input(input, { target: { value: '50' } });
     await fireEvent.click(screen.getByRole('button', { name: /pay with crypto/i }));
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: /retry payment/i })).toBeTruthy(),
+      expect(screen.getByRole('button', { name: /retry same attempt/i })).toBeTruthy(),
     );
 
+    await fireEvent.click(screen.getByRole('button', { name: /discard attempt/i }));
     await fireEvent.click(screen.getByRole('radio', { name: /tether/i }));
     await waitFor(() => expect(screen.queryByRole('button', { name: /retry/i })).toBeNull());
   });
@@ -296,13 +306,60 @@ describe('TopUpPanel', () => {
     await fireEvent.input(input, { target: { value: '50' } });
     await fireEvent.click(screen.getByRole('button', { name: /pay with stripe/i }));
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: /retry payment/i })).toBeTruthy(),
+      expect(screen.getByRole('button', { name: /retry same attempt/i })).toBeTruthy(),
     );
     const firstIntent = stripeMutateAsync.mock.calls[0][0];
 
+    await fireEvent.click(screen.getByRole('button', { name: /discard attempt/i }));
     await fireEvent.click(screen.getByRole('button', { name: /pay with stripe/i }));
     await waitFor(() => expect(stripeMutateAsync).toHaveBeenCalledTimes(2));
     expect(stripeMutateAsync.mock.calls[1][0].idempotencyKey).not.toBe(firstIntent.idempotencyKey);
+  });
+
+  it('keeps an idempotency conflict recoverable and replays its exact intent only on Retry', async () => {
+    stripeMutateAsync = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new ApiRequestError({
+          error: 'idempotency_conflict',
+          message: 'Processing',
+          status_code: 409,
+          retry_after_seconds: 0,
+        }),
+      )
+      .mockResolvedValueOnce({
+        checkout_url: 'https://checkout.stripe.com/replay',
+        session_id: 'sess-replay',
+        payment_id: 'pay-replay',
+      });
+    render(TopUpPanel);
+    await fireEvent.input(screen.getByLabelText('Amount (USD)'), { target: { value: '50' } });
+    await fireEvent.click(screen.getByRole('button', { name: /pay with stripe/i }));
+    await waitFor(() => expect(screen.getByText(/still processing/i)).toBeTruthy());
+    const firstIntent = stripeMutateAsync.mock.calls[0][0];
+    await fireEvent.click(screen.getByRole('button', { name: /retry same attempt/i }));
+    await waitFor(() => expect(stripeMutateAsync).toHaveBeenCalledTimes(2));
+    expect(stripeMutateAsync.mock.calls[1][0]).toEqual(firstIntent);
+  });
+
+  it('clears a stale suppressed currency, removes it from cache, and does not offer the rejected retry', async () => {
+    currenciesData = [{ ticker: 'USDTTRC20', name: 'Tether', network: 'TRX', logo_url: null }];
+    nowPaymentsMutateAsync = vi.fn().mockRejectedValue(
+      new ApiRequestError({
+        error: 'pay_currency_suppressed',
+        message: 'Request failed (400)',
+        status_code: 400,
+        pay_currency: 'USDTTRC20',
+      }),
+    );
+    render(TopUpPanel);
+    await fireEvent.input(screen.getByLabelText('Amount (USD)'), { target: { value: '50' } });
+    await fireEvent.click(screen.getByRole('radio', { name: /tether/i }));
+    await fireEvent.click(screen.getByRole('button', { name: /pay with crypto/i }));
+    await waitFor(() => expect(screen.getByText(/no longer available/i)).toBeTruthy());
+    expect(setQueryDataMock).toHaveBeenCalledWith(['billing', 'currencies'], expect.any(Function));
+    expect(invalidateQueriesMock).toHaveBeenCalledWith({ queryKey: ['billing', 'currencies'] });
+    expect(screen.queryByRole('button', { name: /retry same attempt/i })).toBeNull();
   });
 
   it('renders an unavailable state when the providers list is empty', () => {

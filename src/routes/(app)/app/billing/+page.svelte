@@ -4,7 +4,6 @@
   import { page } from '$app/stores';
   import * as m from '$paraglide/messages';
   import { formatNumber } from '$lib/utils/format';
-  import apiClient from '$lib/api/client';
   import { productInfo } from '$lib/stores/product';
   import { currentUser } from '$lib/stores/auth';
   import { isSSEConnected } from '$lib/stores/eventStream';
@@ -13,10 +12,11 @@
   import { CursorPaginator } from '$lib/utils/cursorPagination.svelte';
   import {
     billingBalanceQueryOptions,
+    billingPricingQueryOptions,
     billingTransactionsQueryOptions,
   } from '$lib/queries/billing';
   import {
-    hasPaymentsAwaitingReconciliation,
+    getPendingPaymentPollingInterval,
     markPendingPaymentCancelled,
     markPendingPaymentReturned,
     reconcilePendingPayments,
@@ -25,6 +25,7 @@
   } from '$lib/stores/pendingPayments';
   import { consumeStripeReturnPointer } from '$lib/stores/checkoutIntents';
   import { getPaymentStorageScope } from '$lib/stores/paymentScope';
+  import { fetchPendingPaymentTransactions } from '$lib/services/pendingPaymentReconciliation';
 
   const PAGE_SIZE = 20;
   const pager = new CursorPaginator();
@@ -36,12 +37,9 @@
 
   const pendingScope = $derived.by<PendingPaymentScope | null>(() => {
     const scope = getPaymentStorageScope($currentUser, $productInfo);
-    // The revision is a monotonic local-storage change signal. Reading it here
-    // makes the reconciliation enablement refresh without a storage polling loop.
-    return $pendingPaymentsRevision >= 0 ? scope : null;
-  });
-  const hasRecentPendingPayments = $derived.by(() => {
-    return pendingScope ? hasPaymentsAwaitingReconciliation(pendingScope) : false;
+    // Depend explicitly on local and cross-tab pending-payment changes.
+    void $pendingPaymentsRevision;
+    return scope;
   });
   const returnOutcome = $derived(
     $page.url.searchParams.get('success') === 'true'
@@ -52,24 +50,19 @@
   );
   const balancePollingInterval = $derived($isSSEConnected ? false : 30_000);
   const transactionPollingInterval = $derived(
-    !$isSSEConnected && hasRecentPendingPayments ? 30_000 : false,
+    !$isSSEConnected && pendingScope ? getPendingPaymentPollingInterval(pendingScope) : false,
   );
 
   const balanceQuery = createQuery(() => billingBalanceQueryOptions(balancePollingInterval));
-  const pricingQuery = createQuery(() => ({
-    queryKey: ['pricing'],
-    queryFn: async () => {
-      const { data } = await apiClient.GET('/v1/billing/pricing');
-      return data ?? [];
-    },
-    staleTime: 60 * 60 * 1000,
-  }));
+  const pricingQuery = createQuery(() => billingPricingQueryOptions());
   const transactionsQuery = createQuery(() =>
     billingTransactionsQueryOptions({ limit: PAGE_SIZE, ...pager.param }, false),
   );
   const reconciliationQuery = createQuery(() => ({
-    ...billingTransactionsQueryOptions({ limit: 100, type: 'topup' }, transactionPollingInterval),
-    enabled: !$isSSEConnected && hasRecentPendingPayments && pendingScope !== null,
+    queryKey: ['billing', 'pending-payment-reconciliation', pendingScope],
+    queryFn: () => (pendingScope ? fetchPendingPaymentTransactions(pendingScope) : []),
+    refetchInterval: transactionPollingInterval,
+    enabled: !$isSSEConnected && pendingScope !== null && transactionPollingInterval !== false,
   }));
 
   function getTab(value: string | null): BillingTab {
@@ -88,17 +81,19 @@
     const key = `${returnOutcome}:${pendingScope.userId}:${pendingScope.product}`;
     if (handledReturn === key) return;
     handledReturn = key;
+    exactReturnHandled = false;
 
     const paymentId = consumeStripeReturnPointer(pendingScope);
     if (!paymentId) return;
-    exactReturnHandled = true;
-    if (returnOutcome === 'success') markPendingPaymentReturned(pendingScope, paymentId);
-    else markPendingPaymentCancelled(pendingScope, paymentId);
+    exactReturnHandled =
+      returnOutcome === 'success'
+        ? markPendingPaymentReturned(pendingScope, paymentId)
+        : markPendingPaymentCancelled(pendingScope, paymentId);
   });
 
   $effect(() => {
     const scope = pendingScope;
-    const transactions = reconciliationQuery.data?.items;
+    const transactions = reconciliationQuery.data;
     if (scope && transactions) reconcilePendingPayments(scope, transactions);
   });
 
@@ -118,11 +113,6 @@
     i2i: { icon: '◈', label: 'Image → Image' },
     i2v: { icon: '▶', label: 'Image → Video' },
   };
-  const FALLBACK_COSTS = [
-    { label: 'Imagine', icon: '✦', cost: 5 },
-    { label: 'Grok 2', icon: '◈', cost: 8 },
-    { label: 'Video', icon: '▶', cost: 25 },
-  ];
   const appTitle = $derived($productInfo?.display_name ?? 'Apex');
 
   function truncatePaymentId(paymentId: string): string {
@@ -175,13 +165,22 @@
       <div class="flex items-baseline gap-2">
         {#if balanceQuery.isLoading}
           <div class="h-10 w-28 animate-pulse rounded-lg bg-surface-hover"></div>
-        {:else}
+        {:else if balanceQuery.isError && !balanceQuery.data}
+          <div class="flex flex-wrap items-center gap-2 text-sm text-text-muted">
+            <span>{m.billing_balance_load_error()}</span>
+            <button
+              type="button"
+              class="rounded border border-border px-2 py-1 text-xs"
+              onclick={() => balanceQuery.refetch()}>{m.common_retry()}</button
+            >
+          </div>
+        {:else if balanceQuery.data?.balance !== undefined}
           <span class="font-mono text-[32px] font-extrabold leading-none text-text md:text-[42px]">
-            {balanceQuery.data?.balance !== undefined
-              ? formatNumber(balanceQuery.data.balance)
-              : '0'}
+            {formatNumber(balanceQuery.data.balance)}
           </span>
           <span class="text-sm text-text-muted">tokens</span>
+        {:else}
+          <span class="text-sm text-text-dim">{m.billing_balance_unavailable()}</span>
         {/if}
       </div>
       <div class="mt-3.5 flex flex-wrap gap-4">
@@ -204,7 +203,22 @@
       Cost per Generation
     </p>
     <div class="grid grid-cols-3 gap-2">
-      {#if costRows.length > 0}
+      {#if pricingQuery.isLoading}
+        {#each Array(3) as _, i (i)}
+          <div class="h-24 animate-pulse rounded-2.5 bg-surface"></div>
+        {/each}
+      {:else if pricingQuery.isError && !pricingQuery.data}
+        <div
+          class="col-span-3 flex flex-wrap items-center gap-2 rounded-xl border border-border p-4 text-sm text-text-muted"
+        >
+          <span>{m.billing_pricing_load_error()}</span>
+          <button
+            type="button"
+            class="rounded border border-border px-2 py-1 text-xs"
+            onclick={() => pricingQuery.refetch()}>{m.common_retry()}</button
+          >
+        </div>
+      {:else if costRows.length > 0}
         {#each costRows as row (row.id)}
           {@const metaKey = row.model ?? row.generation_type}
           {@const meta = MODEL_META[metaKey] ?? { icon: '◆', label: metaKey }}
@@ -215,13 +229,9 @@
           </div>
         {/each}
       {:else}
-        {#each FALLBACK_COSTS as item (item.label)}
-          <div class="rounded-2.5 border border-border bg-surface p-3 md:p-4">
-            <span class="text-lg">{item.icon}</span>
-            <p class="mt-1.5 text-[11px] font-semibold text-text">{item.label}</p>
-            <p class="font-mono text-base font-extrabold text-accent">◈{item.cost}</p>
-          </div>
-        {/each}
+        <div class="col-span-3 rounded-xl border border-border p-4 text-sm text-text-dim">
+          {m.billing_pricing_empty()}
+        </div>
       {/if}
     </div>
   {:else if activeTab === 'buy'}
@@ -231,6 +241,15 @@
       {#each Array(5) as _, i (i)}
         <div class="h-12 animate-pulse rounded-lg bg-surface"></div>
       {/each}
+    </div>
+  {:else if transactionsQuery.isError && !transactionsQuery.data}
+    <div class="flex flex-col items-center justify-center gap-2 py-16">
+      <p class="text-sm text-text-dim">{m.billing_history_load_error()}</p>
+      <button
+        type="button"
+        class="rounded border border-border px-3 py-1.5 text-xs"
+        onclick={() => transactionsQuery.refetch()}>{m.common_retry()}</button
+      >
     </div>
   {:else if (transactionsQuery.data?.items ?? []).length === 0}
     <div class="flex flex-col items-center justify-center py-16">

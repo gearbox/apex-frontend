@@ -140,7 +140,10 @@ describe('topUpStripe()', () => {
       ),
     );
 
-    await expect(topUpStripe({ amount_usd: 50 }, 'duplicate-key')).rejects.toThrow('Key in use');
+    await expect(topUpStripe({ amount_usd: 50 }, 'duplicate-key')).rejects.toMatchObject({
+      message: 'Key in use',
+      retry_after_seconds: 1,
+    });
   });
 
   it('throws ApiRequestError with payment_provider_disabled code on 409', async () => {
@@ -214,6 +217,24 @@ describe('topUpNowPayments()', () => {
 
     await topUpNowPayments({ amount_usd: 50 }, 'test-idem-key-789');
     expect(capturedBody).toEqual({ amount_usd: 50 });
+  });
+
+  it('preserves the compact suppression error and HTTP status', async () => {
+    server.use(
+      http.post(`${BASE}/v1/billing/topup/nowpayments`, () =>
+        HttpResponse.json(
+          { code: 'pay_currency_suppressed', pay_currency: 'USDTTRC20' },
+          { status: 400 },
+        ),
+      ),
+    );
+    await expect(
+      topUpNowPayments({ amount_usd: 50, pay_currency: 'USDTTRC20' }, 'suppressed-key'),
+    ).rejects.toMatchObject({
+      error: 'pay_currency_suppressed',
+      status_code: 400,
+      pay_currency: 'USDTTRC20',
+    });
   });
 });
 

@@ -17,12 +17,8 @@ import { addToast } from '$lib/stores/toasts';
 import { pushNudge } from '$lib/stores/pushNudge.svelte';
 import { jobKeys } from '$lib/queries/jobs';
 import { billingKeys } from '$lib/queries/billing';
-import { fetchBillingTransactions } from '$lib/api/billing';
-import {
-  getPendingPaymentScope,
-  getRecentPendingPaymentIds,
-  reconcilePendingPayments,
-} from '$lib/stores/pendingPayments';
+import { getPendingPaymentScope, reconcilePendingPayments } from '$lib/stores/pendingPayments';
+import { fetchPendingPaymentTransactions } from './pendingPaymentReconciliation';
 import {
   SSE_EVENTS,
   isJobStatusPayload,
@@ -304,6 +300,7 @@ export class EventStreamService {
   }
 
   private requestPendingPaymentReconciliation(): void {
+    if (this.disposed) return;
     if (this.reconciliationRun) {
       this.reconciliationQueued = true;
       return;
@@ -311,7 +308,7 @@ export class EventStreamService {
 
     this.reconciliationRun = this.reconcilePendingPayments().finally(() => {
       this.reconciliationRun = null;
-      if (this.reconciliationQueued) {
+      if (!this.disposed && this.reconciliationQueued) {
         this.reconciliationQueued = false;
         this.requestPendingPaymentReconciliation();
       }
@@ -320,24 +317,11 @@ export class EventStreamService {
 
   private async reconcilePendingPayments(): Promise<void> {
     const scope = getPendingPaymentScope();
-    if (!scope || getRecentPendingPaymentIds(scope).length === 0) return;
+    if (this.disposed || !scope) return;
 
     try {
-      const unresolvedPaymentIds = new Set(getRecentPendingPaymentIds(scope));
-      let cursor: string | undefined;
-      const pages = [];
-      const MAX_RECONCILIATION_PAGES = 3;
-
-      for (let pageNumber = 0; pageNumber < MAX_RECONCILIATION_PAGES; pageNumber += 1) {
-        const page = await fetchBillingTransactions({ limit: 100, type: 'topup', cursor });
-        pages.push(...page.items);
-        for (const transaction of page.items) {
-          if (transaction.payment_id) unresolvedPaymentIds.delete(transaction.payment_id);
-        }
-        if (unresolvedPaymentIds.size === 0 || !page.has_more || !page.next_cursor) break;
-        cursor = page.next_cursor;
-      }
-      reconcilePendingPayments(scope, pages);
+      const transactions = await fetchPendingPaymentTransactions(scope);
+      if (!this.disposed) reconcilePendingPayments(scope, transactions);
     } catch {
       // The balance event is still authoritative. A later poll/focus refresh retries matching.
     }

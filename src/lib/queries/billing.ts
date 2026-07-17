@@ -1,5 +1,6 @@
 import {
   fetchBillingBalance,
+  fetchBillingPricing,
   fetchBillingTransactions,
   fetchPaymentCurrencies,
   fetchPaymentProviders,
@@ -9,6 +10,7 @@ import {
   type TopUpNowPaymentsRequest,
   type TopUpStripeRequest,
 } from '$lib/api/billing';
+import { keepPreviousData } from '@tanstack/svelte-query';
 import { generateIdempotencyKey } from '$lib/utils/idempotency';
 
 /* ─── Query Key Factory ─── */
@@ -22,6 +24,7 @@ export const billingKeys = {
   topupOptions: () => ['billing', 'topup-options'] as const,
   paymentProviders: () => ['billing', 'payment-providers'] as const,
   currencies: () => ['billing', 'currencies'] as const,
+  pricing: () => ['billing', 'pricing'] as const,
 };
 
 const focusAwareBillingQueryDefaults = {
@@ -57,6 +60,16 @@ export function paymentCurrenciesQueryOptions() {
     // The backend refreshes this cached catalog every three hours.
     staleTime: 3 * 60 * 60 * 1000,
     retry: false,
+    refetchOnWindowFocus: true,
+  };
+}
+
+export function billingPricingQueryOptions() {
+  return {
+    queryKey: billingKeys.pricing(),
+    queryFn: fetchBillingPricing,
+    staleTime: 60 * 60 * 1000,
+    ...focusAwareBillingQueryDefaults,
   };
 }
 
@@ -79,6 +92,7 @@ export function billingTransactionsQueryOptions(
     queryFn: () => fetchBillingTransactions(params),
     staleTime: 60_000,
     refetchInterval,
+    placeholderData: keepPreviousData,
     ...focusAwareBillingQueryDefaults,
   };
 }

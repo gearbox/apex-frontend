@@ -12,6 +12,8 @@ export interface ApiError {
   detail?: unknown;
   extra?: unknown;
   provider?: string;
+  pay_currency?: string;
+  retry_after_seconds?: number;
 }
 
 export function isApiError(value: unknown): value is ApiError {
@@ -41,11 +43,13 @@ export function parseObjectApiError(value: Record<string, unknown>, status: numb
     !('detail' in value) &&
     !('status_code' in value) &&
     !('extra' in value) &&
-    !('provider' in value)
+    !('provider' in value) &&
+    !('pay_currency' in value)
   ) {
     return { error: 'unknown_error', message: fallbackMessage(status), status_code: status };
   }
   const provider = typeof value.provider === 'string' ? value.provider : undefined;
+  const payCurrency = typeof value.pay_currency === 'string' ? value.pay_currency : undefined;
   const code =
     typeof value.code === 'string'
       ? value.code
@@ -71,6 +75,7 @@ export function parseObjectApiError(value: Record<string, unknown>, status: numb
     detail: detail ?? (provider ? { provider } : null),
     ...(value.extra !== undefined ? { extra: value.extra } : {}),
     ...(provider ? { provider } : {}),
+    ...(payCurrency ? { pay_currency: payCurrency } : {}),
   };
 }
 
@@ -124,6 +129,8 @@ export class ApiRequestError extends Error {
   readonly detail?: unknown;
   readonly extra?: unknown;
   readonly provider?: string;
+  readonly pay_currency?: string;
+  readonly retry_after_seconds?: number;
 
   constructor(apiError: ApiError) {
     super(apiError.message);
@@ -133,14 +140,31 @@ export class ApiRequestError extends Error {
     this.detail = apiError.detail;
     this.extra = apiError.extra;
     this.provider = apiError.provider;
+    this.pay_currency = apiError.pay_currency;
+    this.retry_after_seconds = apiError.retry_after_seconds;
   }
 }
 
 /** Coerce an unknown openapi-fetch error into an ApiRequestError and throw it. */
-export function throwApiError(error: unknown, fallbackMsg: string, status?: number): never {
+function retryAfterSeconds(headers?: Headers): number | undefined {
+  const raw = headers?.get('Retry-After');
+  if (!raw || !/^\d+$/.test(raw)) return undefined;
+  const seconds = Number(raw);
+  return Number.isSafeInteger(seconds) && seconds >= 0 ? seconds : undefined;
+}
+
+export function throwApiError(
+  error: unknown,
+  fallbackMsg: string,
+  status?: number,
+  headers?: Headers,
+): never {
   const apiErr = parseApiError(error, status ?? 0);
   throw new ApiRequestError({
     ...apiErr,
+    ...(retryAfterSeconds(headers) !== undefined
+      ? { retry_after_seconds: retryAfterSeconds(headers) }
+      : {}),
     message:
       apiErr.error === 'unknown_error' && !isKnownStatus(apiErr.status_code)
         ? fallbackMsg

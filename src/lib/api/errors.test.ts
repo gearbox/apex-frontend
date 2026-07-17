@@ -57,6 +57,16 @@ describe('parseApiError()', () => {
     });
   });
 
+  it('retains compact suppressed-currency metadata', () => {
+    expect(
+      parseApiError({ code: 'pay_currency_suppressed', pay_currency: 'USDTTRC20' }, 400),
+    ).toMatchObject({
+      error: 'pay_currency_suppressed',
+      status_code: 400,
+      pay_currency: 'USDTTRC20',
+    });
+  });
+
   it('falls back to a generic message for an unrecognized compact code', () => {
     const body = { code: 'something_else', provider: 'stripe' };
     expect(parseApiError(body, 409)).toEqual({

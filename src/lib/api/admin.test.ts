@@ -41,6 +41,7 @@ import {
   fetchPaymentProviderRegistry,
   fetchAdminCurrencyCatalog,
   refreshAdminCurrencyCatalog,
+  setAdminCurrencySuppressed,
   updatePaymentProvider,
 } from './admin';
 
@@ -891,6 +892,7 @@ describe('payment currency catalog', () => {
             ticker: 'USDTTRC20',
             provider: 'nowpayments',
             is_available: false,
+            is_suppressed: true,
             name: null,
             network: null,
             logo_key: null,
@@ -909,7 +911,7 @@ describe('payment currency catalog', () => {
     );
 
     await expect(fetchAdminCurrencyCatalog()).resolves.toMatchObject([
-      { ticker: 'USDTTRC20', is_available: false },
+      { ticker: 'USDTTRC20', is_available: false, is_suppressed: true },
     ]);
     await expect(refreshAdminCurrencyCatalog()).resolves.toEqual([
       { provider: 'nowpayments', upserted: 2, deactivated: 1 },
@@ -927,5 +929,45 @@ describe('payment currency catalog', () => {
       status_code: 502,
       message: 'NowPayments unavailable',
     });
+  });
+
+  it('patches the exact provider/ticker row and preserves a 404 status', async () => {
+    let path = '';
+    let body: unknown;
+    server.use(
+      http.patch(
+        `${BASE}/v1/admin/payments/currencies/:provider/:ticker`,
+        async ({ params, request }) => {
+          path = `${params.provider}/${params.ticker}`;
+          body = await request.json();
+          return HttpResponse.json({
+            ticker: params.ticker,
+            provider: params.provider,
+            is_available: true,
+            is_suppressed: true,
+            name: null,
+            network: null,
+            logo_key: null,
+            logo_source_url: null,
+            logo_synced_at: null,
+            last_seen_at: '2026-07-17T00:00:00Z',
+          });
+        },
+      ),
+    );
+    await expect(
+      setAdminCurrencySuppressed('nowpayments', 'USDTTRC20', { is_suppressed: true }),
+    ).resolves.toMatchObject({ ticker: 'USDTTRC20', is_suppressed: true });
+    expect(path).toBe('nowpayments/USDTTRC20');
+    expect(body).toEqual({ is_suppressed: true });
+
+    server.use(
+      http.patch(`${BASE}/v1/admin/payments/currencies/:provider/:ticker`, () =>
+        HttpResponse.json({ detail: 'Unknown ticker' }, { status: 404 }),
+      ),
+    );
+    await expect(
+      setAdminCurrencySuppressed('nowpayments', 'NEVER_SEEN', { is_suppressed: true }),
+    ).rejects.toMatchObject({ status_code: 404 });
   });
 });
