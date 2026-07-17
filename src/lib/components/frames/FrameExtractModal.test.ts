@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { http, HttpResponse } from 'msw';
 import { server } from '../../../mocks/server';
 import { MOCK_BASE_URL as BASE } from '../../../mocks/config';
@@ -39,7 +39,20 @@ vi.mock('$paraglide/messages', () => ({
   frames_preview_loading: () => 'Preparing frame preview…',
   frames_preview_error: () => "Couldn't load the frame preview.",
   frames_preview_ready: () => 'Select frames to extract',
+  frames_automatic: () => 'Automatic',
+  frames_manually_chosen: () => 'Manually chosen frames',
+  frames_no_manual_frames: () => 'Frames added from the scrubber will appear here.',
   frames_add_frame: () => 'Add frame',
+  frames_adding_frame: () => 'Adding frame…',
+  frames_frame_added: () => 'Frame added',
+  frames_frame_already_added: () => 'Frame already added',
+  frames_already_available_automatic: () => 'Already available under Automatic',
+  frames_remove_manual_frame: ({ timestamp }: { timestamp: string }) =>
+    `Remove manually chosen frame at ${timestamp}`,
+  frames_frame_display_error: () => 'Could not display this video frame',
+  frames_frame_capture_cors_error: () => 'Video access is blocked',
+  frames_frame_loading: () => 'Loading frame preview…',
+  frames_retry_frame_preview: () => 'Retry frame preview',
   frames_selected_count: ({ count }: { count: number }) => `${count} selected`,
   frames_selected_limit: () => 'You can select up to 50 frames.',
   frames_scrubber_label: () => 'Frame timestamp',
@@ -58,6 +71,45 @@ type FrameJobResponse = components['schemas']['FrameJobResponse'];
 const SOURCE_ID = 'video-upload-001';
 const DURATION_MS = 12_345;
 const MAX_TIMESTAMP = DURATION_MS - 1;
+
+function installDecodedVideoMocks(): () => void {
+  const restores: Array<() => void> = [];
+  const replace = (target: object, key: PropertyKey, descriptor: PropertyDescriptor) => {
+    const previous = Object.getOwnPropertyDescriptor(target, key);
+    Object.defineProperty(target, key, { configurable: true, ...descriptor });
+    restores.push(() => {
+      if (previous) Object.defineProperty(target, key, previous);
+      else Reflect.deleteProperty(target, key);
+    });
+  };
+
+  let currentTime = 0;
+  replace(HTMLMediaElement.prototype, 'readyState', {
+    get: () => HTMLMediaElement.HAVE_CURRENT_DATA,
+  });
+  replace(HTMLVideoElement.prototype, 'videoWidth', { get: () => 1920 });
+  replace(HTMLVideoElement.prototype, 'videoHeight', { get: () => 1080 });
+  replace(HTMLMediaElement.prototype, 'currentTime', {
+    get: () => currentTime,
+    set(this: HTMLMediaElement, value: number) {
+      const changed = Math.abs(currentTime - value) > 0.0001;
+      currentTime = value;
+      if (changed) queueMicrotask(() => this.dispatchEvent(new Event('seeked')));
+    },
+  });
+  replace(HTMLCanvasElement.prototype, 'getContext', {
+    value: () => ({ drawImage: vi.fn() }),
+  });
+  replace(HTMLCanvasElement.prototype, 'toBlob', {
+    value: (callback: BlobCallback) => callback(new Blob(['frame'], { type: 'image/webp' })),
+  });
+
+  let previewNumber = 0;
+  replace(URL, 'createObjectURL', { value: () => `blob:frame-${++previewNumber}` });
+  replace(URL, 'revokeObjectURL', { value: vi.fn() });
+
+  return () => restores.reverse().forEach((restore) => restore());
+}
 
 const videoMedia: MediaObject = {
   media_type: 'video',
@@ -84,9 +136,9 @@ function previewJob(jobId = 'preview-job'): FrameJobResponse {
     preview: {
       duration_ms: DURATION_MS,
       expires_in_seconds: 3600,
-      frames: Array.from({ length: 12 }, (_, index) => ({
+      frames: Array.from({ length: 6 }, (_, index) => ({
         index,
-        timestamp_ms: Math.round((index * DURATION_MS) / 12),
+        timestamp_ms: Math.round((index * DURATION_MS) / 6),
         url: `https://frame-previews.example.test/${jobId}/${index}.webp`,
       })),
     },
@@ -158,8 +210,10 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+afterEach(() => cleanup());
+
 describe('FrameExtractModal', () => {
-  it('starts a 12-frame preview and renders the initial strip', async () => {
+  it('starts a 6-frame preview and renders the Automatic and empty manual sections', async () => {
     let previewBody: Record<string, unknown> | null = null;
 
     server.use(
@@ -175,10 +229,13 @@ describe('FrameExtractModal', () => {
     renderModal();
 
     await waitFor(() => {
-      expect(screen.getAllByRole('img')).toHaveLength(12);
+      expect(screen.getAllByRole('button', { name: /^Automatic:/ })).toHaveLength(6);
     });
 
-    expect(previewBody).toEqual({ source_upload_id: SOURCE_ID, frame_count: 12 });
+    expect(previewBody).toEqual({ source_upload_id: SOURCE_ID, frame_count: 6 });
+    expect(screen.getByRole('heading', { name: 'Automatic' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Manually chosen frames' })).toBeTruthy();
+    expect(screen.getByText('Frames added from the scrubber will appear here.')).toBeTruthy();
     expect(screen.getByRole('slider', { name: 'Frame timestamp' }).getAttribute('max')).toBe(
       String(MAX_TIMESTAMP),
     );
@@ -208,10 +265,10 @@ describe('FrameExtractModal', () => {
     const onclose = renderModal();
 
     await waitFor(() => {
-      expect(screen.getAllByRole('img')).toHaveLength(12);
+      expect(screen.getAllByRole('button', { name: /^Automatic:/ })).toHaveLength(6);
     });
 
-    await fireEvent.click(screen.getByRole('button', { name: '00:00.000' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Automatic: 00:00.000' }));
 
     const scrubber = screen.getByRole('slider', { name: 'Frame timestamp' });
     // A real range element enforces max itself. Shadow it for this focused
@@ -222,18 +279,17 @@ describe('FrameExtractModal', () => {
       writable: true,
     });
     await fireEvent.input(scrubber);
-    await fireEvent.click(screen.getByRole('button', { name: 'Add frame' }));
     await fireEvent.click(screen.getByRole('button', { name: 'Extract frames' }));
 
     await waitFor(() => {
       expect(extractBody).toEqual({
         source_upload_id: SOURCE_ID,
-        timestamps_ms: [0, MAX_TIMESTAMP],
+        timestamps_ms: [0],
       });
     });
 
     await waitFor(() => {
-      expect(screen.getAllByRole('img')).toHaveLength(2);
+      expect(screen.getAllByRole('img')).toHaveLength(1);
     });
     expect(invalidateQueriesMock).toHaveBeenCalledWith({ queryKey: ['storage'] });
 
@@ -245,6 +301,102 @@ describe('FrameExtractModal', () => {
     );
     expect(gotoMock).toHaveBeenCalledWith('/app/create');
     expect(onclose).toHaveBeenCalledOnce();
+  });
+
+  it('adds, selects, deselects, and submits a manual frame with the automatic union', async () => {
+    const restoreMedia = installDecodedVideoMocks();
+    let extractBody: Record<string, unknown> | null = null;
+
+    try {
+      server.use(
+        http.post(`${BASE}/v1/frames/preview`, () =>
+          HttpResponse.json({ job_id: 'preview-job', status: 'queued' }, { status: 202 }),
+        ),
+        http.post(`${BASE}/v1/frames/extract`, async ({ request }) => {
+          extractBody = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json({ job_id: 'extract-job', status: 'queued' }, { status: 202 });
+        }),
+        http.get(`${BASE}/v1/frames/jobs/:job_id`, ({ params }) => {
+          const jobId = params.job_id as string;
+          return HttpResponse.json(
+            jobId === 'extract-job'
+              ? extractedJob(jobId, (extractBody?.timestamps_ms as number[] | undefined) ?? [])
+              : previewJob(jobId),
+          );
+        }),
+      );
+
+      renderModal();
+      await waitFor(() => {
+        expect(screen.getAllByRole('button', { name: /^Automatic:/ })).toHaveLength(6);
+      });
+
+      await fireEvent.input(screen.getByRole('slider', { name: 'Frame timestamp' }), {
+        target: { value: '1000' },
+      });
+      const addButton = screen.getByRole('button', { name: 'Add frame' });
+      await waitFor(() => expect(addButton.hasAttribute('disabled')).toBe(false));
+      await fireEvent.click(addButton);
+
+      const manualCard = await screen.findByRole('button', {
+        name: 'Manually chosen frames: 00:01.000',
+      });
+      expect(manualCard.getAttribute('aria-pressed')).toBe('true');
+      expect(screen.getByText('Frame added')).toBeTruthy();
+
+      await fireEvent.click(addButton);
+      await waitFor(() => expect(screen.getByText('Frame already added')).toBeTruthy());
+      expect(
+        screen.getAllByRole('button', { name: 'Manually chosen frames: 00:01.000' }),
+      ).toHaveLength(1);
+
+      await fireEvent.click(manualCard);
+      expect(manualCard.getAttribute('aria-pressed')).toBe('false');
+      await fireEvent.click(manualCard);
+      await fireEvent.click(screen.getByRole('button', { name: 'Automatic: 00:00.000' }));
+      await fireEvent.click(screen.getByRole('button', { name: 'Extract frames' }));
+
+      await waitFor(() => {
+        expect(extractBody).toEqual({ source_upload_id: SOURCE_ID, timestamps_ms: [0, 1000] });
+      });
+    } finally {
+      restoreMedia();
+    }
+  });
+
+  it('removing a manual card also removes it from the shared selection', async () => {
+    const restoreMedia = installDecodedVideoMocks();
+
+    try {
+      server.use(
+        http.post(`${BASE}/v1/frames/preview`, () =>
+          HttpResponse.json({ job_id: 'preview-job', status: 'queued' }, { status: 202 }),
+        ),
+        http.get(`${BASE}/v1/frames/jobs/:job_id`, ({ params }) =>
+          HttpResponse.json(previewJob(params.job_id as string)),
+        ),
+      );
+      renderModal();
+      await screen.findByRole('button', { name: 'Automatic: 00:00.000' });
+
+      await fireEvent.input(screen.getByRole('slider', { name: 'Frame timestamp' }), {
+        target: { value: '1000' },
+      });
+      const addButton = screen.getByRole('button', { name: 'Add frame' });
+      await waitFor(() => expect(addButton.hasAttribute('disabled')).toBe(false));
+      await fireEvent.click(addButton);
+
+      await screen.findByRole('button', { name: 'Manually chosen frames: 00:01.000' });
+      await fireEvent.click(
+        screen.getByRole('button', { name: 'Remove manually chosen frame at 00:01.000' }),
+      );
+      expect(
+        screen.queryByRole('button', { name: 'Manually chosen frames: 00:01.000' }),
+      ).toBeNull();
+      expect(screen.getAllByText('0 selected')).not.toHaveLength(0);
+    } finally {
+      restoreMedia();
+    }
   });
 
   it('shows a failed job error verbatim and retries by posting another preview job', async () => {
@@ -267,14 +419,14 @@ describe('FrameExtractModal', () => {
     renderModal();
 
     expect(await screen.findByText(error)).toBeTruthy();
-    expect(previewBodies).toEqual([{ source_upload_id: SOURCE_ID, frame_count: 12 }]);
+    expect(previewBodies).toEqual([{ source_upload_id: SOURCE_ID, frame_count: 6 }]);
 
     await fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
 
     await waitFor(() => {
       expect(previewBodies).toEqual([
-        { source_upload_id: SOURCE_ID, frame_count: 12 },
-        { source_upload_id: SOURCE_ID, frame_count: 12 },
+        { source_upload_id: SOURCE_ID, frame_count: 6 },
+        { source_upload_id: SOURCE_ID, frame_count: 6 },
       ]);
     });
     expect(await screen.findByText(error)).toBeTruthy();

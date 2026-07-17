@@ -19,7 +19,12 @@ export interface ExtractFramesVariables {
   timestampsMs: number[];
 }
 
-const DEFAULT_FRAME_COUNT = 12;
+/**
+ * A small automatic strip leaves room for deliberate, scrubbed choices while
+ * keeping the preview job cheap. The modal imports this value so the UI and
+ * request-layer defaults cannot drift.
+ */
+export const DEFAULT_FRAME_PREVIEW_COUNT = 6;
 
 /* ─── Query Key Factory ─── */
 
@@ -47,7 +52,10 @@ function throwIfFrameApiError(data: unknown, error: unknown, fallbackMessage: st
 
 export function previewFramesMutationOptions() {
   return {
-    mutationFn: async ({ source, frameCount = DEFAULT_FRAME_COUNT }: PreviewFramesVariables) => {
+    mutationFn: async ({
+      source,
+      frameCount = DEFAULT_FRAME_PREVIEW_COUNT,
+    }: PreviewFramesVariables) => {
       const body: FramePreviewRequest = {
         ...sourceBody(source),
         frame_count: frameCount,
