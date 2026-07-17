@@ -15,6 +15,19 @@ import { toasts, removeToast } from '$lib/stores/toasts';
 import { sessionKeys } from '$lib/queries/sessions';
 import { creditWarnings, dismissAllCreditWarnings } from '$lib/stores/creditWarnings';
 import { pushNudge } from '$lib/stores/pushNudge.svelte';
+import { fetchPendingPaymentTransactions } from './pendingPaymentReconciliation';
+
+vi.mock('./pendingPaymentReconciliation', () => ({
+  fetchPendingPaymentTransactions: vi.fn().mockResolvedValue([]),
+}));
+
+vi.mock('$lib/stores/pendingPayments', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('$lib/stores/pendingPayments')>();
+  return {
+    ...actual,
+    getPendingPaymentScope: vi.fn(() => ({ userId: 'test-user', product: 'apex' })),
+  };
+});
 
 /* ─── Mock EventSource ─── */
 
@@ -291,6 +304,76 @@ describe('EventStreamService — balance.updated dispatch', () => {
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
       queryKey: ['billing', 'transactions'],
     });
+
+    svc.dispose();
+  });
+
+  it('applies the balance and invalidates transactions for an unrecognized transaction_type', async () => {
+    const queryClient = makeMockQueryClient();
+    const svc = new EventStreamService({ queryClient: queryClient as never });
+
+    await svc.connect();
+
+    const es = MockEventSource.instances[0];
+    es._emit('balance.updated', {
+      account_id: 'acc-1',
+      balance: 640,
+      delta: 40,
+      transaction_type: 'future_bonus_type',
+    });
+
+    expect(queryClient.setQueryData).toHaveBeenCalledWith(
+      ['billing', 'balance'],
+      expect.any(Function),
+    );
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ['billing', 'transactions'],
+    });
+
+    svc.dispose();
+  });
+
+  it('stays quiet for an unrecognized transaction_type — no toast, no reconciliation', async () => {
+    const queryClient = makeMockQueryClient();
+    const svc = new EventStreamService({ queryClient: queryClient as never });
+
+    await svc.connect();
+
+    const es = MockEventSource.instances[0];
+    es._emit('balance.updated', {
+      account_id: 'acc-1',
+      balance: 640,
+      delta: 40,
+      transaction_type: 'future_bonus_type',
+    });
+
+    // Give any (incorrectly) triggered reconciliation a chance to run.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(get(toasts)).toHaveLength(0);
+    expect(fetchPendingPaymentTransactions).not.toHaveBeenCalled();
+
+    svc.dispose();
+  });
+
+  it('still triggers reconciliation and a toast for a known topup type (control case)', async () => {
+    const queryClient = makeMockQueryClient();
+    const svc = new EventStreamService({ queryClient: queryClient as never });
+
+    await svc.connect();
+
+    const es = MockEventSource.instances[0];
+    es._emit('balance.updated', {
+      account_id: 'acc-1',
+      balance: 640,
+      delta: 40,
+      transaction_type: 'topup',
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(get(toasts)).toHaveLength(1);
+    expect(fetchPendingPaymentTransactions).toHaveBeenCalled();
 
     svc.dispose();
   });

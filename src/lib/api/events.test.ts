@@ -6,6 +6,7 @@ import {
   isSystemNotificationPayload,
   isGpuSessionStatusPayload,
   SSE_EVENTS,
+  KNOWN_TRANSACTION_TYPES,
 } from './events';
 
 describe('SSE_EVENTS', () => {
@@ -86,21 +87,42 @@ describe('isBalanceUpdatedPayload', () => {
     ).toBe(true);
   });
 
-  it('rejects malformed or unknown transaction types', () => {
-    expect(isBalanceUpdatedPayload({ account_id: 'acc1', balance: 100 })).toBe(false);
-    expect(isBalanceUpdatedPayload({ balance: 100, delta: -5 })).toBe(false);
-    expect(isBalanceUpdatedPayload({ account_id: 'acc1', delta: -5 })).toBe(false);
-    expect(isBalanceUpdatedPayload({ account_id: 'a', balance: 1, delta: 1 })).toBe(false);
+  it('accepts unknown/future transaction types — the enum is open', () => {
+    // The FE contract treats backend string enums as open (same rule as the
+    // provider list): a type the FE doesn't recognize yet must still pass
+    // shape validation so the balance keeps updating.
     expect(
       isBalanceUpdatedPayload({
         account_id: 'a',
         balance: 1,
         delta: 1,
-        transaction_type: 'unknown',
+        transaction_type: 'future_bonus_type',
       }),
+    ).toBe(true);
+  });
+
+  it('rejects malformed payloads (missing fields or non-string transaction_type)', () => {
+    expect(isBalanceUpdatedPayload({ account_id: 'acc1', balance: 100 })).toBe(false);
+    expect(isBalanceUpdatedPayload({ balance: 100, delta: -5 })).toBe(false);
+    expect(isBalanceUpdatedPayload({ account_id: 'acc1', delta: -5 })).toBe(false);
+    expect(isBalanceUpdatedPayload({ account_id: 'a', balance: 1, delta: 1 })).toBe(false);
+    expect(
+      isBalanceUpdatedPayload({ account_id: 'a', balance: 1, delta: 1, transaction_type: 42 }),
     ).toBe(false);
     expect(isBalanceUpdatedPayload(null)).toBe(false);
     expect(isBalanceUpdatedPayload([])).toBe(false);
+  });
+});
+
+describe('KNOWN_TRANSACTION_TYPES', () => {
+  it('lists the backend transaction types the FE branches on', () => {
+    expect(Object.values(KNOWN_TRANSACTION_TYPES)).toEqual([
+      'debit',
+      'credit',
+      'refund',
+      'admin_adjustment',
+      'topup',
+    ]);
   });
 });
 

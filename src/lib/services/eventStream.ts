@@ -21,6 +21,7 @@ import { getPendingPaymentScope, reconcilePendingPayments } from '$lib/stores/pe
 import { fetchPendingPaymentTransactions } from './pendingPaymentReconciliation';
 import {
   SSE_EVENTS,
+  KNOWN_TRANSACTION_TYPES,
   isJobStatusPayload,
   isJobProgressPayload,
   isBalanceUpdatedPayload,
@@ -277,12 +278,18 @@ export class EventStreamService {
     // Invalidate transactions list so next view is fresh
     this.queryClient.invalidateQueries({ queryKey: billingKeys.transactionsRoot() });
 
-    // Show toast for credits/refunds (not debits — those are expected during generation)
-    if (payload.delta > 0) {
+    // Show toast for credits/refunds (not debits — those are expected during generation).
+    // Unknown/future transaction types update the balance silently — no toast, no
+    // reconciliation — rather than being guessed at.
+    const isKnownType = (Object.values(KNOWN_TRANSACTION_TYPES) as string[]).includes(
+      payload.transaction_type,
+    );
+
+    if (payload.delta > 0 && isKnownType) {
       const message =
-        payload.transaction_type === 'topup'
+        payload.transaction_type === KNOWN_TRANSACTION_TYPES.TOPUP
           ? m.billing_topup_credited()
-          : payload.transaction_type === 'refund'
+          : payload.transaction_type === KNOWN_TRANSACTION_TYPES.REFUND
             ? m.balance_toast_refund({ amount: payload.delta })
             : m.balance_toast_credit({ amount: payload.delta });
       addToast({
@@ -294,7 +301,7 @@ export class EventStreamService {
       dismissAllCreditWarnings();
     }
 
-    if (payload.transaction_type === 'topup') {
+    if (payload.transaction_type === KNOWN_TRANSACTION_TYPES.TOPUP) {
       this.requestPendingPaymentReconciliation();
     }
   }
