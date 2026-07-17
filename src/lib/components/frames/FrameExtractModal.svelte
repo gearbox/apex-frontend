@@ -620,6 +620,8 @@
             retryLabel={m.frames_retry_frame_preview()}
             displayErrorLabel={m.frames_frame_display_error()}
             corsCaptureErrorLabel={m.frames_frame_capture_cors_error()}
+            authErrorLabel={m.error_unauthorized()}
+            tooLargeMediaErrorLabel={m.frames_live_preview_too_large()}
           />
 
           <div class="flex items-center justify-between gap-3 border-t border-border pt-4">

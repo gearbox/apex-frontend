@@ -130,13 +130,30 @@ test.describe('Frame extraction (real media regression)', () => {
   }) => {
     let previewRequest: unknown;
     let extractionRequest: unknown;
+    let frameModalOpen = false;
+    let authenticatedMediaFetches = 0;
+    let anonymousProtectedContentRequestsAfterFrameModalOpen = 0;
+    let authenticatedMedia401Responses = 0;
+    let resolveInitialLightboxMediaRequest!: () => void;
+    const initialLightboxMediaRequest = new Promise<void>((resolve) => {
+      resolveInitialLightboxMediaRequest = resolve;
+    });
 
     await page.route((url) => url.pathname === '/v1/gallery', jsonRoute(galleryPage));
     await page.route('**/v1/gallery/video-job-001', jsonRoute(galleryDetail));
-    // The page is served from :4173 while toMediaSrc targets :8000. This
-    // response header is required for the anonymous decoder to keep canvas
-    // origin-clean; the test uses real media and real canvas APIs.
+    // The authenticated loader fetches protected content once, then the hidden
+    // decoder consumes only the resulting blob URL. A missing bearer remains a
+    // natural 401 so a regression in that boundary fails this scenario.
     await page.route('http://localhost:8000/v1/content/**', (route) => {
+      const authorization = route.request().headers().authorization;
+      if (authorization !== 'Bearer e2e-access-token') {
+        return route.fulfill({
+          status: 401,
+          contentType: 'application/json',
+          body: '{"error":"unauthorized"}',
+        });
+      }
+
       const range = route.request().headers().range;
       const match = range?.match(/bytes=(\d+)-(\d*)/);
       const start = match ? Number(match[1]) : 0;
@@ -147,12 +164,41 @@ test.describe('Frame extraction (real media regression)', () => {
         contentType: 'video/mp4',
         headers: {
           'access-control-allow-origin': 'http://localhost:4173',
+          'access-control-allow-credentials': 'true',
           'accept-ranges': 'bytes',
           'content-length': String(body.length),
           ...(match ? { 'content-range': `bytes ${start}-${end}/${portraitVideo.length}` } : {}),
         },
         body,
       });
+    });
+    page.on('request', (request) => {
+      if (!request.url().includes('/v1/content/')) return;
+      const authorization = request.headers().authorization;
+      if (!frameModalOpen) {
+        if (request.resourceType() === 'media' && !authorization) {
+          resolveInitialLightboxMediaRequest();
+        }
+        return;
+      }
+      if (!authorization) {
+        anonymousProtectedContentRequestsAfterFrameModalOpen += 1;
+        return;
+      }
+      if (request.resourceType() === 'fetch' && authorization === 'Bearer e2e-access-token') {
+        authenticatedMediaFetches += 1;
+      }
+    });
+    page.on('response', (response) => {
+      if (
+        frameModalOpen &&
+        response.url().includes('/v1/content/') &&
+        response.request().resourceType() === 'fetch' &&
+        response.request().headers().authorization === 'Bearer e2e-access-token' &&
+        response.status() === 401
+      ) {
+        authenticatedMedia401Responses += 1;
+      }
     });
     await page.route('https://frame-previews.example.test/**', (route) =>
       route.fulfill({ status: 200, contentType: 'image/png', body: previewImage }),
@@ -186,10 +232,20 @@ test.describe('Frame extraction (real media regression)', () => {
     await page.goto('/app/gallery');
     await expect(page.getByText(/loaded/i)).toBeVisible({ timeout: 5_000 });
     await page.locator('[class*="grid"]').locator('button, [role="button"]').first().click();
-    await page
-      .getByRole('dialog', { name: 'Image lightbox' })
-      .getByRole('button', { name: 'Extract frames' })
-      .click();
+    const lightbox = page.getByRole('dialog', { name: 'Image lightbox' });
+    // The gallery lightbox owns a separate autoplaying video. Detach it before
+    // the scrubber phase so its native media activity cannot be attributed to
+    // the hidden decoder under test.
+    await lightbox.locator('video').evaluate((video) => {
+      const media = video as HTMLVideoElement;
+      media.pause();
+      media.removeAttribute('src');
+      media.load();
+    });
+    await Promise.race([initialLightboxMediaRequest, page.waitForTimeout(1_000)]);
+    const openFrameModal = lightbox.getByRole('button', { name: 'Extract frames' }).click();
+    frameModalOpen = true;
+    await openFrameModal;
 
     const extractionDialog = page.getByRole('dialog', { name: 'Extract frames' });
     const scrubber = extractionDialog.getByRole('slider', { name: 'Frame timestamp' });
@@ -202,21 +258,42 @@ test.describe('Frame extraction (real media regression)', () => {
       .toEqual({ source_output_id: SOURCE_ID, frame_count: 6 });
     await expect(extractionDialog.getByRole('button', { name: /^Automatic:/ })).toHaveCount(6);
     await expect(addButton).toBeEnabled({ timeout: 8_000 });
+    expect(authenticatedMediaFetches).toBeGreaterThan(0);
+    expect(authenticatedMedia401Responses).toBe(0);
+    expect(anonymousProtectedContentRequestsAfterFrameModalOpen).toBe(0);
+    const decoderSrc = await extractionDialog
+      .locator('video')
+      .evaluate((video) => (video as HTMLVideoElement).src);
+    expect(decoderSrc).toMatch(/^blob:/);
+    expect(decoderSrc).not.toContain('/v1/content/');
 
     const initial = await canvasSample(canvas);
+    expect(await canvas.getAttribute('aria-label')).toBe('00:00.000');
     expect(initial.width / initial.height).toBeCloseTo(9 / 16, 3);
     expect(initial.cssWidth / initial.cssHeight).toBeCloseTo(9 / 16, 1);
     expect(initial.pixel[0]).toBeGreaterThan(initial.pixel[1]);
     expect(initial.pixel[0]).toBeGreaterThan(initial.pixel[2]);
 
-    await scrubber.evaluate((element) => {
+    const pixelDuringDebounce = await scrubber.evaluate((element) => {
       const input = element as HTMLInputElement;
+      const preview = input.closest('[role="dialog"]')?.querySelector('canvas');
+      if (!(preview instanceof HTMLCanvasElement))
+        throw new Error('frame preview canvas unavailable');
+      const context = preview.getContext('2d');
+      if (!context) throw new Error('frame preview context unavailable');
+
       input.value = '1250';
       input.dispatchEvent(new Event('input', { bubbles: true }));
+      // This runs in the same task as the input handler, before its 75 ms
+      // debounce timer can seek or repaint the decoder canvas.
+      return Array.from(
+        context.getImageData(Math.floor(preview.width / 2), Math.floor(preview.height / 2), 1, 1)
+          .data,
+      );
     });
     // The seek is debounced, so the existing painted canvas must stay visible
     // rather than being cleared while the next decoded frame is pending.
-    expect((await canvasSample(canvas)).pixel).toEqual(initial.pixel);
+    expect(pixelDuringDebounce).toEqual(initial.pixel);
     await expect(addButton).toBeEnabled({ timeout: 8_000 });
 
     const middle = await canvasSample(canvas);
@@ -249,6 +326,7 @@ test.describe('Frame extraction (real media regression)', () => {
         source_output_id: SOURCE_ID,
         timestamps_ms: [0, 1250],
       });
+    expect(JSON.stringify(extractionRequest)).not.toContain('user_id');
     await expect(
       extractionDialog.getByRole('button', { name: 'Automatic: 00:00.000' }),
     ).toBeDisabled();
