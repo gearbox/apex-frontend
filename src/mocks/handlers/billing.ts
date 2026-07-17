@@ -54,6 +54,21 @@ export const billingHandlers = [
     ]),
   ),
 
+  http.get(`${BASE}/v1/billing/currencies`, () =>
+    HttpResponse.json([
+      {
+        ticker: 'USDTTRC20',
+        name: 'Tether',
+        network: 'TRX',
+        logo_url: null,
+      },
+    ]),
+  ),
+
+  http.get(`${BASE}/v1/billing/transactions`, () =>
+    HttpResponse.json({ items: [], limit: 20, has_more: false, next_cursor: null }),
+  ),
+
   http.post(`${BASE}/v1/billing/topup/stripe`, () =>
     HttpResponse.json(
       {
@@ -96,4 +111,24 @@ export const billingHandlers = [
       credentials_configured: true,
     });
   }),
+
+  http.get(`${BASE}/v1/admin/payments/currencies`, () =>
+    HttpResponse.json([
+      {
+        ticker: 'USDTTRC20',
+        provider: 'nowpayments',
+        is_available: true,
+        name: 'Tether',
+        network: 'TRX',
+        logo_key: null,
+        logo_source_url: null,
+        logo_synced_at: null,
+        last_seen_at: '2026-07-16T00:00:00Z',
+      },
+    ]),
+  ),
+
+  http.post(`${BASE}/v1/admin/payments/currencies/refresh`, () =>
+    HttpResponse.json([{ provider: 'nowpayments', upserted: 1, deactivated: 0 }], { status: 201 }),
+  ),
 ];

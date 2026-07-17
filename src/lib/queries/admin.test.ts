@@ -8,6 +8,9 @@ import {
   patchAdminUserMutationOptions,
   sendBroadcastMutationOptions,
   adminPaymentProvidersQueryOptions,
+  adminPaymentCurrenciesQueryOptions,
+  refreshAdminPaymentCurrenciesMutationOptions,
+  setAdminCurrencySuppressedMutationOptions,
   updatePaymentProviderMutationOptions,
 } from './admin';
 
@@ -91,6 +94,19 @@ describe('adminKeys', () => {
 
   it('generates paymentProviders key', () => {
     expect(adminKeys.paymentProviders()).toEqual(['admin', 'payment-providers']);
+  });
+
+  it('generates paymentCurrencies key', () => {
+    expect(adminKeys.paymentCurrencies()).toEqual(['admin', 'payment-currencies']);
+  });
+
+  it('uses provider and ticker in an individual currency-row key', () => {
+    expect(adminKeys.paymentCurrency('nowpayments', 'USDTTRC20')).toEqual([
+      'admin',
+      'payment-currencies',
+      'nowpayments',
+      'USDTTRC20',
+    ]);
   });
 });
 
@@ -183,6 +199,12 @@ describe('adminPaymentProvidersQueryOptions()', () => {
   });
 });
 
+describe('adminPaymentCurrenciesQueryOptions()', () => {
+  it('uses adminKeys.paymentCurrencies() as the queryKey', () => {
+    expect(adminPaymentCurrenciesQueryOptions().queryKey).toEqual(adminKeys.paymentCurrencies());
+  });
+});
+
 describe('updatePaymentProviderMutationOptions()', () => {
   it('onSuccess invalidates adminKeys.paymentProviders()', async () => {
     const queryClient = new QueryClient();
@@ -219,5 +241,46 @@ describe('updatePaymentProviderMutationOptions()', () => {
     await opts.mutationFn({ provider: 'stripe', body: { is_enabled: false } });
 
     expect(capturedBody).toEqual({ is_enabled: false });
+  });
+});
+
+describe('refreshAdminPaymentCurrenciesMutationOptions()', () => {
+  it('invalidates both admin and public currency catalogs on success', async () => {
+    const queryClient = new QueryClient();
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+    const opts = refreshAdminPaymentCurrenciesMutationOptions(queryClient);
+    await opts.onSuccess();
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: adminKeys.paymentCurrencies() });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['billing', 'currencies'] });
+  });
+});
+
+describe('setAdminCurrencySuppressedMutationOptions()', () => {
+  it('patches one exact row and updates/invalidate only catalog caches', async () => {
+    const queryClient = new QueryClient();
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+    const setQueryData = vi.spyOn(queryClient, 'setQueryData');
+    const opts = setAdminCurrencySuppressedMutationOptions(queryClient);
+    const row = {
+      ticker: 'USDTTRC20',
+      provider: 'nowpayments' as const,
+      is_available: true,
+      is_suppressed: true,
+      name: null,
+      network: null,
+      logo_key: null,
+      logo_source_url: null,
+      logo_synced_at: null,
+      last_seen_at: '2026-07-17T00:00:00Z',
+    };
+    await opts.onSuccess(row);
+
+    expect(setQueryData).toHaveBeenCalledWith(
+      adminKeys.paymentCurrency('nowpayments', 'USDTTRC20'),
+      row,
+    );
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: adminKeys.paymentCurrencies() });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['billing', 'currencies'] });
   });
 });

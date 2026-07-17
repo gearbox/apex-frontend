@@ -7,70 +7,95 @@ export type NowPaymentsInvoiceResponse = components['schemas']['NowPaymentsInvoi
 export type TopUpOptionsResponse = components['schemas']['TopUpOptionsResponse'];
 export type TopUpTierResponse = components['schemas']['TopUpTierResponse'];
 export type PublicPaymentProvider = components['schemas']['PublicPaymentProvider'];
+export type PublicCurrency = components['schemas']['PublicCurrency'];
+export type BalanceResponse = components['schemas']['BalanceResponse'];
+export type TransactionResponse = components['schemas']['TransactionResponse'];
+export type TransactionListResponse =
+  components['schemas']['CursorPage_src.api.schemas.billing.TransactionResponse_'];
+export type TopUpStripeRequest = components['schemas']['TopUpStripeRequest'];
+export type TopUpNowPaymentsRequest = components['schemas']['TopUpNowPaymentsRequest'];
+export type PricingRuleResponse = components['schemas']['PricingRuleResponse'];
 
-/** NowPayments `pay_currency` picker options — single source of truth. */
-export const PAY_CURRENCIES = [
-  { code: 'usdttrc20', label: 'USDT (TRC-20)' },
-  { code: 'usdc', label: 'USDC' },
-  { code: 'sol', label: 'SOL' },
-  { code: 'ton', label: 'GRAM (TON)' },
-  { code: 'eth', label: 'ETH' },
-] as const;
-
-/**
- * Fetch tiered top-up bounds and discount schedule.
- */
+/** Fetch tiered top-up bounds and discount schedule. */
 export async function fetchTopUpOptions(): Promise<TopUpOptionsResponse> {
-  const { data, error } = await apiClient.GET('/v1/billing/topup/options');
-  if (error || !data) throwApiError(error, 'Failed to fetch top-up options');
+  const { data, error, response } = await apiClient.GET('/v1/billing/topup/options');
+  const status = response.status;
+  if (error || !data) throwApiError(error, 'Failed to fetch top-up options', status);
   return data;
 }
 
-/**
- * Fetch the public, runtime-aware list of enabled payment providers, ordered by display_order.
- */
+/** Fetch runtime-enabled payment providers in their configured display order. */
 export async function fetchPaymentProviders(): Promise<PublicPaymentProvider[]> {
-  const { data, error } = await apiClient.GET('/v1/billing/providers');
-  if (error || !data) throwApiError(error, 'Failed to fetch payment providers');
+  const { data, error, response } = await apiClient.GET('/v1/billing/providers');
+  const status = response.status;
+  if (error || !data) throwApiError(error, 'Failed to fetch payment providers', status);
+  return [...data].sort((a, b) => a.display_order - b.display_order);
+}
+
+/** Fetch the optional NowPayments currency catalog. An empty list is a valid degraded mode. */
+export async function fetchPaymentCurrencies(): Promise<PublicCurrency[]> {
+  const { data, error, response } = await apiClient.GET('/v1/billing/currencies');
+  const status = response.status;
+  if (error || !data) throwApiError(error, 'Failed to fetch payment currencies', status);
   return data;
 }
 
-/**
- * Initiate a Stripe checkout session for token top-up.
- * Returns a checkout URL to redirect the user to.
- */
+export async function fetchBillingBalance(): Promise<BalanceResponse> {
+  const { data, error, response } = await apiClient.GET('/v1/billing/balance');
+  const status = response.status;
+  if (error || !data) throwApiError(error, 'Failed to fetch billing balance', status);
+  return data;
+}
+
+export async function fetchBillingTransactions(
+  params: { limit?: number; type?: string; cursor?: string } = {},
+): Promise<TransactionListResponse> {
+  const { data, error, response } = await apiClient.GET('/v1/billing/transactions', {
+    params: { query: params },
+  });
+  const status = response.status;
+  if (error || !data) throwApiError(error, 'Failed to fetch billing transactions', status);
+  return data;
+}
+
+export async function fetchBillingPricing(): Promise<PricingRuleResponse[]> {
+  const { data, error, response } = await apiClient.GET('/v1/billing/pricing');
+  const status = response.status;
+  if (error || !data) throwApiError(error, 'Failed to fetch billing pricing', status);
+  return data;
+}
+
+/** Initiate a Stripe checkout session for a stable user intent. */
 export async function topUpStripe(
-  body: { amount_usd: number },
+  body: TopUpStripeRequest,
   idempotencyKey: string,
 ): Promise<StripeCheckoutResponse> {
-  const { data, error } = await apiClient.POST('/v1/billing/topup/stripe', {
+  const { data, error, response } = await apiClient.POST('/v1/billing/topup/stripe', {
     body,
     params: { header: { 'Idempotency-Key': idempotencyKey } },
   });
-  if (error || !data) throwApiError(error, 'Failed to initiate Stripe checkout');
-  return data as StripeCheckoutResponse;
+  const status = response.status;
+  if (error || !data)
+    throwApiError(error, 'Failed to initiate Stripe checkout', status, response.headers);
+  return data;
 }
 
-/**
- * Initiate a NowPayments crypto invoice for token top-up.
- * Returns an invoice URL to redirect the user to.
- */
+/** Initiate a NowPayments invoice. `pay_currency` is intentionally optional. */
 export async function topUpNowPayments(
-  body: { amount_usd: number; pay_currency: string },
+  body: TopUpNowPaymentsRequest,
   idempotencyKey: string,
 ): Promise<NowPaymentsInvoiceResponse> {
-  const { data, error } = await apiClient.POST('/v1/billing/topup/nowpayments', {
+  const { data, error, response } = await apiClient.POST('/v1/billing/topup/nowpayments', {
     body,
     params: { header: { 'Idempotency-Key': idempotencyKey } },
   });
-  if (error || !data) throwApiError(error, 'Failed to initiate crypto payment');
-  return data as NowPaymentsInvoiceResponse;
+  const status = response.status;
+  if (error || !data)
+    throwApiError(error, 'Failed to initiate crypto payment', status, response.headers);
+  return data;
 }
 
-/**
- * Resolve the highest tier whose threshold_usd <= amountUsd, or null when none qualify.
- * Mirrors the backend's tier resolution in src/core/topup_pricing.py.
- */
+/** Resolve the highest tier whose threshold_usd <= amountUsd, or null when none qualify. */
 export function resolveTier(
   tiers: TopUpTierResponse[],
   amountUsd: number,
@@ -84,9 +109,7 @@ export function resolveTier(
   return resolved;
 }
 
-/**
- * Client-side pricing preview only — the backend is authoritative for the actual charge.
- */
+/** Client-side pricing preview only — the backend remains authoritative. */
 export function computeSummary(
   options: TopUpOptionsResponse,
   amountUsd: number,

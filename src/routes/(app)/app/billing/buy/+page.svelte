@@ -2,5 +2,5 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
 
-  onMount(() => goto('/app/billing', { replaceState: true }));
+  onMount(() => goto('/app/billing?tab=buy', { replaceState: true }));
 </script>

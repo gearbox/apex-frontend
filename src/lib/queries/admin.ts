@@ -1,5 +1,6 @@
 import { keepPreviousData, type QueryClient } from '@tanstack/svelte-query';
 import { generateIdempotencyKey } from '$lib/utils/idempotency';
+import { billingKeys } from '$lib/queries/billing';
 import {
   fetchAdminUsers,
   fetchAdminOrgs,
@@ -24,12 +25,17 @@ import {
   fetchHealth,
   fetchHealthHistory,
   fetchPaymentProviderRegistry,
+  fetchAdminCurrencyCatalog,
+  refreshAdminCurrencyCatalog,
+  setAdminCurrencySuppressed,
   updatePaymentProvider,
   type AuditLogPage,
   type CreatePricingRuleRequest,
   type PatchPricingRuleRequest,
   type BroadcastRequest,
   type PatchAdminUserBody,
+  type PaymentProviderPatchRequest,
+  type CurrencySuppressPatchRequest,
 } from '$lib/api/admin';
 
 /* ─── Query Key Factory ─── */
@@ -49,6 +55,9 @@ export const adminKeys = {
   health: () => ['admin', 'health'] as const,
   healthHistory: (p?: object) => ['admin', 'health', 'history', p ?? {}] as const,
   paymentProviders: () => ['admin', 'payment-providers'] as const,
+  paymentCurrencies: () => ['admin', 'payment-currencies'] as const,
+  paymentCurrency: (provider: string, ticker: string) =>
+    ['admin', 'payment-currencies', provider, ticker] as const,
 };
 
 /* ─── Query Options ─── */
@@ -323,17 +332,60 @@ export function adminPaymentProvidersQueryOptions() {
   };
 }
 
+export function adminPaymentCurrenciesQueryOptions() {
+  return {
+    queryKey: adminKeys.paymentCurrencies(),
+    queryFn: fetchAdminCurrencyCatalog,
+    staleTime: 30_000,
+    refetchOnWindowFocus: true,
+  };
+}
+
 export function updatePaymentProviderMutationOptions(queryClient: QueryClient) {
+  return {
+    mutationFn: ({ provider, body }: { provider: string; body: PaymentProviderPatchRequest }) =>
+      updatePaymentProvider(provider, body),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: adminKeys.paymentProviders() }),
+  };
+}
+
+export function refreshAdminPaymentCurrenciesMutationOptions(queryClient: QueryClient) {
+  return {
+    mutationFn: refreshAdminCurrencyCatalog,
+    retry: false,
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: adminKeys.paymentCurrencies() }),
+        queryClient.invalidateQueries({ queryKey: billingKeys.currencies() }),
+      ]),
+  };
+}
+
+export function setAdminCurrencySuppressedMutationOptions(queryClient: QueryClient) {
   return {
     mutationFn: ({
       provider,
-      body,
+      ticker,
+      isSuppressed,
     }: {
       provider: string;
-      body: { is_enabled?: boolean | null; display_order?: number | null };
-    }) => updatePaymentProvider(provider, body),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: adminKeys.paymentProviders() });
+      ticker: string;
+      isSuppressed: boolean;
+    }) =>
+      setAdminCurrencySuppressed(provider, ticker, {
+        is_suppressed: isSuppressed,
+      } satisfies CurrencySuppressPatchRequest),
+    onSuccess: (row: Awaited<ReturnType<typeof setAdminCurrencySuppressed>>) => {
+      queryClient.setQueryData(adminKeys.paymentCurrency(String(row.provider), row.ticker), row);
+      queryClient.setQueryData(adminKeys.paymentCurrencies(), (rows: (typeof row)[] | undefined) =>
+        rows?.map((current) =>
+          current.provider === row.provider && current.ticker === row.ticker ? row : current,
+        ),
+      );
+      return Promise.all([
+        queryClient.invalidateQueries({ queryKey: adminKeys.paymentCurrencies() }),
+        queryClient.invalidateQueries({ queryKey: billingKeys.currencies() }),
+      ]);
     },
   };
 }

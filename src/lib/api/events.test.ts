@@ -6,6 +6,7 @@ import {
   isSystemNotificationPayload,
   isGpuSessionStatusPayload,
   SSE_EVENTS,
+  KNOWN_TRANSACTION_TYPES,
 } from './events';
 
 describe('SSE_EVENTS', () => {
@@ -63,8 +64,8 @@ describe('isJobProgressPayload()', () => {
   });
 });
 
-describe('isBalanceUpdatedPayload()', () => {
-  it('returns true for valid payload', () => {
+describe('isBalanceUpdatedPayload', () => {
+  it('returns true for existing valid transaction events', () => {
     expect(
       isBalanceUpdatedPayload({
         account_id: 'acc1',
@@ -75,15 +76,53 @@ describe('isBalanceUpdatedPayload()', () => {
     ).toBe(true);
   });
 
-  it('returns false when missing required fields', () => {
+  it('accepts top-up settlement events', () => {
+    expect(
+      isBalanceUpdatedPayload({
+        account_id: 'account-1',
+        balance: 500,
+        delta: 100,
+        transaction_type: 'topup',
+      }),
+    ).toBe(true);
+  });
+
+  it('accepts unknown/future transaction types — the enum is open', () => {
+    // The FE contract treats backend string enums as open (same rule as the
+    // provider list): a type the FE doesn't recognize yet must still pass
+    // shape validation so the balance keeps updating.
+    expect(
+      isBalanceUpdatedPayload({
+        account_id: 'a',
+        balance: 1,
+        delta: 1,
+        transaction_type: 'future_bonus_type',
+      }),
+    ).toBe(true);
+  });
+
+  it('rejects malformed payloads (missing fields or non-string transaction_type)', () => {
     expect(isBalanceUpdatedPayload({ account_id: 'acc1', balance: 100 })).toBe(false);
     expect(isBalanceUpdatedPayload({ balance: 100, delta: -5 })).toBe(false);
     expect(isBalanceUpdatedPayload({ account_id: 'acc1', delta: -5 })).toBe(false);
-  });
-
-  it('returns false for non-object values', () => {
+    expect(isBalanceUpdatedPayload({ account_id: 'a', balance: 1, delta: 1 })).toBe(false);
+    expect(
+      isBalanceUpdatedPayload({ account_id: 'a', balance: 1, delta: 1, transaction_type: 42 }),
+    ).toBe(false);
     expect(isBalanceUpdatedPayload(null)).toBe(false);
     expect(isBalanceUpdatedPayload([])).toBe(false);
+  });
+});
+
+describe('KNOWN_TRANSACTION_TYPES', () => {
+  it('lists the backend transaction types the FE branches on', () => {
+    expect(Object.values(KNOWN_TRANSACTION_TYPES)).toEqual([
+      'debit',
+      'credit',
+      'refund',
+      'admin_adjustment',
+      'topup',
+    ]);
   });
 });
 

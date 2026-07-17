@@ -9,6 +9,7 @@
   import { addToast } from '$lib/stores/toasts';
   import { ApiRequestError } from '$lib/api/errors';
   import type { PaymentProviderInfo } from '$lib/api/admin';
+  import AdminCurrencyCatalog from './AdminCurrencyCatalog.svelte';
 
   const queryClient = useQueryClient();
   const providersQuery = createQuery(() => adminPaymentProvidersQueryOptions());
@@ -45,22 +46,60 @@
     );
   }
 
-  function move(index: number, direction: -1 | 1) {
+  async function move(index: number, direction: -1 | 1): Promise<void> {
     const list = sortedProviders;
     const current = list[index];
     const other = list[index + direction];
     if (!current || !other) return;
 
-    withPending([current.provider, other.provider], async () => {
+    const affectedProviders: string[] = [current.provider, other.provider];
+    pendingProviders = new Set([...pendingProviders, ...affectedProviders]);
+    let firstWriteSucceeded = false;
+    let rollbackFailed = false;
+    try {
       await updateMutation.mutateAsync({
         provider: current.provider,
         body: { display_order: other.display_order },
       });
+      firstWriteSucceeded = true;
       await updateMutation.mutateAsync({
         provider: other.provider,
         body: { display_order: current.display_order },
       });
-    });
+    } catch (error) {
+      if (firstWriteSucceeded) {
+        try {
+          await updateMutation.mutateAsync({
+            provider: current.provider,
+            body: { display_order: current.display_order },
+          });
+        } catch {
+          rollbackFailed = true;
+        }
+      }
+      const fallback = rollbackFailed
+        ? 'Provider ordering may require manual verification.'
+        : 'Provider ordering could not be updated.';
+      addToast({
+        type: 'error',
+        message: error instanceof ApiRequestError ? `${fallback} ${error.message}` : fallback,
+      });
+    } finally {
+      // A two-request swap is never safe to leave optimistically displayed.
+      try {
+        await providersQuery.refetch();
+      } catch {
+        addToast({
+          type: 'error',
+          message:
+            'Could not verify the final provider order. Please refresh and verify it manually.',
+        });
+      } finally {
+        pendingProviders = new Set(
+          [...pendingProviders].filter((provider) => !affectedProviders.includes(provider)),
+        );
+      }
+    }
   }
 </script>
 
@@ -89,7 +128,7 @@
       class="action-btn"
       aria-label="Move {providerLabel(item.provider)} up"
       disabled={index === 0 || pendingProviders.has(item.provider)}
-      onclick={() => move(index, -1)}
+      onclick={() => void move(index, -1)}
     >
       <ChevronUp size={14} />
     </button>
@@ -97,7 +136,7 @@
       class="action-btn"
       aria-label="Move {providerLabel(item.provider)} down"
       disabled={index === sortedProviders.length - 1 || pendingProviders.has(item.provider)}
-      onclick={() => move(index, 1)}
+      onclick={() => void move(index, 1)}
     >
       <ChevronDown size={14} />
     </button>
@@ -173,6 +212,8 @@
     </div>
   {/if}
 </div>
+
+<AdminCurrencyCatalog />
 
 <style>
   .tab-content {

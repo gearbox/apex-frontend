@@ -8,6 +8,8 @@ import {
   topUpNowPayments,
   fetchTopUpOptions,
   fetchPaymentProviders,
+  fetchPaymentCurrencies,
+  fetchBillingTransactions,
   resolveTier,
   computeSummary,
   type TopUpTierResponse,
@@ -48,11 +50,11 @@ describe('fetchTopUpOptions()', () => {
 });
 
 describe('fetchPaymentProviders()', () => {
-  it('returns the ordered provider list', async () => {
+  it('sorts a copied provider list by display_order', async () => {
     server.use(
       http.get(`${BASE}/v1/billing/providers`, () =>
         HttpResponse.json([
-          { provider: 'stripe', display_order: 0 },
+          { provider: 'stripe', display_order: 2 },
           { provider: 'nowpayments', display_order: 1 },
         ]),
       ),
@@ -60,7 +62,45 @@ describe('fetchPaymentProviders()', () => {
 
     const result = await fetchPaymentProviders();
     expect(result).toHaveLength(2);
-    expect(result[0].provider).toBe('stripe');
+    expect(result[0].provider).toBe('nowpayments');
+  });
+});
+
+describe('fetchPaymentCurrencies()', () => {
+  it('calls the public currency catalog endpoint', async () => {
+    server.use(
+      http.get(`${BASE}/v1/billing/currencies`, () =>
+        HttpResponse.json([
+          { ticker: 'USDTTRC20', name: 'Tether', network: 'TRX', logo_url: null },
+        ]),
+      ),
+    );
+
+    await expect(fetchPaymentCurrencies()).resolves.toEqual([
+      { ticker: 'USDTTRC20', name: 'Tether', network: 'TRX', logo_url: null },
+    ]);
+  });
+});
+
+describe('fetchBillingTransactions()', () => {
+  it('passes opaque cursors without an offset or total assumption', async () => {
+    let capturedUrl = '';
+    server.use(
+      http.get(`${BASE}/v1/billing/transactions`, ({ request }) => {
+        capturedUrl = request.url;
+        return HttpResponse.json({
+          items: [],
+          limit: 20,
+          has_more: true,
+          next_cursor: 'next:opaque',
+        });
+      }),
+    );
+
+    const page = await fetchBillingTransactions({ limit: 20, cursor: 'cursor:opaque' });
+    expect(capturedUrl).toContain('cursor=cursor%3Aopaque');
+    expect(capturedUrl).not.toContain('offset');
+    expect(page.next_cursor).toBe('next:opaque');
   });
 });
 
@@ -100,7 +140,10 @@ describe('topUpStripe()', () => {
       ),
     );
 
-    await expect(topUpStripe({ amount_usd: 50 }, 'duplicate-key')).rejects.toThrow('Key in use');
+    await expect(topUpStripe({ amount_usd: 50 }, 'duplicate-key')).rejects.toMatchObject({
+      message: 'Key in use',
+      retry_after_seconds: 1,
+    });
   });
 
   it('throws ApiRequestError with payment_provider_disabled code on 409', async () => {
@@ -116,12 +159,27 @@ describe('topUpStripe()', () => {
     await expect(topUpStripe({ amount_usd: 50 }, 'key-1')).rejects.toMatchObject({
       error: 'payment_provider_disabled',
       detail: { provider: 'stripe' },
+      status_code: 409,
+    });
+  });
+
+  it('preserves detail-only validation errors and their HTTP status', async () => {
+    server.use(
+      http.post(`${BASE}/v1/billing/topup/stripe`, () =>
+        HttpResponse.json({ detail: 'Amount must be between 5 and 1000' }, { status: 400 }),
+      ),
+    );
+
+    await expect(topUpStripe({ amount_usd: 1 }, 'invalid-amount')).rejects.toMatchObject({
+      status_code: 400,
+      message: 'Amount must be between 5 and 1000',
+      detail: 'Amount must be between 5 and 1000',
     });
   });
 });
 
 describe('topUpNowPayments()', () => {
-  it('sends Idempotency-Key header and amount_usd/pay_currency body, returns invoice response', async () => {
+  it('sends an exact catalog ticker without extra fields, returns invoice response', async () => {
     let capturedIdempotencyKey: string | null = null;
     let capturedBody: unknown = null;
 
@@ -137,12 +195,46 @@ describe('topUpNowPayments()', () => {
     );
 
     const result = await topUpNowPayments(
-      { amount_usd: 50, pay_currency: 'usdttrc20' },
+      { amount_usd: 50, pay_currency: 'USDTTRC20' },
       'test-idem-key-456',
     );
     expect(capturedIdempotencyKey).toBe('test-idem-key-456');
-    expect(capturedBody).toEqual({ amount_usd: 50, pay_currency: 'usdttrc20' });
+    expect(capturedBody).toEqual({ amount_usd: 50, pay_currency: 'USDTTRC20' });
     expect(result).toHaveProperty('invoice_url');
+  });
+
+  it('omits pay_currency when the user chooses it on the hosted payment page', async () => {
+    let capturedBody: unknown = null;
+    server.use(
+      http.post(`${BASE}/v1/billing/topup/nowpayments`, async ({ request }) => {
+        capturedBody = await request.json();
+        return HttpResponse.json(
+          { invoice_url: 'https://nowpayments.io/test', payment_id: 'pay_003' },
+          { status: 201 },
+        );
+      }),
+    );
+
+    await topUpNowPayments({ amount_usd: 50 }, 'test-idem-key-789');
+    expect(capturedBody).toEqual({ amount_usd: 50 });
+  });
+
+  it('preserves the compact suppression error and HTTP status', async () => {
+    server.use(
+      http.post(`${BASE}/v1/billing/topup/nowpayments`, () =>
+        HttpResponse.json(
+          { code: 'pay_currency_suppressed', pay_currency: 'USDTTRC20' },
+          { status: 400 },
+        ),
+      ),
+    );
+    await expect(
+      topUpNowPayments({ amount_usd: 50, pay_currency: 'USDTTRC20' }, 'suppressed-key'),
+    ).rejects.toMatchObject({
+      error: 'pay_currency_suppressed',
+      status_code: 400,
+      pay_currency: 'USDTTRC20',
+    });
   });
 });
 

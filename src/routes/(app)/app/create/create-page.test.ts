@@ -50,7 +50,7 @@ vi.mock('@tanstack/svelte-query', () => ({
         isPending: providersData === undefined,
       };
     }
-    if (key === 'balance') {
+    if (key === 'balance' || (key === 'billing' && queryKey[1] === 'balance')) {
       return { data: { balance: 100 }, isLoading: false };
     }
     // pricing / sessions default to an empty resolved list

@@ -16,8 +16,12 @@ import { generationStore } from '$lib/stores/generation';
 import { addToast } from '$lib/stores/toasts';
 import { pushNudge } from '$lib/stores/pushNudge.svelte';
 import { jobKeys } from '$lib/queries/jobs';
+import { billingKeys } from '$lib/queries/billing';
+import { getPendingPaymentScope, reconcilePendingPayments } from '$lib/stores/pendingPayments';
+import { fetchPendingPaymentTransactions } from './pendingPaymentReconciliation';
 import {
   SSE_EVENTS,
+  KNOWN_TRANSACTION_TYPES,
   isJobStatusPayload,
   isJobProgressPayload,
   isBalanceUpdatedPayload,
@@ -48,6 +52,8 @@ export class EventStreamService {
   private consecutiveFailures = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private fallbackRetryTimer: ReturnType<typeof setTimeout> | null = null;
+  private reconciliationRun: Promise<void> | null = null;
+  private reconciliationQueued = false;
   private disposed = false;
 
   constructor(options: EventStreamServiceOptions) {
@@ -228,7 +234,7 @@ export class EventStreamService {
       this.queryClient.invalidateQueries({ queryKey: ['gallery'] });
       // Safety invalidation with small delay in case balance.updated event is lost
       setTimeout(() => {
-        this.queryClient.invalidateQueries({ queryKey: ['balance'] });
+        this.queryClient.invalidateQueries({ queryKey: billingKeys.balance() });
       }, 2000);
     }
   }
@@ -262,7 +268,7 @@ export class EventStreamService {
 
   private processBalanceUpdated(payload: BalanceUpdatedPayload): void {
     // Optimistically update the balance cache
-    this.queryClient.setQueryData(['balance'], (old: unknown) => {
+    this.queryClient.setQueryData(billingKeys.balance(), (old: unknown) => {
       if (old && typeof old === 'object' && 'balance' in old) {
         return { ...old, balance: payload.balance };
       }
@@ -270,14 +276,22 @@ export class EventStreamService {
     });
 
     // Invalidate transactions list so next view is fresh
-    this.queryClient.invalidateQueries({ queryKey: ['transactions'] });
+    this.queryClient.invalidateQueries({ queryKey: billingKeys.transactionsRoot() });
 
-    // Show toast for credits/refunds (not debits — those are expected during generation)
-    if (payload.delta > 0) {
+    // Show toast for credits/refunds (not debits — those are expected during generation).
+    // Unknown/future transaction types update the balance silently — no toast, no
+    // reconciliation — rather than being guessed at.
+    const isKnownType = (Object.values(KNOWN_TRANSACTION_TYPES) as string[]).includes(
+      payload.transaction_type,
+    );
+
+    if (payload.delta > 0 && isKnownType) {
       const message =
-        payload.transaction_type === 'refund'
-          ? m.balance_toast_refund({ amount: payload.delta })
-          : m.balance_toast_credit({ amount: payload.delta });
+        payload.transaction_type === KNOWN_TRANSACTION_TYPES.TOPUP
+          ? m.billing_topup_credited()
+          : payload.transaction_type === KNOWN_TRANSACTION_TYPES.REFUND
+            ? m.balance_toast_refund({ amount: payload.delta })
+            : m.balance_toast_credit({ amount: payload.delta });
       addToast({
         type: 'success',
         message,
@@ -285,6 +299,38 @@ export class EventStreamService {
       });
       // Optimistically clear warnings — if top-up was insufficient the backend re-emits
       dismissAllCreditWarnings();
+    }
+
+    if (payload.transaction_type === KNOWN_TRANSACTION_TYPES.TOPUP) {
+      this.requestPendingPaymentReconciliation();
+    }
+  }
+
+  private requestPendingPaymentReconciliation(): void {
+    if (this.disposed) return;
+    if (this.reconciliationRun) {
+      this.reconciliationQueued = true;
+      return;
+    }
+
+    this.reconciliationRun = this.reconcilePendingPayments().finally(() => {
+      this.reconciliationRun = null;
+      if (!this.disposed && this.reconciliationQueued) {
+        this.reconciliationQueued = false;
+        this.requestPendingPaymentReconciliation();
+      }
+    });
+  }
+
+  private async reconcilePendingPayments(): Promise<void> {
+    const scope = getPendingPaymentScope();
+    if (this.disposed || !scope) return;
+
+    try {
+      const transactions = await fetchPendingPaymentTransactions(scope);
+      if (!this.disposed) reconcilePendingPayments(scope, transactions);
+    } catch {
+      // The balance event is still authoritative. A later poll/focus refresh retries matching.
     }
   }
 

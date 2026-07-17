@@ -33,8 +33,25 @@ export interface BalanceUpdatedPayload {
   account_id: string;
   balance: number;
   delta: number;
-  transaction_type: 'debit' | 'credit' | 'refund' | 'admin_adjustment';
+  transaction_type: string;
 }
+
+/**
+ * The backend's transaction_type enum is open — new values can ship without a
+ * FE release. Only reference this where behavior genuinely branches (toast
+ * copy, reconciliation triggers); unknown values must still update the
+ * balance silently rather than being rejected by the payload guard.
+ */
+export const KNOWN_TRANSACTION_TYPES = {
+  DEBIT: 'debit',
+  CREDIT: 'credit',
+  REFUND: 'refund',
+  ADMIN_ADJUSTMENT: 'admin_adjustment',
+  TOPUP: 'topup',
+} as const;
+
+export type KnownTransactionType =
+  (typeof KNOWN_TRANSACTION_TYPES)[keyof typeof KNOWN_TRANSACTION_TYPES];
 
 export type SystemNotificationLevel = 'info' | 'warning' | 'critical';
 
@@ -88,12 +105,13 @@ export function isJobProgressPayload(data: unknown): data is JobProgressPayload 
 }
 
 export function isBalanceUpdatedPayload(data: unknown): data is BalanceUpdatedPayload {
+  if (typeof data !== 'object' || data === null) return false;
+  const payload = data as Record<string, unknown>;
   return (
-    typeof data === 'object' &&
-    data !== null &&
-    'account_id' in data &&
-    'balance' in data &&
-    'delta' in data
+    typeof payload.account_id === 'string' &&
+    typeof payload.balance === 'number' &&
+    typeof payload.delta === 'number' &&
+    typeof payload.transaction_type === 'string'
   );
 }
 

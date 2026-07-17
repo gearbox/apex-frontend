@@ -254,7 +254,7 @@
         generationStore.setComplete(job);
         activeJobStore.clear();
         queryClient.invalidateQueries({ queryKey: ['gallery'] });
-        queryClient.invalidateQueries({ queryKey: ['balance'] });
+        queryClient.invalidateQueries({ queryKey: ['billing', 'balance'] });
       },
       onError: (err) => {
         const msg = err.message;

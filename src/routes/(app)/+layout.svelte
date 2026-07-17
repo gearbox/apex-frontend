@@ -18,6 +18,7 @@
   import { pushSubscription } from '$lib/stores/pushSubscription.svelte';
   import { pushNudgeLaunch } from '$lib/stores/pushNudgeLaunch';
   import { isStandalone } from '$lib/utils/platform';
+  import { startPendingPaymentsStorageListener } from '$lib/stores/pendingPayments';
 
   let { children }: { children: Snippet } = $props();
   let checking = $state(true);
@@ -26,8 +27,10 @@
   let eventStream: EventStreamService | null = null;
   let pushInitializedForUserId: string | undefined;
   let disposePushSubscription: (() => void) | undefined;
+  let stopPendingPaymentStorageListener: (() => void) | undefined;
 
   onMount(async () => {
+    stopPendingPaymentStorageListener = startPendingPaymentsStorageListener();
     await initAuth();
     checking = false;
   });
@@ -78,6 +81,8 @@
     eventStream = null;
     disposePushSubscription?.();
     disposePushSubscription = undefined;
+    stopPendingPaymentStorageListener?.();
+    stopPendingPaymentStorageListener = undefined;
     pushSubscription.reset();
     pushNudgeLaunch.reset();
   });
