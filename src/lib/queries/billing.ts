@@ -9,17 +9,27 @@ import {
   type TopUpNowPaymentsRequest,
   type TopUpStripeRequest,
 } from '$lib/api/billing';
+import { generateIdempotencyKey } from '$lib/utils/idempotency';
 
 /* ─── Query Key Factory ─── */
 
 export const billingKeys = {
   all: ['billing'] as const,
   balance: () => ['billing', 'balance'] as const,
+  transactionsRoot: () => ['billing', 'transactions'] as const,
   transactions: (params: { limit?: number; type?: string; cursor?: string } = {}) =>
-    ['billing', 'transactions', params] as const,
+    [...billingKeys.transactionsRoot(), params] as const,
   topupOptions: () => ['billing', 'topup-options'] as const,
   paymentProviders: () => ['billing', 'payment-providers'] as const,
   currencies: () => ['billing', 'currencies'] as const,
+};
+
+const focusAwareBillingQueryDefaults = {
+  refetchOnWindowFocus: true as const,
+};
+
+const noAutomaticMutationRetry = {
+  retry: false as const,
 };
 
 /* ─── Query Options ─── */
@@ -56,7 +66,7 @@ export function billingBalanceQueryOptions(refetchInterval: number | false = fal
     queryFn: fetchBillingBalance,
     staleTime: 30_000,
     refetchInterval,
-    refetchOnWindowFocus: true,
+    ...focusAwareBillingQueryDefaults,
   };
 }
 
@@ -69,7 +79,7 @@ export function billingTransactionsQueryOptions(
     queryFn: () => fetchBillingTransactions(params),
     staleTime: 60_000,
     refetchInterval,
-    refetchOnWindowFocus: true,
+    ...focusAwareBillingQueryDefaults,
   };
 }
 
@@ -85,11 +95,19 @@ export interface TopUpIntent<TBody> {
   body: TBody;
 }
 
+/** Create an idempotency-key/body snapshot only for a new deliberate Pay action. */
+export function createTopUpIntent<TBody>(
+  body: TBody,
+  idempotencyKey = generateIdempotencyKey(),
+): TopUpIntent<TBody> {
+  return { body, idempotencyKey };
+}
+
 export function topUpStripeMutationOptions() {
   return {
     mutationFn: (intent: TopUpIntent<TopUpStripeRequest>) =>
       topUpStripe(intent.body, intent.idempotencyKey),
-    retry: false,
+    ...noAutomaticMutationRetry,
   };
 }
 
@@ -97,6 +115,6 @@ export function topUpNowPaymentsMutationOptions() {
   return {
     mutationFn: (intent: TopUpIntent<TopUpNowPaymentsRequest>) =>
       topUpNowPayments(intent.body, intent.idempotencyKey),
-    retry: false,
+    ...noAutomaticMutationRetry,
   };
 }

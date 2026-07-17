@@ -1,5 +1,6 @@
 <script lang="ts">
   import { createQuery } from '@tanstack/svelte-query';
+  import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import * as m from '$paraglide/messages';
   import { formatNumber } from '$lib/utils/format';
@@ -15,27 +16,29 @@
     billingTransactionsQueryOptions,
   } from '$lib/queries/billing';
   import {
-    getPendingPayments,
     hasPaymentsAwaitingReconciliation,
+    markPendingPaymentCancelled,
     markPendingPaymentReturned,
+    reconcilePendingPayments,
+    pendingPaymentsRevision,
     type PendingPaymentScope,
   } from '$lib/stores/pendingPayments';
+  import { consumeStripeReturnPointer } from '$lib/stores/checkoutIntents';
+  import { getPaymentStorageScope } from '$lib/stores/paymentScope';
 
   const PAGE_SIZE = 20;
   const pager = new CursorPaginator();
-  let activeTab = $state<'overview' | 'buy' | 'history'>('overview');
-  let handledReturn = $state('');
+  type BillingTab = 'overview' | 'buy' | 'history';
 
-  const pendingScope = $derived<PendingPaymentScope | null>(
-    $currentUser
-      ? {
-          userId: $currentUser.id,
-          product: $productInfo?.product ?? window.location.host,
-        }
-      : null,
-  );
-  const pendingPaymentIds = $derived.by(() => {
-    return pendingScope ? getPendingPayments(pendingScope).map((record) => record.paymentId) : [];
+  const activeTab = $derived<BillingTab>(getTab($page.url.searchParams.get('tab')));
+  let handledReturn = $state('');
+  let exactReturnHandled = $state(false);
+
+  const pendingScope = $derived.by<PendingPaymentScope | null>(() => {
+    const scope = getPaymentStorageScope($currentUser, $productInfo);
+    // The revision is a monotonic local-storage change signal. Reading it here
+    // makes the reconciliation enablement refresh without a storage polling loop.
+    return $pendingPaymentsRevision >= 0 ? scope : null;
   });
   const hasRecentPendingPayments = $derived.by(() => {
     return pendingScope ? hasPaymentsAwaitingReconciliation(pendingScope) : false;
@@ -62,11 +65,23 @@
     staleTime: 60 * 60 * 1000,
   }));
   const transactionsQuery = createQuery(() =>
-    billingTransactionsQueryOptions(
-      { limit: PAGE_SIZE, ...pager.param },
-      transactionPollingInterval,
-    ),
+    billingTransactionsQueryOptions({ limit: PAGE_SIZE, ...pager.param }, false),
   );
+  const reconciliationQuery = createQuery(() => ({
+    ...billingTransactionsQueryOptions({ limit: 100, type: 'topup' }, transactionPollingInterval),
+    enabled: !$isSSEConnected && hasRecentPendingPayments && pendingScope !== null,
+  }));
+
+  function getTab(value: string | null): BillingTab {
+    return value === 'buy' || value === 'history' ? value : 'overview';
+  }
+
+  function selectTab(tab: BillingTab): void {
+    const url = new URL($page.url);
+    if (tab === 'overview') url.searchParams.delete('tab');
+    else url.searchParams.set('tab', tab);
+    void goto(`${url.pathname}${url.search}`, { replaceState: true, noScroll: true });
+  }
 
   $effect(() => {
     if (!returnOutcome || !pendingScope) return;
@@ -74,14 +89,17 @@
     if (handledReturn === key) return;
     handledReturn = key;
 
-    if (returnOutcome === 'success') {
-      // Stripe returns no payment metadata. Mark all current Stripe attempts as returned;
-      // settlement is still determined solely by a later transaction payment_id match.
-      for (const record of getPendingPayments(pendingScope)) {
-        if (record.provider === 'stripe')
-          markPendingPaymentReturned(pendingScope, record.paymentId);
-      }
-    }
+    const paymentId = consumeStripeReturnPointer(pendingScope);
+    if (!paymentId) return;
+    exactReturnHandled = true;
+    if (returnOutcome === 'success') markPendingPaymentReturned(pendingScope, paymentId);
+    else markPendingPaymentCancelled(pendingScope, paymentId);
+  });
+
+  $effect(() => {
+    const scope = pendingScope;
+    const transactions = reconciliationQuery.data?.items;
+    if (scope && transactions) reconcilePendingPayments(scope, transactions);
   });
 
   const costRows = $derived(
@@ -122,9 +140,7 @@
       class="mb-4 rounded-xl border border-accent-dim/30 bg-accent-glow p-3 text-sm text-text"
       role="status"
     >
-      {pendingPaymentIds.length > 0
-        ? m.billing_return_success()
-        : m.billing_return_success_generic()}
+      {exactReturnHandled ? m.billing_return_success() : m.billing_return_success_generic()}
     </div>
   {:else if returnOutcome === 'cancelled'}
     <div
@@ -138,7 +154,7 @@
   <div class="-mb-px mb-5 flex gap-1 overflow-x-auto border-b border-border">
     {#each [{ key: 'overview', label: 'Overview' }, { key: 'buy', label: 'Buy Tokens' }, { key: 'history', label: 'History' }] as tab (tab.key)}
       <button
-        onclick={() => (activeTab = tab.key as typeof activeTab)}
+        onclick={() => selectTab(tab.key as BillingTab)}
         class="whitespace-nowrap border-b-2 px-4 py-2 text-sm font-medium transition-all {activeTab ===
         tab.key
           ? 'border-accent font-semibold text-accent'

@@ -289,7 +289,7 @@ describe('EventStreamService — balance.updated dispatch', () => {
       expect.any(Function),
     );
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: ['billing', 'transactions', {}],
+      queryKey: ['billing', 'transactions'],
     });
 
     svc.dispose();

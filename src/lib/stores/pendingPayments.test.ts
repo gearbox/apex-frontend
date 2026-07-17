@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { get } from 'svelte/store';
 import {
   getPendingPayments,
   hasPaymentsAwaitingReconciliation,
+  markPendingPaymentCancelled,
+  pendingPaymentsRevision,
   reconcilePendingPayments,
   savePendingPayment,
   type PendingPaymentScope,
@@ -75,5 +78,91 @@ describe('pending payments', () => {
       lastCreditedBalance: 400,
     });
     expect(hasPaymentsAwaitingReconciliation(scope)).toBe(true);
+  });
+
+  it('selects the newest matching top-up regardless of transaction ordering', () => {
+    const save = () =>
+      savePendingPayment(scope, {
+        paymentId: 'pay-latest',
+        provider: 'nowpayments',
+        amountUsd: 25,
+        createdAt: new Date().toISOString(),
+        state: 'created',
+      });
+    const oldCredit = {
+      id: 'tx-old',
+      transaction_type: 'topup' as const,
+      amount: 50,
+      balance_after: 150,
+      description: null,
+      metadata: {},
+      job_id: null,
+      payment_id: 'pay-latest',
+      created_at: '2026-01-01T00:00:00Z',
+      created_by: null,
+    };
+    const latestCredit = {
+      ...oldCredit,
+      id: 'tx-latest',
+      balance_after: 200,
+      created_at: '2026-01-02T00:00:00Z',
+    };
+
+    save();
+    reconcilePendingPayments(scope, [latestCredit, oldCredit]);
+    expect(getPendingPayments(scope)[0]).toMatchObject({
+      lastCreditedBalance: 200,
+      lastCreditedTransactionId: 'tx-latest',
+    });
+
+    save();
+    reconcilePendingPayments(scope, [oldCredit, latestCredit]);
+    expect(getPendingPayments(scope)[0]).toMatchObject({
+      lastCreditedBalance: 200,
+      lastCreditedTransactionId: 'tx-latest',
+    });
+  });
+
+  it('does not bump the revision for an unchanged reconciliation pass', () => {
+    savePendingPayment(scope, {
+      paymentId: 'pay-unchanged',
+      provider: 'stripe',
+      amountUsd: 25,
+      createdAt: new Date().toISOString(),
+      state: 'created',
+    });
+    const revision = get(pendingPaymentsRevision);
+
+    reconcilePendingPayments(scope, []);
+
+    expect(get(pendingPaymentsRevision)).toBe(revision);
+  });
+
+  it('stops polling a cancelled record but permits an exact later credit', () => {
+    savePendingPayment(scope, {
+      paymentId: 'pay-cancelled',
+      provider: 'stripe',
+      amountUsd: 25,
+      createdAt: new Date().toISOString(),
+      state: 'created',
+    });
+    markPendingPaymentCancelled(scope, 'pay-cancelled');
+    expect(hasPaymentsAwaitingReconciliation(scope)).toBe(false);
+
+    reconcilePendingPayments(scope, [
+      {
+        id: 'tx-cancelled',
+        transaction_type: 'topup',
+        amount: 2500,
+        balance_after: 2500,
+        description: null,
+        metadata: {},
+        job_id: null,
+        payment_id: 'pay-cancelled',
+        created_at: '2026-01-03T00:00:00Z',
+        created_by: null,
+      },
+    ]);
+    expect(getPendingPayments(scope)[0].state).toBe('credited');
   });
 });

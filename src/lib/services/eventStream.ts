@@ -20,7 +20,7 @@ import { billingKeys } from '$lib/queries/billing';
 import { fetchBillingTransactions } from '$lib/api/billing';
 import {
   getPendingPaymentScope,
-  hasPaymentsAwaitingReconciliation,
+  getRecentPendingPaymentIds,
   reconcilePendingPayments,
 } from '$lib/stores/pendingPayments';
 import {
@@ -55,6 +55,8 @@ export class EventStreamService {
   private consecutiveFailures = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private fallbackRetryTimer: ReturnType<typeof setTimeout> | null = null;
+  private reconciliationRun: Promise<void> | null = null;
+  private reconciliationQueued = false;
   private disposed = false;
 
   constructor(options: EventStreamServiceOptions) {
@@ -277,7 +279,7 @@ export class EventStreamService {
     });
 
     // Invalidate transactions list so next view is fresh
-    this.queryClient.invalidateQueries({ queryKey: billingKeys.transactions() });
+    this.queryClient.invalidateQueries({ queryKey: billingKeys.transactionsRoot() });
 
     // Show toast for credits/refunds (not debits — those are expected during generation)
     if (payload.delta > 0) {
@@ -297,17 +299,45 @@ export class EventStreamService {
     }
 
     if (payload.transaction_type === 'topup') {
-      void this.reconcilePendingPayments();
+      this.requestPendingPaymentReconciliation();
     }
+  }
+
+  private requestPendingPaymentReconciliation(): void {
+    if (this.reconciliationRun) {
+      this.reconciliationQueued = true;
+      return;
+    }
+
+    this.reconciliationRun = this.reconcilePendingPayments().finally(() => {
+      this.reconciliationRun = null;
+      if (this.reconciliationQueued) {
+        this.reconciliationQueued = false;
+        this.requestPendingPaymentReconciliation();
+      }
+    });
   }
 
   private async reconcilePendingPayments(): Promise<void> {
     const scope = getPendingPaymentScope();
-    if (!scope || !hasPaymentsAwaitingReconciliation(scope)) return;
+    if (!scope || getRecentPendingPaymentIds(scope).length === 0) return;
 
     try {
-      const page = await fetchBillingTransactions({ limit: 100 });
-      reconcilePendingPayments(scope, page.items);
+      const unresolvedPaymentIds = new Set(getRecentPendingPaymentIds(scope));
+      let cursor: string | undefined;
+      const pages = [];
+      const MAX_RECONCILIATION_PAGES = 3;
+
+      for (let pageNumber = 0; pageNumber < MAX_RECONCILIATION_PAGES; pageNumber += 1) {
+        const page = await fetchBillingTransactions({ limit: 100, type: 'topup', cursor });
+        pages.push(...page.items);
+        for (const transaction of page.items) {
+          if (transaction.payment_id) unresolvedPaymentIds.delete(transaction.payment_id);
+        }
+        if (unresolvedPaymentIds.size === 0 || !page.has_more || !page.next_cursor) break;
+        cursor = page.next_cursor;
+      }
+      reconcilePendingPayments(scope, pages);
     } catch {
       // The balance event is still authoritative. A later poll/focus refresh retries matching.
     }

@@ -158,9 +158,19 @@ describe('TopUpPanel', () => {
     const input = screen.getByLabelText('Amount (USD)');
     await fireEvent.input(input, { target: { value: '50' } });
 
-    expect(screen.getByText(/you pay \$50\.00/i)).toBeTruthy();
+    expect(screen.getByText(/you pay \$45\.00/i)).toBeTruthy();
     expect(screen.getByText(/receive ◈5,000 tokens/i)).toBeTruthy();
     expect(screen.getByText(/tier discount: −10%/i)).toBeTruthy();
+  });
+
+  it('uses the lower qualifying tier between thresholds and the highest tier above them', async () => {
+    render(TopUpPanel);
+    const input = screen.getByLabelText('Amount (USD)');
+    await fireEvent.input(input, { target: { value: '40' } });
+    expect(screen.getByText(/you pay \$38\.00/i)).toBeTruthy();
+
+    await fireEvent.input(input, { target: { value: '100' } });
+    expect(screen.getByText(/you pay \$90\.00/i)).toBeTruthy();
   });
 
   it('sends amount_usd on Stripe click and redirects to the checkout url', async () => {
@@ -229,6 +239,70 @@ describe('TopUpPanel', () => {
         queryKey: ['billing', 'payment-providers'],
       });
     });
+  });
+
+  it('permanently clears a retry when the amount changes away and back', async () => {
+    stripeMutateAsync = vi
+      .fn()
+      .mockRejectedValue(
+        new ApiRequestError({ error: 'network_error', message: 'Offline', status_code: 0 }),
+      );
+    render(TopUpPanel);
+    const input = screen.getByLabelText('Amount (USD)');
+    await fireEvent.input(input, { target: { value: '50' } });
+    await fireEvent.click(screen.getByRole('button', { name: /pay with stripe/i }));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /retry payment/i })).toBeTruthy(),
+    );
+
+    await fireEvent.input(input, { target: { value: '25' } });
+    expect(screen.queryByRole('button', { name: /retry/i })).toBeNull();
+    await fireEvent.input(input, { target: { value: '50' } });
+    expect(screen.queryByRole('button', { name: /retry/i })).toBeNull();
+  });
+
+  it('clears a retry immediately when the selected currency changes', async () => {
+    currenciesData = [{ ticker: 'USDTTRC20', name: 'Tether', network: 'TRX', logo_url: null }];
+    nowPaymentsMutateAsync = vi
+      .fn()
+      .mockRejectedValue(
+        new ApiRequestError({ error: 'network_error', message: 'Offline', status_code: 0 }),
+      );
+    render(TopUpPanel);
+    const input = screen.getByLabelText('Amount (USD)');
+    await fireEvent.input(input, { target: { value: '50' } });
+    await fireEvent.click(screen.getByRole('button', { name: /pay with crypto/i }));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /retry payment/i })).toBeTruthy(),
+    );
+
+    await fireEvent.click(screen.getByRole('radio', { name: /tether/i }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: /retry/i })).toBeNull());
+  });
+
+  it('treats another normal Pay click as a new intent instead of a retry', async () => {
+    stripeMutateAsync = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new ApiRequestError({ error: 'network_error', message: 'Offline', status_code: 0 }),
+      )
+      .mockResolvedValueOnce({
+        checkout_url: 'https://checkout.stripe.com/new',
+        session_id: 'sess_new',
+        payment_id: 'pay_new',
+      });
+    render(TopUpPanel);
+    const input = screen.getByLabelText('Amount (USD)');
+    await fireEvent.input(input, { target: { value: '50' } });
+    await fireEvent.click(screen.getByRole('button', { name: /pay with stripe/i }));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /retry payment/i })).toBeTruthy(),
+    );
+    const firstIntent = stripeMutateAsync.mock.calls[0][0];
+
+    await fireEvent.click(screen.getByRole('button', { name: /pay with stripe/i }));
+    await waitFor(() => expect(stripeMutateAsync).toHaveBeenCalledTimes(2));
+    expect(stripeMutateAsync.mock.calls[1][0].idempotencyKey).not.toBe(firstIntent.idempotencyKey);
   });
 
   it('renders an unavailable state when the providers list is empty', () => {

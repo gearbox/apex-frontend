@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { QueryClient } from '@tanstack/svelte-query';
 import { http, HttpResponse } from 'msw';
 import { server } from '../../mocks/server';
 import { setAuth } from '$lib/stores/auth';
@@ -10,6 +11,7 @@ import {
   paymentCurrenciesQueryOptions,
   topUpStripeMutationOptions,
   topUpNowPaymentsMutationOptions,
+  createTopUpIntent,
 } from './billing';
 
 const BASE = 'http://localhost:8000';
@@ -37,6 +39,26 @@ describe('billingKeys', () => {
   it('keeps payment providers and currencies under billing', () => {
     expect(billingKeys.paymentProviders()).toEqual(['billing', 'payment-providers']);
     expect(billingKeys.currencies()).toEqual(['billing', 'currencies']);
+  });
+
+  it('invalidates every parameterized transaction page from the explicit root', async () => {
+    const queryClient = new QueryClient();
+    const first = billingKeys.transactions({ type: 'topup', cursor: 'first' });
+    const second = billingKeys.transactions({ cursor: 'second' });
+    queryClient.setQueryData(first, { items: [] });
+    queryClient.setQueryData(second, { items: [] });
+
+    await queryClient.invalidateQueries({ queryKey: billingKeys.transactionsRoot() });
+
+    expect(queryClient.getQueryState(first)?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryState(second)?.isInvalidated).toBe(true);
+  });
+});
+
+describe('createTopUpIntent()', () => {
+  it('keeps the caller-provided key and exact body together', () => {
+    const body = { amount_usd: 25, pay_currency: 'USDTTRC20' };
+    expect(createTopUpIntent(body, 'same-intent')).toEqual({ body, idempotencyKey: 'same-intent' });
   });
 });
 

@@ -23,10 +23,13 @@
   }
 
   async function refresh(): Promise<void> {
+    if (refreshMutation.isPending) return;
     refreshError = '';
+    syncResults = null;
     try {
       syncResults = await refreshMutation.mutateAsync();
     } catch (error) {
+      syncResults = null;
       const detail = error instanceof ApiRequestError ? error.message : '';
       refreshError = detail
         ? `${m.admin_currency_refresh_failed()} ${detail}`

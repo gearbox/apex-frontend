@@ -28,6 +28,20 @@ describe('PaymentCurrencyPicker', () => {
     expect(other.checked).toBe(true);
   });
 
+  it('tries a refreshed logo URL for the same ticker after an earlier URL failed', async () => {
+    const { rerender } = render(PaymentCurrencyPicker, { currencies });
+    await fireEvent.error(screen.getByAltText('Tether logo'));
+    expect(screen.queryByAltText('Tether logo')).toBeNull();
+
+    await rerender({
+      currencies: [
+        { ...currencies[0], logo_url: 'https://assets.test/usdt-refreshed.svg' },
+        currencies[1],
+      ],
+    });
+    expect(screen.getByAltText('Tether logo')).toBeTruthy();
+  });
+
   it('renders nothing when the catalog is empty', () => {
     render(PaymentCurrencyPicker, { currencies: [] });
     expect(screen.queryByRole('radiogroup')).toBeNull();

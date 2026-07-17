@@ -15,13 +15,63 @@ export interface ApiError {
 }
 
 export function isApiError(value: unknown): value is ApiError {
+  if (typeof value !== 'object' || value === null) return false;
+  const error = value as Record<string, unknown>;
   return (
-    typeof value === 'object' &&
-    value !== null &&
-    'error' in value &&
-    'message' in value &&
-    'status_code' in value
+    typeof error.error === 'string' &&
+    typeof error.message === 'string' &&
+    typeof error.status_code === 'number'
   );
+}
+
+function isKnownStatus(status: number): boolean {
+  return Number.isFinite(status) && status > 0;
+}
+
+function fallbackMessage(status: number): string {
+  return `Request failed (${status})`;
+}
+
+/** Normalize every object-shaped backend error body in one place. */
+export function parseObjectApiError(value: Record<string, unknown>, status: number): ApiError {
+  if (
+    !('code' in value) &&
+    !('error' in value) &&
+    !('message' in value) &&
+    !('detail' in value) &&
+    !('status_code' in value) &&
+    !('extra' in value) &&
+    !('provider' in value)
+  ) {
+    return { error: 'unknown_error', message: fallbackMessage(status), status_code: status };
+  }
+  const provider = typeof value.provider === 'string' ? value.provider : undefined;
+  const code =
+    typeof value.code === 'string'
+      ? value.code
+      : typeof value.error === 'string'
+        ? value.error
+        : 'http_error';
+  const bodyStatus = typeof value.status_code === 'number' ? value.status_code : 0;
+  const resolvedStatus = isKnownStatus(status) ? status : bodyStatus;
+  const detail = value.detail;
+  const message =
+    typeof value.message === 'string' && value.message.trim()
+      ? value.message
+      : typeof detail === 'string' && detail.trim()
+        ? detail
+        : code === 'payment_provider_disabled' && provider
+          ? `Payment provider ${provider} is currently disabled`
+          : fallbackMessage(resolvedStatus);
+
+  return {
+    error: code,
+    message,
+    status_code: resolvedStatus,
+    detail: detail ?? (provider ? { provider } : null),
+    ...(value.extra !== undefined ? { extra: value.extra } : {}),
+    ...(provider ? { provider } : {}),
+  };
 }
 
 /**
@@ -29,66 +79,13 @@ export function isApiError(value: unknown): value is ApiError {
  * Falls back to a generic envelope if the body doesn't match the expected shape.
  */
 export function parseApiError(body: unknown, status: number): ApiError {
-  if (isApiError(body)) return body;
-
   if (typeof body === 'object' && body !== null) {
-    const value = body as Record<string, unknown>;
-    const detail = value.detail;
-    const message =
-      typeof value.message === 'string'
-        ? value.message
-        : typeof detail === 'string'
-          ? detail
-          : `Request failed (${status})`;
-    const code =
-      typeof value.code === 'string'
-        ? value.code
-        : typeof value.error === 'string'
-          ? value.error
-          : 'http_error';
-
-    // Litestar validation errors use { status_code, detail, extra }. Preserve
-    // the detail and metadata verbatim so forms can display actionable errors.
-    if ('detail' in value || 'status_code' in value || 'message' in value || 'error' in value) {
-      return {
-        error: code,
-        message,
-        status_code: typeof value.status_code === 'number' ? value.status_code : status,
-        detail: detail ?? null,
-        extra: value.extra,
-        provider: typeof value.provider === 'string' ? value.provider : undefined,
-      };
-    }
-  }
-
-  // Compact compatibility body used by the top-up routes:
-  // { code: "payment_provider_disabled", provider: "stripe" }
-  if (
-    typeof body === 'object' &&
-    body !== null &&
-    'code' in body &&
-    typeof (body as { code: unknown }).code === 'string'
-  ) {
-    const b = body as { code: string; provider?: string; detail?: unknown; message?: unknown };
-    return {
-      error: b.code,
-      message:
-        typeof b.message === 'string'
-          ? b.message
-          : typeof b.detail === 'string'
-            ? b.detail
-            : b.code === 'payment_provider_disabled'
-              ? `Payment provider ${b.provider ?? ''} is currently disabled`.trim()
-              : `Request failed (${status})`,
-      status_code: status,
-      detail: b.provider ? { provider: b.provider } : (b.detail ?? null),
-      provider: b.provider,
-    };
+    return parseObjectApiError(body as Record<string, unknown>, status);
   }
 
   return {
     error: 'unknown_error',
-    message: `Request failed (${status})`,
+    message: fallbackMessage(status),
     status_code: status,
   };
 }
@@ -142,5 +139,11 @@ export class ApiRequestError extends Error {
 /** Coerce an unknown openapi-fetch error into an ApiRequestError and throw it. */
 export function throwApiError(error: unknown, fallbackMsg: string, status?: number): never {
   const apiErr = parseApiError(error, status ?? 0);
-  throw new ApiRequestError({ ...apiErr, message: apiErr.message || fallbackMsg });
+  throw new ApiRequestError({
+    ...apiErr,
+    message:
+      apiErr.error === 'unknown_error' && !isKnownStatus(apiErr.status_code)
+        ? fallbackMsg
+        : apiErr.message || fallbackMsg,
+  });
 }

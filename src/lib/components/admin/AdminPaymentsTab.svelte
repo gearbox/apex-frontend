@@ -3,6 +3,7 @@
   import { CreditCard, AlertCircle } from 'lucide-svelte';
   import * as m from '$paraglide/messages';
   import { adminPaymentProvidersQueryOptions, adminPaymentsQueryOptions } from '$lib/queries/admin';
+  import { currentUser } from '$lib/stores/auth';
   import CursorPagination from '$lib/components/shared/CursorPagination.svelte';
   import StatusBadge from '$lib/components/shared/StatusBadge.svelte';
   import { CursorPaginator } from '$lib/utils/cursorPagination.svelte';
@@ -12,7 +13,11 @@
   let statusFilter = $state('');
   let providerFilter = $state('');
   const pager = new CursorPaginator();
-  const paymentProvidersQuery = createQuery(() => adminPaymentProvidersQueryOptions());
+  const isSuperadmin = $derived($currentUser?.role === 'superadmin');
+  const paymentProvidersQuery = createQuery(() => ({
+    ...adminPaymentProvidersQueryOptions(),
+    enabled: isSuperadmin,
+  }));
 
   const paymentsQuery = createQuery(() =>
     adminPaymentsQueryOptions({
@@ -27,8 +32,23 @@
     return `$${amount}`;
   }
 
-  function paidWith(currency: string): string {
-    return currency === 'USD' ? m.admin_payment_currency_pending() : currency;
+  const providerSuggestions = $derived(
+    [
+      ...new Set([
+        ...(paymentProvidersQuery.data ?? []).map((provider) => String(provider.provider)),
+        ...(paymentsQuery.data?.items ?? []).map((payment) => String(payment.payment_provider)),
+      ]),
+    ].sort(),
+  );
+
+  function paidWith(provider: string, currency: string): string {
+    return provider === 'nowpayments' && currency === 'USD'
+      ? m.admin_payment_currency_pending()
+      : currency;
+  }
+
+  function paymentStatus(status: string): string {
+    return status === 'partially_paid' ? m.admin_payment_status_partially_paid() : status;
   }
 
   function formatDate(dateStr: string | null | undefined): string {
@@ -46,7 +66,7 @@
   }
 
   function onProviderChange(e: Event) {
-    providerFilter = (e.target as HTMLSelectElement).value;
+    providerFilter = (e.target as HTMLInputElement).value;
     pager.reset();
   }
 </script>
@@ -62,12 +82,18 @@
       <option value="failed">Failed</option>
       <option value="refunded">Refunded</option>
     </select>
-    <select class="filter-select" onchange={onProviderChange}>
-      <option value="">All Providers</option>
-      {#each paymentProvidersQuery.data ?? [] as provider (provider.provider)}
-        <option value={String(provider.provider)}>{String(provider.provider)}</option>
+    <input
+      class="filter-select"
+      list="admin-payment-provider-options"
+      placeholder="All Providers"
+      value={providerFilter}
+      oninput={onProviderChange}
+    />
+    <datalist id="admin-payment-provider-options">
+      {#each providerSuggestions as provider (provider)}
+        <option value={provider}></option>
       {/each}
-    </select>
+    </datalist>
   </div>
 
   {#if paymentsQuery.isPending}
@@ -112,9 +138,14 @@
                 <td class="mono">{truncateId(payment.id)}</td>
                 <td>{payment.payment_provider}</td>
                 <td class="amount-cell">{formatAmount(payment.amount_usd)}</td>
-                <td>{paidWith(payment.currency)}</td>
+                <td>{paidWith(String(payment.payment_provider), payment.currency)}</td>
                 <td>{payment.tokens_granted.toLocaleString()}</td>
-                <td><StatusBadge status={payment.status} /></td>
+                <td>
+                  <StatusBadge
+                    status={paymentStatus(payment.status)}
+                    color={payment.status === 'partially_paid' ? 'warning' : undefined}
+                  />
+                </td>
                 <td class="date-cell">{formatDate(payment.created_at)}</td>
                 <td class="date-cell">{formatDate(payment.completed_at)}</td>
               </tr>
@@ -131,8 +162,16 @@
               <span class="card-amount">{formatAmount(payment.amount_usd)}</span>
               <span class="card-meta-row">
                 <StatusBadge status={payment.payment_provider} />
-                <StatusBadge status={payment.status} />
-                <span>{m.admin_payment_paid_with()}: {paidWith(payment.currency)}</span>
+                <StatusBadge
+                  status={paymentStatus(payment.status)}
+                  color={payment.status === 'partially_paid' ? 'warning' : undefined}
+                />
+                <span
+                  >{m.admin_payment_paid_with()}: {paidWith(
+                    String(payment.payment_provider),
+                    payment.currency,
+                  )}</span
+                >
               </span>
             </div>
             <div class="card-right">

@@ -189,10 +189,10 @@ Admin workflow to surface in the UI: *edit currencies in the NowPayments dashboa
 
 ## 7. Gap checklist to close (suggested order)
 
-- [ ] `gen:api` against current master; verify the new types (`PublicCurrency`, `PublicPaymentProvider`, `TopUpNowPaymentsRequest.pay_currency?`, `AdminCurrency`, `SyncResult`) appear.
-- [ ] Checkout: provider method list driven by `/providers` (delete any hardcoded method array).
-- [ ] Checkout: currency picker component (`/currencies`, grouping by `network`, "Other" option, empty-state fallback) wired into the NowPayments top-up body.
-- [ ] Post-payment UX: SSE `balance.updated` handler + pending-payment state keyed by `payment_id`; balance-poll fallback.
-- [ ] Error handling: both 409 codes, 400 detail surfacing, provider-disabled re-fetch.
-- [ ] Admin panel: provider toggle/order UI, catalog table with unavailable rows, refresh button with counts/502 handling.
-- [ ] Stripe success/cancel routes exist and read the client-persisted `payment_id`.
+- [x] Generated client includes the payment, provider, and currency catalog types.
+- [x] Checkout methods are driven by `/providers`, with no fixed provider availability list.
+- [x] The catalog-backed currency picker includes Other and degrades to the hosted picker.
+- [x] Pending payments reconcile against `payment_id` after SSE events and polling fallback.
+- [x] Checkout distinguishes validation, provider-disabled, idempotency-conflict, and retryable failures.
+- [x] The superadmin registry includes provider controls and the currency catalog refresh workflow.
+- [x] Stripe return handling consumes the exact tab-local persisted `payment_id`.

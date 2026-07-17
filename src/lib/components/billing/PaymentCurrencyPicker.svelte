@@ -28,8 +28,12 @@
     return currency.name ?? currency.ticker;
   }
 
-  function markLogoFailed(ticker: string): void {
-    failedLogos = new Set([...failedLogos, ticker]);
+  function logoKey(currency: PublicCurrency): string {
+    return `${currency.ticker}:${currency.logo_url ?? ''}`;
+  }
+
+  function markLogoFailed(currency: PublicCurrency): void {
+    failedLogos = new Set([...failedLogos, logoKey(currency)]);
   }
 </script>
 
@@ -40,7 +44,7 @@
 
     <div class="currency-options">
       {#each sortedCurrencies as currency (currency.ticker)}
-        {@const hasLogo = currency.logo_url !== null && !failedLogos.has(currency.ticker)}
+        {@const hasLogo = currency.logo_url !== null && !failedLogos.has(logoKey(currency))}
         <label class="currency-option" class:selected={value === currency.ticker}>
           <input
             type="radio"
@@ -53,7 +57,7 @@
             <img
               src={currency.logo_url}
               alt={m.billing_currency_logo_alt({ currency: label(currency) })}
-              onerror={() => markLogoFailed(currency.ticker)}
+              onerror={() => markLogoFailed(currency)}
             />
           {:else}
             <span class="currency-icon" aria-hidden="true"><CircleDollarSign size={18} /></span>

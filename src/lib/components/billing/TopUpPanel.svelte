@@ -1,5 +1,6 @@
 <script lang="ts">
   import { createQuery, createMutation, useQueryClient } from '@tanstack/svelte-query';
+  import { onMount } from 'svelte';
   import * as m from '$paraglide/messages';
   import { formatUsd, formatUsdWhole, formatNumber } from '$lib/utils/format';
   import { ApiRequestError } from '$lib/api/errors';
@@ -15,10 +16,20 @@
     topUpNowPaymentsMutationOptions,
     topUpOptionsQueryOptions,
     topUpStripeMutationOptions,
+    createTopUpIntent,
     type TopUpIntent,
   } from '$lib/queries/billing';
-  import { generateIdempotencyKey } from '$lib/utils/idempotency';
+  import { currentUser } from '$lib/stores/auth';
+  import { productInfo } from '$lib/stores/product';
+  import { getPaymentStorageScope } from '$lib/stores/paymentScope';
   import { getPendingPaymentScope, savePendingPayment } from '$lib/stores/pendingPayments';
+  import {
+    clearCheckoutIntent,
+    getCheckoutIntent,
+    saveCheckoutIntent,
+    saveStripeReturnPointer,
+    type PersistedCheckoutIntent,
+  } from '$lib/stores/checkoutIntents';
   import PaymentCurrencyPicker from './PaymentCurrencyPicker.svelte';
 
   type CheckoutIntent =
@@ -39,6 +50,8 @@
   let retryIntent = $state<CheckoutIntent | null>(null);
   let errorMsg = $state('');
   let providerDisabledMsg = $state('');
+  let observedTicker = $state<string | null | undefined>(undefined);
+  let restoredScopeKey = $state('');
 
   const options = $derived(optionsQuery.data);
   const currencies = $derived(currenciesQuery.data ?? []);
@@ -93,6 +106,15 @@
     }
   });
 
+  $effect(() => {
+    if (observedTicker !== undefined && observedTicker !== selectedTicker) clearRetryIntent();
+    observedTicker = selectedTicker;
+  });
+
+  $effect(() => restoreRetryIntent($currentUser, $productInfo));
+
+  onMount(() => restoreRetryIntent($currentUser, $productInfo));
+
   function isSupportedProvider(provider: string): provider is 'stripe' | 'nowpayments' {
     // Adapter branches are intentional. Availability itself comes only from the API response.
     return provider === 'stripe' || provider === 'nowpayments';
@@ -104,13 +126,16 @@
   }
 
   function selectPreset(amount: number): void {
+    if (amountInput !== String(amount)) clearRetryIntent();
     selectedPreset = amount;
     amountInput = String(amount);
     clearErrors();
   }
 
   function onAmountInput(value: string): void {
-    amountInput = value.replace(/[^0-9]/g, '');
+    const nextValue = value.replace(/[^0-9]/g, '');
+    if (nextValue !== amountInput) clearRetryIntent();
+    amountInput = nextValue;
     const numeric = amountInput === '' ? null : Number(amountInput);
     selectedPreset = presets.some((preset) => preset.amount === numeric) ? numeric : null;
     clearErrors();
@@ -118,16 +143,48 @@
 
   function createIntent(provider: 'stripe' | 'nowpayments'): CheckoutIntent | null {
     if (!isAmountValid || amountUsd === null) return null;
-    const idempotencyKey = generateIdempotencyKey();
     if (provider === 'stripe') {
-      return { provider, idempotencyKey, body: { amount_usd: amountUsd } };
+      return { provider, ...createTopUpIntent({ amount_usd: amountUsd }) };
     }
 
     // Do not spread UI state into this body: the backend forbids unknown fields.
     const body: TopUpNowPaymentsRequest = selectedTicker
       ? { amount_usd: amountUsd, pay_currency: selectedTicker }
       : { amount_usd: amountUsd };
-    return { provider, idempotencyKey, body };
+    return { provider, ...createTopUpIntent(body) };
+  }
+
+  function toCheckoutIntent(intent: PersistedCheckoutIntent): CheckoutIntent {
+    return intent.provider === 'stripe'
+      ? { provider: 'stripe', body: intent.body, idempotencyKey: intent.idempotencyKey }
+      : { provider: 'nowpayments', body: intent.body, idempotencyKey: intent.idempotencyKey };
+  }
+
+  function restoreRetryIntent(user: typeof $currentUser, product: typeof $productInfo): void {
+    const scope = getPaymentStorageScope(user, product);
+    const scopeKey = scope ? `${scope.userId}:${scope.product}` : '';
+    if (!scope || restoredScopeKey === scopeKey) return;
+    restoredScopeKey = scopeKey;
+    const stored = getCheckoutIntent(scope);
+    if (stored) retryIntent = toCheckoutIntent(stored);
+  }
+
+  function clearRetryIntent(): void {
+    retryIntent = null;
+    const scope = getPendingPaymentScope();
+    if (scope) clearCheckoutIntent(scope);
+  }
+
+  function persistRetryIntent(intent: CheckoutIntent): void {
+    const scope = getPendingPaymentScope();
+    if (!scope) return;
+    saveCheckoutIntent(scope, {
+      provider: intent.provider,
+      body: intent.body,
+      idempotencyKey: intent.idempotencyKey,
+      createdAt: new Date().toISOString(),
+      retryable: true,
+    });
   }
 
   function persistPendingPayment(intent: CheckoutIntent, paymentId: string): void {
@@ -144,6 +201,7 @@
       createdAt: new Date().toISOString(),
       state: 'created',
     });
+    if (intent.provider === 'stripe') saveStripeReturnPointer(scope, paymentId);
   }
 
   function retryStillMatches(intent: CheckoutIntent): boolean {
@@ -162,6 +220,8 @@
   async function submitIntent(intent: CheckoutIntent): Promise<void> {
     activeIntent = intent;
     clearErrors();
+    // Persist before dispatch: a lost response must never force a fresh key after reload.
+    persistRetryIntent(intent);
     try {
       if (intent.provider === 'stripe') {
         const result = await stripeMutation.mutateAsync(intent);
@@ -172,21 +232,21 @@
         persistPendingPayment(intent, result.payment_id);
         window.location.assign(result.invoice_url);
       }
-      retryIntent = null;
+      clearRetryIntent();
     } catch (error) {
       if (error instanceof ApiRequestError && error.error === 'payment_provider_disabled') {
-        retryIntent = null;
+        clearRetryIntent();
         providerDisabledMsg = m.billing_topup_provider_disabled();
         await queryClient.invalidateQueries({ queryKey: billingKeys.paymentProviders() });
       } else if (error instanceof ApiRequestError && error.error === 'idempotency_conflict') {
-        retryIntent = null;
+        clearRetryIntent();
         errorMsg = m.error_idempotency_conflict();
       } else if (isRetryable(error)) {
         // Retrying preserves the exact UUID and body snapshot for this intent.
         retryIntent = intent;
         errorMsg = error instanceof ApiRequestError ? error.message : m.error_generic();
       } else {
-        retryIntent = null;
+        clearRetryIntent();
         errorMsg = error instanceof ApiRequestError ? error.message : m.error_generic();
       }
     } finally {
@@ -196,6 +256,8 @@
 
   function handleCheckout(provider: 'stripe' | 'nowpayments'): void {
     if (isCheckingOut) return;
+    // Normal Pay is always a new deliberate intent; only the explicit retry reuses one.
+    clearRetryIntent();
     const intent = createIntent(provider);
     if (intent) void submitIntent(intent);
   }
@@ -280,7 +342,7 @@
         class="rounded-xl border border-accent-dim/20 bg-linear-to-br from-accent-dim/10 to-surface p-4"
       >
         <p class="text-sm text-text">
-          {m.billing_topup_summary_pay({ amount: formatUsd(amountUsd) })}
+          {m.billing_topup_summary_pay({ amount: formatUsd(summary.amountCharged) })}
           <span class="mx-1 text-text-dim">→</span>
           {m.billing_topup_summary_receive({ tokens: formatNumber(summary.tokensGranted) })}
         </p>
@@ -294,6 +356,19 @@
 
     {#if providersQuery.isPending}
       <div class="h-12 animate-pulse rounded-xl bg-surface"></div>
+    {:else if providersQuery.isError}
+      <div
+        class="flex flex-col items-center gap-2 rounded-xl border border-border bg-surface p-4 text-center text-sm text-text-dim"
+      >
+        <p>{m.billing_topup_load_error()}</p>
+        <button
+          type="button"
+          class="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-text-muted"
+          onclick={() => providersQuery.refetch()}
+        >
+          {m.common_retry()}
+        </button>
+      </div>
     {:else if supportedProviders.length === 0}
       <div class="rounded-xl border border-border bg-surface p-4 text-center text-sm text-text-dim">
         {m.billing_topup_providers_unavailable()}
@@ -335,14 +410,16 @@
       </div>
     {/if}
 
-    {#if retryIntent && retryStillMatches(retryIntent)}
+    {#if retryIntent}
       <button
         type="button"
         disabled={isCheckingOut}
         class="self-start rounded-lg border border-border px-3 py-2 text-xs font-semibold text-text-muted disabled:opacity-50"
         onclick={() => void submitIntent(retryIntent!)}
       >
-        {m.billing_topup_retry()}
+        {retryStillMatches(retryIntent)
+          ? m.billing_topup_retry()
+          : 'Retry previous checkout attempt'}
       </button>
     {/if}
 
