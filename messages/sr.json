@@ -174,6 +174,7 @@
   "frames_already_available_automatic": "Već je dostupan u odeljku Automatski",
   "frames_remove_manual_frame": "Ukloni ručno izabrani kadar u {timestamp}",
   "frames_frame_display_error": "Ovaj video-kadar nije moguće prikazati",
+  "frames_live_preview_too_large": "Pregled ručno izabranih kadrova nije dostupan za ovaj preveliki video. Automatski kadrovi su i dalje dostupni.",
   "frames_frame_capture_cors_error": "Ovaj kadar nije moguće sačuvati jer je pristup videu blokiran. Ponovo učitajte pregled i pokušajte ponovo.",
   "frames_frame_loading": "Učitavanje pregleda kadra…",
   "frames_retry_frame_preview": "Pokušaj ponovo pregled kadra",

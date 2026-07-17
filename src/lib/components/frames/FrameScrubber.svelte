@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy, onMount } from 'svelte';
+  import { onMount } from 'svelte';
   import { Plus, RotateCcw } from 'lucide-svelte';
   import type { components } from '$lib/api/types';
   import {
@@ -30,6 +30,7 @@
     displayErrorLabel,
     corsCaptureErrorLabel,
     authErrorLabel,
+    tooLargeMediaErrorLabel,
   }: {
     media: MediaObject;
     timestamp: number;
@@ -44,6 +45,7 @@
     displayErrorLabel: string;
     corsCaptureErrorLabel: string;
     authErrorLabel: string;
+    tooLargeMediaErrorLabel: string;
   } = $props();
 
   let videoEl = $state<HTMLVideoElement>();
@@ -86,21 +88,47 @@
   }
 
   function localizedMediaLoadError(error: unknown): string {
-    return error instanceof AuthenticatedMediaLoadError && error.category === 'authentication'
-      ? authErrorLabel
-      : displayErrorLabel;
+    if (!(error instanceof AuthenticatedMediaLoadError)) return displayErrorLabel;
+    if (error.category === 'authentication') return authErrorLabel;
+    if (error.category === 'too-large') return tooLargeMediaErrorLabel;
+    return displayErrorLabel;
+  }
+
+  function clearPreviewCanvas(canvas: HTMLCanvasElement): void {
+    // Resetting the backing bitmap clears stale pixels without creating an
+    // extra canvas allocation. Do this only across media lifecycles, never
+    // between debounced seeks for the same video.
+    canvas.width = canvas.width;
+  }
+
+  function clampTimestamp(value: number, maximum: number): number {
+    return Math.min(Math.max(0, value), Math.max(0, maximum));
   }
 
   function disposeDecoder(video: HTMLVideoElement): void {
     if (seekTimer) clearTimeout(seekTimer);
     seekTimer = null;
+    const objectUrl = decoderObjectUrl;
+    const hadDecoder = Boolean(controller || objectUrl || video.hasAttribute('src'));
+    decoderObjectUrl = null;
     controller?.dispose();
     controller = null;
-    if (decoderObjectUrl) {
-      URL.revokeObjectURL(decoderObjectUrl);
-      decoderObjectUrl = null;
+    if (!hadDecoder) return;
+
+    try {
+      video.pause();
+    } catch {
+      // Teardown must remain safe in incomplete browser media implementations.
     }
     video.removeAttribute('src');
+    try {
+      video.load();
+    } catch {
+      // Teardown must remain safe in incomplete browser media implementations.
+    }
+    if (objectUrl) {
+      URL.revokeObjectURL(objectUrl);
+    }
   }
 
   function handleInput(event: Event) {
@@ -150,9 +178,16 @@
   }
 
   $effect(() => {
+    const nextTimestamp = clampTimestamp(timestamp, maxTimestamp);
+    requestedTimestamp = nextTimestamp;
+    if (mediaReady) scheduleSeek(nextTimestamp);
+  });
+
+  $effect(() => {
     const video = videoEl;
     const canvas = canvasEl;
     const source = videoSrc;
+    const expectedSizeBytes = media.original.size_bytes;
     const retryVersion = loadRetryVersion;
     if (!video || !canvas) return;
 
@@ -164,12 +199,14 @@
     mediaLoadError = '';
     captureError = '';
     previewFrame = null;
+    clearPreviewCanvas(canvas);
     disposeDecoder(video);
 
     void (async () => {
       try {
         const { objectUrl } = await loadAuthenticatedMediaBlob(source, {
           signal: abortController.signal,
+          expectedSizeBytes,
         });
         if (!active || retryVersion !== loadRetryVersion) {
           URL.revokeObjectURL(objectUrl);
@@ -186,7 +223,6 @@
         });
         mediaLoading = false;
         mediaReady = true;
-        scheduleSeek(requestedTimestamp);
       } catch (error) {
         if (
           !active ||
@@ -198,6 +234,8 @@
         mediaReady = false;
         seeking = false;
         mediaLoadError = localizedMediaLoadError(error);
+        previewFrame = null;
+        clearPreviewCanvas(canvas);
       }
     })();
 
@@ -205,17 +243,14 @@
       active = false;
       abortController.abort();
       disposeDecoder(video);
+      previewFrame = null;
+      clearPreviewCanvas(canvas);
     };
   });
 
   onMount(() => {
-    requestedTimestamp = timestamp;
     onAddButtonReady?.(addButton ?? null);
     return () => onAddButtonReady?.(null);
-  });
-
-  onDestroy(() => {
-    if (seekTimer) clearTimeout(seekTimer);
   });
 </script>
 

@@ -130,14 +130,20 @@ test.describe('Frame extraction (real media regression)', () => {
   }) => {
     let previewRequest: unknown;
     let extractionRequest: unknown;
-    let authenticatedDecoderRequests = 0;
-    let decoder401Responses = 0;
+    let frameModalOpen = false;
+    let authenticatedMediaFetches = 0;
+    let anonymousProtectedContentRequestsAfterFrameModalOpen = 0;
+    let authenticatedMedia401Responses = 0;
+    let resolveInitialLightboxMediaRequest!: () => void;
+    const initialLightboxMediaRequest = new Promise<void>((resolve) => {
+      resolveInitialLightboxMediaRequest = resolve;
+    });
 
     await page.route((url) => url.pathname === '/v1/gallery', jsonRoute(galleryPage));
     await page.route('**/v1/gallery/video-job-001', jsonRoute(galleryDetail));
-    // The authenticated blob loader fetches protected content from :8000 and
-    // supplies the same bearer token that the API client uses. Only that fetch
-    // receives bytes; a native anonymous video decoder must receive a 401.
+    // The authenticated loader fetches protected content once, then the hidden
+    // decoder consumes only the resulting blob URL. A missing bearer remains a
+    // natural 401 so a regression in that boundary fails this scenario.
     await page.route('http://localhost:8000/v1/content/**', (route) => {
       const authorization = route.request().headers().authorization;
       if (authorization !== 'Bearer e2e-access-token') {
@@ -148,7 +154,6 @@ test.describe('Frame extraction (real media regression)', () => {
         });
       }
 
-      authenticatedDecoderRequests += 1;
       const range = route.request().headers().range;
       const match = range?.match(/bytes=(\d+)-(\d*)/);
       const start = match ? Number(match[1]) : 0;
@@ -167,13 +172,32 @@ test.describe('Frame extraction (real media regression)', () => {
         body,
       });
     });
+    page.on('request', (request) => {
+      if (!request.url().includes('/v1/content/')) return;
+      const authorization = request.headers().authorization;
+      if (!frameModalOpen) {
+        if (request.resourceType() === 'media' && !authorization) {
+          resolveInitialLightboxMediaRequest();
+        }
+        return;
+      }
+      if (!authorization) {
+        anonymousProtectedContentRequestsAfterFrameModalOpen += 1;
+        return;
+      }
+      if (request.resourceType() === 'fetch' && authorization === 'Bearer e2e-access-token') {
+        authenticatedMediaFetches += 1;
+      }
+    });
     page.on('response', (response) => {
       if (
+        frameModalOpen &&
         response.url().includes('/v1/content/') &&
+        response.request().resourceType() === 'fetch' &&
         response.request().headers().authorization === 'Bearer e2e-access-token' &&
         response.status() === 401
       ) {
-        decoder401Responses += 1;
+        authenticatedMedia401Responses += 1;
       }
     });
     await page.route('https://frame-previews.example.test/**', (route) =>
@@ -208,10 +232,20 @@ test.describe('Frame extraction (real media regression)', () => {
     await page.goto('/app/gallery');
     await expect(page.getByText(/loaded/i)).toBeVisible({ timeout: 5_000 });
     await page.locator('[class*="grid"]').locator('button, [role="button"]').first().click();
-    await page
-      .getByRole('dialog', { name: 'Image lightbox' })
-      .getByRole('button', { name: 'Extract frames' })
-      .click();
+    const lightbox = page.getByRole('dialog', { name: 'Image lightbox' });
+    // The gallery lightbox owns a separate autoplaying video. Detach it before
+    // the scrubber phase so its native media activity cannot be attributed to
+    // the hidden decoder under test.
+    await lightbox.locator('video').evaluate((video) => {
+      const media = video as HTMLVideoElement;
+      media.pause();
+      media.removeAttribute('src');
+      media.load();
+    });
+    await Promise.race([initialLightboxMediaRequest, page.waitForTimeout(1_000)]);
+    const openFrameModal = lightbox.getByRole('button', { name: 'Extract frames' }).click();
+    frameModalOpen = true;
+    await openFrameModal;
 
     const extractionDialog = page.getByRole('dialog', { name: 'Extract frames' });
     const scrubber = extractionDialog.getByRole('slider', { name: 'Frame timestamp' });
@@ -224,8 +258,14 @@ test.describe('Frame extraction (real media regression)', () => {
       .toEqual({ source_output_id: SOURCE_ID, frame_count: 6 });
     await expect(extractionDialog.getByRole('button', { name: /^Automatic:/ })).toHaveCount(6);
     await expect(addButton).toBeEnabled({ timeout: 8_000 });
-    expect(authenticatedDecoderRequests).toBeGreaterThan(0);
-    expect(decoder401Responses).toBe(0);
+    expect(authenticatedMediaFetches).toBeGreaterThan(0);
+    expect(authenticatedMedia401Responses).toBe(0);
+    expect(anonymousProtectedContentRequestsAfterFrameModalOpen).toBe(0);
+    const decoderSrc = await extractionDialog
+      .locator('video')
+      .evaluate((video) => (video as HTMLVideoElement).src);
+    expect(decoderSrc).toMatch(/^blob:/);
+    expect(decoderSrc).not.toContain('/v1/content/');
 
     const initial = await canvasSample(canvas);
     expect(await canvas.getAttribute('aria-label')).toBe('00:00.000');

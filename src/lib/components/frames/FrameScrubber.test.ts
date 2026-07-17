@@ -107,7 +107,9 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
-function props(overrides: Partial<{ media: MediaObject }> = {}) {
+function props(
+  overrides: Partial<{ media: MediaObject; timestamp: number; maxTimestamp: number }> = {},
+) {
   return {
     media,
     timestamp: 0,
@@ -120,6 +122,8 @@ function props(overrides: Partial<{ media: MediaObject }> = {}) {
     displayErrorLabel: 'Could not display this video frame',
     corsCaptureErrorLabel: 'Video access is blocked',
     authErrorLabel: 'Your session has expired. Please sign in again.',
+    tooLargeMediaErrorLabel:
+      'Live manual preview is unavailable for this video because it is too large. Automatic frames are still available.',
     ...overrides,
   };
 }
@@ -137,6 +141,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   cleanup();
   if (previousRevokeObjectUrl)
     Object.defineProperty(URL, 'revokeObjectURL', previousRevokeObjectUrl);
@@ -178,6 +183,17 @@ describe('FrameScrubber authenticated decoder lifecycle', () => {
 
     await waitFor(() => expect(loadMediaMock).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(captures).toHaveLength(1));
+  });
+
+  it('shows the large-video message while keeping the scrubber safely disabled', async () => {
+    loadMediaMock.mockRejectedValueOnce(new AuthenticatedMediaLoadErrorMock('too-large'));
+
+    render(FrameScrubber, { props: props() });
+
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      'Live manual preview is unavailable for this video because it is too large.',
+    );
+    expect(screen.getByRole('button', { name: 'Add frame' }).hasAttribute('disabled')).toBe(true);
   });
 
   it('ignores and revokes a stale media load after the source changes', async () => {
@@ -225,5 +241,117 @@ describe('FrameScrubber authenticated decoder lifecycle', () => {
     expect(revokeObjectUrl).toHaveBeenCalledTimes(2);
     expect(revokeObjectUrl).toHaveBeenLastCalledWith('blob:loaded-video');
     expect(disposeMock).toHaveBeenCalledOnce();
+  });
+
+  it('detaches the old video before revoking its blob URL on source replacement', async () => {
+    const order: string[] = [];
+    const first = deferred<{ objectUrl: string; contentType: string }>();
+    const second = deferred<{ objectUrl: string; contentType: string }>();
+    loadMediaMock.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+    disposeMock.mockImplementation(() => order.push('dispose'));
+    revokeObjectUrl.mockImplementation((url) => order.push(`revoke:${url}`));
+    const rendered = render(FrameScrubber, { props: props() });
+
+    await waitFor(() => expect(loadMediaMock).toHaveBeenCalledOnce());
+    const video = rendered.container.querySelector('video') as HTMLVideoElement;
+    vi.spyOn(video, 'pause').mockImplementation(() => order.push('pause'));
+    vi.spyOn(video, 'removeAttribute').mockImplementation((name) => {
+      order.push(`remove:${name}`);
+      Element.prototype.removeAttribute.call(video, name);
+    });
+    vi.spyOn(video, 'load').mockImplementation(() => order.push('load'));
+
+    first.resolve({ objectUrl: 'blob:source-a', contentType: 'video/mp4' });
+    await waitFor(() => expect(captures).toHaveLength(1));
+    await rendered.rerender({
+      ...props({
+        media: { ...media, original: { ...media.original, url: '/v1/content/uploads/source-b' } },
+      }),
+    });
+    await waitFor(() => expect(loadMediaMock).toHaveBeenCalledTimes(2));
+
+    expect(order).toEqual([
+      'dispose',
+      'pause',
+      'remove:src',
+      'load',
+      'revoke:blob:source-a',
+    ]);
+
+    second.resolve({ objectUrl: 'blob:source-b', contentType: 'video/mp4' });
+    await waitFor(() => expect(captures).toHaveLength(2));
+  });
+
+  it('clears the preview backing bitmap on replacement but not while seeking the same source', async () => {
+    vi.useFakeTimers();
+    loadMediaMock.mockResolvedValue({ objectUrl: 'blob:source-a', contentType: 'video/mp4' });
+    const rendered = render(FrameScrubber, { props: props() });
+    await vi.waitFor(() => expect(captures).toHaveLength(1));
+    const canvas = rendered.container.querySelector('canvas') as HTMLCanvasElement;
+    const widthDescriptor = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'width');
+    const resets: number[] = [];
+    Object.defineProperty(canvas, 'width', {
+      configurable: true,
+      get: () => widthDescriptor?.get?.call(canvas) ?? 300,
+      set: (value: number) => {
+        resets.push(value);
+        widthDescriptor?.set?.call(canvas, value);
+      },
+    });
+
+    await fireEvent.input(screen.getByRole('slider', { name: 'Frame timestamp' }), {
+      target: { value: '1200' },
+    });
+    await vi.advanceTimersByTimeAsync(75);
+    expect(resets).toHaveLength(0);
+
+    await rendered.rerender({
+      ...props({
+        media: { ...media, original: { ...media.original, url: '/v1/content/uploads/source-b' } },
+      }),
+    });
+    expect(resets.length).toBeGreaterThan(0);
+    vi.useRealTimers();
+  });
+
+  it('uses the current clamped timestamp for a replacement decoder without refetching on scrubs', async () => {
+    vi.useFakeTimers();
+    loadMediaMock
+      .mockResolvedValueOnce({ objectUrl: 'blob:source-a', contentType: 'video/mp4' })
+      .mockResolvedValueOnce({ objectUrl: 'blob:source-b', contentType: 'video/mp4' })
+      .mockResolvedValueOnce({ objectUrl: 'blob:source-c', contentType: 'video/mp4' });
+    const rendered = render(FrameScrubber, { props: props({ timestamp: 1_250 }) });
+    await vi.waitFor(() => expect(captures).toHaveLength(1));
+    await vi.advanceTimersByTimeAsync(75);
+    expect(captures[0].seek).toHaveBeenLastCalledWith(1_250);
+
+    await rendered.rerender({
+      ...props({
+        media: { ...media, original: { ...media.original, url: '/v1/content/uploads/source-b' } },
+        timestamp: 0,
+      }),
+    });
+    await vi.waitFor(() => expect(captures).toHaveLength(2));
+    await vi.advanceTimersByTimeAsync(75);
+    expect(captures[1].seek).toHaveBeenLastCalledWith(0);
+
+    await rendered.rerender({
+      ...props({
+        media: { ...media, original: { ...media.original, url: '/v1/content/outputs/source-c' } },
+        timestamp: 10_000,
+        maxTimestamp: 2_000,
+      }),
+    });
+    await vi.waitFor(() => expect(captures).toHaveLength(3));
+    await vi.advanceTimersByTimeAsync(75);
+    expect(captures[2].seek).toHaveBeenLastCalledWith(2_000);
+    expect(loadMediaMock).toHaveBeenCalledTimes(3);
+
+    await fireEvent.input(screen.getByRole('slider', { name: 'Frame timestamp' }), {
+      target: { value: '1500' },
+    });
+    await vi.advanceTimersByTimeAsync(75);
+    expect(captures[2].seek).toHaveBeenLastCalledWith(1_500);
+    expect(loadMediaMock).toHaveBeenCalledTimes(3);
   });
 });

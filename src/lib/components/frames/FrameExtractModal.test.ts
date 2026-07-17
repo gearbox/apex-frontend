@@ -50,6 +50,8 @@ vi.mock('$paraglide/messages', () => ({
   frames_remove_manual_frame: ({ timestamp }: { timestamp: string }) =>
     `Remove manually chosen frame at ${timestamp}`,
   frames_frame_display_error: () => 'Could not display this video frame',
+  frames_live_preview_too_large: () =>
+    'Live manual preview is unavailable for this video because it is too large. Automatic frames are still available.',
   frames_frame_capture_cors_error: () => 'Video access is blocked',
   frames_frame_loading: () => 'Loading frame preview…',
   error_unauthorized: () => 'Your session has expired. Please sign in again.',
@@ -240,6 +242,37 @@ describe('FrameExtractModal', () => {
     expect(screen.getByRole('slider', { name: 'Frame timestamp' }).getAttribute('max')).toBe(
       String(MAX_TIMESTAMP),
     );
+  });
+
+  it('keeps Automatic selection available when the live manual preview is too large', async () => {
+    server.use(
+      http.get(
+        `${BASE}/v1/content/uploads/:upload_id`,
+        () =>
+          new HttpResponse(new Uint8Array([1]), {
+            headers: { 'content-type': 'video/mp4', 'content-length': String(26 * 1024 * 1024) },
+          }),
+      ),
+      http.post(`${BASE}/v1/frames/preview`, () =>
+        HttpResponse.json({ job_id: 'preview-job', status: 'queued' }, { status: 202 }),
+      ),
+      http.get(`${BASE}/v1/frames/jobs/:job_id`, ({ params }) =>
+        HttpResponse.json(previewJob(params.job_id as string)),
+      ),
+    );
+
+    renderModal();
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('button', { name: /^Automatic:/ })).toHaveLength(6);
+    });
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      'Live manual preview is unavailable for this video because it is too large. Automatic frames are still available.',
+    );
+    expect(screen.getByRole('button', { name: 'Add frame' }).hasAttribute('disabled')).toBe(true);
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Automatic: 00:00.000' }));
+    expect(screen.getByRole('button', { name: 'Extract frames' }).hasAttribute('disabled')).toBe(false);
   });
 
   it('clamps a scrub selection before extracting, then exposes extracted frames for use', async () => {
