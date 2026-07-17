@@ -63,8 +63,8 @@ describe('isJobProgressPayload()', () => {
   });
 });
 
-describe('isBalanceUpdatedPayload()', () => {
-  it('returns true for valid payload', () => {
+describe('isBalanceUpdatedPayload', () => {
+  it('returns true for existing valid transaction events', () => {
     expect(
       isBalanceUpdatedPayload({
         account_id: 'acc1',
@@ -75,13 +75,30 @@ describe('isBalanceUpdatedPayload()', () => {
     ).toBe(true);
   });
 
-  it('returns false when missing required fields', () => {
+  it('accepts top-up settlement events', () => {
+    expect(
+      isBalanceUpdatedPayload({
+        account_id: 'account-1',
+        balance: 500,
+        delta: 100,
+        transaction_type: 'topup',
+      }),
+    ).toBe(true);
+  });
+
+  it('rejects malformed or unknown transaction types', () => {
     expect(isBalanceUpdatedPayload({ account_id: 'acc1', balance: 100 })).toBe(false);
     expect(isBalanceUpdatedPayload({ balance: 100, delta: -5 })).toBe(false);
     expect(isBalanceUpdatedPayload({ account_id: 'acc1', delta: -5 })).toBe(false);
-  });
-
-  it('returns false for non-object values', () => {
+    expect(isBalanceUpdatedPayload({ account_id: 'a', balance: 1, delta: 1 })).toBe(false);
+    expect(
+      isBalanceUpdatedPayload({
+        account_id: 'a',
+        balance: 1,
+        delta: 1,
+        transaction_type: 'unknown',
+      }),
+    ).toBe(false);
     expect(isBalanceUpdatedPayload(null)).toBe(false);
     expect(isBalanceUpdatedPayload([])).toBe(false);
   });

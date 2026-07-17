@@ -1,13 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
 import { ApiRequestError } from '$lib/api/errors';
-import type { TopUpOptionsResponse, PublicPaymentProvider } from '$lib/api/billing';
+import type { PublicCurrency, TopUpOptionsResponse, PublicPaymentProvider } from '$lib/api/billing';
 
 let optionsData: TopUpOptionsResponse | null = null;
 let optionsPending = false;
 let optionsErrored = false;
 let providersData: PublicPaymentProvider[] = [];
 let providersPending = false;
+let currenciesData: PublicCurrency[] = [];
 
 let stripeMutateAsync = vi.fn();
 let nowPaymentsMutateAsync = vi.fn();
@@ -20,12 +21,21 @@ vi.mock('@tanstack/svelte-query', () => ({
   createQuery: vi.fn((optionsFn: () => { queryKey: unknown[] }) => {
     const opts = optionsFn();
     const key = JSON.stringify(opts.queryKey);
-    if (key.includes('paymentProviders')) {
+    if (key.includes('payment-providers')) {
       return {
         get data() {
           return providersData;
         },
         isPending: providersPending,
+      };
+    }
+    if (key.includes('currencies')) {
+      return {
+        get data() {
+          return currenciesData;
+        },
+        isPending: false,
+        isError: false,
       };
     }
     return {
@@ -84,6 +94,7 @@ beforeEach(() => {
   optionsErrored = false;
   providersData = structuredClone(BASE_PROVIDERS);
   providersPending = false;
+  currenciesData = [];
   stripePendingMock = false;
   nowPaymentsPendingMock = false;
   stripeMutateAsync = vi.fn().mockResolvedValue({
@@ -159,8 +170,41 @@ describe('TopUpPanel', () => {
     await fireEvent.click(screen.getByRole('button', { name: /pay with stripe/i }));
 
     await waitFor(() => {
-      expect(stripeMutateAsync).toHaveBeenCalledWith({ amount_usd: 50 });
+      expect(stripeMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          provider: 'stripe',
+          body: { amount_usd: 50 },
+          idempotencyKey: expect.any(String),
+        }),
+      );
       expect(window.location.assign).toHaveBeenCalledWith('https://checkout.stripe.com/mock');
+    });
+  });
+
+  it('echoes an uppercase ticker from the catalog and omits it when Other is selected', async () => {
+    currenciesData = [{ ticker: 'USDTTRC20', name: 'Tether', network: 'TRX', logo_url: null }];
+    render(TopUpPanel);
+    const input = screen.getByLabelText('Amount (USD)');
+    await fireEvent.input(input, { target: { value: '50' } });
+    await fireEvent.click(screen.getByRole('radio', { name: /tether/i }));
+    await fireEvent.click(screen.getByRole('button', { name: /pay with crypto/i }));
+
+    await waitFor(() => {
+      expect(nowPaymentsMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          provider: 'nowpayments',
+          body: { amount_usd: 50, pay_currency: 'USDTTRC20' },
+        }),
+      );
+    });
+
+    nowPaymentsMutateAsync.mockClear();
+    await fireEvent.click(screen.getByRole('radio', { name: /other/i }));
+    await fireEvent.click(screen.getByRole('button', { name: /pay with crypto/i }));
+    await waitFor(() => {
+      expect(nowPaymentsMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ body: { amount_usd: 50 } }),
+      );
     });
   });
 
@@ -181,7 +225,9 @@ describe('TopUpPanel', () => {
 
     await waitFor(() => {
       expect(screen.getByText(/just disabled/i)).toBeTruthy();
-      expect(invalidateQueriesMock).toHaveBeenCalledWith({ queryKey: ['paymentProviders'] });
+      expect(invalidateQueriesMock).toHaveBeenCalledWith({
+        queryKey: ['billing', 'payment-providers'],
+      });
     });
   });
 

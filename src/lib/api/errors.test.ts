@@ -19,6 +19,7 @@ describe('parseApiError()', () => {
       message: 'Payment provider stripe is currently disabled',
       status_code: 409,
       detail: { provider: 'stripe' },
+      provider: 'stripe',
     });
   });
 
@@ -39,6 +40,7 @@ describe('parseApiError()', () => {
       message: 'Request failed (409)',
       status_code: 409,
       detail: { provider: 'stripe' },
+      provider: 'stripe',
     });
   });
 

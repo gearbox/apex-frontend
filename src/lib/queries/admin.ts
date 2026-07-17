@@ -1,5 +1,6 @@
 import { keepPreviousData, type QueryClient } from '@tanstack/svelte-query';
 import { generateIdempotencyKey } from '$lib/utils/idempotency';
+import { billingKeys } from '$lib/queries/billing';
 import {
   fetchAdminUsers,
   fetchAdminOrgs,
@@ -24,12 +25,15 @@ import {
   fetchHealth,
   fetchHealthHistory,
   fetchPaymentProviderRegistry,
+  fetchAdminCurrencyCatalog,
+  refreshAdminCurrencyCatalog,
   updatePaymentProvider,
   type AuditLogPage,
   type CreatePricingRuleRequest,
   type PatchPricingRuleRequest,
   type BroadcastRequest,
   type PatchAdminUserBody,
+  type PaymentProviderPatchRequest,
 } from '$lib/api/admin';
 
 /* ─── Query Key Factory ─── */
@@ -49,6 +53,7 @@ export const adminKeys = {
   health: () => ['admin', 'health'] as const,
   healthHistory: (p?: object) => ['admin', 'health', 'history', p ?? {}] as const,
   paymentProviders: () => ['admin', 'payment-providers'] as const,
+  paymentCurrencies: () => ['admin', 'payment-currencies'] as const,
 };
 
 /* ─── Query Options ─── */
@@ -323,17 +328,32 @@ export function adminPaymentProvidersQueryOptions() {
   };
 }
 
+export function adminPaymentCurrenciesQueryOptions() {
+  return {
+    queryKey: adminKeys.paymentCurrencies(),
+    queryFn: fetchAdminCurrencyCatalog,
+    staleTime: 30_000,
+    refetchOnWindowFocus: true,
+  };
+}
+
 export function updatePaymentProviderMutationOptions(queryClient: QueryClient) {
   return {
-    mutationFn: ({
-      provider,
-      body,
-    }: {
-      provider: string;
-      body: { is_enabled?: boolean | null; display_order?: number | null };
-    }) => updatePaymentProvider(provider, body),
+    mutationFn: ({ provider, body }: { provider: string; body: PaymentProviderPatchRequest }) =>
+      updatePaymentProvider(provider, body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: adminKeys.paymentProviders() });
+    },
+  };
+}
+
+export function refreshAdminPaymentCurrenciesMutationOptions(queryClient: QueryClient) {
+  return {
+    mutationFn: refreshAdminCurrencyCatalog,
+    retry: false,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.paymentCurrencies() });
+      queryClient.invalidateQueries({ queryKey: billingKeys.currencies() });
     },
   };
 }

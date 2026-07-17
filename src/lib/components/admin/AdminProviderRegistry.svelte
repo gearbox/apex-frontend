@@ -9,6 +9,7 @@
   import { addToast } from '$lib/stores/toasts';
   import { ApiRequestError } from '$lib/api/errors';
   import type { PaymentProviderInfo } from '$lib/api/admin';
+  import AdminCurrencyCatalog from './AdminCurrencyCatalog.svelte';
 
   const queryClient = useQueryClient();
   const providersQuery = createQuery(() => adminPaymentProvidersQueryOptions());
@@ -173,6 +174,8 @@
     </div>
   {/if}
 </div>
+
+<AdminCurrencyCatalog />
 
 <style>
   .tab-content {

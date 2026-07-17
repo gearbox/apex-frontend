@@ -1,23 +1,14 @@
 <script lang="ts">
   import { createQuery } from '@tanstack/svelte-query';
-  import apiClient from '$lib/api/client';
   import { formatNumber } from '$lib/utils/format';
   import { isSSEConnected } from '$lib/stores/eventStream';
   import { ROUTES } from '$lib/utils/routes';
   import * as m from '$paraglide/messages';
+  import { billingBalanceQueryOptions } from '$lib/queries/billing';
 
-  const balanceQuery = createQuery(() => ({
-    queryKey: ['balance'],
-    queryFn: async () => {
-      const { data } = await apiClient.GET('/v1/billing/balance');
-      return data ?? null;
-    },
-    staleTime: 30_000,
-    // When SSE is connected, it pushes balance updates — no need to poll.
-    // When SSE is down, fall back to 30s polling.
-    refetchInterval: $isSSEConnected ? false : 30_000,
-    refetchOnWindowFocus: true,
-  }));
+  const balanceQuery = createQuery(() =>
+    billingBalanceQueryOptions($isSSEConnected ? false : 30_000),
+  );
 
   const balance = $derived(balanceQuery.data?.balance);
   const isDebt = $derived(typeof balance === 'number' && balance < 0);

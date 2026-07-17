@@ -1,7 +1,8 @@
 <script lang="ts">
   import { createQuery } from '@tanstack/svelte-query';
   import { CreditCard, AlertCircle } from 'lucide-svelte';
-  import { adminPaymentsQueryOptions } from '$lib/queries/admin';
+  import * as m from '$paraglide/messages';
+  import { adminPaymentProvidersQueryOptions, adminPaymentsQueryOptions } from '$lib/queries/admin';
   import CursorPagination from '$lib/components/shared/CursorPagination.svelte';
   import StatusBadge from '$lib/components/shared/StatusBadge.svelte';
   import { CursorPaginator } from '$lib/utils/cursorPagination.svelte';
@@ -11,6 +12,7 @@
   let statusFilter = $state('');
   let providerFilter = $state('');
   const pager = new CursorPaginator();
+  const paymentProvidersQuery = createQuery(() => adminPaymentProvidersQueryOptions());
 
   const paymentsQuery = createQuery(() =>
     adminPaymentsQueryOptions({
@@ -22,7 +24,11 @@
   );
 
   function formatAmount(amount: string): string {
-    return `$${parseFloat(amount).toFixed(2)}`;
+    return `$${amount}`;
+  }
+
+  function paidWith(currency: string): string {
+    return currency === 'USD' ? m.admin_payment_currency_pending() : currency;
   }
 
   function formatDate(dateStr: string | null | undefined): string {
@@ -51,14 +57,16 @@
     <select class="filter-select" onchange={onStatusChange}>
       <option value="">All Status</option>
       <option value="pending">Pending</option>
+      <option value="partially_paid">{m.admin_payment_status_partially_paid()}</option>
       <option value="completed">Completed</option>
       <option value="failed">Failed</option>
       <option value="refunded">Refunded</option>
     </select>
     <select class="filter-select" onchange={onProviderChange}>
       <option value="">All Providers</option>
-      <option value="stripe">Stripe</option>
-      <option value="nowpayments">NowPayments</option>
+      {#each paymentProvidersQuery.data ?? [] as provider (provider.provider)}
+        <option value={String(provider.provider)}>{String(provider.provider)}</option>
+      {/each}
     </select>
   </div>
 
@@ -91,6 +99,7 @@
               <th>ID</th>
               <th>Provider</th>
               <th>Amount</th>
+              <th>{m.admin_payment_paid_with()}</th>
               <th>Tokens</th>
               <th>Status</th>
               <th>Created</th>
@@ -103,6 +112,7 @@
                 <td class="mono">{truncateId(payment.id)}</td>
                 <td>{payment.payment_provider}</td>
                 <td class="amount-cell">{formatAmount(payment.amount_usd)}</td>
+                <td>{paidWith(payment.currency)}</td>
                 <td>{payment.tokens_granted.toLocaleString()}</td>
                 <td><StatusBadge status={payment.status} /></td>
                 <td class="date-cell">{formatDate(payment.created_at)}</td>
@@ -122,6 +132,7 @@
               <span class="card-meta-row">
                 <StatusBadge status={payment.payment_provider} />
                 <StatusBadge status={payment.status} />
+                <span>{m.admin_payment_paid_with()}: {paidWith(payment.currency)}</span>
               </span>
             </div>
             <div class="card-right">

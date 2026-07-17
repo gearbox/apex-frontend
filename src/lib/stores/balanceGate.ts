@@ -1,13 +1,6 @@
-import apiClient from '$lib/api/client';
+import { billingBalanceQueryOptions as billingQueryOptions } from '$lib/queries/billing';
 
-export const balanceQueryOptions = () => ({
-  queryKey: ['balance'] as const,
-  queryFn: async () => {
-    const { data } = await apiClient.GET('/v1/billing/balance');
-    return data ?? null;
-  },
-  staleTime: 30_000,
-});
+export const balanceQueryOptions = () => billingQueryOptions();
 
 /** True only when the user has a positive balance that can cover new work. */
 export function canStartNewWork(balance: number | null | undefined): boolean {

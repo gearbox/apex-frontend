@@ -8,6 +8,8 @@ import {
   patchAdminUserMutationOptions,
   sendBroadcastMutationOptions,
   adminPaymentProvidersQueryOptions,
+  adminPaymentCurrenciesQueryOptions,
+  refreshAdminPaymentCurrenciesMutationOptions,
   updatePaymentProviderMutationOptions,
 } from './admin';
 
@@ -91,6 +93,10 @@ describe('adminKeys', () => {
 
   it('generates paymentProviders key', () => {
     expect(adminKeys.paymentProviders()).toEqual(['admin', 'payment-providers']);
+  });
+
+  it('generates paymentCurrencies key', () => {
+    expect(adminKeys.paymentCurrencies()).toEqual(['admin', 'payment-currencies']);
   });
 });
 
@@ -183,6 +189,12 @@ describe('adminPaymentProvidersQueryOptions()', () => {
   });
 });
 
+describe('adminPaymentCurrenciesQueryOptions()', () => {
+  it('uses adminKeys.paymentCurrencies() as the queryKey', () => {
+    expect(adminPaymentCurrenciesQueryOptions().queryKey).toEqual(adminKeys.paymentCurrencies());
+  });
+});
+
 describe('updatePaymentProviderMutationOptions()', () => {
   it('onSuccess invalidates adminKeys.paymentProviders()', async () => {
     const queryClient = new QueryClient();
@@ -219,5 +231,17 @@ describe('updatePaymentProviderMutationOptions()', () => {
     await opts.mutationFn({ provider: 'stripe', body: { is_enabled: false } });
 
     expect(capturedBody).toEqual({ is_enabled: false });
+  });
+});
+
+describe('refreshAdminPaymentCurrenciesMutationOptions()', () => {
+  it('invalidates both admin and public currency catalogs on success', async () => {
+    const queryClient = new QueryClient();
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+    const opts = refreshAdminPaymentCurrenciesMutationOptions(queryClient);
+    await opts.onSuccess();
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: adminKeys.paymentCurrencies() });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['billing', 'currencies'] });
   });
 });

@@ -16,6 +16,13 @@ import { generationStore } from '$lib/stores/generation';
 import { addToast } from '$lib/stores/toasts';
 import { pushNudge } from '$lib/stores/pushNudge.svelte';
 import { jobKeys } from '$lib/queries/jobs';
+import { billingKeys } from '$lib/queries/billing';
+import { fetchBillingTransactions } from '$lib/api/billing';
+import {
+  getPendingPaymentScope,
+  hasPaymentsAwaitingReconciliation,
+  reconcilePendingPayments,
+} from '$lib/stores/pendingPayments';
 import {
   SSE_EVENTS,
   isJobStatusPayload,
@@ -228,7 +235,7 @@ export class EventStreamService {
       this.queryClient.invalidateQueries({ queryKey: ['gallery'] });
       // Safety invalidation with small delay in case balance.updated event is lost
       setTimeout(() => {
-        this.queryClient.invalidateQueries({ queryKey: ['balance'] });
+        this.queryClient.invalidateQueries({ queryKey: billingKeys.balance() });
       }, 2000);
     }
   }
@@ -262,7 +269,7 @@ export class EventStreamService {
 
   private processBalanceUpdated(payload: BalanceUpdatedPayload): void {
     // Optimistically update the balance cache
-    this.queryClient.setQueryData(['balance'], (old: unknown) => {
+    this.queryClient.setQueryData(billingKeys.balance(), (old: unknown) => {
       if (old && typeof old === 'object' && 'balance' in old) {
         return { ...old, balance: payload.balance };
       }
@@ -270,14 +277,16 @@ export class EventStreamService {
     });
 
     // Invalidate transactions list so next view is fresh
-    this.queryClient.invalidateQueries({ queryKey: ['transactions'] });
+    this.queryClient.invalidateQueries({ queryKey: billingKeys.transactions() });
 
     // Show toast for credits/refunds (not debits — those are expected during generation)
     if (payload.delta > 0) {
       const message =
-        payload.transaction_type === 'refund'
-          ? m.balance_toast_refund({ amount: payload.delta })
-          : m.balance_toast_credit({ amount: payload.delta });
+        payload.transaction_type === 'topup'
+          ? m.billing_topup_credited()
+          : payload.transaction_type === 'refund'
+            ? m.balance_toast_refund({ amount: payload.delta })
+            : m.balance_toast_credit({ amount: payload.delta });
       addToast({
         type: 'success',
         message,
@@ -285,6 +294,22 @@ export class EventStreamService {
       });
       // Optimistically clear warnings — if top-up was insufficient the backend re-emits
       dismissAllCreditWarnings();
+    }
+
+    if (payload.transaction_type === 'topup') {
+      void this.reconcilePendingPayments();
+    }
+  }
+
+  private async reconcilePendingPayments(): Promise<void> {
+    const scope = getPendingPaymentScope();
+    if (!scope || !hasPaymentsAwaitingReconciliation(scope)) return;
+
+    try {
+      const page = await fetchBillingTransactions({ limit: 100 });
+      reconcilePendingPayments(scope, page.items);
+    } catch {
+      // The balance event is still authoritative. A later poll/focus refresh retries matching.
     }
   }
 

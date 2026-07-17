@@ -29,6 +29,9 @@ export type DetailedHealthResponse = components['schemas']['DetailedHealthRespon
 export type HealthSnapshotResponse = components['schemas']['HealthSnapshotResponse'];
 export type PaymentProviderInfo =
   components['schemas']['services_payment_provider_state_ProviderInfo'];
+export type AdminCurrency = components['schemas']['AdminCurrency'];
+export type SyncResult = components['schemas']['SyncResult'];
+export type PaymentProviderPatchRequest = components['schemas']['PaymentProviderPatchRequest'];
 export type PatchAdminUserBody = {
   role?: string;
   subscription_tier?: string;
@@ -289,21 +292,53 @@ export async function fetchHealthHistory(params?: {
 /* ─── Payment Provider Registry (Superadmin only) ─── */
 
 export async function fetchPaymentProviderRegistry(): Promise<PaymentProviderInfo[]> {
-  const { data, error } = await apiClient.GET('/v1/admin/payments/providers');
-  if (error || !data) throwApiError(error, 'Failed to fetch payment provider registry');
-  return data as PaymentProviderInfo[];
+  const { data, error, response } = await apiClient.GET('/v1/admin/payments/providers');
+  const status = response.status;
+  if (error || !data) {
+    throwApiError(error, 'Failed to fetch payment provider registry', status);
+  }
+  return [...data].sort((a, b) => a.display_order - b.display_order);
 }
 
 export async function updatePaymentProvider(
   provider: string,
-  body: { is_enabled?: boolean | null; display_order?: number | null },
+  body: PaymentProviderPatchRequest,
 ): Promise<PaymentProviderInfo> {
-  const { data, error } = await apiClient.PATCH('/v1/admin/payments/providers/{provider}', {
-    params: { path: { provider } },
-    body,
-  });
-  if (error || !data) throwApiError(error, 'Failed to update payment provider');
-  return data as PaymentProviderInfo;
+  if (body.is_enabled === undefined && body.display_order === undefined) {
+    throw new Error('A payment provider update needs at least one field.');
+  }
+  if (
+    body.display_order !== undefined &&
+    body.display_order !== null &&
+    (body.display_order < 0 || body.display_order > 1000)
+  ) {
+    throw new Error('Payment provider display order must be between 0 and 1000.');
+  }
+
+  const { data, error, response } = await apiClient.PATCH(
+    '/v1/admin/payments/providers/{provider}',
+    {
+      params: { path: { provider } },
+      body,
+    },
+  );
+  const status = response.status;
+  if (error || !data) throwApiError(error, 'Failed to update payment provider', status);
+  return data;
+}
+
+export async function fetchAdminCurrencyCatalog(): Promise<AdminCurrency[]> {
+  const { data, error, response } = await apiClient.GET('/v1/admin/payments/currencies');
+  const status = response.status;
+  if (error || !data) throwApiError(error, 'Failed to fetch payment currency catalog', status);
+  return data;
+}
+
+export async function refreshAdminCurrencyCatalog(): Promise<SyncResult[]> {
+  const { data, error, response } = await apiClient.POST('/v1/admin/payments/currencies/refresh');
+  const status = response.status;
+  if (error || !data) throwApiError(error, 'Failed to refresh payment currency catalog', status);
+  return data;
 }
 
 /* ─── Broadcast ─── */

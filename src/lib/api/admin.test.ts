@@ -39,6 +39,8 @@ import {
   fetchHealth,
   fetchHealthHistory,
   fetchPaymentProviderRegistry,
+  fetchAdminCurrencyCatalog,
+  refreshAdminCurrencyCatalog,
   updatePaymentProvider,
 } from './admin';
 
@@ -875,6 +877,55 @@ describe('updatePaymentProvider()', () => {
         ),
       ),
     );
-    await expect(updatePaymentProvider('stripe', {})).rejects.toThrow('No fields supplied');
+    await expect(updatePaymentProvider('stripe', {})).rejects.toThrow('at least one field');
+  });
+});
+
+describe('payment currency catalog', () => {
+  it('fetches the admin catalog and refreshes it with no request body', async () => {
+    let refreshBody: unknown = 'not-called';
+    server.use(
+      http.get(`${BASE}/v1/admin/payments/currencies`, () =>
+        HttpResponse.json([
+          {
+            ticker: 'USDTTRC20',
+            provider: 'nowpayments',
+            is_available: false,
+            name: null,
+            network: null,
+            logo_key: null,
+            logo_source_url: null,
+            logo_synced_at: null,
+            last_seen_at: '2026-07-16T00:00:00Z',
+          },
+        ]),
+      ),
+      http.post(`${BASE}/v1/admin/payments/currencies/refresh`, async ({ request }) => {
+        refreshBody = await request.text();
+        return HttpResponse.json([{ provider: 'nowpayments', upserted: 2, deactivated: 1 }], {
+          status: 201,
+        });
+      }),
+    );
+
+    await expect(fetchAdminCurrencyCatalog()).resolves.toMatchObject([
+      { ticker: 'USDTTRC20', is_available: false },
+    ]);
+    await expect(refreshAdminCurrencyCatalog()).resolves.toEqual([
+      { provider: 'nowpayments', upserted: 2, deactivated: 1 },
+    ]);
+    expect(refreshBody).toBe('');
+  });
+
+  it('preserves a 502 detail from refresh failures', async () => {
+    server.use(
+      http.post(`${BASE}/v1/admin/payments/currencies/refresh`, () =>
+        HttpResponse.json({ detail: 'NowPayments unavailable' }, { status: 502 }),
+      ),
+    );
+    await expect(refreshAdminCurrencyCatalog()).rejects.toMatchObject({
+      status_code: 502,
+      message: 'NowPayments unavailable',
+    });
   });
 });

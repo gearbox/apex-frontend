@@ -284,8 +284,13 @@ describe('EventStreamService — balance.updated dispatch', () => {
       transaction_type: 'debit',
     });
 
-    expect(queryClient.setQueryData).toHaveBeenCalledWith(['balance'], expect.any(Function));
-    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['transactions'] });
+    expect(queryClient.setQueryData).toHaveBeenCalledWith(
+      ['billing', 'balance'],
+      expect.any(Function),
+    );
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ['billing', 'transactions', {}],
+    });
 
     svc.dispose();
   });

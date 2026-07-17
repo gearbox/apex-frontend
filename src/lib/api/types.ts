@@ -432,6 +432,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/billing/currencies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListCurrencies */
+        get: operations["V1BillingCurrenciesListCurrencies"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/billing/providers": {
         parameters: {
             query?: never;
@@ -930,6 +947,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/payments/currencies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListCurrencies */
+        get: operations["V1AdminPaymentsCurrenciesListCurrencies"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/payments/providers": {
         parameters: {
             query?: never;
@@ -941,6 +975,23 @@ export interface paths {
         get: operations["V1AdminPaymentsProvidersListProviders"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/payments/currencies/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** RefreshCurrencies */
+        post: operations["V1AdminPaymentsCurrenciesRefreshRefreshCurrencies"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1526,6 +1577,19 @@ export interface components {
         AdminAdjustResponse: {
             transaction: components["schemas"]["TransactionResponse"];
             new_balance: number;
+        };
+        /** AdminCurrency */
+        AdminCurrency: {
+            ticker: string;
+            provider: components["schemas"]["PaymentProvider"];
+            is_available: boolean;
+            name: string | null;
+            network: string | null;
+            logo_key: string | null;
+            logo_source_url: string | null;
+            logo_synced_at: string | null;
+            /** Format: date-time */
+            last_seen_at: string;
         };
         /** AdminOrgResponse */
         AdminOrgResponse: {
@@ -2222,6 +2286,13 @@ export interface components {
             /** Format: date-time */
             ts: string;
         };
+        /** PublicCurrency */
+        PublicCurrency: {
+            ticker: string;
+            name: string | null;
+            network: string | null;
+            logo_url: string | null;
+        };
         /** PublicPaymentProvider */
         PublicPaymentProvider: {
             provider: components["schemas"]["PaymentProvider"];
@@ -2358,6 +2429,12 @@ export interface components {
          * @enum {string}
          */
         SupportedLocale: "en" | "ru" | "sr";
+        /** SyncResult */
+        SyncResult: {
+            provider: components["schemas"]["PaymentProvider"];
+            upserted: number;
+            deactivated: number;
+        };
         /** SystemBroadcastRequest */
         SystemBroadcastRequest: {
             level: components["schemas"]["NotificationLevel"];
@@ -2378,7 +2455,7 @@ export interface components {
         /** TopUpNowPaymentsRequest */
         TopUpNowPaymentsRequest: {
             amount_usd: number;
-            pay_currency: string;
+            pay_currency?: string | null;
         };
         /** TopUpOptionsResponse */
         TopUpOptionsResponse: {
@@ -3396,6 +3473,26 @@ export interface operations {
                             [key: string]: unknown;
                         } | unknown[];
                     };
+                };
+            };
+        };
+    };
+    V1BillingCurrenciesListCurrencies: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicCurrency"][];
                 };
             };
         };
@@ -4657,6 +4754,26 @@ export interface operations {
             };
         };
     };
+    V1AdminPaymentsCurrenciesListCurrencies: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCurrency"][];
+                };
+            };
+        };
+    };
     V1AdminPaymentsProvidersListProviders: {
         parameters: {
             query?: never;
@@ -4673,6 +4790,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["services_payment_provider_state_ProviderInfo"][];
+                };
+            };
+        };
+    };
+    V1AdminPaymentsCurrenciesRefreshRefreshCurrencies: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncResult"][];
                 };
             };
         };

@@ -9,7 +9,9 @@ export interface ApiError {
   error: string;
   message: string;
   status_code: number;
-  detail?: Record<string, unknown> | null;
+  detail?: unknown;
+  extra?: unknown;
+  provider?: string;
 }
 
 export function isApiError(value: unknown): value is ApiError {
@@ -29,6 +31,36 @@ export function isApiError(value: unknown): value is ApiError {
 export function parseApiError(body: unknown, status: number): ApiError {
   if (isApiError(body)) return body;
 
+  if (typeof body === 'object' && body !== null) {
+    const value = body as Record<string, unknown>;
+    const detail = value.detail;
+    const message =
+      typeof value.message === 'string'
+        ? value.message
+        : typeof detail === 'string'
+          ? detail
+          : `Request failed (${status})`;
+    const code =
+      typeof value.code === 'string'
+        ? value.code
+        : typeof value.error === 'string'
+          ? value.error
+          : 'http_error';
+
+    // Litestar validation errors use { status_code, detail, extra }. Preserve
+    // the detail and metadata verbatim so forms can display actionable errors.
+    if ('detail' in value || 'status_code' in value || 'message' in value || 'error' in value) {
+      return {
+        error: code,
+        message,
+        status_code: typeof value.status_code === 'number' ? value.status_code : status,
+        detail: detail ?? null,
+        extra: value.extra,
+        provider: typeof value.provider === 'string' ? value.provider : undefined,
+      };
+    }
+  }
+
   // Compact compatibility body used by the top-up routes:
   // { code: "payment_provider_disabled", provider: "stripe" }
   if (
@@ -37,15 +69,20 @@ export function parseApiError(body: unknown, status: number): ApiError {
     'code' in body &&
     typeof (body as { code: unknown }).code === 'string'
   ) {
-    const b = body as { code: string; provider?: string };
+    const b = body as { code: string; provider?: string; detail?: unknown; message?: unknown };
     return {
       error: b.code,
       message:
-        b.code === 'payment_provider_disabled'
-          ? `Payment provider ${b.provider ?? ''} is currently disabled`.trim()
-          : `Request failed (${status})`,
+        typeof b.message === 'string'
+          ? b.message
+          : typeof b.detail === 'string'
+            ? b.detail
+            : b.code === 'payment_provider_disabled'
+              ? `Payment provider ${b.provider ?? ''} is currently disabled`.trim()
+              : `Request failed (${status})`,
       status_code: status,
-      detail: b.provider ? { provider: b.provider } : null,
+      detail: b.provider ? { provider: b.provider } : (b.detail ?? null),
+      provider: b.provider,
     };
   }
 
@@ -63,7 +100,7 @@ export function parseApiError(body: unknown, status: number): ApiError {
 export class AuthError extends Error {
   readonly error: string;
   readonly status_code: number;
-  readonly detail?: Record<string, unknown> | null;
+  readonly detail?: unknown;
 
   constructor(apiError: ApiError) {
     super(apiError.message);
@@ -87,7 +124,9 @@ export class AuthError extends Error {
 export class ApiRequestError extends Error {
   readonly error: string;
   readonly status_code: number;
-  readonly detail?: Record<string, unknown> | null;
+  readonly detail?: unknown;
+  readonly extra?: unknown;
+  readonly provider?: string;
 
   constructor(apiError: ApiError) {
     super(apiError.message);
@@ -95,11 +134,13 @@ export class ApiRequestError extends Error {
     this.error = apiError.error;
     this.status_code = apiError.status_code;
     this.detail = apiError.detail;
+    this.extra = apiError.extra;
+    this.provider = apiError.provider;
   }
 }
 
 /** Coerce an unknown openapi-fetch error into an ApiRequestError and throw it. */
-export function throwApiError(error: unknown, fallbackMsg: string): never {
-  const apiErr = parseApiError(error, 0);
+export function throwApiError(error: unknown, fallbackMsg: string, status?: number): never {
+  const apiErr = parseApiError(error, status ?? 0);
   throw new ApiRequestError({ ...apiErr, message: apiErr.message || fallbackMsg });
 }
