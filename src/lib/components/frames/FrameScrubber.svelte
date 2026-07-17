@@ -1,8 +1,11 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
   import { Plus, RotateCcw } from 'lucide-svelte';
-  import { toMediaSrc } from '$lib/media';
   import type { components } from '$lib/api/types';
+  import {
+    AuthenticatedMediaLoadError,
+    loadAuthenticatedMediaBlob,
+  } from '$lib/media/loadAuthenticatedMediaBlob';
   import {
     VideoFrameCapture,
     VideoFrameCaptureError,
@@ -26,6 +29,7 @@
     retryLabel,
     displayErrorLabel,
     corsCaptureErrorLabel,
+    authErrorLabel,
   }: {
     media: MediaObject;
     timestamp: number;
@@ -39,6 +43,7 @@
     retryLabel: string;
     displayErrorLabel: string;
     corsCaptureErrorLabel: string;
+    authErrorLabel: string;
   } = $props();
 
   let videoEl = $state<HTMLVideoElement>();
@@ -48,11 +53,16 @@
   let seeking = $state(true);
   let adding = $state(false);
   let captureError = $state('');
+  let mediaLoadError = $state('');
+  let mediaLoading = $state(false);
+  let mediaReady = $state(false);
   let requestedTimestamp = $state(0);
   let seekTimer: ReturnType<typeof setTimeout> | null = null;
   let controller: VideoFrameCapture | null = null;
+  let decoderObjectUrl: string | null = null;
+  let loadRetryVersion = $state(0);
 
-  const videoSrc = $derived(toMediaSrc(media.original.url));
+  const videoSrc = $derived(media.original.url);
   const previewAspectRatio = $derived(
     media.original.width && media.original.height
       ? `${media.original.width} / ${media.original.height}`
@@ -75,6 +85,24 @@
       : displayErrorLabel;
   }
 
+  function localizedMediaLoadError(error: unknown): string {
+    return error instanceof AuthenticatedMediaLoadError && error.category === 'authentication'
+      ? authErrorLabel
+      : displayErrorLabel;
+  }
+
+  function disposeDecoder(video: HTMLVideoElement): void {
+    if (seekTimer) clearTimeout(seekTimer);
+    seekTimer = null;
+    controller?.dispose();
+    controller = null;
+    if (decoderObjectUrl) {
+      URL.revokeObjectURL(decoderObjectUrl);
+      decoderObjectUrl = null;
+    }
+    video.removeAttribute('src');
+  }
+
   function handleInput(event: Event) {
     if (disabled) return;
     const nextTimestamp = onscrub(Number((event.currentTarget as HTMLInputElement).value));
@@ -84,7 +112,7 @@
   }
 
   function scheduleSeek(nextTimestamp = requestedTimestamp) {
-    if (!controller || disabled) return;
+    if (!controller || disabled || !mediaReady) return;
     controller.supersede();
     if (seekTimer) clearTimeout(seekTimer);
     seeking = true;
@@ -103,7 +131,7 @@
   }
 
   async function handleAdd() {
-    if (!controller || adding || seeking || disabled) return;
+    if (!controller || adding || seeking || disabled || mediaLoading || !mediaReady) return;
     adding = true;
     captureError = '';
     try {
@@ -116,33 +144,85 @@
     }
   }
 
-  onMount(() => {
-    requestedTimestamp = timestamp;
+  function retryMediaLoad() {
+    mediaLoadError = '';
+    loadRetryVersion += 1;
+  }
+
+  $effect(() => {
     const video = videoEl;
     const canvas = canvasEl;
+    const source = videoSrc;
+    const retryVersion = loadRetryVersion;
     if (!video || !canvas) return;
-    // Set CORS mode before assigning the cross-origin media URL. This keeps a
-    // successful decoder frame origin-clean for the manual canvas capture.
-    video.crossOrigin = 'anonymous';
-    video.src = videoSrc;
-    controller = new VideoFrameCapture({
-      video,
-      canvas,
-      onFrame: (frame) => (previewFrame = frame),
-      onSeekingChange: (nextSeeking) => (seeking = nextSeeking),
-    });
+
+    let active = true;
+    const abortController = new AbortController();
+    mediaLoading = true;
+    mediaReady = false;
+    seeking = true;
+    mediaLoadError = '';
+    captureError = '';
+    previewFrame = null;
+    disposeDecoder(video);
+
+    void (async () => {
+      try {
+        const { objectUrl } = await loadAuthenticatedMediaBlob(source, {
+          signal: abortController.signal,
+        });
+        if (!active || retryVersion !== loadRetryVersion) {
+          URL.revokeObjectURL(objectUrl);
+          return;
+        }
+
+        decoderObjectUrl = objectUrl;
+        video.src = objectUrl;
+        controller = new VideoFrameCapture({
+          video,
+          canvas,
+          onFrame: (frame) => (previewFrame = frame),
+          onSeekingChange: (nextSeeking) => (seeking = nextSeeking),
+        });
+        mediaLoading = false;
+        mediaReady = true;
+        scheduleSeek(requestedTimestamp);
+      } catch (error) {
+        if (
+          !active ||
+          (error instanceof AuthenticatedMediaLoadError && error.category === 'aborted')
+        ) {
+          return;
+        }
+        mediaLoading = false;
+        mediaReady = false;
+        seeking = false;
+        mediaLoadError = localizedMediaLoadError(error);
+      }
+    })();
+
+    return () => {
+      active = false;
+      abortController.abort();
+      disposeDecoder(video);
+    };
+  });
+
+  onMount(() => {
+    requestedTimestamp = timestamp;
     onAddButtonReady?.(addButton ?? null);
-    scheduleSeek(requestedTimestamp);
+    return () => onAddButtonReady?.(null);
   });
 
   onDestroy(() => {
     if (seekTimer) clearTimeout(seekTimer);
-    controller?.dispose();
-    onAddButtonReady?.(null);
   });
 </script>
 
-<section class="rounded-xl border border-border bg-surface p-3 md:p-4" aria-busy={seeking}>
+<section
+  class="rounded-xl border border-border bg-surface p-3 md:p-4"
+  aria-busy={mediaLoading || seeking}
+>
   <div
     class="relative mb-3 overflow-hidden rounded-lg bg-black"
     style={`aspect-ratio: ${previewAspectRatio}`}
@@ -159,7 +239,7 @@
         {m.frames_preview_loading()}
       </div>
     {/if}
-    {#if seeking}
+    {#if mediaLoading || seeking}
       <div
         class="absolute inset-0 flex items-center justify-center bg-black/25"
         role="status"
@@ -171,10 +251,8 @@
         <span class="sr-only">{m.frames_frame_loading()}</span>
       </div>
     {/if}
-    <!-- crossorigin remains declarative for accessibility/devtools; src is set after it in onMount. -->
     <video
       bind:this={videoEl}
-      crossorigin="anonymous"
       muted
       playsinline
       preload="metadata"
@@ -202,11 +280,11 @@
     <div class="flex items-center justify-between gap-3">
       <p class="text-xs text-text-dim">{m.frames_selected_limit()}</p>
       <div class="flex items-center gap-2">
-        {#if captureError}
+        {#if captureError || mediaLoadError}
           <button
             type="button"
-            onclick={() => scheduleSeek(requestedTimestamp)}
-            {disabled}
+            onclick={() => (mediaLoadError ? retryMediaLoad() : scheduleSeek(requestedTimestamp))}
+            disabled={disabled || mediaLoading}
             class="inline-flex min-h-11 items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-danger hover:bg-danger/10 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <RotateCcw size={13} />
@@ -217,7 +295,13 @@
           bind:this={addButton}
           type="button"
           onclick={() => void handleAdd()}
-          disabled={!canAdd || disabled || seeking || adding || !previewFrame}
+          disabled={!canAdd ||
+            disabled ||
+            mediaLoading ||
+            !mediaReady ||
+            seeking ||
+            adding ||
+            !previewFrame}
           class="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-text transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Plus size={13} />
@@ -225,8 +309,8 @@
         </button>
       </div>
     </div>
-    {#if captureError}
-      <p class="text-xs text-danger" role="alert">{captureError}</p>
+    {#if captureError || mediaLoadError}
+      <p class="text-xs text-danger" role="alert">{mediaLoadError || captureError}</p>
     {/if}
   </div>
 </section>

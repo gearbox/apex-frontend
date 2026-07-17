@@ -52,6 +52,7 @@ vi.mock('$paraglide/messages', () => ({
   frames_frame_display_error: () => 'Could not display this video frame',
   frames_frame_capture_cors_error: () => 'Video access is blocked',
   frames_frame_loading: () => 'Loading frame preview…',
+  error_unauthorized: () => 'Your session has expired. Please sign in again.',
   frames_retry_frame_preview: () => 'Retry frame preview',
   frames_selected_count: ({ count }: { count: number }) => `${count} selected`,
   frames_selected_limit: () => 'You can select up to 50 frames.',
@@ -309,6 +310,13 @@ describe('FrameExtractModal', () => {
 
     try {
       server.use(
+        http.get(
+          `${BASE}/v1/content/uploads/:upload_id`,
+          () =>
+            new HttpResponse(new Blob(['video'], { type: 'video/mp4' }), {
+              headers: { 'content-type': 'video/mp4' },
+            }),
+        ),
         http.post(`${BASE}/v1/frames/preview`, () =>
           HttpResponse.json({ job_id: 'preview-job', status: 'queued' }, { status: 202 }),
         ),
@@ -369,6 +377,13 @@ describe('FrameExtractModal', () => {
 
     try {
       server.use(
+        http.get(
+          `${BASE}/v1/content/uploads/:upload_id`,
+          () =>
+            new HttpResponse(new Blob(['video'], { type: 'video/mp4' }), {
+              headers: { 'content-type': 'video/mp4' },
+            }),
+        ),
         http.post(`${BASE}/v1/frames/preview`, () =>
           HttpResponse.json({ job_id: 'preview-job', status: 'queued' }, { status: 202 }),
         ),
