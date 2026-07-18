@@ -29,6 +29,7 @@
 
   let showDeleteConfirm = $state(false);
   let showFrameExtraction = $state(false);
+  let frameExtractionTrigger = $state<HTMLButtonElement | null>(null);
 
   const queryClient = useQueryClient();
   const deleteMutation = createMutation(() => deleteContentMutationOptions(queryClient));
@@ -56,7 +57,20 @@
   }
 
   function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape') onclose();
+    if (showFrameExtraction) return;
+    if (e.key === 'Escape') {
+      e.stopPropagation();
+      onclose();
+    }
+  }
+
+  function handleBackdropClick(event: MouseEvent) {
+    if (showFrameExtraction) return;
+    if (event.target === event.currentTarget) onclose();
+  }
+
+  function handleParentClose() {
+    if (!showFrameExtraction) onclose();
   }
 
   onMount(() => {
@@ -82,6 +96,7 @@
       </button>
     {:else if item.media.media_type === 'video'}
       <button
+        bind:this={frameExtractionTrigger}
         onclick={() => (showFrameExtraction = true)}
         class="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-accent/15 px-3 py-2 text-xs font-semibold text-accent transition-colors hover:bg-accent/25"
       >
@@ -137,12 +152,10 @@
 <!-- Backdrop -->
 <div
   class="fixed inset-0 z-[150] flex flex-col bg-black/80 backdrop-blur-sm md:items-center md:justify-center md:p-4"
-  onclick={(e) => {
-    if (e.target === e.currentTarget) onclose();
-  }}
-  onkeydown={(e) => {
-    if (e.key === 'Escape') onclose();
-  }}
+  onclick={handleBackdropClick}
+  onkeydown={handleKeydown}
+  inert={showFrameExtraction ? true : undefined}
+  aria-hidden={showFrameExtraction ? 'true' : undefined}
   role="dialog"
   tabindex="-1"
   aria-modal="true"
@@ -154,7 +167,7 @@
     <!-- Media area -->
     <div class="relative flex min-h-0 flex-1 items-center justify-center bg-black md:min-h-[40vh]">
       <button
-        onclick={onclose}
+        onclick={handleParentClose}
         class="absolute right-4 top-[max(1rem,env(safe-area-inset-top))] z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur-sm transition-colors hover:bg-white/20 md:top-4"
         aria-label="Close"
       >
@@ -209,6 +222,7 @@
   <FrameExtractModal
     source={{ type: 'upload', id: item.id }}
     media={item.media}
+    trigger={frameExtractionTrigger}
     onclose={() => (showFrameExtraction = false)}
   />
 {/if}

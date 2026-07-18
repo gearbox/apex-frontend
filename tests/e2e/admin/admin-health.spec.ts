@@ -64,11 +64,9 @@ test.describe('Admin Health Dashboard', () => {
     authenticatedPage: page,
   }) => {
     await page.goto('/app/admin');
-    await page.waitForLoadState('networkidle');
 
     // Navigate to Health tab
     await page.getByRole('tab', { name: /health/i }).click();
-    await page.waitForLoadState('networkidle');
 
     // Overall degraded badge should appear
     await expect(page.getByText('degraded').first()).toBeVisible();
@@ -76,9 +74,7 @@ test.describe('Admin Health Dashboard', () => {
 
   test('shows infrastructure components', async ({ authenticatedPage: page }) => {
     await page.goto('/app/admin');
-    await page.waitForLoadState('networkidle');
     await page.getByRole('tab', { name: /health/i }).click();
-    await page.waitForLoadState('networkidle');
 
     await expect(page.getByText('database')).toBeVisible();
     await expect(page.getByText('redis')).toBeVisible();
@@ -86,9 +82,7 @@ test.describe('Admin Health Dashboard', () => {
 
   test('shows gpu_sessions counts', async ({ authenticatedPage: page }) => {
     await page.goto('/app/admin');
-    await page.waitForLoadState('networkidle');
     await page.getByRole('tab', { name: /health/i }).click();
-    await page.waitForLoadState('networkidle');
 
     const gpuSection = page.getByTestId('category-gpu-sessions');
     await expect(gpuSection).toBeVisible();
@@ -101,9 +95,7 @@ test.describe('Admin Health Dashboard', () => {
     authenticatedPage: page,
   }) => {
     await page.goto('/app/admin');
-    await page.waitForLoadState('networkidle');
     await page.getByRole('tab', { name: /health/i }).click();
-    await page.waitForLoadState('networkidle');
 
     // Timeline SVG should be present with rect segments
     const svg = page.locator('svg[role="img"]');
@@ -114,9 +106,7 @@ test.describe('Admin Health Dashboard', () => {
 
   test('shows polling indicator when stream is aborted', async ({ authenticatedPage: page }) => {
     await page.goto('/app/admin');
-    await page.waitForLoadState('networkidle');
     await page.getByRole('tab', { name: /health/i }).click();
-    await page.waitForLoadState('networkidle');
 
     // The stream-indicator should be in polling state
     const indicator = page.getByTestId('stream-indicator');

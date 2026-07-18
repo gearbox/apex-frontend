@@ -270,13 +270,7 @@ describe('FrameScrubber authenticated decoder lifecycle', () => {
     });
     await waitFor(() => expect(loadMediaMock).toHaveBeenCalledTimes(2));
 
-    expect(order).toEqual([
-      'dispose',
-      'pause',
-      'remove:src',
-      'load',
-      'revoke:blob:source-a',
-    ]);
+    expect(order).toEqual(['dispose', 'pause', 'remove:src', 'load', 'revoke:blob:source-a']);
 
     second.resolve({ objectUrl: 'blob:source-b', contentType: 'video/mp4' });
     await waitFor(() => expect(captures).toHaveLength(2));

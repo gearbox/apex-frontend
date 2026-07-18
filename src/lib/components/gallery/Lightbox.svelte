@@ -39,6 +39,7 @@
   let selectedOutputIndex = $state(0);
   let showDeleteConfirm = $state(false);
   let frameExtractionOutput = $state<GalleryOutputItem | null>(null);
+  let frameExtractionTrigger = $state<HTMLButtonElement | null>(null);
 
   const queryClient = useQueryClient();
   const deleteMutation = createMutation(() => deleteContentMutationOptions(queryClient));
@@ -72,9 +73,23 @@
   }
 
   function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape') onclose();
+    if (frameExtractionOutput) return;
+    if (e.key === 'Escape') {
+      e.stopPropagation();
+      onclose();
+      return;
+    }
     if (e.key === 'ArrowLeft') prev();
     if (e.key === 'ArrowRight') next();
+  }
+
+  function handleBackdropClick(event: MouseEvent) {
+    if (frameExtractionOutput) return;
+    if (event.target === event.currentTarget) onclose();
+  }
+
+  function handleParentClose() {
+    if (!frameExtractionOutput) onclose();
   }
 
   function handleRegenerate() {
@@ -223,6 +238,7 @@
       {@const output = detail.outputs[selectedOutputIndex] ?? detail.outputs[0]}
       {#if output.media.media_type === 'video'}
         <button
+          bind:this={frameExtractionTrigger}
           onclick={() => (frameExtractionOutput = output)}
           class="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-accent/15 px-3 py-2 text-xs font-semibold text-accent transition-colors hover:bg-accent/25"
         >
@@ -390,12 +406,10 @@
      so the delete confirmation still stacks above an open Lightbox. -->
 <div
   class="fixed inset-0 z-[150] flex flex-col bg-black/80 backdrop-blur-sm md:items-center md:justify-center md:p-4"
-  onclick={(e) => {
-    if (e.target === e.currentTarget) onclose();
-  }}
-  onkeydown={(e) => {
-    if (e.key === 'Escape') onclose();
-  }}
+  onclick={handleBackdropClick}
+  onkeydown={handleKeydown}
+  inert={frameExtractionOutput ? true : undefined}
+  aria-hidden={frameExtractionOutput ? 'true' : undefined}
   role="dialog"
   tabindex="-1"
   aria-modal="true"
@@ -409,7 +423,7 @@
     <div class="relative flex min-h-0 flex-1 items-center justify-center bg-black md:min-h-[40vh]">
       <!-- Close button -->
       <button
-        onclick={onclose}
+        onclick={handleParentClose}
         class="absolute right-4 top-[max(1rem,env(safe-area-inset-top))] z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur-sm transition-colors hover:bg-white/20 md:top-4"
         aria-label="Close"
       >
@@ -525,6 +539,7 @@
   <FrameExtractModal
     source={{ type: 'output', id: frameExtractionOutput.id }}
     media={frameExtractionOutput.media}
+    trigger={frameExtractionTrigger}
     onclose={() => (frameExtractionOutput = null)}
   />
 {/if}

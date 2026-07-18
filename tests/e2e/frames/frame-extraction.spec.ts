@@ -3,7 +3,7 @@ import { Buffer } from 'node:buffer';
 import { test, expect } from '../fixtures/auth.fixture';
 import { jsonRoute } from '../helpers/api';
 
-const SOURCE_ID = 'output-video-001';
+const SOURCE_ID = 'upload-video-001';
 const DURATION_MS = 3_000;
 const portraitVideo = readFileSync(
   new URL('../fixtures/media/frame-extraction-portrait.mp4', import.meta.url),
@@ -16,7 +16,7 @@ const previewImage = Buffer.from(
 const videoMedia = {
   media_type: 'video',
   original: {
-    url: `/v1/content/outputs/${SOURCE_ID}`,
+    url: `/v1/content/uploads/${SOURCE_ID}`,
     width: 180,
     height: 320,
     content_type: 'video/mp4',
@@ -25,48 +25,19 @@ const videoMedia = {
   variants: [],
 };
 
-const galleryPage = {
+const uploadsPage = {
   items: [
     {
-      job_id: 'video-job-001',
-      cover: videoMedia,
-      badge: 'prompt',
-      output_count: 1,
-      generation_type: 't2v',
-      model: 'grok-imagine-video',
-      aspect_ratio: '9:16',
-      prompt_snippet: 'A portrait video for frame extraction',
-      created_at: '2026-07-17T10:00:00Z',
-    },
-  ],
-  limit: 20,
-  has_more: false,
-  next_cursor: null,
-};
-
-const galleryDetail = {
-  job_id: 'video-job-001',
-  badge: 'prompt',
-  input_media: null,
-  prompt: 'A portrait video for frame extraction',
-  negative_prompt: null,
-  outputs: [
-    {
       id: SOURCE_ID,
-      output_index: 0,
-      created_at: '2026-07-17T10:00:01Z',
+      filename: 'portrait-frame-source.mp4',
+      created_at: '2026-07-17T10:00:00Z',
+      expires_at: '2026-08-17T10:00:00Z',
       media: videoMedia,
     },
   ],
-  media_type: 'video',
-  model: 'grok-imagine-video',
-  provider: 'grok',
-  generation_type: 't2v',
-  aspect_ratio: '9:16',
-  token_cost: 10,
-  created_at: '2026-07-17T10:00:00Z',
-  completed_at: '2026-07-17T10:00:01Z',
-  lineage: null,
+  limit: 30,
+  has_more: false,
+  next_cursor: null,
 };
 
 function previewJob() {
@@ -78,7 +49,7 @@ function previewJob() {
     started_at: '2026-07-17T10:00:01Z',
     finished_at: '2026-07-17T10:00:02Z',
     error: null,
-    source: { type: 'output', id: SOURCE_ID },
+    source: { type: 'upload', id: SOURCE_ID },
     preview: {
       duration_ms: DURATION_MS,
       expires_in_seconds: 3600,
@@ -125,7 +96,7 @@ async function canvasSample(canvas: import('@playwright/test').Locator) {
 }
 
 test.describe('Frame extraction (real media regression)', () => {
-  test('decodes a cross-origin H.264 portrait video, captures real canvas pixels, and freezes the submitted union', async ({
+  test('keeps the My Uploads frame dialog and parent preview open through reverse-direction mobile scrolling', async ({
     authenticatedPage: page,
   }) => {
     let previewRequest: unknown;
@@ -134,13 +105,22 @@ test.describe('Frame extraction (real media regression)', () => {
     let authenticatedMediaFetches = 0;
     let anonymousProtectedContentRequestsAfterFrameModalOpen = 0;
     let authenticatedMedia401Responses = 0;
+    const pageErrors: Error[] = [];
     let resolveInitialLightboxMediaRequest!: () => void;
     const initialLightboxMediaRequest = new Promise<void>((resolve) => {
       resolveInitialLightboxMediaRequest = resolve;
     });
 
-    await page.route((url) => url.pathname === '/v1/gallery', jsonRoute(galleryPage));
-    await page.route('**/v1/gallery/video-job-001', jsonRoute(galleryDetail));
+    await page.route('**/v1/storage/uploads*', jsonRoute(uploadsPage));
+    await page.route(
+      '**/v1/storage/stats',
+      jsonRoute({
+        upload_count: 1,
+        output_count: 0,
+        total_bytes: portraitVideo.byteLength,
+        total_mb: 1,
+      }),
+    );
     // The authenticated loader fetches protected content once, then the hidden
     // decoder consumes only the resulting blob URL. A missing bearer remains a
     // natural 401 so a regression in that boundary fails this scenario.
@@ -200,6 +180,7 @@ test.describe('Frame extraction (real media regression)', () => {
         authenticatedMedia401Responses += 1;
       }
     });
+    page.on('pageerror', (error) => pageErrors.push(error));
     await page.route('https://frame-previews.example.test/**', (route) =>
       route.fulfill({ status: 200, contentType: 'image/png', body: previewImage }),
     );
@@ -229,13 +210,13 @@ test.describe('Frame extraction (real media regression)', () => {
       }),
     );
 
-    await page.goto('/app/gallery');
-    await expect(page.getByText(/loaded/i)).toBeVisible({ timeout: 5_000 });
-    await page.locator('[class*="grid"]').locator('button, [role="button"]').first().click();
-    const lightbox = page.getByRole('dialog', { name: 'Image lightbox' });
-    // The gallery lightbox owns a separate autoplaying video. Detach it before
-    // the scrubber phase so its native media activity cannot be attributed to
-    // the hidden decoder under test.
+    await page.goto('/app/uploads');
+    await expect(page.getByRole('heading', { name: 'My Uploads' })).toBeVisible({ timeout: 5_000 });
+    await page.getByRole('button', { name: /portrait-frame-source\.mp4/ }).click();
+    const lightbox = page.getByRole('dialog', { name: 'Upload preview' });
+    // The upload preview owns a separate native video. Detach it before the
+    // scrubber phase so its media activity cannot be attributed to the hidden
+    // authenticated decoder under test.
     await lightbox.locator('video').evaluate((video) => {
       const media = video as HTMLVideoElement;
       media.pause();
@@ -255,7 +236,7 @@ test.describe('Frame extraction (real media regression)', () => {
     await expect(extractionDialog.getByRole('heading', { name: 'Automatic' })).toBeVisible();
     await expect
       .poll(() => previewRequest)
-      .toEqual({ source_output_id: SOURCE_ID, frame_count: 6 });
+      .toEqual({ source_upload_id: SOURCE_ID, frame_count: 6 });
     await expect(extractionDialog.getByRole('button', { name: /^Automatic:/ })).toHaveCount(6);
     await expect(addButton).toBeEnabled({ timeout: 8_000 });
     expect(authenticatedMediaFetches).toBeGreaterThan(0);
@@ -317,13 +298,60 @@ test.describe('Frame extraction (real media regression)', () => {
     await expect(manualCard.locator('img')).toHaveJSProperty('naturalWidth', 180);
     await expect(manualCard).toHaveAttribute('aria-pressed', 'true');
 
-    await extractionDialog.getByRole('button', { name: 'Automatic: 00:00.000' }).click();
+    const automaticCard = extractionDialog.getByRole('button', { name: 'Automatic: 00:00.000' });
+    await automaticCard.click();
+
+    const scrollViewport = extractionDialog.locator('[data-frame-modal-scroll]');
+    const scrollPositions = await scrollViewport.evaluate((viewport) => {
+      const element = viewport as HTMLElement;
+      element.scrollTop = element.scrollHeight;
+      const bottom = element.scrollTop;
+      element.scrollTop = Math.max(1, Math.floor(bottom / 2));
+      const reversed = element.scrollTop;
+      element.scrollTop = 0;
+      return { bottom, reversed, top: element.scrollTop };
+    });
+    expect(scrollPositions.bottom).toBeGreaterThan(0);
+    expect(scrollPositions.reversed).toBeLessThan(scrollPositions.bottom);
+    expect(scrollPositions.top).toBeLessThan(scrollPositions.reversed);
+    await scrollViewport.dispatchEvent('pointerdown', {
+      pointerType: 'touch',
+      pointerId: 1,
+      isPrimary: true,
+      clientY: 160,
+    });
+    await scrollViewport.dispatchEvent('pointermove', {
+      pointerType: 'touch',
+      pointerId: 1,
+      isPrimary: true,
+      clientY: 40,
+    });
+    await scrollViewport.dispatchEvent('pointerup', {
+      pointerType: 'touch',
+      pointerId: 1,
+      isPrimary: true,
+      clientY: 40,
+    });
+    await expect(extractionDialog).toBeVisible();
+    await expect(manualCard).toHaveAttribute('aria-pressed', 'true');
+    await expect(automaticCard).toHaveAttribute('aria-pressed', 'true');
+    await expect(canvas).toBeVisible();
+    await expect(page.locator('[role="dialog"][aria-label="Upload preview"]')).toHaveJSProperty(
+      'inert',
+      true,
+    );
+    await expect(page.locator('[role="dialog"][aria-label="Upload preview"]')).toHaveAttribute(
+      'aria-hidden',
+      'true',
+    );
+    expect(page.url()).toContain('/app/uploads');
+
     await extractionDialog.getByRole('button', { name: 'Extract frames' }).click();
 
     await expect
       .poll(() => extractionRequest)
       .toEqual({
-        source_output_id: SOURCE_ID,
+        source_upload_id: SOURCE_ID,
         timestamps_ms: [0, 1250],
       });
     expect(JSON.stringify(extractionRequest)).not.toContain('user_id');
@@ -333,5 +361,15 @@ test.describe('Frame extraction (real media regression)', () => {
     await expect(manualCard).toBeDisabled();
     await expect(scrubber).toBeDisabled();
     await expect(addButton).toBeDisabled();
+
+    await extractionDialog.getByRole('button', { name: 'Close' }).click();
+    await expect(extractionDialog).toBeHidden();
+    const restoredLightbox = page.locator('[role="dialog"][aria-label="Upload preview"]');
+    await expect(restoredLightbox).toHaveJSProperty('inert', false);
+    await expect(restoredLightbox).not.toHaveAttribute('aria-hidden', 'true');
+    await restoredLightbox.getByRole('button', { name: 'Close' }).click();
+    await expect(page.getByRole('heading', { name: 'My Uploads' })).toBeVisible();
+    expect(page.url()).toContain('/app/uploads');
+    expect(pageErrors).toEqual([]);
   });
 });

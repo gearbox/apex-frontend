@@ -102,9 +102,7 @@ test.describe('Admin Users cursor pagination', () => {
     );
 
     await page.goto('/app/admin');
-    await page.waitForLoadState('networkidle');
     await page.getByRole('tab', { name: 'Users' }).click();
-    await page.waitForLoadState('networkidle');
 
     await expect(page.getByRole('button', { name: /previous page/i })).toBeDisabled();
     await expect(page.getByRole('button', { name: /next page/i })).toBeEnabled();
@@ -130,12 +128,9 @@ test.describe('Admin Users cursor pagination', () => {
     });
 
     await page.goto('/app/admin');
-    await page.waitForLoadState('networkidle');
     await page.getByRole('tab', { name: 'Users' }).click();
-    await page.waitForLoadState('networkidle');
 
     await page.getByRole('button', { name: /next page/i }).click();
-    await page.waitForLoadState('networkidle');
 
     await expect(page.getByText('Page 2')).toBeVisible();
     await expect(page.getByRole('button', { name: /previous page/i })).toBeEnabled();
@@ -164,12 +159,9 @@ test.describe('Admin Users cursor pagination', () => {
     });
 
     await page.goto('/app/admin');
-    await page.waitForLoadState('networkidle');
     await page.getByRole('tab', { name: 'Users' }).click();
-    await page.waitForLoadState('networkidle');
 
     await page.getByRole('button', { name: /next page/i }).click();
-    await page.waitForLoadState('networkidle');
     await expect(page.getByText('Page 2')).toBeVisible();
 
     // staleTime=30s means TanStack Query may serve page 1 from cache without a network
@@ -181,7 +173,6 @@ test.describe('Admin Users cursor pagination', () => {
 
     await page.getByRole('button', { name: /previous page/i }).click();
     const prevRequest = await prevRequestPromise;
-    await page.waitForLoadState('networkidle');
 
     await expect(page.getByText('Page 1')).toBeVisible();
     await expect(page.getByRole('button', { name: /previous page/i })).toBeDisabled();
@@ -203,19 +194,15 @@ test.describe('Admin Users cursor pagination', () => {
     });
 
     await page.goto('/app/admin');
-    await page.waitForLoadState('networkidle');
     await page.getByRole('tab', { name: 'Users' }).click();
-    await page.waitForLoadState('networkidle');
 
     // Actually go to page 2 via the UI
     await page.getByRole('button', { name: /next page/i }).click();
-    await page.waitForLoadState('networkidle');
     await expect(page.getByText('Page 2')).toBeVisible();
     expect(requestUrls.some((u) => u.includes('cursor=cursor-2'))).toBe(true);
 
     // Change the role filter → must reset to page 1 with no cursor
     await page.locator('select.filter-select').first().selectOption('user');
-    await page.waitForLoadState('networkidle');
 
     await expect(page.getByText('Page 1')).toBeVisible();
     await expect(page.getByRole('button', { name: /previous page/i })).toBeDisabled();

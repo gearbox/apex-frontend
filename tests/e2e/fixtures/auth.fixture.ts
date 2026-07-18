@@ -48,6 +48,11 @@ export const test = base.extend<{ authenticatedPage: Page }>({
       }),
     );
 
+    // The authenticated app opens a persistent SSE connection. Keep the shared
+    // fixture deterministic: tests that exercise streaming can register a
+    // more-specific route after this one.
+    await page.route('**/v1/events/sse-ticket', (route: Route) => route.fulfill({ status: 503 }));
+
     // Plant a refresh token in localStorage before navigation
     await page.addInitScript(() => {
       localStorage.setItem('apex-refresh-token', 'e2e-refresh-token');

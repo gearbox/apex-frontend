@@ -66,7 +66,6 @@ test('shows the build version badge above the admin tabs', async ({ authenticate
   await page.route('**/v1/admin/manage/audit', jsonRoute(mockAuditLog));
 
   await page.goto('/app/admin');
-  await page.waitForLoadState('networkidle');
 
   const badge = page.getByTestId('app-version');
   await expect(badge).toBeVisible();
@@ -81,7 +80,6 @@ test.describe('Admin Management Tab', () => {
     await page.route('**/v1/admin/manage/audit', jsonRoute(mockAuditLog));
 
     await page.goto('/app/admin');
-    await page.waitForLoadState('networkidle');
 
     await expect(page.getByRole('tab', { name: 'Admins' })).not.toBeVisible();
   });
@@ -92,7 +90,6 @@ test.describe('Admin Management Tab', () => {
     await page.route('**/v1/admin/manage/audit', jsonRoute(mockAuditLog));
 
     await page.goto('/app/admin');
-    await page.waitForLoadState('networkidle');
 
     await expect(page.getByRole('tab', { name: 'Admins' })).toBeVisible({ timeout: 5000 });
   });
@@ -103,7 +100,6 @@ test.describe('Admin Management Tab', () => {
     await page.route('**/v1/admin/manage/audit', jsonRoute(mockAuditLog));
 
     await page.goto('/app/admin');
-    await page.waitForLoadState('networkidle');
     await page.getByRole('tab', { name: 'Admins' }).click();
 
     // Use :visible + exact regex to avoid substring matches (e.g. "admin" matching "superadmin")
@@ -127,7 +123,6 @@ test.describe('Admin Management Tab', () => {
     await page.route('**/v1/admin/users**', jsonRoute({ items: [], has_more: false, limit: 0 }));
 
     await page.goto('/app/admin');
-    await page.waitForLoadState('networkidle');
     await page.getByRole('tab', { name: 'Admins' }).click();
     await page.getByRole('button', { name: /add admin/i }).click();
 
@@ -178,7 +173,6 @@ test.describe('Admin Management Tab', () => {
     });
 
     await page.goto('/app/admin');
-    await page.waitForLoadState('networkidle');
     await page.getByRole('tab', { name: 'Admins' }).click();
 
     const loadMoreBtn = page.getByRole('button', { name: 'Load more' });
