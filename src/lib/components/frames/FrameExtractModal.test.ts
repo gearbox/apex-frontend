@@ -420,7 +420,9 @@ describe('FrameExtractModal', () => {
     expect(screen.getByRole('button', { name: 'Add frame' }).hasAttribute('disabled')).toBe(true);
 
     await fireEvent.click(screen.getByRole('button', { name: 'Automatic: 00:00.000' }));
-    expect(screen.getByRole('button', { name: 'Extract frames' }).hasAttribute('disabled')).toBe(false);
+    expect(screen.getByRole('button', { name: 'Extract frames' }).hasAttribute('disabled')).toBe(
+      false,
+    );
   });
 
   it('clamps a scrub selection before extracting, then exposes extracted frames for use', async () => {
