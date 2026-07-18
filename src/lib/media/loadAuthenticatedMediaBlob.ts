@@ -116,10 +116,7 @@ function isAbort(error: unknown, signal?: AbortSignal): boolean {
   return signal?.aborted === true || (error instanceof DOMException && error.name === 'AbortError');
 }
 
-function diagnostic(
-  context: LoadContext,
-  stage: FrameMediaDiagnostic['stage'],
-): FrameMediaDiagnostic {
+function diagnostic(context: LoadContext, stage: FrameMediaDiagnostic['stage']): FrameMediaDiagnostic {
   return {
     source: context.source,
     stage,
@@ -359,8 +356,7 @@ export async function loadAuthenticatedMediaBlob(
     response = await fetchWithDiagnostics(context);
   }
 
-  if (!response.ok)
-    throwLoadError(context, categoryForStatus(response.status), response.status, 'response');
+  if (!response.ok) throwLoadError(context, categoryForStatus(response.status), response.status, 'response');
 
   const contentType = validateVideoContentType(context, response);
   validateResponseSize(context, response);
