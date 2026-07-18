@@ -5,8 +5,13 @@ vi.mock('$lib/services/pushNotifications', () => ({
   setPushServiceWorkerRegistration: vi.fn(),
 }));
 
+vi.mock('$lib/services/pwaUpdate', () => ({
+  setPwaUpdateServiceWorkerRegistration: vi.fn(),
+}));
+
 import { registerPwaServiceWorker } from './pwaRegistration';
 import * as pushNotifications from '$lib/services/pushNotifications';
+import * as pwaUpdate from '$lib/services/pwaUpdate';
 
 describe('registerPwaServiceWorker', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -45,5 +50,6 @@ describe('registerPwaServiceWorker', () => {
     }));
 
     expect(pushNotifications.setPushServiceWorkerRegistration).toHaveBeenCalledWith(registration);
+    expect(pwaUpdate.setPwaUpdateServiceWorkerRegistration).toHaveBeenCalledWith(registration);
   });
 });

@@ -1,0 +1,11 @@
+/app-version.json
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+
+/service-worker.js
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+
+/
+  Cache-Control: no-cache, must-revalidate
+
+/*.html
+  Cache-Control: no-cache, must-revalidate

@@ -384,5 +384,18 @@
   "picker_error_no_image_output": "В этой генерации не найдено изображение.",
   "picker_error_load_details_failed": "Не удалось загрузить детали изображения.",
   "create_images_count_label": "Изображения",
-  "pwa_install_success": "Приложение установлено!"
+  "pwa_install_success": "Приложение установлено!",
+  "pwa_update_section": "Обновление приложения",
+  "pwa_update_build": "Версия {version} · сборка {buildSha}",
+  "pwa_update_check": "Проверить обновления",
+  "pwa_update_current": "Установлена актуальная версия приложения.",
+  "pwa_update_applying": "Доступна новая версия, она устанавливается…",
+  "pwa_update_offline": "Нет подключения к интернету. Подключитесь и повторите попытку.",
+  "pwa_update_check_failed": "Не удалось проверить обновление приложения. Повторите попытку.",
+  "pwa_update_ready_title": "Новая версия приложения готова.",
+  "pwa_update_dirty_title": "Готова новая версия. При обновлении несохранённые изменения могут быть потеряны.",
+  "pwa_update_dirty_description": "Сначала сохраните или отправьте работу либо обновите приложение всё равно.",
+  "pwa_update_now": "Обновить",
+  "pwa_update_anyway": "Обновить всё равно",
+  "pwa_update_later": "Позже"
 }

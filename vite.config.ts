@@ -4,6 +4,7 @@ import tailwindcss from '@tailwindcss/vite';
 import { SvelteKitPWA } from '@vite-pwa/sveltekit';
 import { defineConfig } from 'vite';
 import { APP_VERSION, BUILD_SHA } from './build-meta.js';
+import { appVersionManifestPlugin } from './build-version-manifest.js';
 
 const productId = process.env.VITE_PRODUCT_ID || 'vex';
 
@@ -55,6 +56,10 @@ export default defineConfig({
     paraglide({ project: './project.inlang', outdir: './src/paraglide' }),
     tailwindcss(),
     sveltekit(),
+    // This is deliberately emitted at build time rather than checked in under
+    // static/. Workbox's glob below excludes JSON, so it can never become a
+    // stale precache entry.
+    appVersionManifestPlugin({ version: APP_VERSION, buildSha: BUILD_SHA }),
     SvelteKitPWA({
       registerType: 'autoUpdate',
       // Custom SW (push notifications need push/notificationclick/pushsubscriptionchange

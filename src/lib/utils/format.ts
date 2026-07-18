@@ -29,7 +29,10 @@ export function timeAgo(dateStr: string): string {
 
 /** Format a future date string as relative time until, e.g. "in 3d", "in 2h". */
 export function timeUntil(dateStr: string): string {
-  const seconds = Math.floor((new Date(dateStr).getTime() - Date.now()) / 1000);
+  // Round the remaining second up. A caller commonly creates an ISO date from
+  // `Date.now() + duration`; a few elapsed milliseconds must not make a
+  // two-day deadline display as one day (or an exact hour as 59 minutes).
+  const seconds = Math.ceil((new Date(dateStr).getTime() - Date.now()) / 1000);
   if (seconds <= 0) return 'expired';
   if (seconds < MINUTE) return 'in a moment';
   if (seconds < HOUR) return `in ${Math.floor(seconds / MINUTE)}m`;

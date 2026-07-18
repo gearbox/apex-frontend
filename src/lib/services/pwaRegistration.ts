@@ -2,6 +2,7 @@ import {
   reportPushFailure,
   setPushServiceWorkerRegistration,
 } from '$lib/services/pushNotifications';
+import { setPwaUpdateServiceWorkerRegistration } from '$lib/services/pwaUpdate';
 
 interface RegisterSWOptions {
   immediate?: boolean;
@@ -27,7 +28,13 @@ export async function registerPwaServiceWorker(
       registerSW({
         immediate: true,
         onRegisteredSW: (_swScriptUrl, registration) => {
-          if (registration) setPushServiceWorkerRegistration(registration);
+          if (registration) {
+            // Both consumers receive the same registration from the one
+            // existing registerSW() path, so push preparation and update
+            // checks cannot race a second service-worker registration.
+            setPushServiceWorkerRegistration(registration);
+            setPwaUpdateServiceWorkerRegistration(registration);
+          }
         },
         onRegisterError: (error) => reportPushFailure('pwa-registration', error),
       });

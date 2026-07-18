@@ -37,6 +37,7 @@
   import GenerateButton from '$lib/components/create/GenerateButton.svelte';
   import ResultsPanel from '$lib/components/create/ResultsPanel.svelte';
   import { ROUTES } from '$lib/utils/routes';
+  import { setAppDirty } from '$lib/services/appDirty';
 
   const queryClient = useQueryClient();
 
@@ -349,6 +350,16 @@
       $generationStore.mode === 'flf2v',
   );
   const showSkeleton = $derived($isGenerating);
+  // A text prompt or a selected media source lives only in this browser state.
+  // Completed backend jobs are intentionally excluded: they remain recoverable
+  // from Jobs/Gallery and must not block a safe update reload.
+  const hasUnsavedCreateWork = $derived(
+    $generationStore.prompt.trim().length > 0 ||
+      $generationStore.uploadedImageId !== null ||
+      $generationStore.sourceOutputId !== null,
+  );
+
+  $effect(() => setAppDirty('create-draft', hasUnsavedCreateWork));
 </script>
 
 <svelte:head>

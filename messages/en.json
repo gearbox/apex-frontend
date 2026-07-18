@@ -384,5 +384,18 @@
   "picker_error_no_image_output": "No image output found in this generation.",
   "picker_error_load_details_failed": "Failed to load image details.",
   "create_images_count_label": "Images",
-  "pwa_install_success": "App installed!"
+  "pwa_install_success": "App installed!",
+  "pwa_update_section": "App update",
+  "pwa_update_build": "Version {version} · build {buildSha}",
+  "pwa_update_check": "Check for updates",
+  "pwa_update_current": "Your app is up to date.",
+  "pwa_update_applying": "A new version is available and is being applied…",
+  "pwa_update_offline": "You're offline. Connect to the internet and try again.",
+  "pwa_update_check_failed": "Couldn't check for an app update. Please try again.",
+  "pwa_update_ready_title": "A new version of the app is ready.",
+  "pwa_update_dirty_title": "A new version is ready. Updating may discard unsaved changes.",
+  "pwa_update_dirty_description": "Save or submit your work first, or update anyway.",
+  "pwa_update_now": "Update now",
+  "pwa_update_anyway": "Update anyway",
+  "pwa_update_later": "Later"
 }
