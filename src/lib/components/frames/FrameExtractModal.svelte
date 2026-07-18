@@ -24,6 +24,7 @@
   import { createFrameJobPoller } from '$lib/services/frameJobPoller';
   import { generationStore } from '$lib/stores/generation';
   import { toMediaSrc } from '$lib/media';
+  import { isDesktop } from '$lib/utils/breakpoints';
   import { ROUTES } from '$lib/utils/routes';
   import type { components } from '$lib/api/types';
   import * as m from '$paraglide/messages';
@@ -40,13 +41,18 @@
     source,
     media,
     onclose,
+    trigger = null,
   }: {
     source: FrameSource;
     media: MediaObject;
     onclose: () => void;
+    /** The parent lightbox's Extract frames button, used for explicit focus restoration. */
+    trigger?: HTMLElement | null;
   } = $props();
 
   let dialogEl: HTMLDivElement;
+  let scrollViewport: HTMLDivElement;
+  let closeButton: HTMLButtonElement | null = null;
   let preview = $state<FramePreviewResult | null>(null);
   let previewJobId = $state<string | null>(null);
   let extractedFrames = $state<ExtractedFrame[]>([]);
@@ -68,6 +74,7 @@
   let operationVersion = 0;
   let poller: Poller | null = null;
   let previouslyFocused: HTMLElement | null = null;
+  let backdropPointer: { id: number; x: number; y: number } | null = null;
   let addFrameButton: HTMLButtonElement | null = null;
   const automaticFrameButtons = new Map<number, HTMLButtonElement>();
   const manualFrameButtons = new Map<number, HTMLButtonElement>();
@@ -413,15 +420,89 @@
     onclose();
   }
 
+  function focusableDialogElements(): HTMLElement[] {
+    if (!dialogEl) return [];
+    return Array.from(
+      dialogEl.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ),
+    );
+  }
+
   function handleKeydown(event: KeyboardEvent) {
     event.stopPropagation();
-    if (event.key === 'Escape') onclose();
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      onclose();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+
+    const focusable = focusableDialogElements();
+    if (focusable.length === 0) {
+      event.preventDefault();
+      dialogEl.focus();
+      return;
+    }
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
+  function handleBackdropPointerDown(event: PointerEvent) {
+    backdropPointer = null;
+    if (
+      !$isDesktop ||
+      event.target !== event.currentTarget ||
+      !event.isPrimary ||
+      event.pointerType === 'touch' ||
+      event.button !== 0
+    ) {
+      return;
+    }
+    backdropPointer = { id: event.pointerId, x: event.clientX, y: event.clientY };
+  }
+
+  function handleBackdropPointerMove(event: PointerEvent) {
+    if (!backdropPointer || event.pointerId !== backdropPointer.id) return;
+    if (Math.hypot(event.clientX - backdropPointer.x, event.clientY - backdropPointer.y) > 8) {
+      backdropPointer = null;
+    }
+  }
+
+  function handleBackdropPointerCancel() {
+    backdropPointer = null;
+  }
+
+  function handleBackdropPointerUp(event: PointerEvent) {
+    const pointer = backdropPointer;
+    backdropPointer = null;
+    if (
+      !pointer ||
+      !$isDesktop ||
+      event.pointerId !== pointer.id ||
+      event.target !== event.currentTarget ||
+      !event.isPrimary ||
+      event.pointerType === 'touch' ||
+      event.button !== 0 ||
+      Math.hypot(event.clientX - pointer.x, event.clientY - pointer.y) > 8
+    ) {
+      return;
+    }
+    onclose();
   }
 
   onMount(() => {
     previouslyFocused =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    dialogEl?.focus();
+      trigger ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+    closeButton?.focus({ preventScroll: true });
     void startPreview();
   });
 
@@ -430,16 +511,17 @@
     stopActivePoller();
     clearManualFeedback();
     clearManualFrames();
-    previouslyFocused?.focus();
+    previouslyFocused?.focus({ preventScroll: true });
   });
 </script>
 
 <div
   bind:this={dialogEl}
-  class="fixed inset-0 z-[250] flex items-end justify-center bg-black/70 p-3 backdrop-blur-sm md:items-center md:p-6"
-  onclick={(event) => {
-    if (event.target === event.currentTarget) onclose();
-  }}
+  class="fixed inset-0 z-[250] flex bg-black/70 p-0 backdrop-blur-sm md:items-center md:justify-center md:p-6"
+  onpointerdown={handleBackdropPointerDown}
+  onpointermove={handleBackdropPointerMove}
+  onpointerup={handleBackdropPointerUp}
+  onpointercancel={handleBackdropPointerCancel}
   onkeydown={handleKeydown}
   role="dialog"
   tabindex="-1"
@@ -447,10 +529,10 @@
   aria-label={m.frames_title()}
 >
   <div
-    class="flex max-h-[92dvh] w-full max-w-3xl flex-col overflow-y-auto rounded-2xl border border-border bg-bg shadow-2xl"
+    class="flex h-[100dvh] max-h-none w-full flex-col overflow-hidden rounded-none bg-bg shadow-2xl md:h-auto md:max-h-[92dvh] md:max-w-3xl md:rounded-2xl md:border md:border-border"
   >
     <header
-      class="flex shrink-0 items-center justify-between border-b border-border px-4 py-3 md:px-5"
+      class="flex shrink-0 items-center justify-between border-b border-border px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] md:px-5 md:py-3"
     >
       <div>
         <h2 class="text-base font-semibold text-text">{m.frames_title()}</h2>
@@ -459,6 +541,7 @@
         {/if}
       </div>
       <button
+        bind:this={closeButton}
         type="button"
         onclick={onclose}
         class="flex min-h-11 min-w-11 items-center justify-center rounded-lg p-1.5 text-text-muted transition-colors hover:bg-surface-hover hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
@@ -468,179 +551,186 @@
       </button>
     </header>
 
-    <div class="min-h-0 p-4 md:p-5">
-      {#if phase === 'previewing'}
-        <div class="flex min-h-48 flex-col items-center justify-center gap-3 text-center">
-          <div
-            class="h-7 w-7 animate-spin rounded-full border-2 border-accent border-t-transparent"
-          ></div>
-          <p class="text-sm text-text-muted" role="status" aria-live="polite">
-            {m.frames_preview_loading()}
-          </p>
-          {#if retryMessage}
-            <p class="text-xs text-text-dim">{retryMessage}</p>
-          {/if}
-        </div>
-      {:else if phase === 'failed' && !preview}
-        <div class="flex min-h-48 flex-col items-center justify-center gap-3 text-center">
-          <p class="max-w-lg text-sm text-danger" role="alert">{errorMessage}</p>
-          <button
-            type="button"
-            onclick={retry}
-            class="rounded-lg bg-accent px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-accent/90"
-          >
-            {m.frames_job_failed_retry()}
-          </button>
-        </div>
-      {:else if phase === 'results'}
-        <div class="flex flex-col gap-4">
-          <p class="text-sm text-text-muted">{m.frames_preview_ready()}</p>
-          <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-            {#each extractedFrames as frame (frame.upload_id)}
-              <article class="overflow-hidden rounded-xl border border-border bg-surface">
-                <div class="bg-black" style={`aspect-ratio: ${aspectRatioFor(frame.media)}`}>
-                  <MediaImage
-                    media={frame.media}
-                    alt={formatTimestamp(frame.timestamp_ms)}
-                    sizes="(max-width: 640px) 45vw, 180px"
-                    class="h-full w-full object-contain"
-                  />
-                </div>
-                <div class="flex items-center justify-between gap-2 p-2">
-                  <span class="text-[11px] tabular-nums text-text-dim">
-                    {formatTimestamp(frame.timestamp_ms)}
-                  </span>
-                  <button
-                    type="button"
-                    onclick={() => useAsInput(frame)}
-                    class="rounded-md bg-accent/15 px-2 py-1 text-[11px] font-semibold text-accent transition-colors hover:bg-accent/25"
-                  >
-                    {m.frames_use_as_input()}
-                  </button>
-                </div>
-              </article>
-            {/each}
-          </div>
-        </div>
-      {:else if preview}
-        <div class="flex flex-col gap-5">
-          {#if phase === 'failed'}
+    <div
+      bind:this={scrollViewport}
+      data-frame-modal-scroll
+      class="min-h-0 flex-1 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]"
+      style="overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch;"
+    >
+      <div class="min-h-full p-4 pb-[max(1rem,env(safe-area-inset-bottom))] md:min-h-0 md:p-5">
+        {#if phase === 'previewing'}
+          <div class="flex min-h-48 flex-col items-center justify-center gap-3 text-center">
             <div
-              class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-danger/30 bg-danger/10 p-3"
-            >
-              <p class="text-xs text-danger" role="alert">{errorMessage}</p>
-              <button
-                type="button"
-                onclick={retry}
-                class="rounded-md border border-danger/30 px-2.5 py-1 text-xs font-semibold text-danger transition-colors hover:bg-danger/10"
-              >
-                {m.frames_job_failed_retry()}
-              </button>
-            </div>
-          {:else if phase === 'extracting'}
-            <div
-              class="flex items-center gap-2 rounded-lg border border-border bg-surface p-3 text-xs text-text-muted"
-              role="status"
-              aria-live="polite"
-            >
-              <div
-                class="h-4 w-4 animate-spin rounded-full border-2 border-accent border-t-transparent"
-              ></div>
-              <span>{m.frames_extract_loading()}</span>
-              {#if retryMessage}<span class="text-text-dim">{retryMessage}</span>{/if}
-            </div>
-          {/if}
-
-          <section>
-            <div class="mb-2 flex items-center justify-between gap-3">
-              <h3 class="text-sm font-semibold text-text">{m.frames_automatic()}</h3>
-              <span class="text-xs tabular-nums text-text-muted">
-                {m.frames_selected_count({ count: selectedCount })}
-              </span>
-            </div>
-            <FrameStrip
-              frames={preview.frames}
-              {selection}
-              {previewVersion}
-              sectionLabel={m.frames_automatic()}
-              aspectRatio={videoAspectRatio}
-              disabled={selectionLocked}
-              ontoggle={(timestampMs) => void toggleTimestamp(timestampMs)}
-              onthumbnailerror={(version) => void refreshPreviewUrls(version)}
-              onbuttonready={(timestampMs, element) =>
-                setFrameButton(automaticFrameButtons, timestampMs, element)}
-            />
-          </section>
-
-          <section aria-labelledby="manually-chosen-frames-heading">
-            <h3 id="manually-chosen-frames-heading" class="mb-2 text-sm font-semibold text-text">
-              {m.frames_manually_chosen()}
-            </h3>
-            {#if manualFrames.length === 0}
-              <p
-                class="rounded-lg border border-dashed border-border bg-surface px-3 py-4 text-sm text-text-muted"
-              >
-                {m.frames_no_manual_frames()}
-              </p>
-            {:else}
-              <ManualFrameStrip
-                frames={manualFrames}
-                {selection}
-                sectionLabel={m.frames_manually_chosen()}
-                removeLabel={(timestamp) => m.frames_remove_manual_frame({ timestamp })}
-                disabled={selectionLocked}
-                ontoggle={(timestampMs) => void toggleTimestamp(timestampMs)}
-                onremove={(frame) => void removeManualFrame(frame)}
-                onbuttonready={(timestampMs, element) =>
-                  setFrameButton(manualFrameButtons, timestampMs, element)}
-              />
-            {/if}
-            {#if manualFeedback}
-              {#key manualFeedbackSequence}
-                <p
-                  class="mt-2 rounded-md border border-border bg-surface px-2.5 py-2 text-xs text-text-muted"
-                  aria-live="polite"
-                >
-                  {manualFeedback}
-                </p>
-              {/key}
-            {/if}
-          </section>
-
-          <FrameScrubber
-            {media}
-            timestamp={scrubTimestamp}
-            {maxTimestamp}
-            canAdd={manualFrames.length < MAX_SELECTIONS && selectedCount < MAX_SELECTIONS}
-            disabled={selectionLocked}
-            onscrub={setScrubTimestamp}
-            onadd={handleAddFrame}
-            onAddButtonReady={(element) => (addFrameButton = element)}
-            addingLabel={m.frames_adding_frame()}
-            retryLabel={m.frames_retry_frame_preview()}
-            displayErrorLabel={m.frames_frame_display_error()}
-            corsCaptureErrorLabel={m.frames_frame_capture_cors_error()}
-            authErrorLabel={m.error_unauthorized()}
-            tooLargeMediaErrorLabel={m.frames_live_preview_too_large()}
-          />
-
-          <div class="flex items-center justify-between gap-3 border-t border-border pt-4">
-            <p class="text-xs text-text-dim">
-              {selectedCount === 0
-                ? m.frames_no_selection()
-                : m.frames_selected_count({ count: selectedCount })}
+              class="h-7 w-7 animate-spin rounded-full border-2 border-accent border-t-transparent"
+            ></div>
+            <p class="text-sm text-text-muted" role="status" aria-live="polite">
+              {m.frames_preview_loading()}
             </p>
+            {#if retryMessage}
+              <p class="text-xs text-text-dim">{retryMessage}</p>
+            {/if}
+          </div>
+        {:else if phase === 'failed' && !preview}
+          <div class="flex min-h-48 flex-col items-center justify-center gap-3 text-center">
+            <p class="max-w-lg text-sm text-danger" role="alert">{errorMessage}</p>
             <button
               type="button"
-              onclick={() => void startExtraction()}
-              disabled={!canExtract}
-              class="rounded-lg bg-accent px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-50"
+              onclick={retry}
+              class="rounded-lg bg-accent px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-accent/90"
             >
-              {m.frames_extract_action()}
+              {m.frames_job_failed_retry()}
             </button>
           </div>
-        </div>
-      {/if}
+        {:else if phase === 'results'}
+          <div class="flex flex-col gap-4">
+            <p class="text-sm text-text-muted">{m.frames_preview_ready()}</p>
+            <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+              {#each extractedFrames as frame (frame.upload_id)}
+                <article class="overflow-hidden rounded-xl border border-border bg-surface">
+                  <div class="bg-black" style={`aspect-ratio: ${aspectRatioFor(frame.media)}`}>
+                    <MediaImage
+                      media={frame.media}
+                      alt={formatTimestamp(frame.timestamp_ms)}
+                      sizes="(max-width: 640px) 45vw, 180px"
+                      class="h-full w-full object-contain"
+                    />
+                  </div>
+                  <div class="flex items-center justify-between gap-2 p-2">
+                    <span class="text-[11px] tabular-nums text-text-dim">
+                      {formatTimestamp(frame.timestamp_ms)}
+                    </span>
+                    <button
+                      type="button"
+                      onclick={() => useAsInput(frame)}
+                      class="rounded-md bg-accent/15 px-2 py-1 text-[11px] font-semibold text-accent transition-colors hover:bg-accent/25"
+                    >
+                      {m.frames_use_as_input()}
+                    </button>
+                  </div>
+                </article>
+              {/each}
+            </div>
+          </div>
+        {:else if preview}
+          <div class="flex flex-col gap-5">
+            {#if phase === 'failed'}
+              <div
+                class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-danger/30 bg-danger/10 p-3"
+              >
+                <p class="text-xs text-danger" role="alert">{errorMessage}</p>
+                <button
+                  type="button"
+                  onclick={retry}
+                  class="rounded-md border border-danger/30 px-2.5 py-1 text-xs font-semibold text-danger transition-colors hover:bg-danger/10"
+                >
+                  {m.frames_job_failed_retry()}
+                </button>
+              </div>
+            {:else if phase === 'extracting'}
+              <div
+                class="flex items-center gap-2 rounded-lg border border-border bg-surface p-3 text-xs text-text-muted"
+                role="status"
+                aria-live="polite"
+              >
+                <div
+                  class="h-4 w-4 animate-spin rounded-full border-2 border-accent border-t-transparent"
+                ></div>
+                <span>{m.frames_extract_loading()}</span>
+                {#if retryMessage}<span class="text-text-dim">{retryMessage}</span>{/if}
+              </div>
+            {/if}
+
+            <section>
+              <div class="mb-2 flex items-center justify-between gap-3">
+                <h3 class="text-sm font-semibold text-text">{m.frames_automatic()}</h3>
+                <span class="text-xs tabular-nums text-text-muted">
+                  {m.frames_selected_count({ count: selectedCount })}
+                </span>
+              </div>
+              <FrameStrip
+                frames={preview.frames}
+                {selection}
+                {previewVersion}
+                sectionLabel={m.frames_automatic()}
+                aspectRatio={videoAspectRatio}
+                disabled={selectionLocked}
+                ontoggle={(timestampMs) => void toggleTimestamp(timestampMs)}
+                onthumbnailerror={(version) => void refreshPreviewUrls(version)}
+                onbuttonready={(timestampMs, element) =>
+                  setFrameButton(automaticFrameButtons, timestampMs, element)}
+              />
+            </section>
+
+            <section aria-labelledby="manually-chosen-frames-heading">
+              <h3 id="manually-chosen-frames-heading" class="mb-2 text-sm font-semibold text-text">
+                {m.frames_manually_chosen()}
+              </h3>
+              {#if manualFrames.length === 0}
+                <p
+                  class="rounded-lg border border-dashed border-border bg-surface px-3 py-4 text-sm text-text-muted"
+                >
+                  {m.frames_no_manual_frames()}
+                </p>
+              {:else}
+                <ManualFrameStrip
+                  frames={manualFrames}
+                  {selection}
+                  sectionLabel={m.frames_manually_chosen()}
+                  removeLabel={(timestamp) => m.frames_remove_manual_frame({ timestamp })}
+                  disabled={selectionLocked}
+                  ontoggle={(timestampMs) => void toggleTimestamp(timestampMs)}
+                  onremove={(frame) => void removeManualFrame(frame)}
+                  onbuttonready={(timestampMs, element) =>
+                    setFrameButton(manualFrameButtons, timestampMs, element)}
+                />
+              {/if}
+              {#if manualFeedback}
+                {#key manualFeedbackSequence}
+                  <p
+                    class="mt-2 rounded-md border border-border bg-surface px-2.5 py-2 text-xs text-text-muted"
+                    aria-live="polite"
+                  >
+                    {manualFeedback}
+                  </p>
+                {/key}
+              {/if}
+            </section>
+
+            <FrameScrubber
+              {media}
+              timestamp={scrubTimestamp}
+              {maxTimestamp}
+              canAdd={manualFrames.length < MAX_SELECTIONS && selectedCount < MAX_SELECTIONS}
+              disabled={selectionLocked}
+              onscrub={setScrubTimestamp}
+              onadd={handleAddFrame}
+              onAddButtonReady={(element) => (addFrameButton = element)}
+              addingLabel={m.frames_adding_frame()}
+              retryLabel={m.frames_retry_frame_preview()}
+              displayErrorLabel={m.frames_frame_display_error()}
+              corsCaptureErrorLabel={m.frames_frame_capture_cors_error()}
+              authErrorLabel={m.error_unauthorized()}
+              tooLargeMediaErrorLabel={m.frames_live_preview_too_large()}
+            />
+
+            <div class="flex items-center justify-between gap-3 border-t border-border pt-4">
+              <p class="text-xs text-text-dim">
+                {selectedCount === 0
+                  ? m.frames_no_selection()
+                  : m.frames_selected_count({ count: selectedCount })}
+              </p>
+              <button
+                type="button"
+                onclick={() => void startExtraction()}
+                disabled={!canExtract}
+                class="rounded-lg bg-accent px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {m.frames_extract_action()}
+              </button>
+            </div>
+          </div>
+        {/if}
+      </div>
     </div>
   </div>
 </div>

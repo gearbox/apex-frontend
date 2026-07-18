@@ -251,12 +251,12 @@ describe('loadAuthenticatedMediaBlob', () => {
       }),
     );
 
-    await expect(loadAuthenticatedMediaBlob(`${BASE}/v1/content/outputs/output-1`)).resolves.toEqual(
-      {
-        objectUrl: 'blob:authenticated-video',
-        contentType: 'video/mp4',
-      },
-    );
+    await expect(
+      loadAuthenticatedMediaBlob(`${BASE}/v1/content/outputs/output-1`),
+    ).resolves.toEqual({
+      objectUrl: 'blob:authenticated-video',
+      contentType: 'video/mp4',
+    });
     expect(authorization).toBe('Bearer frame-access-token');
   });
 
@@ -353,7 +353,9 @@ describe('loadAuthenticatedMediaBlob', () => {
     );
 
     await expect(
-      loadAuthenticatedMediaBlob('/v1/content/outputs/output-1', { signal: abortController.signal }),
+      loadAuthenticatedMediaBlob('/v1/content/outputs/output-1', {
+        signal: abortController.signal,
+      }),
     ).rejects.toMatchObject({ category: 'aborted', retryAttempted: true });
     expect(contentRequests).toBe(1);
   });
@@ -436,7 +438,8 @@ describe('loadAuthenticatedMediaBlob', () => {
     server.use(
       http.get(
         `${BASE}/v1/content/outputs/output-1`,
-        () => new HttpResponse(new Uint8Array([1, 2, 3]), { headers: { 'content-type': 'video/mp4' } }),
+        () =>
+          new HttpResponse(new Uint8Array([1, 2, 3]), { headers: { 'content-type': 'video/mp4' } }),
       ),
     );
 
@@ -457,9 +460,9 @@ describe('loadAuthenticatedMediaBlob', () => {
         controller.close();
       },
     });
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(body, { headers: { 'content-type': 'video/mp4' } }),
-    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(body, { headers: { 'content-type': 'video/mp4' } }));
     vi.stubGlobal('fetch', fetchMock);
 
     await expect(
@@ -486,9 +489,9 @@ describe('loadAuthenticatedMediaBlob', () => {
         resolvePull();
       },
     });
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(body, { headers: { 'content-type': 'video/mp4' } }),
-    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(body, { headers: { 'content-type': 'video/mp4' } }));
     vi.stubGlobal('fetch', fetchMock);
     const abortController = new AbortController();
     const readStarted = new Promise<void>((resolve) => {

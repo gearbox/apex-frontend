@@ -12,6 +12,24 @@ const { gotoMock, invalidateQueriesMock, setModeMock, setUploadedImageIdMock } =
   setUploadedImageIdMock: vi.fn(),
 }));
 
+const { desktopBreakpoint } = vi.hoisted(() => {
+  let current = false;
+  const subscribers = new Set<(value: boolean) => void>();
+  return {
+    desktopBreakpoint: {
+      subscribe(subscriber: (value: boolean) => void) {
+        subscribers.add(subscriber);
+        subscriber(current);
+        return () => subscribers.delete(subscriber);
+      },
+      set(value: boolean) {
+        current = value;
+        subscribers.forEach((subscriber) => subscriber(value));
+      },
+    },
+  };
+});
+
 vi.mock('$app/navigation', () => ({ goto: gotoMock }));
 
 vi.mock('$lib/stores/generation', () => ({
@@ -20,6 +38,8 @@ vi.mock('$lib/stores/generation', () => ({
     setUploadedImageId: setUploadedImageIdMock,
   },
 }));
+
+vi.mock('$lib/utils/breakpoints', () => ({ isDesktop: desktopBreakpoint }));
 
 // The query layer itself remains real and is backed by MSW below. This small
 // adapter avoids requiring an application-level QueryClientProvider in a
@@ -209,13 +229,141 @@ function renderModal(onclose = vi.fn()) {
   return onclose;
 }
 
+function dispatchBackdropPointer(
+  target: HTMLElement,
+  type: string,
+  {
+    pointerType = 'mouse',
+    pointerId = 1,
+    clientX = 0,
+    clientY = 0,
+    isPrimary = true,
+  }: {
+    pointerType?: string;
+    pointerId?: number;
+    clientX?: number;
+    clientY?: number;
+    isPrimary?: boolean;
+  } = {},
+) {
+  const event = new Event(type, { bubbles: true, cancelable: true });
+  Object.defineProperties(event, {
+    button: { value: 0 },
+    clientX: { value: clientX },
+    clientY: { value: clientY },
+    isPrimary: { value: isPrimary },
+    pointerId: { value: pointerId },
+    pointerType: { value: pointerType },
+  });
+  target.dispatchEvent(event);
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
+  desktopBreakpoint.set(false);
 });
 
 afterEach(() => cleanup());
 
 describe('FrameExtractModal', () => {
+  it('uses a full-height mobile panel with a dedicated contained scroll viewport', () => {
+    renderModal();
+
+    const dialog = screen.getByRole('dialog', { name: 'Extract frames' });
+    const panel = dialog.firstElementChild as HTMLElement;
+    const scrollViewport = dialog.querySelector<HTMLElement>('[data-frame-modal-scroll]');
+    const closeButton = screen.getByRole('button', { name: 'Close' });
+
+    expect(panel.className).toContain('h-[100dvh]');
+    expect(panel.className).toContain('overflow-hidden');
+    expect(scrollViewport).not.toBeNull();
+    expect(scrollViewport?.style.overscrollBehaviorY).toBe('contain');
+    expect(scrollViewport?.contains(closeButton)).toBe(false);
+    expect(panel.querySelector('header')?.nextElementSibling).toBe(scrollViewport);
+  });
+
+  it('never dismisses on a mobile touch drag or pointer movement, while explicit Close still works', () => {
+    const onclose = renderModal();
+    const dialog = screen.getByRole('dialog', { name: 'Extract frames' });
+
+    dispatchBackdropPointer(dialog, 'pointerdown', { pointerType: 'touch', clientY: 120 });
+    dispatchBackdropPointer(dialog, 'pointermove', { pointerType: 'touch', clientY: 20 });
+    dispatchBackdropPointer(dialog, 'pointerup', { pointerType: 'touch', clientY: 20 });
+    expect(onclose).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(onclose).toHaveBeenCalledOnce();
+  });
+
+  it('dismisses only a stationary primary mouse backdrop tap on desktop', () => {
+    desktopBreakpoint.set(true);
+    const onclose = renderModal();
+    const dialog = screen.getByRole('dialog', { name: 'Extract frames' });
+
+    dispatchBackdropPointer(dialog, 'pointerdown', { clientX: 12, clientY: 12 });
+    dispatchBackdropPointer(dialog, 'pointermove', { clientX: 40, clientY: 12 });
+    dispatchBackdropPointer(dialog, 'pointerup', { clientX: 40, clientY: 12 });
+    expect(onclose).not.toHaveBeenCalled();
+
+    dispatchBackdropPointer(dialog, 'pointerdown', { pointerId: 2, clientX: 12, clientY: 12 });
+    dispatchBackdropPointer(dialog, 'pointerup', { pointerId: 2, clientX: 12, clientY: 12 });
+    expect(onclose).toHaveBeenCalledOnce();
+  });
+
+  it('keeps a selected automatic frame through a synthetic mobile scroll sequence', async () => {
+    server.use(
+      http.post(`${BASE}/v1/frames/preview`, () =>
+        HttpResponse.json({ job_id: 'preview-job', status: 'queued' }, { status: 202 }),
+      ),
+      http.get(`${BASE}/v1/frames/jobs/:job_id`, ({ params }) =>
+        HttpResponse.json(previewJob(params.job_id as string)),
+      ),
+    );
+    const onclose = renderModal();
+    await screen.findByRole('button', { name: 'Automatic: 00:00.000' });
+    await fireEvent.click(screen.getByRole('button', { name: 'Automatic: 00:00.000' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Extract frames' });
+    dispatchBackdropPointer(dialog, 'pointerdown', { pointerType: 'touch', clientY: 200 });
+    dispatchBackdropPointer(dialog, 'pointermove', { pointerType: 'touch', clientY: 40 });
+    dispatchBackdropPointer(dialog, 'pointerup', { pointerType: 'touch', clientY: 40 });
+
+    expect(onclose).not.toHaveBeenCalled();
+    expect(screen.getAllByText('1 selected')).not.toHaveLength(0);
+    expect(
+      screen.getByRole('button', { name: 'Automatic: 00:00.000' }).getAttribute('aria-pressed'),
+    ).toBe('true');
+  });
+
+  it('focuses the close control and restores focus to the supplied extraction trigger on teardown', async () => {
+    const trigger = document.createElement('button');
+    trigger.textContent = 'Extract frames';
+    document.body.appendChild(trigger);
+    trigger.focus();
+    const onclose = vi.fn();
+    const view = render(FrameExtractModal, {
+      props: {
+        source: { type: 'upload', id: SOURCE_ID },
+        media: videoMedia,
+        onclose,
+        trigger,
+      },
+    });
+
+    try {
+      await waitFor(() =>
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close' })),
+      );
+      await fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+      expect(onclose).toHaveBeenCalledOnce();
+      view.unmount();
+      expect(document.activeElement).toBe(trigger);
+    } finally {
+      view.unmount();
+      trigger.remove();
+    }
+  });
+
   it('starts a 6-frame preview and renders the Automatic and empty manual sections', async () => {
     let previewBody: Record<string, unknown> | null = null;
 
@@ -272,7 +420,9 @@ describe('FrameExtractModal', () => {
     expect(screen.getByRole('button', { name: 'Add frame' }).hasAttribute('disabled')).toBe(true);
 
     await fireEvent.click(screen.getByRole('button', { name: 'Automatic: 00:00.000' }));
-    expect(screen.getByRole('button', { name: 'Extract frames' }).hasAttribute('disabled')).toBe(false);
+    expect(screen.getByRole('button', { name: 'Extract frames' }).hasAttribute('disabled')).toBe(
+      false,
+    );
   });
 
   it('clamps a scrub selection before extracting, then exposes extracted frames for use', async () => {
