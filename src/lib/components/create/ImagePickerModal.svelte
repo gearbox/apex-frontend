@@ -2,24 +2,22 @@
   import { onMount, onDestroy } from 'svelte';
   import { createInfiniteQuery, createMutation, useQueryClient } from '@tanstack/svelte-query';
   import { X, Check, Trash2 } from 'lucide-svelte';
-  import apiClient from '$lib/api/client';
-  import { uploadsInfiniteQueryOptions } from '$lib/queries/storage';
   import {
-    galleryListInfiniteQueryOptions,
-    deleteContentMutationOptions,
-  } from '$lib/queries/gallery';
+    libraryListInfiniteQueryOptions,
+    libraryAssetQueryOptions,
+    deleteAssetMutationOptions,
+  } from '$lib/queries/library';
   import { addToast } from '$lib/stores/toasts';
   import { isDesktop } from '$lib/utils/breakpoints';
+  import { parseAssetRef } from '$lib/utils/assetRef';
   import type { components } from '$lib/api/types';
   import MediaImage from '$lib/media/MediaImage.svelte';
-  import { toMediaSrc, mediaFallbackSrc } from '$lib/media/index';
-  import InfiniteScrollSentinel from '$lib/components/gallery/InfiniteScrollSentinel.svelte';
-  import GeneratedI2iOutputs from './GeneratedI2iOutputs.svelte';
+  import { mediaFallbackSrc } from '$lib/media/index';
+  import InfiniteScrollSentinel from '$lib/components/shared/InfiniteScrollSentinel.svelte';
   import ConfirmDeleteModal from '$lib/components/shared/ConfirmDeleteModal.svelte';
-  import type { I2iOutputSelection } from './GeneratedI2iOutputs.svelte';
   import * as m from '$paraglide/messages';
 
-  type GalleryGroupDetail = components['schemas']['GalleryGroupDetail'];
+  type LibraryAssetItem = components['schemas']['LibraryAssetItem'];
 
   export interface ImagePickerSelection {
     source: 'upload' | 'output';
@@ -39,19 +37,12 @@
   } = $props();
 
   let activeTab = $state<'uploads' | 'generated'>('uploads');
-  let selectedItem = $state<{
-    id: string;
-    source: 'upload' | 'output';
-    previewUrl: string;
-    prompt?: string | null;
-    /** true when id is already an output ID (i2i outputs) — skip detail fetch in handleConfirm */
-    isDirectOutput?: boolean;
-  } | null>(null);
+  let selectedItem = $state<LibraryAssetItem | null>(null);
+  let uploadDeleteTarget = $state<LibraryAssetItem | null>(null);
   let confirming = $state(false);
-  let uploadDeleteTarget = $state<string | null>(null);
 
   const queryClient = useQueryClient();
-  const deleteUploadMut = createMutation(() => deleteContentMutationOptions(queryClient));
+  const deleteUploadMut = createMutation(() => deleteAssetMutationOptions(queryClient));
 
   // Long-press timer for mobile upload deletion
   let longPressTimer: ReturnType<typeof setTimeout> | null = null;
@@ -61,77 +52,38 @@
   // triggers a loading skeleton flash — data is already in cache.
 
   const uploadsQuery = createInfiniteQuery(() => ({
-    ...uploadsInfiniteQueryOptions(),
+    ...libraryListInfiniteQueryOptions({ source: 'upload', media_type: 'image' }),
     enabled: open,
   }));
 
   const generatedQuery = createInfiniteQuery(() => ({
-    ...galleryListInfiniteQueryOptions({ media_type: 'image' }),
+    ...libraryListInfiniteQueryOptions({ source: 'output', media_type: 'image' }),
     enabled: open,
   }));
 
-  // Uploads can include videos, but image-to-image generation only accepts image inputs.
-  const uploadItems = $derived(
-    (uploadsQuery.data?.pages ?? [])
-      .flatMap((p) => p.items)
-      .filter((item) => item.media.media_type === 'image'),
-  );
+  const uploadItems = $derived((uploadsQuery.data?.pages ?? []).flatMap((p) => p.items));
   const generatedItems = $derived((generatedQuery.data?.pages ?? []).flatMap((p) => p.items));
 
   /* ─── Confirm ─── */
 
   async function handleConfirm() {
     if (!selectedItem || confirming) return;
+    const item = selectedItem;
+    const { source, id } = parseAssetRef(item.asset_ref);
+    const previewUrl = mediaFallbackSrc(item.media, 512);
 
-    if (selectedItem.source === 'upload') {
-      onselect({
-        source: 'upload',
-        id: selectedItem.id,
-        previewUrl: selectedItem.previewUrl,
-      });
+    if (source === 'upload') {
+      onselect({ source: 'upload', id, previewUrl });
       return;
     }
 
-    // i2i output already resolved in the picker grid — no detail fetch needed
-    if (selectedItem.isDirectOutput) {
-      onselect({
-        source: 'output',
-        id: selectedItem.id,
-        previewUrl: selectedItem.previewUrl,
-        prompt: selectedItem.prompt,
-      });
-      return;
-    }
-
-    // t2i: resolve first image output ID from gallery detail
+    // Fetch the asset detail to auto-fill the prompt used to generate it.
     confirming = true;
     try {
-      const { data, error } = await apiClient.GET('/v1/gallery/{job_id}', {
-        params: { path: { job_id: selectedItem.id } },
-      });
-
-      const detail = data as GalleryGroupDetail | undefined;
-      if (error || !detail?.outputs?.length) {
-        addToast({ type: 'error', message: m.picker_error_load_details() });
-        return;
-      }
-
-      const imageOutput = detail.outputs.find(
-        (o: GalleryGroupDetail['outputs'][number]) => o.media.media_type === 'image',
-      );
-      if (!imageOutput) {
-        addToast({ type: 'error', message: m.picker_error_no_image_output() });
-        return;
-      }
-
-      onselect({
-        source: 'output',
-        id: imageOutput.id,
-        previewUrl: toMediaSrc(imageOutput.media.original.url),
-        prompt: detail.prompt,
-      });
+      const detail = await queryClient.fetchQuery(libraryAssetQueryOptions(item.asset_ref));
+      onselect({ source: 'output', id, previewUrl, prompt: detail.prompt });
     } catch {
-      addToast({ type: 'error', message: m.picker_error_load_details_failed() });
+      onselect({ source: 'output', id, previewUrl });
     } finally {
       confirming = false;
     }
@@ -141,11 +93,11 @@
 
   async function confirmUploadDelete() {
     if (!uploadDeleteTarget) return;
-    const targetId = uploadDeleteTarget;
+    const target = uploadDeleteTarget;
     try {
-      await deleteUploadMut.mutateAsync(targetId);
+      await deleteUploadMut.mutateAsync(target.asset_ref);
       addToast({ type: 'success', message: m.upload_delete_success() });
-      if (selectedItem?.source === 'upload' && selectedItem.id === targetId) {
+      if (selectedItem?.asset_ref === target.asset_ref) {
         selectedItem = null;
       }
     } catch {
@@ -155,9 +107,9 @@
     }
   }
 
-  function startLongPress(uploadId: string) {
+  function startLongPress(item: LibraryAssetItem) {
     longPressTimer = setTimeout(() => {
-      uploadDeleteTarget = uploadId;
+      uploadDeleteTarget = item;
     }, 500);
   }
 
@@ -264,35 +216,27 @@
           </div>
         {:else}
           <div class="grid grid-cols-3 gap-2 md:grid-cols-4">
-            {#each uploadItems as item (item.id)}
-              {@const isSelected =
-                selectedItem?.id === item.id && selectedItem?.source === 'upload'}
+            {#each uploadItems as item (item.asset_ref)}
+              {@const isSelected = selectedItem?.asset_ref === item.asset_ref}
               <div
                 class="group relative aspect-square overflow-hidden rounded-lg border-2 transition-colors
                   {isSelected ? 'border-accent' : 'border-transparent hover:border-border-active'}"
               >
                 <button
-                  onclick={() =>
-                    (selectedItem = isSelected
-                      ? null
-                      : {
-                          id: item.id,
-                          source: 'upload',
-                          previewUrl: toMediaSrc(item.media.original.url),
-                        })}
+                  onclick={() => (selectedItem = isSelected ? null : item)}
                   ontouchstart={() => {
-                    if (!$isDesktop) startLongPress(item.id);
+                    if (!$isDesktop) startLongPress(item);
                   }}
                   ontouchend={cancelLongPress}
                   ontouchmove={cancelLongPress}
                   ontouchcancel={cancelLongPress}
                   class="h-full w-full"
                   aria-pressed={isSelected}
-                  aria-label="Upload: {item.filename}"
+                  aria-label="Upload: {item.original_filename ?? ''}"
                 >
                   <MediaImage
                     media={item.media}
-                    alt={item.filename}
+                    alt={item.original_filename ?? ''}
                     sizes="(max-width: 768px) 33vw, 25vw"
                     class="h-full w-full object-cover"
                   />
@@ -308,7 +252,7 @@
                   <button
                     onclick={(e) => {
                       e.stopPropagation();
-                      uploadDeleteTarget = item.id;
+                      uploadDeleteTarget = item;
                     }}
                     class="absolute right-1 top-1 hidden h-6 w-6 items-center justify-center rounded-md bg-black/60 text-white opacity-0 transition-opacity group-hover:flex group-hover:opacity-100"
                     aria-label={m.common_delete()}
@@ -352,65 +296,27 @@
           </div>
         {:else}
           <div class="grid grid-cols-3 gap-2 md:grid-cols-4">
-            {#each generatedItems as item (item.job_id)}
-              {#if item.badge === 'image'}
-                <!-- i2i job: expand into individual generated image outputs -->
-                <GeneratedI2iOutputs
-                  {item}
-                  selectedOutputId={selectedItem?.isDirectOutput ? selectedItem.id : null}
-                  onSelect={(sel: I2iOutputSelection) =>
-                    (selectedItem =
-                      selectedItem?.isDirectOutput && selectedItem.id === sel.outputId
-                        ? null
-                        : {
-                            id: sel.outputId,
-                            source: 'output',
-                            previewUrl: sel.previewUrl,
-                            prompt: sel.prompt,
-                            isDirectOutput: true,
-                          })}
+            {#each generatedItems as item (item.asset_ref)}
+              {@const isSelected = selectedItem?.asset_ref === item.asset_ref}
+              <button
+                onclick={() => (selectedItem = isSelected ? null : item)}
+                class="group relative aspect-square overflow-hidden rounded-lg border-2 transition-colors
+                  {isSelected ? 'border-accent' : 'border-transparent hover:border-border-active'}"
+                aria-pressed={isSelected}
+                aria-label="Generated image"
+              >
+                <MediaImage
+                  media={item.media}
+                  alt=""
+                  sizes="(max-width: 768px) 33vw, 25vw"
+                  class="h-full w-full object-cover"
                 />
-              {:else}
-                <!-- t2i job: show cover directly (it IS the generated output) -->
-                {@const isSelected =
-                  selectedItem?.id === item.job_id &&
-                  selectedItem?.source === 'output' &&
-                  !selectedItem?.isDirectOutput}
-                <button
-                  onclick={() =>
-                    (selectedItem = isSelected
-                      ? null
-                      : {
-                          id: item.job_id,
-                          source: 'output',
-                          previewUrl: mediaFallbackSrc(item.cover, 512),
-                          prompt: item.prompt_snippet,
-                        })}
-                  class="group relative aspect-square overflow-hidden rounded-lg border-2 transition-colors
-                    {isSelected
-                    ? 'border-accent'
-                    : 'border-transparent hover:border-border-active'}"
-                  aria-pressed={isSelected}
-                  aria-label="Generated: {item.prompt_snippet}"
-                >
-                  <MediaImage
-                    media={item.cover}
-                    alt={item.prompt_snippet ?? ''}
-                    sizes="(max-width: 768px) 33vw, 25vw"
-                    class="h-full w-full object-cover"
-                  />
-                  {#if isSelected}
-                    <div class="absolute inset-0 flex items-center justify-center bg-accent/20">
-                      <Check size={20} class="text-accent" />
-                    </div>
-                  {/if}
-                  <div
-                    class="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/60 to-transparent p-1.5 opacity-0 transition-opacity group-hover:opacity-100"
-                  >
-                    <p class="line-clamp-2 text-[10px] text-white">{item.prompt_snippet}</p>
+                {#if isSelected}
+                  <div class="absolute inset-0 flex items-center justify-center bg-accent/20">
+                    <Check size={20} class="text-accent" />
                   </div>
-                </button>
-              {/if}
+                {/if}
+              </button>
             {/each}
           </div>
 

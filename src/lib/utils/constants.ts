@@ -31,10 +31,12 @@ export const FRAME_POLL_BUDGET_MS = 7 * 60_000;
 export const TERMINAL_JOB_STATUSES = ['completed', 'failed', 'cancelled', 'moderated'] as const;
 export const ACTIVE_JOB_STATUSES = ['pending', 'queued', 'running'] as const;
 
-/* ─── Gallery ─── */
-export const GALLERY_PAGE_SIZE = 20;
-export const UPLOADS_LIST_STALE_MS = 30 * 60 * 1000; // 30 min
-export const GALLERY_CONTENT_STALE_MS = 10 * 60 * 1000; // 10 min — content proxy URLs are immutable
+/* ─── Library ─── */
+export const LIBRARY_PAGE_SIZE = 30;
+export const LIBRARY_LIST_STALE_MS = 5 * 60 * 1000; // 5 min
+export const LIBRARY_ASSET_STALE_MS = 10 * 60 * 1000; // 10 min — content proxy URLs are immutable
+/** Assets expiring within this window show a warning in the UI. */
+export const EXPIRES_SOON_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 /* ─── Session Storage Keys ─── */
 export const SESSION_KEYS = {
@@ -60,7 +62,7 @@ export interface NavItem {
 
 export const TAB_ITEMS: NavItem[] = [
   { label: 'Create', href: '/app/create', icon: 'plus' },
-  { label: 'Gallery', href: '/app/gallery', icon: 'image' },
+  { label: 'Library', href: '/app/library', icon: 'library' },
 ];
 
 export const MORE_ITEMS: NavItem[] = [
@@ -84,7 +86,7 @@ export const ADMIN_MORE_ITEM: NavItem = {
 /** All sidebar items for desktop (flat list) */
 export const SIDEBAR_ITEMS: NavItem[] = [
   { label: 'Create', href: '/app/create', icon: 'plus' },
-  { label: 'Gallery', href: '/app/gallery', icon: 'image' },
+  { label: 'Library', href: '/app/library', icon: 'library' },
   { label: 'Jobs', href: '/app/jobs', icon: 'activity' },
   { label: 'Billing', href: '/app/billing', icon: 'coins' },
   { label: 'Profile', href: '/app/profile', icon: 'user' },

@@ -3,11 +3,11 @@
   import { openMoreSheet } from '$lib/stores/ui';
   import { TAB_ITEMS } from '$lib/utils/constants';
   import * as m from '$paraglide/messages';
-  import { Plus, Image, MoreVertical } from 'lucide-svelte';
+  import { Plus, Images, MoreVertical } from 'lucide-svelte';
 
   const iconMap: Record<string, typeof Plus> = {
     plus: Plus,
-    image: Image,
+    library: Images,
   };
 </script>
 

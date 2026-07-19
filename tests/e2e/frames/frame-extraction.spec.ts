@@ -25,19 +25,40 @@ const videoMedia = {
   variants: [],
 };
 
-const uploadsPage = {
-  items: [
-    {
-      id: SOURCE_ID,
-      filename: 'portrait-frame-source.mp4',
-      created_at: '2026-07-17T10:00:00Z',
-      expires_at: '2026-08-17T10:00:00Z',
-      media: videoMedia,
-    },
-  ],
+const libraryUploadItem = {
+  asset_ref: `upload:${SOURCE_ID}`,
+  source: 'upload',
+  media: videoMedia,
+  created_at: '2026-07-17T10:00:00Z',
+  expires_at: '2026-08-17T10:00:00Z',
+  display_title: null,
+  original_filename: 'portrait-frame-source.mp4',
+  is_favorite: false,
+  duration_ms: DURATION_MS,
+  job_id: null,
+  output_count: null,
+  model: null,
+  generation_type: null,
+  available_actions: ['extract_frame', 'download', 'favorite', 'delete'],
+};
+
+const libraryPage = {
+  items: [libraryUploadItem],
   limit: 30,
   has_more: false,
   next_cursor: null,
+};
+
+const libraryAssetDetail = {
+  ...libraryUploadItem,
+  prompt: null,
+  negative_prompt: null,
+  provider: null,
+  aspect_ratio: null,
+  token_cost: null,
+  completed_at: null,
+  lineage: null,
+  descendants: { job_count: 0, frame_count: 0 },
 };
 
 function previewJob() {
@@ -96,7 +117,7 @@ async function canvasSample(canvas: import('@playwright/test').Locator) {
 }
 
 test.describe('Frame extraction (real media regression)', () => {
-  test('keeps the My Uploads frame dialog and parent preview open through reverse-direction mobile scrolling', async ({
+  test('keeps the Library asset details dialog and parent preview open through reverse-direction mobile scrolling', async ({
     authenticatedPage: page,
   }) => {
     let previewRequest: unknown;
@@ -111,7 +132,8 @@ test.describe('Frame extraction (real media regression)', () => {
       resolveInitialLightboxMediaRequest = resolve;
     });
 
-    await page.route('**/v1/storage/uploads*', jsonRoute(uploadsPage));
+    await page.route((url) => url.pathname === '/v1/library', jsonRoute(libraryPage));
+    await page.route('**/v1/library/assets/**', jsonRoute(libraryAssetDetail));
     await page.route(
       '**/v1/storage/stats',
       jsonRoute({
@@ -210,11 +232,11 @@ test.describe('Frame extraction (real media regression)', () => {
       }),
     );
 
-    await page.goto('/app/uploads');
-    await expect(page.getByRole('heading', { name: 'My Uploads' })).toBeVisible({ timeout: 5_000 });
+    await page.goto('/app/library');
+    await expect(page.getByRole('heading', { name: 'Library' })).toBeVisible({ timeout: 5_000 });
     await page.getByRole('button', { name: /portrait-frame-source\.mp4/ }).click();
-    const lightbox = page.getByRole('dialog', { name: 'Upload preview' });
-    // The upload preview owns a separate native video. Detach it before the
+    const lightbox = page.getByRole('dialog', { name: 'Asset details' });
+    // The asset details sheet owns a separate native video. Detach it before the
     // scrubber phase so its media activity cannot be attributed to the hidden
     // authenticated decoder under test.
     await lightbox.locator('video').evaluate((video) => {
@@ -336,15 +358,15 @@ test.describe('Frame extraction (real media regression)', () => {
     await expect(manualCard).toHaveAttribute('aria-pressed', 'true');
     await expect(automaticCard).toHaveAttribute('aria-pressed', 'true');
     await expect(canvas).toBeVisible();
-    await expect(page.locator('[role="dialog"][aria-label="Upload preview"]')).toHaveJSProperty(
+    await expect(page.locator('[role="dialog"][aria-label="Asset details"]')).toHaveJSProperty(
       'inert',
       true,
     );
-    await expect(page.locator('[role="dialog"][aria-label="Upload preview"]')).toHaveAttribute(
+    await expect(page.locator('[role="dialog"][aria-label="Asset details"]')).toHaveAttribute(
       'aria-hidden',
       'true',
     );
-    expect(page.url()).toContain('/app/uploads');
+    expect(page.url()).toContain('/app/library');
 
     await extractionDialog.getByRole('button', { name: 'Extract frames' }).click();
 
@@ -364,12 +386,12 @@ test.describe('Frame extraction (real media regression)', () => {
 
     await extractionDialog.getByRole('button', { name: 'Close' }).click();
     await expect(extractionDialog).toBeHidden();
-    const restoredLightbox = page.locator('[role="dialog"][aria-label="Upload preview"]');
+    const restoredLightbox = page.locator('[role="dialog"][aria-label="Asset details"]');
     await expect(restoredLightbox).toHaveJSProperty('inert', false);
     await expect(restoredLightbox).not.toHaveAttribute('aria-hidden', 'true');
     await restoredLightbox.getByRole('button', { name: 'Close' }).click();
-    await expect(page.getByRole('heading', { name: 'My Uploads' })).toBeVisible();
-    expect(page.url()).toContain('/app/uploads');
+    await expect(page.getByRole('heading', { name: 'Library' })).toBeVisible();
+    expect(page.url()).toContain('/app/library');
     expect(pageErrors).toEqual([]);
   });
 });

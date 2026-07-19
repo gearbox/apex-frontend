@@ -6,13 +6,13 @@ test.describe('Token refresh', () => {
     authenticatedPage: page,
   }) => {
     await page.route(
-      '**/v1/gallery*',
+      '**/v1/library*',
       jsonRoute({ items: [], limit: 20, has_more: false, next_cursor: null }),
     );
 
-    await page.goto('/app/gallery');
+    await page.goto('/app/library');
 
-    await expect(page).toHaveURL(/\/app\/gallery/);
+    await expect(page).toHaveURL(/\/app\/library/);
     await expect(page.locator('body')).not.toContainText('Loading…');
   });
 

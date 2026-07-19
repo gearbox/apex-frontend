@@ -1,0 +1,261 @@
+import { describe, it, expect, vi } from 'vitest';
+import { http, HttpResponse } from 'msw';
+import { QueryClient } from '@tanstack/svelte-query';
+import { server } from '../../mocks/server';
+import { makeLibraryCursorPage, makeLibraryAssetDetail } from '../../mocks/factories/library';
+import {
+  libraryKeys,
+  libraryListInfiniteQueryOptions,
+  libraryAssetQueryOptions,
+  libraryGroupQueryOptions,
+  favoriteMutationOptions,
+  renameMutationOptions,
+  deleteAssetMutationOptions,
+} from './library';
+
+const BASE = 'http://localhost:8000';
+
+describe('libraryKeys', () => {
+  it('generates stable keys for list', () => {
+    expect(libraryKeys.list()).toEqual(['library', 'list', {}]);
+  });
+
+  it('generates stable keys for asset and group', () => {
+    expect(libraryKeys.asset('output:abc')).toEqual(['library', 'asset', 'output:abc']);
+    expect(libraryKeys.group('job_123')).toEqual(['library', 'group', 'job_123']);
+  });
+
+  it('all key is a prefix of the others', () => {
+    const [prefix] = libraryKeys.all;
+    expect(libraryKeys.list()[0]).toBe(prefix);
+    expect(libraryKeys.asset('x')[0]).toBe(prefix);
+    expect(libraryKeys.group('x')[0]).toBe(prefix);
+  });
+});
+
+describe('libraryListInfiniteQueryOptions() — cursor paging', () => {
+  it('walks two pages via cursor and stops when has_more is false', async () => {
+    server.use(
+      http.get(`${BASE}/v1/library`, ({ request }) => {
+        const url = new URL(request.url);
+        if (url.searchParams.get('cursor') === 'cursor_page2') {
+          return HttpResponse.json(
+            makeLibraryCursorPage(1, { asset_ref: 'output:page2_item' }, false),
+          );
+        }
+        return HttpResponse.json({
+          ...makeLibraryCursorPage(2, {}, true),
+          next_cursor: 'cursor_page2',
+        });
+      }),
+    );
+
+    const opts = libraryListInfiniteQueryOptions();
+    const page1 = await opts.queryFn({ pageParam: null });
+    expect(page1.items.length).toBe(2);
+    expect(opts.getNextPageParam(page1)).toBe('cursor_page2');
+
+    const page2 = await opts.queryFn({ pageParam: opts.getNextPageParam(page1) as string });
+    expect(page2.items.map((i) => i.asset_ref)).toEqual(['output:page2_item']);
+    expect(opts.getNextPageParam(page2)).toBeUndefined();
+  });
+
+  it('passes through source, media_type, model, and favorite filters as query params', async () => {
+    let capturedUrl: URL | undefined;
+    server.use(
+      http.get(`${BASE}/v1/library`, ({ request }) => {
+        capturedUrl = new URL(request.url);
+        return HttpResponse.json(makeLibraryCursorPage(0));
+      }),
+    );
+
+    const opts = libraryListInfiniteQueryOptions({
+      source: 'upload',
+      media_type: 'image',
+      model: 'grok-imagine-image',
+      favorite: true,
+    });
+    await opts.queryFn({ pageParam: null });
+
+    expect(capturedUrl?.searchParams.get('source')).toBe('upload');
+    expect(capturedUrl?.searchParams.get('media_type')).toBe('image');
+    expect(capturedUrl?.searchParams.get('model')).toBe('grok-imagine-image');
+    expect(capturedUrl?.searchParams.get('favorite')).toBe('true');
+  });
+});
+
+describe('libraryAssetQueryOptions()', () => {
+  it('fetches an asset detail by asset_ref, including colon-containing refs', async () => {
+    server.use(
+      http.get(`${BASE}/v1/library/assets/:asset_ref`, ({ params }) =>
+        HttpResponse.json(makeLibraryAssetDetail({ asset_ref: params.asset_ref as string })),
+      ),
+    );
+
+    const opts = libraryAssetQueryOptions('output:abc-123');
+    const result = await opts.queryFn();
+    expect(result.asset_ref).toBe('output:abc-123');
+  });
+});
+
+describe('libraryGroupQueryOptions()', () => {
+  it('fetches a group detail by job id', async () => {
+    server.use(
+      http.get(`${BASE}/v1/library/groups/:job_id`, ({ params }) =>
+        HttpResponse.json({
+          job_id: params.job_id,
+          badge: 'prompt',
+          input_media: null,
+          prompt: 'test',
+          negative_prompt: null,
+          outputs: [],
+          media_type: 'image',
+          model: 'grok-imagine-image',
+          provider: 'grok',
+          generation_type: 't2i',
+          aspect_ratio: '1:1',
+          token_cost: 10,
+          created_at: '2025-06-01T12:00:00Z',
+          completed_at: null,
+          lineage: null,
+        }),
+      ),
+    );
+
+    const opts = libraryGroupQueryOptions('job_999');
+    const result = await opts.queryFn();
+    expect(result.job_id).toBe('job_999');
+  });
+});
+
+describe('favoriteMutationOptions() — optimistic update', () => {
+  it('PUTs to add a favorite and DELETEs to remove one', async () => {
+    let lastMethod: string | undefined;
+    server.use(
+      http.put(`${BASE}/v1/library/assets/:asset_ref/favorite`, () => {
+        lastMethod = 'PUT';
+        return new HttpResponse(null, { status: 204 });
+      }),
+      http.delete(`${BASE}/v1/library/assets/:asset_ref/favorite`, () => {
+        lastMethod = 'DELETE';
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+
+    const queryClient = new QueryClient();
+    const opts = favoriteMutationOptions(queryClient);
+
+    await opts.mutationFn({ assetRef: 'output:abc', favorite: true });
+    expect(lastMethod).toBe('PUT');
+
+    await opts.mutationFn({ assetRef: 'output:abc', favorite: false });
+    expect(lastMethod).toBe('DELETE');
+  });
+
+  it('patches cached list pages optimistically and rolls back on error', async () => {
+    const queryClient = new QueryClient();
+    const listKey = libraryKeys.list();
+    queryClient.setQueryData(listKey, {
+      pages: [makeLibraryCursorPage(1, { asset_ref: 'output:abc', is_favorite: false })],
+      pageParams: [null],
+    });
+
+    const opts = favoriteMutationOptions(queryClient);
+    const context = await opts.onMutate({ assetRef: 'output:abc', favorite: true });
+
+    const patched = queryClient.getQueryData<{
+      pages: { items: { asset_ref: string; is_favorite: boolean }[] }[];
+    }>(listKey);
+    expect(patched?.pages[0].items[0].is_favorite).toBe(true);
+
+    opts.onError(new Error('boom'), { assetRef: 'output:abc', favorite: true }, context);
+
+    const restored = queryClient.getQueryData<{
+      pages: { items: { asset_ref: string; is_favorite: boolean }[] }[];
+    }>(listKey);
+    expect(restored?.pages[0].items[0].is_favorite).toBe(false);
+  });
+});
+
+describe('renameMutationOptions()', () => {
+  it('PATCHes display_title and invalidates the list and asset caches', async () => {
+    server.use(
+      http.patch(`${BASE}/v1/library/assets/:asset_ref`, async ({ params, request }) => {
+        const body = (await request.json()) as { display_title?: string | null };
+        return HttpResponse.json(
+          makeLibraryAssetDetail({
+            asset_ref: params.asset_ref as string,
+            display_title: body.display_title ?? null,
+          }),
+        );
+      }),
+    );
+
+    const queryClient = new QueryClient();
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+    const opts = renameMutationOptions(queryClient);
+
+    const result = await opts.mutationFn({ assetRef: 'output:abc', displayTitle: 'New name' });
+    expect(result.display_title).toBe('New name');
+
+    opts.onSuccess(result, { assetRef: 'output:abc' });
+    const invalidatedKeys = invalidateSpy.mock.calls.map((call) => call[0]?.queryKey);
+    expect(invalidatedKeys).toContainEqual(libraryKeys.all);
+    expect(invalidatedKeys).toContainEqual(libraryKeys.asset('output:abc'));
+  });
+});
+
+describe('deleteAssetMutationOptions()', () => {
+  it('on success removes the item from cached pages and invalidates library, jobs, and user keys', async () => {
+    server.use(
+      http.delete(
+        `${BASE}/v1/library/assets/:asset_ref`,
+        () => new HttpResponse(null, { status: 204 }),
+      ),
+    );
+
+    const queryClient = new QueryClient();
+    const listKey = libraryKeys.list();
+    queryClient.setQueryData(listKey, {
+      pages: [makeLibraryCursorPage(2, {}, false)],
+      pageParams: [null],
+    });
+    const [firstItem] = (
+      queryClient.getQueryData(listKey) as { pages: { items: { asset_ref: string }[] }[] }
+    ).pages[0].items;
+
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+    const opts = deleteAssetMutationOptions(queryClient);
+
+    await opts.mutationFn(firstItem.asset_ref);
+    opts.onSuccess(undefined, firstItem.asset_ref);
+
+    const patched = queryClient.getQueryData<{ pages: { items: { asset_ref: string }[] }[] }>(
+      listKey,
+    );
+    expect(patched?.pages[0].items.some((i) => i.asset_ref === firstItem.asset_ref)).toBe(false);
+
+    const invalidatedKeys = invalidateSpy.mock.calls.map((call) => call[0]?.queryKey);
+    expect(invalidatedKeys).toContainEqual(libraryKeys.all);
+    expect(invalidatedKeys).toContainEqual(['jobs']);
+    expect(invalidatedKeys).toContainEqual(['user']);
+  });
+
+  it('surfaces the backend error message when deletion fails', async () => {
+    server.use(
+      http.delete(`${BASE}/v1/library/assets/:asset_ref`, () =>
+        HttpResponse.json(
+          { error: 'not_found', message: 'Library asset not found', status_code: 404 },
+          { status: 404 },
+        ),
+      ),
+    );
+
+    const queryClient = new QueryClient();
+    const opts = deleteAssetMutationOptions(queryClient);
+
+    await expect(opts.mutationFn('output:missing')).rejects.toMatchObject({
+      message: 'Library asset not found',
+    });
+  });
+});

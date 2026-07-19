@@ -1,22 +1,6 @@
 import { http, HttpResponse } from 'msw';
 import { MOCK_BASE_URL as BASE } from '../config';
-import { makeMediaObject } from '../factories/gallery';
-
-function makeUploadMediaObject(uploadId: string) {
-  return makeMediaObject({
-    original: {
-      url: `/v1/content/uploads/${uploadId}`,
-      width: 1024,
-      height: 768,
-      content_type: 'image/jpeg',
-      size_bytes: 500000,
-    },
-    variants: [
-      { label: 'sm', width: 150, height: 113, url: `/v1/content/uploads/${uploadId}_sm` },
-      { label: 'md', width: 512, height: 384, url: `/v1/content/uploads/${uploadId}_md` },
-    ],
-  });
-}
+import { makeMediaObject } from '../factories/media';
 
 function makeVideoUploadMediaObject(uploadId: string) {
   return makeMediaObject({
@@ -38,30 +22,6 @@ export const storageHandlers = [
   http.get(`${BASE}/v1/storage/stats`, () =>
     HttpResponse.json({ upload_count: 6, output_count: 14, total_bytes: 3145728, total_mb: 3 }),
   ),
-
-  // Upload list — cursor-based pagination
-  http.get(`${BASE}/v1/storage/uploads`, ({ request }) => {
-    const url = new URL(request.url);
-    const limit = Number(url.searchParams.get('limit') ?? 50);
-    const cursor = url.searchParams.get('cursor');
-
-    if (cursor) {
-      return HttpResponse.json({ items: [], limit, has_more: false, next_cursor: null });
-    }
-
-    const items = Array.from({ length: Math.min(limit, 6) }, (_, i) => {
-      const id = `upload_mock_${String(i + 1).padStart(3, '0')}`;
-      return {
-        id,
-        filename: `image_${i + 1}.jpg`,
-        created_at: new Date(Date.now() - i * 86400000).toISOString(),
-        expires_at: new Date(Date.now() + 30 * 86400000).toISOString(),
-        media: makeUploadMediaObject(id),
-      };
-    });
-
-    return HttpResponse.json({ items, limit, has_more: false, next_cursor: null });
-  }),
 
   // File upload — video fixture intentionally has no poster variants.
   // Do not read request.formData() here: MSW's Node interceptor can hang on

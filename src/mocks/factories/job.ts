@@ -1,5 +1,5 @@
 import type { components } from '$lib/api/types';
-import { makeMediaObject } from './gallery';
+import { makeMediaObject } from './media';
 
 type JobCreatedResponse = components['schemas']['JobCreatedResponse'];
 type UnifiedJobResponse = components['schemas']['UnifiedJobResponse'];

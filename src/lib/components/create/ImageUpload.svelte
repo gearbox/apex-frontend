@@ -8,7 +8,7 @@
   import { mediaFallbackSrc } from '$lib/media/index';
   import { uploadMedia } from '$lib/api/upload';
   import { useQueryClient } from '@tanstack/svelte-query';
-  import { storageKeys } from '$lib/queries/storage';
+  import { libraryKeys } from '$lib/queries/library';
   import { ACCEPTED_IMAGE_TYPES } from '$lib/utils/constants';
 
   const queryClient = useQueryClient();
@@ -70,7 +70,7 @@
     try {
       const result = await uploadMedia(file);
       generationStore.setUploadedImageId(result.id);
-      queryClient.invalidateQueries({ queryKey: storageKeys.uploads() });
+      queryClient.invalidateQueries({ queryKey: libraryKeys.all });
       // Switch to picker-selection preview using the immediate media from the response
       if (previewUrl) URL.revokeObjectURL(previewUrl);
       previewUrl = null;
