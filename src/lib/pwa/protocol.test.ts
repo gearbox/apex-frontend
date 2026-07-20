@@ -35,6 +35,11 @@ describe('PWA worker protocol', () => {
 
   it('wires the production worker to the build-scoped predicate, never an unconditional skip', () => {
     const worker = readFileSync('src/service-worker.ts', 'utf8');
+    expect(worker).toContain('event.origin !== self.location.origin');
+    expect(worker).toContain('event.source === null');
+    expect(worker).toContain('isTrustedPwaMessageSender(');
+    expect(worker).toContain('const replyPort = event.ports[0];');
+    expect(worker).toContain('if (!replyPort) return;');
     expect(worker).toContain('isMatchingPwaActivationMessage(data, __BUILD_SHA__)');
     expect(worker).toContain('event.waitUntil(self.skipWaiting())');
     expect(worker).not.toContain('self.skipWaiting();');
