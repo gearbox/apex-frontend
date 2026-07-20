@@ -8,8 +8,10 @@
   import { mediaFallbackSrc } from '$lib/media/index';
   import { uploadMedia } from '$lib/api/upload';
   import { useQueryClient } from '@tanstack/svelte-query';
-  import { libraryKeys } from '$lib/queries/library';
+  import { libraryKeys, projectKeys } from '$lib/queries/library';
   import { ACCEPTED_IMAGE_TYPES } from '$lib/utils/constants';
+  import { activeProject } from '$lib/stores/activeProject.svelte';
+  import { inheritProjectForUpload } from '$lib/services/projectInheritance';
 
   const queryClient = useQueryClient();
 
@@ -62,6 +64,9 @@
       return;
     }
 
+    // Keep the project selected when this upload starts. The Library URL remains the
+    // source of truth, but it may change while the upload request is in flight.
+    const projectId = activeProject.id;
     uploading = true;
     previewUrl = URL.createObjectURL(file);
     fileName = file.name;
@@ -70,7 +75,16 @@
     try {
       const result = await uploadMedia(file);
       generationStore.setUploadedImageId(result.id);
+      // Project assignment is convenience metadata: a successfully uploaded source
+      // image must remain usable for generation even if its follow-up bulk call fails.
+      try {
+        await inheritProjectForUpload(result.id, projectId);
+      } catch {
+        // A later Library refetch is safe; do not turn an assignment failure into an
+        // upload failure after the source image has already been accepted.
+      }
       queryClient.invalidateQueries({ queryKey: libraryKeys.all });
+      queryClient.invalidateQueries({ queryKey: projectKeys.all });
       // Switch to picker-selection preview using the immediate media from the response
       if (previewUrl) URL.revokeObjectURL(previewUrl);
       previewUrl = null;

@@ -37,6 +37,11 @@
   import GenerateButton from '$lib/components/create/GenerateButton.svelte';
   import ResultsPanel from '$lib/components/create/ResultsPanel.svelte';
   import { ROUTES } from '$lib/utils/routes';
+  import {
+    inheritProjectForCompletedJob,
+    trackProjectForJob,
+  } from '$lib/services/projectInheritance';
+  import { libraryKeys, projectKeys } from '$lib/queries/library';
 
   const queryClient = useQueryClient();
 
@@ -255,6 +260,14 @@
         activeJobStore.clear();
         queryClient.invalidateQueries({ queryKey: ['gallery'] });
         queryClient.invalidateQueries({ queryKey: ['billing', 'balance'] });
+        // Project membership is convenience metadata, applied after the backend has
+        // materialized outputs. A failure never changes generation success semantics.
+        void inheritProjectForCompletedJob(job)
+          .then(() => {
+            queryClient.invalidateQueries({ queryKey: libraryKeys.all });
+            queryClient.invalidateQueries({ queryKey: projectKeys.all });
+          })
+          .catch(() => undefined);
       },
       onError: (err) => {
         const msg = err.message;
@@ -333,6 +346,7 @@
       // The accepted request is recoverable from Jobs/Gallery. Establishing a
       // saved baseline here means only later user edits block a PWA reload.
       markGenerationDraftSaved();
+      trackProjectForJob(jobId);
       generationStore.startJob(jobId);
       startPolling(jobId);
     } catch {

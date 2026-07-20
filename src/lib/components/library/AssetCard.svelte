@@ -23,6 +23,7 @@
     selectable = false,
     selected = false,
     onToggleSelect,
+    bulkError = false,
   }: {
     item: LibraryAssetItem;
     onclick: () => void;
@@ -30,16 +31,19 @@
     onRename?: (item: LibraryAssetItem) => void;
     onExtractFrame?: (item: LibraryAssetItem) => void;
     onViewSettings?: (item: LibraryAssetItem) => void;
-    /** Multi-select prop surface — wired in Phase 2. Renders nothing yet. */
+    /** Selection mode makes card taps toggle rather than open the details sheet. */
     selectable?: boolean;
     selected?: boolean;
     onToggleSelect?: (item: LibraryAssetItem) => void;
+    /** Returned by a failed bulk request; stays visible until the next bulk attempt/filter change. */
+    bulkError?: boolean;
   } = $props();
 
   const isVideo = $derived(item.media.media_type === 'video');
-  const isExpiringSoon = $derived(
-    new Date(item.expires_at).getTime() - Date.now() < EXPIRES_SOON_MS,
-  );
+  const isExpiringSoon = $derived.by(() => {
+    const remaining = new Date(item.expires_at).getTime() - Date.now();
+    return remaining > 0 && remaining < EXPIRES_SOON_MS;
+  });
 
   const queryClient = useQueryClient();
   const favoriteMutation = createMutation(() => favoriteMutationOptions(queryClient));
@@ -49,6 +53,44 @@
   }
 
   let contextMenu: ReturnType<typeof ContextMenu> | undefined = $state();
+  let longPressTimer: ReturnType<typeof setTimeout> | null = null;
+  let longPressStart: { x: number; y: number } | null = null;
+  let suppressCardClickUntil = 0;
+
+  function clearLongPress() {
+    if (longPressTimer) clearTimeout(longPressTimer);
+    longPressTimer = null;
+    longPressStart = null;
+  }
+
+  function handleTouchStart(event: TouchEvent) {
+    if (!onToggleSelect || event.touches.length !== 1) return;
+    const touch = event.touches[0];
+    longPressStart = { x: touch.clientX, y: touch.clientY };
+    longPressTimer = setTimeout(() => {
+      suppressCardClickUntil = Date.now() + 500;
+      onToggleSelect(item);
+      clearLongPress();
+    }, 450);
+  }
+
+  function handleTouchMove(event: TouchEvent) {
+    if (!longPressStart || event.touches.length !== 1) return;
+    const touch = event.touches[0];
+    // Let a normal scroll or SwipeToDelete gesture win; long press never prevents touch events.
+    if (Math.hypot(touch.clientX - longPressStart.x, touch.clientY - longPressStart.y) > 8) {
+      clearLongPress();
+    }
+  }
+
+  function handleCardClick() {
+    if (Date.now() < suppressCardClickUntil) return;
+    if (selectable && onToggleSelect) {
+      onToggleSelect(item);
+      return;
+    }
+    onclick();
+  }
 
   const menuItems = $derived(
     item.available_actions
@@ -78,27 +120,36 @@
     disabled={!item.available_actions.includes('delete')}
   >
     <div
-      class="group relative aspect-square w-full overflow-hidden rounded-xl border border-border bg-surface transition-all hover:border-border-active hover:shadow-lg"
+      role="presentation"
+      class="group relative aspect-square w-full overflow-hidden rounded-xl border border-border bg-surface transition-all hover:border-border-active hover:shadow-lg {bulkError
+        ? 'ring-2 ring-danger ring-offset-1 ring-offset-bg'
+        : ''}"
+      ontouchstart={handleTouchStart}
+      ontouchmove={handleTouchMove}
+      ontouchend={clearLongPress}
+      ontouchcancel={clearLongPress}
     >
       <!-- Full-cover click target — sits behind the smaller action buttons below, which
            paint over it in DOM order, so a single element hierarchy has no nested buttons. -->
       <button
-        {onclick}
+        onclick={handleCardClick}
         class="absolute inset-0 z-0"
         aria-label={item.display_title ?? item.original_filename ?? m.library_details_title()}
       ></button>
 
-      {#if selectable}
+      {#if onToggleSelect}
         <button
           type="button"
           onclick={(e) => {
             e.stopPropagation();
             onToggleSelect?.(item);
           }}
-          class="absolute left-2 top-2 z-10 h-5 w-5 rounded-md border-2 {selected
+          class="absolute left-2 top-2 z-10 hidden h-5 w-5 rounded-md border-2 transition-opacity md:flex md:items-center md:justify-center {selectable
+            ? 'opacity-100'
+            : 'opacity-0 group-hover:opacity-100 focus:opacity-100'} {selected
             ? 'border-accent bg-accent'
             : 'border-white/70 bg-black/20'}"
-          aria-label="Select"
+          aria-label={m.library_select()}
           aria-pressed={selected}
         ></button>
       {/if}
@@ -113,7 +164,7 @@
       <!-- Provenance badge -->
       <div
         class="absolute left-2 top-2 rounded-md bg-black/50 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm"
-        class:top-9={selectable}
+        class:top-9={selectable || !!onToggleSelect}
       >
         {item.source === 'upload' ? m.library_badge_uploaded() : m.library_badge_generated()}
       </div>
@@ -189,6 +240,9 @@
       >
         <span class="truncate text-[11px] text-text-dim">{timeAgo(item.created_at)}</span>
       </div>
+      {#if bulkError}
+        <span class="sr-only">{m.library_bulk_error()}</span>
+      {/if}
     </div>
   </SwipeToDelete>
 </ContextMenu>

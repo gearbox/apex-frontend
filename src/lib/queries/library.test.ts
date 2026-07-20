@@ -4,6 +4,7 @@ import { QueryClient } from '@tanstack/svelte-query';
 import { server } from '../../mocks/server';
 import { makeLibraryCursorPage, makeLibraryAssetDetail } from '../../mocks/factories/library';
 import { storageKeys } from './storage';
+import { ApiRequestError } from '$lib/api/errors';
 import {
   libraryKeys,
   libraryListInfiniteQueryOptions,
@@ -12,6 +13,9 @@ import {
   favoriteMutationOptions,
   renameMutationOptions,
   deleteAssetMutationOptions,
+  bulkMutationOptions,
+  bulkOffenderRefs,
+  projectsListQueryOptions,
 } from './library';
 
 const BASE = 'http://localhost:8000';
@@ -61,7 +65,7 @@ describe('libraryListInfiniteQueryOptions() — cursor paging', () => {
     expect(opts.getNextPageParam(page2)).toBeUndefined();
   });
 
-  it('passes through source, media_type, model, and favorite filters as query params', async () => {
+  it('passes through source, media_type, model, project, search, expiration, sort, and favorite filters as query params', async () => {
     let capturedUrl: URL | undefined;
     server.use(
       http.get(`${BASE}/v1/library`, ({ request }) => {
@@ -75,6 +79,10 @@ describe('libraryListInfiniteQueryOptions() — cursor paging', () => {
       media_type: 'image',
       model: 'grok-imagine-image',
       favorite: true,
+      project_id: 'project-123',
+      query: 'sunset beach',
+      expiring: true,
+      sort: 'expiring_soon',
     });
     await opts.queryFn({ pageParam: null });
 
@@ -82,6 +90,157 @@ describe('libraryListInfiniteQueryOptions() — cursor paging', () => {
     expect(capturedUrl?.searchParams.get('media_type')).toBe('image');
     expect(capturedUrl?.searchParams.get('model')).toBe('grok-imagine-image');
     expect(capturedUrl?.searchParams.get('favorite')).toBe('true');
+    expect(capturedUrl?.searchParams.get('project_id')).toBe('project-123');
+    expect(capturedUrl?.searchParams.get('query')).toBe('sunset beach');
+    expect(capturedUrl?.searchParams.get('expiring')).toBe('true');
+    expect(capturedUrl?.searchParams.get('sort')).toBe('expiring_soon');
+  });
+});
+
+describe('bulkMutationOptions()', () => {
+  it('POSTs one bulk body and optimistically removes every deleted ref from cached pages', async () => {
+    let receivedBody: unknown;
+    server.use(
+      http.post(`${BASE}/v1/library/assets/bulk`, async ({ request }) => {
+        receivedBody = await request.json();
+        return HttpResponse.json(
+          { op: 'delete', results: [], succeeded: 2, failed: 0 },
+          { status: 201 },
+        );
+      }),
+    );
+    const queryClient = new QueryClient();
+    const listKey = libraryKeys.list();
+    queryClient.setQueryData(listKey, {
+      pages: [makeLibraryCursorPage(2, {}, false)],
+      pageParams: [null],
+    });
+    const refs = (
+      queryClient.getQueryData(listKey) as { pages: { items: { asset_ref: string }[] }[] }
+    ).pages[0].items.map((item) => item.asset_ref);
+    const options = bulkMutationOptions(queryClient);
+
+    const context = await options.onMutate({ type: 'delete', assetRefs: refs });
+    const optimisticItems = (
+      queryClient.getQueryData(listKey) as { pages: { items: { asset_ref: string }[] }[] }
+    ).pages[0].items;
+    expect(optimisticItems).toEqual([]);
+
+    await options.mutationFn({ type: 'delete', assetRefs: refs });
+    expect(receivedBody).toEqual({ type: 'delete', asset_refs: refs });
+    options.onError(new Error('nope'), { type: 'delete', assetRefs: refs }, context);
+    expect(
+      (queryClient.getQueryData(listKey) as { pages: { items: { asset_ref: string }[] }[] })
+        .pages[0].items,
+    ).toHaveLength(2);
+  });
+
+  it('extracts backend offender refs from the 400 envelope', () => {
+    expect(
+      bulkOffenderRefs(
+        new ApiRequestError({
+          error: 'bulk_invalid',
+          message: 'Invalid',
+          status_code: 400,
+          extra: { offending_refs: ['output:bad'] },
+        }),
+      ),
+    ).toEqual(['output:bad']);
+  });
+
+  it('throws partial failures with failed refs and restores only failed optimistic deletes', async () => {
+    server.use(
+      http.post(`${BASE}/v1/library/assets/bulk`, () =>
+        HttpResponse.json({
+          op: 'delete',
+          results: [
+            { asset_ref: 'output:out_mock_001', success: true },
+            { asset_ref: 'output:out_mock_002', success: false },
+          ],
+          succeeded: 1,
+          failed: 1,
+        }),
+      ),
+    );
+
+    const queryClient = new QueryClient();
+    const listKey = libraryKeys.list();
+    queryClient.setQueryData(listKey, {
+      pages: [makeLibraryCursorPage(2, {}, false)],
+      pageParams: [null],
+    });
+    const options = bulkMutationOptions(queryClient);
+    const variables = {
+      type: 'delete' as const,
+      assetRefs: ['output:out_mock_001', 'output:out_mock_002'],
+    };
+    const context = await options.onMutate(variables);
+
+    let partialError: unknown;
+    try {
+      await options.mutationFn(variables);
+    } catch (error) {
+      partialError = error;
+    }
+
+    expect(partialError).toMatchObject({ error: 'bulk_partial_failure' });
+    expect(bulkOffenderRefs(partialError)).toEqual(['output:out_mock_002']);
+    options.onError(partialError, variables, context);
+    expect(
+      (
+        queryClient.getQueryData(listKey) as { pages: { items: { asset_ref: string }[] }[] }
+      ).pages[0].items.map((item) => item.asset_ref),
+    ).toEqual(['output:out_mock_002']);
+  });
+});
+
+describe('projectsListQueryOptions()', () => {
+  it('aggregates every cursor page into one project list', async () => {
+    const cursors: Array<string | null> = [];
+    server.use(
+      http.get(`${BASE}/v1/library/projects`, ({ request }) => {
+        const cursor = new URL(request.url).searchParams.get('cursor');
+        cursors.push(cursor);
+        if (cursor === 'page-2') {
+          return HttpResponse.json({
+            items: [
+              {
+                id: 'project-2',
+                name: 'Second page',
+                description: null,
+                asset_count: 0,
+                created_at: '2025-06-01T12:00:00Z',
+                updated_at: '2025-06-01T12:00:00Z',
+              },
+            ],
+            limit: 50,
+            has_more: false,
+            next_cursor: null,
+          });
+        }
+        return HttpResponse.json({
+          items: [
+            {
+              id: 'project-1',
+              name: 'First page',
+              description: null,
+              asset_count: 0,
+              created_at: '2025-06-01T12:00:00Z',
+              updated_at: '2025-06-01T12:00:00Z',
+            },
+          ],
+          limit: 50,
+          has_more: true,
+          next_cursor: 'page-2',
+        });
+      }),
+    );
+
+    const result = await projectsListQueryOptions().queryFn();
+
+    expect(cursors).toEqual([null, 'page-2']);
+    expect(result.items.map((project) => project.id)).toEqual(['project-1', 'project-2']);
+    expect(result.has_more).toBe(false);
   });
 });
 
