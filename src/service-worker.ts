@@ -21,6 +21,7 @@ import {
   isMatchingPwaActivationMessage,
   isPwaClientToWorkerMessage,
 } from './lib/pwa/protocol';
+import { isTrustedPwaMessageSender } from './lib/pwa/messageSource';
 
 declare const __BUILD_SHA__: string;
 
@@ -37,11 +38,27 @@ declare const self: ServiceWorkerGlobalScope & {
 clientsClaim();
 
 self.addEventListener('message', (event) => {
+  if (
+    event.origin !== self.location.origin ||
+    event.source === null ||
+    !isTrustedPwaMessageSender(
+      event.origin,
+      event.source,
+      self.location.origin,
+      self.registration.scope,
+    )
+  ) {
+    return;
+  }
+
   const data: unknown = event.data;
   if (!isPwaClientToWorkerMessage(data)) return;
 
   if (data.type === PWA_GET_BUILD_INFO) {
-    event.ports[0]?.postMessage({ type: PWA_BUILD_INFO, buildSha: __BUILD_SHA__ });
+    const replyPort = event.ports[0];
+    if (!replyPort) return;
+
+    replyPort.postMessage({ type: PWA_BUILD_INFO, buildSha: __BUILD_SHA__ });
     return;
   }
 
