@@ -947,6 +947,93 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/notifications/telegram/link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** CreateTelegramLink */
+        post: operations["V1AdminNotificationsTelegramLinkCreateTelegramLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/notifications/telegram": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetTelegramStatus */
+        get: operations["V1AdminNotificationsTelegramGetTelegramStatus"];
+        put?: never;
+        post?: never;
+        /** DeleteTelegramLink */
+        delete: operations["V1AdminNotificationsTelegramDeleteTelegramLink"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/notifications/classes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetClasses */
+        get: operations["V1AdminNotificationsClassesGetClasses"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/notifications/preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetPreferences */
+        get: operations["V1AdminNotificationsPreferencesGetPreferences"];
+        /** ReplacePreferences */
+        put: operations["V1AdminNotificationsPreferencesReplacePreferences"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/notifications/preferences/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetPreferencesFor */
+        get: operations["V1AdminNotificationsPreferencesUserIdGetPreferencesFor"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/payments/currencies": {
         parameters: {
             query?: never;
@@ -1476,6 +1563,77 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/library/assets/{asset_ref}/favorite": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** AddFavorite */
+        put: operations["V1LibraryAssetsAssetRefFavoriteAddFavorite"];
+        post?: never;
+        /** RemoveFavorite */
+        delete: operations["V1LibraryAssetsAssetRefFavoriteRemoveFavorite"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/library/assets/{asset_ref}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetAssetDetail */
+        get: operations["V1LibraryAssetsAssetRefGetAssetDetail"];
+        put?: never;
+        post?: never;
+        /** DeleteAsset */
+        delete: operations["V1LibraryAssetsAssetRefDeleteAsset"];
+        options?: never;
+        head?: never;
+        /** PatchAsset */
+        patch: operations["V1LibraryAssetsAssetRefPatchAsset"];
+        trace?: never;
+    };
+    "/v1/library/groups/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetGroupDetail */
+        get: operations["V1LibraryGroupsJobIdGetGroupDetail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/library": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListAssets */
+        get: operations["V1LibraryListAssets"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/content/{content_id}": {
         parameters: {
             query?: never;
@@ -1791,6 +1949,13 @@ export interface components {
             has_more: boolean;
             next_cursor?: string | null;
         };
+        /** CursorPage[LibraryAssetItem] */
+        "CursorPage_src.api.schemas.library.LibraryAssetItem_": {
+            items: components["schemas"]["LibraryAssetItem"][];
+            limit: number;
+            has_more: boolean;
+            next_cursor?: string | null;
+        };
         /** CursorPage[ImageListItem] */
         "CursorPage_src.api.schemas.storage.ImageListItem_": {
             items: components["schemas"]["ImageListItem"][];
@@ -2099,6 +2264,144 @@ export interface components {
          * @enum {string}
          */
         JobStatus: "pending" | "queued" | "running" | "completed" | "failed" | "cancelled" | "moderated";
+        /**
+         * LibraryAction
+         * @description Actions a client may offer for a single library asset.
+         * @enum {string}
+         */
+        LibraryAction: "remix" | "create_variation" | "animate" | "extend" | "extract_frame" | "use_as_reference" | "use_as_first_frame" | "use_as_last_frame" | "view_settings" | "reproduce" | "favorite" | "rename" | "download" | "delete";
+        /** LibraryAssetDetail */
+        LibraryAssetDetail: {
+            asset_ref: string;
+            source: components["schemas"]["LibraryAssetSource"];
+            media: components["schemas"]["MediaObject"];
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            expires_at: string;
+            display_title?: string | null;
+            original_filename?: string | null;
+            is_favorite: boolean;
+            duration_ms?: number | null;
+            job_id?: string | null;
+            output_count?: number | null;
+            model?: string | null;
+            generation_type?: components["schemas"]["GenerationType"] | null;
+            available_actions: components["schemas"]["LibraryAction"][];
+            prompt?: string | null;
+            negative_prompt?: string | null;
+            provider?: string | null;
+            aspect_ratio?: string | null;
+            token_cost?: number | null;
+            completed_at?: string | null;
+            lineage?: components["schemas"]["LibraryLineage"] | null;
+            descendants: components["schemas"]["LibraryDescendants"];
+        };
+        /** LibraryAssetItem */
+        LibraryAssetItem: {
+            asset_ref: string;
+            source: components["schemas"]["LibraryAssetSource"];
+            media: components["schemas"]["MediaObject"];
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            expires_at: string;
+            display_title?: string | null;
+            original_filename?: string | null;
+            is_favorite: boolean;
+            duration_ms?: number | null;
+            job_id?: string | null;
+            output_count?: number | null;
+            model?: string | null;
+            generation_type?: components["schemas"]["GenerationType"] | null;
+            available_actions: components["schemas"]["LibraryAction"][];
+        };
+        /** LibraryAssetPatch */
+        LibraryAssetPatch: {
+            display_title?: string | null;
+        };
+        /**
+         * LibraryAssetSource
+         * @description Which table a library asset lives in.
+         * @enum {string}
+         */
+        LibraryAssetSource: "upload" | "output";
+        /**
+         * LibraryBadge
+         * @description Badge type for a library group detail — describes the input source.
+         *
+         *     Distinct from GalleryBadge (D1 — no cross-import between gallery and
+         *     library modules).
+         * @enum {string}
+         */
+        LibraryBadge: "image" | "prompt";
+        /** LibraryDescendants */
+        LibraryDescendants: {
+            job_count: number;
+            frame_count: number;
+        };
+        /** LibraryGroupDetail */
+        LibraryGroupDetail: {
+            /** Format: uuid */
+            job_id: string;
+            badge: components["schemas"]["LibraryBadge"];
+            input_media?: components["schemas"]["MediaObject"] | null;
+            prompt: string;
+            negative_prompt?: string | null;
+            outputs: components["schemas"]["LibraryOutputItem"][];
+            media_type: components["schemas"]["OutputMediaType"];
+            model?: string | null;
+            provider: string;
+            generation_type: components["schemas"]["GenerationType"];
+            aspect_ratio?: string | null;
+            token_cost?: number | null;
+            /** Format: date-time */
+            created_at: string;
+            completed_at?: string | null;
+            lineage?: components["schemas"]["LibraryGroupLineage"] | null;
+        };
+        /** LibraryGroupLineage */
+        LibraryGroupLineage: {
+            source_type: components["schemas"]["LibraryGroupSourceType"];
+            source_upload_id?: string | null;
+            source_job_id?: string | null;
+            source_job_name?: string | null;
+            source_output_id?: string | null;
+        };
+        /**
+         * LibraryGroupSourceType
+         * @description Type of input source for library group-detail lineage display.
+         *
+         *     Distinct from GallerySourceType (D1 — Library uses upload/output
+         *     vocabulary, not upload/generation).
+         * @enum {string}
+         */
+        LibraryGroupSourceType: "upload" | "output";
+        /** LibraryLineage */
+        LibraryLineage: {
+            source_asset_ref?: string | null;
+            source_job_id?: string | null;
+            source_timestamp_ms?: number | null;
+        };
+        /** LibraryOutputItem */
+        LibraryOutputItem: {
+            /** Format: uuid */
+            id: string;
+            asset_ref: string;
+            output_index: number;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            expires_at: string;
+            media: components["schemas"]["MediaObject"];
+        };
+        /**
+         * LibrarySort
+         * @description Sort order for the library list endpoint.
+         * @default newest
+         * @enum {string}
+         */
+        LibrarySort: "newest" | "oldest";
         /** ListSessionsResponse */
         ListSessionsResponse: {
             sessions: components["schemas"]["GpuSessionResponse"][];
@@ -2168,12 +2471,32 @@ export interface components {
          * @enum {string}
          */
         ModelType: "aisha-image" | "aisha-video" | "grok-imagine-image" | "grok-2-image-1212" | "grok-imagine-video";
+        /** NotificationClassInfo */
+        NotificationClassInfo: {
+            notification_class: string;
+            scope: string;
+            description: string;
+        };
         /**
          * NotificationLevel
          * @description Severity level for system notifications and credit warnings.
          * @enum {string}
          */
         NotificationLevel: "info" | "warning" | "critical";
+        /** NotificationPreferenceItem */
+        NotificationPreferenceItem: {
+            notification_class: string;
+            /** @default 0 */
+            min_interval_seconds: number;
+        };
+        /** NotificationPreferencesResponse */
+        NotificationPreferencesResponse: {
+            items: components["schemas"]["NotificationPreferenceItem"][];
+        };
+        /** NotificationPreferencesUpdateRequest */
+        NotificationPreferencesUpdateRequest: {
+            items: components["schemas"]["NotificationPreferenceItem"][];
+        };
         /** NowPaymentsInvoiceResponse */
         NowPaymentsInvoiceResponse: {
             invoice_url: string;
@@ -2463,6 +2786,18 @@ export interface components {
             title: string;
             message: string;
             expires_at?: string | null;
+        };
+        /** TelegramLinkInviteResponse */
+        TelegramLinkInviteResponse: {
+            deep_link: string;
+            /** Format: date-time */
+            expires_at: string;
+        };
+        /** TelegramLinkStatusResponse */
+        TelegramLinkStatusResponse: {
+            linked: boolean;
+            linked_at?: string | null;
+            chat_id_last4?: string | null;
         };
         /** TokenResponse */
         TokenResponse: {
@@ -4776,6 +5111,184 @@ export interface operations {
             };
         };
     };
+    V1AdminNotificationsTelegramLinkCreateTelegramLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TelegramLinkInviteResponse"];
+                };
+            };
+        };
+    };
+    V1AdminNotificationsTelegramGetTelegramStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TelegramLinkStatusResponse"];
+                };
+            };
+        };
+    };
+    V1AdminNotificationsTelegramDeleteTelegramLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+        };
+    };
+    V1AdminNotificationsClassesGetClasses: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationClassInfo"][];
+                };
+            };
+        };
+    };
+    V1AdminNotificationsPreferencesGetPreferences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationPreferencesResponse"];
+                };
+            };
+        };
+    };
+    V1AdminNotificationsPreferencesReplacePreferences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotificationPreferencesUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationPreferencesResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1AdminNotificationsPreferencesUserIdGetPreferencesFor: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationPreferencesResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
     V1AdminPaymentsCurrenciesListCurrencies: {
         parameters: {
             query?: never;
@@ -5922,6 +6435,272 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CursorPage_src.api.schemas.gallery.GalleryGridItem_"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1LibraryAssetsAssetRefFavoriteAddFavorite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                asset_ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, nothing follows */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1LibraryAssetsAssetRefFavoriteRemoveFavorite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                asset_ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, nothing follows */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1LibraryAssetsAssetRefGetAssetDetail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                asset_ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryAssetDetail"] | components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1LibraryAssetsAssetRefDeleteAsset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                asset_ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, nothing follows */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1LibraryAssetsAssetRefPatchAsset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                asset_ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LibraryAssetPatch"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryAssetDetail"] | components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1LibraryGroupsJobIdGetGroupDetail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryGroupDetail"] | components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1LibraryListAssets: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursor?: string | null;
+                source?: components["schemas"]["LibraryAssetSource"] | null;
+                media_type?: components["schemas"]["OutputMediaType"] | null;
+                model?: string | null;
+                favorite?: boolean | null;
+                created_from?: string | null;
+                created_to?: string | null;
+                /** @description Sort order for the library list endpoint. */
+                sort?: components["schemas"]["LibrarySort"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CursorPage_src.api.schemas.library.LibraryAssetItem_"] | components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Bad request syntax or unsupported method */

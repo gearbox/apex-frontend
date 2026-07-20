@@ -95,8 +95,12 @@ const authMiddleware: Middleware = {
     // Attempt refresh
     const refreshed = await silentRefresh();
     if (!refreshed) {
-      // Redirect to login, preserving current path + query string
-      if (typeof window !== 'undefined') {
+      // Redirect to login, preserving current path + query string. Skip if
+      // already on /login — the (app) layout's own auth guard races this
+      // handler on protected-route 401s, and re-deriving the redirect target
+      // from window.location after that guard has already navigated produces
+      // a self-referential nested redirect (e.g. /login?redirect=%2Flogin...).
+      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
         const redirect = encodeURIComponent(window.location.pathname + window.location.search);
         window.location.href = `/login?redirect=${redirect}`;
       }

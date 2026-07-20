@@ -7,8 +7,7 @@
 
   const pageTitleFns: Record<string, () => string> = {
     '/app/create': m.topbar_create,
-    '/app/gallery': m.topbar_gallery,
-    '/app/uploads': () => 'My Uploads',
+    '/app/library': m.topbar_library,
     '/app/jobs': m.topbar_jobs,
     '/app/billing': m.topbar_billing,
     '/app/profile': m.topbar_profile,

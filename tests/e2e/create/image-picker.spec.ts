@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import { test, expect } from '../fixtures/auth.fixture';
 import { jsonRoute } from '../helpers/api';
 
@@ -15,127 +16,135 @@ function makeMedia(url: string, mediaType: 'image' | 'video' = 'image') {
   };
 }
 
-const mockUploads = {
-  items: [
-    {
-      id: 'upload_001',
-      filename: 'photo.jpg',
-      created_at: '2025-06-01T00:00:00Z',
-      expires_at: '2025-07-01T00:00:00Z',
-      media: makeMedia('/v1/content/uploads/upload_001'),
-    },
-    {
-      id: 'upload_002',
-      filename: 'sketch.png',
-      created_at: '2025-06-02T00:00:00Z',
-      expires_at: '2025-07-02T00:00:00Z',
-      media: makeMedia('/v1/content/uploads/upload_002'),
-    },
-    {
-      id: 'upload_003',
-      filename: 'clip.mp4',
-      created_at: '2025-06-03T00:00:00Z',
-      expires_at: '2025-07-03T00:00:00Z',
-      media: makeMedia('/v1/content/uploads/upload_003', 'video'),
-    },
-  ],
-  limit: 30,
-  has_more: false,
-  next_cursor: null,
-};
+function makeUploadItem(overrides: Record<string, unknown> = {}) {
+  return {
+    asset_ref: 'upload:b0000000-0000-4000-8000-000000000001',
+    source: 'upload',
+    media: makeMedia('/v1/content/uploads/b0000000-0000-4000-8000-000000000001'),
+    created_at: '2025-06-01T00:00:00Z',
+    expires_at: '2025-07-01T00:00:00Z',
+    display_title: null,
+    original_filename: 'photo.jpg',
+    is_favorite: false,
+    duration_ms: null,
+    job_id: null,
+    output_count: null,
+    model: null,
+    generation_type: null,
+    available_actions: ['download', 'favorite', 'delete'],
+    ...overrides,
+  };
+}
 
-const mockGalleryImages = {
-  items: [
-    {
-      job_id: 'job_gen_001',
-      cover: makeMedia('/v1/content/outputs/out_001'),
-      badge: 'prompt',
-      output_count: 1,
-      generation_type: 't2i',
-      model: 'grok-imagine-image',
-      aspect_ratio: '1:1',
-      prompt_snippet: 'A sunset over mountains',
-      created_at: '2025-06-03T00:00:00Z',
-    },
-    {
-      job_id: 'job_i2i_001',
-      cover: makeMedia('/v1/content/outputs/out_i2i_cover'),
-      badge: 'image',
-      output_count: 1,
-      generation_type: 'i2i',
-      model: 'grok-imagine-image',
-      aspect_ratio: '1:1',
-      prompt_snippet: 'Stylised portrait',
-      created_at: '2025-06-04T00:00:00Z',
-    },
-  ],
-  limit: 20,
-  has_more: false,
-  next_cursor: null,
-};
+function makeOutputItem(overrides: Record<string, unknown> = {}) {
+  return {
+    asset_ref: 'output:a0000000-0000-4000-8000-000000000001',
+    source: 'output',
+    media: makeMedia('/v1/content/outputs/a0000000-0000-4000-8000-000000000001'),
+    created_at: '2025-06-03T00:00:00Z',
+    expires_at: '2025-07-03T00:00:00Z',
+    display_title: null,
+    original_filename: null,
+    is_favorite: false,
+    duration_ms: null,
+    job_id: 'job_gen_001',
+    output_count: 1,
+    model: 'grok-imagine-image',
+    generation_type: 't2i',
+    available_actions: ['remix', 'download', 'favorite', 'delete'],
+    ...overrides,
+  };
+}
 
-const mockGalleryDetailI2i = {
-  job_id: 'job_i2i_001',
-  badge: 'image',
-  input_media: makeMedia('/v1/content/uploads/upload_src_001'),
-  prompt: 'Stylised portrait in oil painting style',
-  negative_prompt: null,
-  outputs: [
-    {
-      id: 'out_i2i_001',
-      output_index: 0,
-      created_at: '2025-06-04T00:01:00Z',
-      media: makeMedia('/v1/content/outputs/out_i2i_001'),
-    },
-  ],
-  media_type: 'image',
-  model: 'grok-imagine-image',
-  provider: 'grok',
-  generation_type: 'i2i',
-  aspect_ratio: '1:1',
-  token_cost: 15,
-  created_at: '2025-06-04T00:00:00Z',
-  completed_at: '2025-06-04T00:01:00Z',
-  lineage: {
-    source_type: 'upload',
-    source_upload_id: 'upload_src_001',
-    source_job_id: null,
-    source_job_name: null,
-    source_output_id: null,
-  },
-};
+const mockUploadItems = [
+  makeUploadItem({
+    asset_ref: 'upload:b0000000-0000-4000-8000-000000000001',
+    original_filename: 'photo.jpg',
+    media: makeMedia('/v1/content/uploads/b0000000-0000-4000-8000-000000000001'),
+  }),
+  makeUploadItem({
+    asset_ref: 'upload:b0000000-0000-4000-8000-000000000002',
+    original_filename: 'sketch.png',
+    media: makeMedia('/v1/content/uploads/b0000000-0000-4000-8000-000000000002'),
+  }),
+];
 
-const mockGalleryDetail = {
-  job_id: 'job_gen_001',
-  badge: 'prompt',
-  input_media: null,
+// Only returned when the caller does not filter by media_type=image — used to prove
+// the picker's server-side image filter excludes it from the Uploads tab.
+const mockUploadVideoItem = makeUploadItem({
+  asset_ref: 'upload:b0000000-0000-4000-8000-000000000003',
+  original_filename: 'clip.mp4',
+  media: makeMedia('/v1/content/uploads/b0000000-0000-4000-8000-000000000003', 'video'),
+  duration_ms: 4000,
+});
+
+const mockGeneratedItems = [
+  makeOutputItem({
+    asset_ref: 'output:a0000000-0000-4000-8000-000000000001',
+    job_id: 'job_gen_001',
+    media: makeMedia('/v1/content/outputs/a0000000-0000-4000-8000-000000000001'),
+  }),
+  makeOutputItem({
+    asset_ref: 'output:a0000000-0000-4000-8000-00000000000c',
+    job_id: 'job_i2i_001',
+    generation_type: 'i2i',
+    media: makeMedia('/v1/content/outputs/a0000000-0000-4000-8000-00000000000c'),
+  }),
+];
+
+const mockAssetDetailT2i = {
+  ...mockGeneratedItems[0],
   prompt: 'A sunset over mountains with golden light streaming through clouds',
   negative_prompt: null,
-  outputs: [
-    {
-      id: 'out_001',
-      output_index: 0,
-      created_at: '2025-06-03T00:01:00Z',
-      media: makeMedia('/v1/content/outputs/out_001'),
-    },
-  ],
-  media_type: 'image',
-  model: 'grok-imagine-image',
   provider: 'grok',
-  generation_type: 't2i',
   aspect_ratio: '1:1',
   token_cost: 10,
-  created_at: '2025-06-03T00:00:00Z',
   completed_at: '2025-06-03T00:01:00Z',
   lineage: null,
+  descendants: { job_count: 0, frame_count: 0 },
+};
+
+const mockAssetDetailI2i = {
+  ...mockGeneratedItems[1],
+  prompt: 'Stylised portrait in oil painting style',
+  negative_prompt: null,
+  provider: 'grok',
+  aspect_ratio: '1:1',
+  token_cost: 15,
+  completed_at: '2025-06-04T00:01:00Z',
+  lineage: {
+    source_asset_ref: 'upload:b0000000-0000-4000-8000-000000000099',
+    source_job_id: null,
+    source_timestamp_ms: null,
+  },
+  descendants: { job_count: 0, frame_count: 0 },
 };
 
 test.describe('Image Picker', () => {
   test.beforeEach(async ({ authenticatedPage: page }) => {
-    await page.route('**/v1/storage/uploads*', jsonRoute(mockUploads));
-    await page.route('**/v1/gallery*media_type=image*', jsonRoute(mockGalleryImages));
-    await page.route('**/v1/gallery/job_gen_001', jsonRoute(mockGalleryDetail));
-    await page.route('**/v1/gallery/job_i2i_001', jsonRoute(mockGalleryDetailI2i));
+    await page.route('**/v1/library*', (route) => {
+      const url = new URL(route.request().url());
+      const source = url.searchParams.get('source');
+      const mediaType = url.searchParams.get('media_type');
+
+      const pool =
+        source === 'upload' ? [...mockUploadItems, mockUploadVideoItem] : mockGeneratedItems;
+      const items = mediaType ? pool.filter((item) => item.media.media_type === mediaType) : pool;
+
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ items, limit: 30, has_more: false, next_cursor: null }),
+      });
+    });
+    // openapi-fetch URL-encodes the ":" in the asset_ref path param, so match
+    // loosely and dispatch on the decoded URL instead of the raw glob suffix.
+    await page.route('**/v1/library/assets/**', (route) => {
+      const url = decodeURIComponent(route.request().url());
+      if (url.endsWith('output:a0000000-0000-4000-8000-00000000000c'))
+        return jsonRoute(mockAssetDetailI2i)(route);
+      return jsonRoute(mockAssetDetailT2i)(route);
+    });
     await page.route('**/v1/content/**', (route) =>
       route.fulfill({ status: 200, contentType: 'image/jpeg', body: Buffer.from('fake') }),
     );
@@ -178,7 +187,6 @@ test.describe('Image Picker', () => {
   }) => {
     await page.goto('/app/create');
 
-    // Switch to I2I mode
     await page.getByRole('button', { name: 'Image → Image' }).click();
 
     await expect(page.getByRole('button', { name: /Choose from library/i })).toBeVisible();
@@ -208,8 +216,9 @@ test.describe('Image Picker', () => {
     await page.getByRole('button', { name: /Choose from library/i }).click();
     await page.getByRole('tab', { name: /Generated/i }).click();
 
-    // Should show generated items (the gallery query fires)
-    await expect(page.getByText('A sunset over mountains')).toBeVisible({ timeout: 5000 });
+    // Should show generated items (the library query fires with source=output)
+    await expect(page.locator('[aria-pressed]').first()).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('[aria-pressed]')).toHaveCount(2);
   });
 
   test('5. Selecting an upload and confirming updates the preview', async ({
@@ -257,7 +266,7 @@ test.describe('Image Picker', () => {
     await page.locator('[aria-pressed]').first().click();
     await page.getByRole('button', { name: /Use Selected Image/i }).click();
 
-    // Prompt should be auto-filled with the full prompt from gallery detail
+    // Prompt should be auto-filled with the full prompt from the asset detail
     const promptTextarea = page.locator('textarea').first();
     await expect(promptTextarea).toHaveValue(/sunset over mountains/i, { timeout: 3000 });
   });
@@ -273,7 +282,7 @@ test.describe('Image Picker', () => {
     await expect(page.getByRole('heading', { name: 'Choose from Library' })).not.toBeVisible();
   });
 
-  test('8. Selecting an i2i generated item uses the output URL (not the source cover_url) for the preview', async ({
+  test("8. Selecting the second generated item auto-fills its own prompt (not the first item's)", async ({
     authenticatedPage: page,
   }) => {
     await page.goto('/app/create');
@@ -285,10 +294,10 @@ test.describe('Image Picker', () => {
     // Select the i2i item (second item in the grid)
     await page.waitForTimeout(500);
     const items = page.locator('[aria-pressed]');
-    await items.nth(1).click(); // second item is the i2i job
+    await items.nth(1).click();
     await page.getByRole('button', { name: /Use Selected Image/i }).click();
 
-    // Prompt should be auto-filled from the i2i detail (not cover_url source image)
+    // Prompt should be auto-filled from the i2i asset's own detail
     const promptTextarea = page.locator('textarea').first();
     await expect(promptTextarea).toHaveValue(/oil painting/i, { timeout: 3000 });
 
@@ -296,19 +305,7 @@ test.describe('Image Picker', () => {
     await expect(page.getByText('From generated')).toBeVisible();
   });
 
-  test('9. i2i items in the Generated tab are labelled as source', async ({
-    authenticatedPage: page,
-  }) => {
-    await page.goto('/app/create');
-    await page.getByRole('button', { name: 'Image → Image' }).click();
-
-    await page.getByRole('button', { name: /Choose from library/i }).click();
-    await page.getByRole('tab', { name: /Generated/i }).click();
-
-    await expect(page.getByText('Source Image')).toBeVisible({ timeout: 5000 });
-  });
-
-  test('10. Clearing the selection resets the preview', async ({ authenticatedPage: page }) => {
+  test('9. Clearing the selection resets the preview', async ({ authenticatedPage: page }) => {
     await page.goto('/app/create');
     await page.getByRole('button', { name: 'Image → Image' }).click();
 

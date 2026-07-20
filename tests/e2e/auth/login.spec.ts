@@ -85,18 +85,18 @@ test.describe('Login page', () => {
       jsonRoute({ account_id: 'acc_001', account_type: 'personal', balance: 500 }),
     );
     await page.route(
-      '**/v1/gallery*',
+      '**/v1/library*',
       jsonRoute({ items: [], limit: 20, has_more: false, next_cursor: null }),
     );
 
-    // Navigate to a protected page — no session → redirect to /login?redirect=/app/gallery
-    await page.goto('/app/gallery');
-    await expect(page).toHaveURL(/\/login.*redirect.*gallery/);
+    // Navigate to a protected page — no session → redirect to /login?redirect=/app/library
+    await page.goto('/app/library');
+    await expect(page).toHaveURL(/\/login.*redirect.*library/);
 
     await page.getByLabel('Email').fill('e2e@example.com');
     await page.getByLabel('Password').fill('password123');
     await page.getByRole('button', { name: 'Sign In' }).click();
 
-    await expect(page).toHaveURL(/\/app\/gallery/, { timeout: 8000 });
+    await expect(page).toHaveURL(/\/app\/library/, { timeout: 8000 });
   });
 });

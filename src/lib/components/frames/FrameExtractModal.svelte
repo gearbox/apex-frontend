@@ -21,6 +21,7 @@
     type CapturedVideoFrame,
   } from '$lib/components/frames/videoFrameCapture';
   import { storageKeys } from '$lib/queries/storage';
+  import { libraryKeys } from '$lib/queries/library';
   import { createFrameJobPoller } from '$lib/services/frameJobPoller';
   import { generationStore } from '$lib/stores/generation';
   import { toMediaSrc } from '$lib/media';
@@ -178,6 +179,7 @@
     retryMessage = '';
     phase = 'results';
     void queryClient.invalidateQueries({ queryKey: storageKeys.all });
+    void queryClient.invalidateQueries({ queryKey: libraryKeys.all });
   }
 
   function stopActivePoller() {

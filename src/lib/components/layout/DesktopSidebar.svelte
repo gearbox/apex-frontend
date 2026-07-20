@@ -31,8 +31,7 @@
 
   const mainItems = [
     { label: () => m.topbar_create(), href: '/app/create', icon: 'plus' },
-    { label: () => m.topbar_gallery(), href: '/app/gallery', icon: 'image' },
-    { label: () => 'My Uploads', href: ROUTES.uploads, icon: 'images' },
+    { label: () => m.topbar_library(), href: ROUTES.library, icon: 'images' },
     { label: () => m.nav_sessions(), href: '/app/sessions', icon: 'server' },
     { label: () => m.topbar_jobs(), href: '/app/jobs', icon: 'activity' },
     { label: () => m.topbar_billing(), href: '/app/billing', icon: 'coins' },

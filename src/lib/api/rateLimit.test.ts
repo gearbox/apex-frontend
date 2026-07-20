@@ -67,7 +67,7 @@ describe('endpointKey()', () => {
   });
 
   it('strips query string from a bare path', () => {
-    expect(endpointKey('/v1/gallery?cursor=abc')).toBe('/v1/gallery');
+    expect(endpointKey('/v1/library?cursor=abc')).toBe('/v1/library');
   });
 });
 

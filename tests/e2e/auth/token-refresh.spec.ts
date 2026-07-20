@@ -6,13 +6,13 @@ test.describe('Token refresh', () => {
     authenticatedPage: page,
   }) => {
     await page.route(
-      '**/v1/gallery*',
+      '**/v1/library*',
       jsonRoute({ items: [], limit: 20, has_more: false, next_cursor: null }),
     );
 
-    await page.goto('/app/gallery');
+    await page.goto('/app/library');
 
-    await expect(page).toHaveURL(/\/app\/gallery/);
+    await expect(page).toHaveURL(/\/app\/library/);
     await expect(page.locator('body')).not.toContainText('Loading…');
   });
 
@@ -27,7 +27,7 @@ test.describe('Token refresh', () => {
     await page.goto('/login');
     await page.evaluate(() => localStorage.setItem('apex-refresh-token', 'revoked-token'));
 
-    await page.goto('/app/gallery');
+    await page.goto('/app/library');
 
     await expect(page).toHaveURL(/\/login/, { timeout: 8000 });
     // Wait for the login form to be fully rendered before reading storage — the URL
