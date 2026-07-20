@@ -4,7 +4,7 @@
   import apiClient from '$lib/api/client';
   import { parseApiError } from '$lib/api/errors';
   import { generateIdempotencyKey } from '$lib/utils/idempotency';
-  import { generationStore, isGenerating } from '$lib/stores/generation';
+  import { generationStore, isGenerating, markGenerationDraftSaved } from '$lib/stores/generation';
   import { activeJobStore } from '$lib/stores/jobs';
   import { addToast } from '$lib/stores/toasts';
   import { lookupCost } from '$lib/utils/pricing';
@@ -330,6 +330,9 @@
         return;
       }
 
+      // The accepted request is recoverable from Jobs/Gallery. Establishing a
+      // saved baseline here means only later user edits block a PWA reload.
+      markGenerationDraftSaved();
       generationStore.startJob(jobId);
       startPolling(jobId);
     } catch {

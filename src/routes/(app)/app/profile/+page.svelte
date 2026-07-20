@@ -12,12 +12,17 @@
   import DeleteAccountModal from '$lib/components/profile/DeleteAccountModal.svelte';
   import InstallAppButton from '$lib/components/pwa/InstallAppButton.svelte';
   import PushNotificationToggle from '$lib/components/profile/PushNotificationToggle.svelte';
+  import { applyPwaUpdate, checkForAppUpdate, pwaUpdateStatus } from '$lib/services/pwaUpdate';
+  import { appIsDirty } from '$lib/services/appDirty';
+  import { APP_VERSION, BUILD_SHA } from '$lib/utils/appVersion';
+  import { addToast } from '$lib/stores/toasts';
   import * as m from '$paraglide/messages';
 
   let loggingOut = $state(false);
   let showChangePassword = $state(false);
   let showLogoutAll = $state(false);
   let showDeleteAccount = $state(false);
+  let checkingForUpdate = $state(false);
 
   // Derive app title from productInfo for <title> tag
   let appTitle = $derived($productInfo?.display_name ?? 'Apex');
@@ -26,6 +31,39 @@
     loggingOut = true;
     await logout();
     goto('/login', { replaceState: true });
+  }
+
+  async function handleCheckForUpdates() {
+    checkingForUpdate = true;
+    try {
+      const result = await checkForAppUpdate({ force: true, source: 'manual' });
+      const message =
+        result.status === 'up-to-date'
+          ? m.pwa_update_current()
+          : result.status === 'update-available'
+            ? m.pwa_update_applying()
+            : result.status === 'offline'
+              ? m.pwa_update_offline()
+              : m.pwa_update_check_failed();
+      addToast({
+        type:
+          result.status === 'failed' || result.status === 'registration-unavailable'
+            ? 'error'
+            : 'info',
+        message,
+      });
+    } finally {
+      checkingForUpdate = false;
+    }
+  }
+
+  async function handleApplyUpdate() {
+    checkingForUpdate = true;
+    try {
+      await applyPwaUpdate();
+    } finally {
+      checkingForUpdate = false;
+    }
   }
 </script>
 
@@ -55,6 +93,27 @@
   <div class="appearance-section">
     <p class="section-header">{m.profile_section_notifications()}</p>
     <PushNotificationToggle />
+  </div>
+
+  <div class="appearance-section">
+    <p class="section-header">{m.pwa_update_section()}</p>
+    <p class="build-label">{m.pwa_update_build({ version: APP_VERSION, buildSha: BUILD_SHA })}</p>
+    {#if ['ready-to-activate', 'reload-required'].includes($pwaUpdateStatus.state)}
+      <p class="update-ready-copy">
+        {$appIsDirty ? m.pwa_update_dirty_title() : m.pwa_update_ready_title()}
+      </p>
+      <button class="action-btn" onclick={handleApplyUpdate} disabled={checkingForUpdate}>
+        {checkingForUpdate
+          ? m.common_loading()
+          : $appIsDirty
+            ? m.pwa_update_anyway()
+            : m.pwa_update_now()}
+      </button>
+    {:else}
+      <button class="action-btn" onclick={handleCheckForUpdates} disabled={checkingForUpdate}>
+        {checkingForUpdate ? m.common_loading() : m.pwa_update_check()}
+      </button>
+    {/if}
   </div>
 
   <!-- Actions -->
@@ -115,6 +174,20 @@
     flex-direction: column;
     gap: 8px;
     margin-top: 24px;
+  }
+
+  .build-label {
+    margin: 0 0 10px;
+    color: var(--apex-text-muted);
+    font-family: var(--apex-font-mono, monospace);
+    font-size: 12px;
+  }
+
+  .update-ready-copy {
+    margin: 0 0 10px;
+    color: var(--apex-text-muted);
+    font-size: 13px;
+    line-height: 1.4;
   }
 
   .action-btn {

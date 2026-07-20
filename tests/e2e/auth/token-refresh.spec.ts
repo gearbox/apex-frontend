@@ -27,7 +27,7 @@ test.describe('Token refresh', () => {
     await page.goto('/login');
     await page.evaluate(() => localStorage.setItem('apex-refresh-token', 'revoked-token'));
 
-    await page.goto('/app/create');
+    await page.goto('/app/gallery');
 
     await expect(page).toHaveURL(/\/login/, { timeout: 8000 });
     // Wait for the login form to be fully rendered before reading storage — the URL
@@ -35,8 +35,12 @@ test.describe('Token refresh', () => {
     // lifecycle (and the evaluate call below) can race during that window.
     await expect(page.locator('input[type="email"]')).toBeVisible();
 
-    // clearAuth() should have removed the token
-    const refreshToken = await page.evaluate(() => localStorage.getItem('apex-refresh-token'));
-    expect(refreshToken).toBeNull();
+    // waitForFunction is automatically re-run if the login redirect replaces the
+    // document, unlike a one-off page.evaluate call.
+    await page.waitForFunction(
+      () => localStorage.getItem('apex-refresh-token') === null,
+      undefined,
+      { timeout: 8000 },
+    );
   });
 });

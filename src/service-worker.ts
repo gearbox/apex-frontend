@@ -15,14 +15,57 @@ import {
 import { NavigationRoute, registerRoute } from 'workbox-routing';
 import { StaleWhileRevalidate } from 'workbox-strategies';
 import { ExpirationPlugin } from 'workbox-expiration';
+import {
+  PWA_BUILD_INFO,
+  PWA_GET_BUILD_INFO,
+  isMatchingPwaActivationMessage,
+  isPwaClientToWorkerMessage,
+} from './lib/pwa/protocol';
+import { isTrustedPwaMessageSender } from './lib/pwa/messageSource';
+
+declare const __BUILD_SHA__: string;
 
 declare const self: ServiceWorkerGlobalScope & {
   __WB_MANIFEST: Array<PrecacheEntry | string>;
 };
 
-/* ─── Lifecycle (equivalent of registerType: 'autoUpdate') ─── */
-self.skipWaiting();
+/* ─── Lifecycle ───
+ *
+ * A new worker must remain waiting while an existing page may hold an
+ * unrecoverable draft. Do not accept generic SKIP_WAITING messages: an older
+ * auto-update client can still send one during the transition release.
+ */
 clientsClaim();
+
+self.addEventListener('message', (event) => {
+  if (
+    event.origin !== self.location.origin ||
+    event.source === null ||
+    !isTrustedPwaMessageSender(
+      event.origin,
+      event.source,
+      self.location.origin,
+      self.registration.scope,
+    )
+  ) {
+    return;
+  }
+
+  const data: unknown = event.data;
+  if (!isPwaClientToWorkerMessage(data)) return;
+
+  if (data.type === PWA_GET_BUILD_INFO) {
+    const replyPort = event.ports[0];
+    if (!replyPort) return;
+
+    replyPort.postMessage({ type: PWA_BUILD_INFO, buildSha: __BUILD_SHA__ });
+    return;
+  }
+
+  if (isMatchingPwaActivationMessage(data, __BUILD_SHA__)) {
+    event.waitUntil(self.skipWaiting());
+  }
+});
 
 /* ─── Precaching ─── */
 precacheAndRoute(self.__WB_MANIFEST);

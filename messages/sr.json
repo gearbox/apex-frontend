@@ -437,5 +437,18 @@
   "balance_toast_refund": "Povraćaj: +{amount} tokena",
   "balance_toast_credit": "Odobreno: +{amount} tokena",
   "create_images_count_label": "Slike",
-  "pwa_install_success": "Aplikacija je instalirana!"
+  "pwa_install_success": "Aplikacija je instalirana!",
+  "pwa_update_section": "Ažuriranje aplikacije",
+  "pwa_update_build": "Verzija {version} · build {buildSha}",
+  "pwa_update_check": "Proveri ažuriranja",
+  "pwa_update_current": "Aplikacija je ažurna.",
+  "pwa_update_applying": "Nova verzija je dostupna i primenjuje se…",
+  "pwa_update_offline": "Niste povezani. Povežite se na internet i pokušajte ponovo.",
+  "pwa_update_check_failed": "Provera ažuriranja aplikacije nije uspela. Pokušajte ponovo.",
+  "pwa_update_ready_title": "Nova verzija aplikacije je spremna.",
+  "pwa_update_dirty_title": "Nova verzija je spremna. Ažuriranje može odbaciti nesačuvane izmene.",
+  "pwa_update_dirty_description": "Prvo sačuvajte ili pošaljite rad ili ipak ažurirajte aplikaciju.",
+  "pwa_update_now": "Ažuriraj sada",
+  "pwa_update_anyway": "Ipak ažuriraj",
+  "pwa_update_later": "Kasnije"
 }

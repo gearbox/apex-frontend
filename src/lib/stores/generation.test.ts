@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { get } from 'svelte/store';
-import { generationStore } from './generation';
+import { generationDraftIsDirty, generationStore, markGenerationDraftSaved } from './generation';
 
 beforeEach(() => {
   generationStore.reset();
@@ -57,6 +57,64 @@ describe('generationStore — image source mutual exclusion', () => {
     generationStore.setSourceOutputId('output_001', '/v1/content/outputs/output_001');
     generationStore.setSourceOutputId(null);
     expect(get(generationStore).selectedImagePreviewUrl).toBeNull();
+  });
+});
+
+describe('generation draft baseline', () => {
+  it('starts clean and fingerprints every editable input category', () => {
+    expect(get(generationDraftIsDirty)).toBe(false);
+
+    const edits: Array<() => void> = [
+      () => generationStore.setModel('grok-imagine-video'),
+      () => generationStore.setMode('t2v'),
+      () => generationStore.setPrompt('A mountain'),
+      () => generationStore.setNegativePrompt('no fog'),
+      () => generationStore.setUploadedImageId('upload_1'),
+      () => generationStore.setSourceOutputId('output_1'),
+      () => generationStore.setAspectRatio('16:9'),
+      () => generationStore.setEditAspectRatio('1:1'),
+      () => generationStore.setImageCount(2),
+      () => generationStore.setVideoDuration(8),
+      () => generationStore.setVideoResolution('480p'),
+      () => generationStore.setSizingMode('custom'),
+      () => generationStore.setImageTier('high'),
+      () => generationStore.setCustomSize(1024, 768),
+      () => generationStore.setSeed(10),
+      () => generationStore.setSteps(30),
+      () => generationStore.setCfg(6),
+      () => generationStore.setSampler('euler'),
+      () => generationStore.setScheduler('karras'),
+      () => generationStore.setDenoise(0.5),
+    ];
+
+    for (const edit of edits) {
+      generationStore.reset();
+      edit();
+      expect(get(generationDraftIsDirty)).toBe(true);
+    }
+  });
+
+  it('ignores job-tracking fields, establishes a submission baseline, and tracks later edits', () => {
+    generationStore.setPrompt('submitted work');
+    markGenerationDraftSaved();
+    generationStore.startJob('job_1');
+    generationStore.setStatus('running');
+    generationStore.setProgress(50);
+    expect(get(generationDraftIsDirty)).toBe(false);
+
+    generationStore.setPrompt('submitted work, revised');
+    expect(get(generationDraftIsDirty)).toBe(true);
+
+    generationStore.reset();
+    expect(get(generationDraftIsDirty)).toBe(false);
+  });
+
+  it('treats gallery prefills and remixes as unsaved until submitted or reset', () => {
+    generationStore.prefill({ prompt: 'remix this image', negativePrompt: 'blur' });
+    expect(get(generationDraftIsDirty)).toBe(true);
+
+    markGenerationDraftSaved();
+    expect(get(generationDraftIsDirty)).toBe(false);
   });
 });
 

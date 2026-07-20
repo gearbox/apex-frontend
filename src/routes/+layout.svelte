@@ -13,6 +13,9 @@
   import { API_BASE_URL, STORAGE_KEYS } from '$lib/utils/constants';
   import { isBrowser } from '$lib/utils/env';
   import { registerPwaServiceWorker } from '$lib/services/pwaRegistration';
+  import { disposePwaUpdateService } from '$lib/services/pwaUpdate';
+  import { initGenerationDraftGuard } from '$lib/services/generationDraftGuard';
+  import AppUpdatePrompt from '$lib/components/ui/AppUpdatePrompt.svelte';
   import '../app.css';
 
   let { children }: { children: Snippet } = $props();
@@ -74,9 +77,11 @@
     cleanups.push(initTheme());
     cleanups.push(initNetworkListener());
     cleanups.push(initPwaInstallListener());
+    cleanups.push(initGenerationDraftGuard());
 
     if (pwaInfo) {
       void registerPwaServiceWorker(() => import('virtual:pwa-register'));
+      cleanups.push(disposePwaUpdateService);
     }
 
     // Fetch product info — public endpoint, no auth required (fire and forget)
@@ -119,6 +124,7 @@
 
 <QueryClientProvider client={queryClient}>
   <NetworkToastWatcher />
+  <AppUpdatePrompt />
   {#key $locale}
     {@render children()}
   {/key}
