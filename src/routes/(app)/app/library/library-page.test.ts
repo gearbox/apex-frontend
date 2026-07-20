@@ -1,9 +1,17 @@
 import { describe, it, expect, vi, beforeEach, beforeAll, afterAll } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
+import * as m from '$paraglide/messages';
 import type { components } from '$lib/api/types';
-import { makeLibraryAssetItem } from '../../../../mocks/factories/library';
+import {
+  makeLibraryAssetItem,
+  makeLibraryAssetDetail,
+  makeLibraryGroupDetail,
+  makeLibraryOutputItem,
+} from '../../../../mocks/factories/library';
 
 type LibraryAssetItem = components['schemas']['LibraryAssetItem'];
+type LibraryAssetDetail = components['schemas']['LibraryAssetDetail'];
+type LibraryGroupDetail = components['schemas']['LibraryGroupDetail'];
 
 // jsdom has no IntersectionObserver; InfiniteScrollSentinel needs a stub to mount.
 let observerCallback: IntersectionObserverCallback | null = null;
@@ -39,6 +47,8 @@ const state = vi.hoisted(() => ({
   hasNextPage: false,
   fetchNextPageMock: vi.fn(),
   capturedListParams: undefined as unknown,
+  assetDetailData: undefined as LibraryAssetDetail | undefined,
+  groupDetailData: undefined as LibraryGroupDetail | undefined,
 }));
 
 vi.mock('$app/navigation', () => ({ goto: state.gotoMock }));
@@ -77,8 +87,29 @@ vi.mock('@tanstack/svelte-query', () => ({
       refetch: vi.fn(),
     };
   }),
-  createQuery: vi.fn(() => ({ data: undefined, isLoading: false })),
-  createMutation: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+  createQuery: vi.fn((optionsFn: () => { queryKey: readonly unknown[] }) => {
+    const [scope, kind] = optionsFn().queryKey;
+    if (scope === 'library' && kind === 'asset') {
+      return {
+        get data() {
+          return state.assetDetailData;
+        },
+        isLoading: false,
+        isError: false,
+      };
+    }
+    if (scope === 'library' && kind === 'group') {
+      return {
+        get data() {
+          return state.groupDetailData;
+        },
+        isLoading: false,
+        isError: false,
+      };
+    }
+    return { data: undefined, isLoading: false, isError: false };
+  }),
+  createMutation: vi.fn(() => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false })),
   useQueryClient: vi.fn(() => ({ invalidateQueries: vi.fn() })),
 }));
 
@@ -91,6 +122,8 @@ beforeEach(() => {
   state.gotoMock.mockClear();
   state.fetchNextPageMock.mockClear();
   state.capturedListParams = undefined;
+  state.assetDetailData = undefined;
+  state.groupDetailData = undefined;
   observerCallback = null;
 });
 
@@ -170,5 +203,80 @@ describe('/app/library page — infinite scroll', () => {
     );
 
     expect(state.fetchNextPageMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('/app/library page — card menu rename opens the details sheet in rename mode', () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn().mockReturnValue({
+        matches: true, // desktop — enables the card's right-click / overflow menu
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }),
+    );
+  });
+
+  it('renaming from the card overflow menu opens AssetDetailsSheet already in rename mode', async () => {
+    const item = makeLibraryAssetItem({
+      asset_ref: 'output:abc-123',
+      original_filename: 'photo.jpg',
+      available_actions: ['rename', 'favorite', 'download', 'delete'],
+    });
+    state.libraryItems = [item];
+    state.assetDetailData = makeLibraryAssetDetail({
+      asset_ref: item.asset_ref,
+      display_title: null,
+      original_filename: 'photo.jpg',
+      available_actions: ['rename', 'favorite', 'download', 'delete'],
+    });
+
+    const { container } = render(Page);
+    const wrapper = container.querySelector('[role="presentation"]');
+    expect(wrapper).not.toBeNull();
+    await fireEvent.contextMenu(wrapper!, { clientX: 10, clientY: 10 });
+
+    await fireEvent.click(screen.getByRole('menuitem', { name: /rename/i }));
+
+    expect(await screen.findByDisplayValue('photo.jpg')).toBeTruthy();
+  });
+});
+
+describe('/app/library page — GroupSheet "Details" round-trips to AssetDetailsSheet', () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn().mockReturnValue({
+        matches: true,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }),
+    );
+  });
+
+  it('opens the details sheet for the selected output when "Details" is clicked in the group sheet', async () => {
+    const groupItem = makeLibraryAssetItem({
+      asset_ref: 'output:group-cover',
+      job_id: 'job_abc',
+      output_count: 2,
+    });
+    state.libraryItems = [groupItem];
+
+    const output = makeLibraryOutputItem({ id: 'out_1', asset_ref: 'output:out_1' });
+    state.groupDetailData = makeLibraryGroupDetail({ job_id: 'job_abc', outputs: [output] });
+    state.assetDetailData = makeLibraryAssetDetail({
+      asset_ref: 'output:out_1',
+      display_title: 'Selected output',
+    });
+
+    render(Page);
+
+    await fireEvent.click(screen.getByRole('button', { name: m.library_details_title() }));
+    const detailsButton = await screen.findByLabelText(m.library_meta_details());
+    await fireEvent.click(detailsButton);
+
+    expect(await screen.findByRole('dialog', { name: m.library_details_title() })).toBeTruthy();
+    expect(screen.getByText('Selected output')).toBeTruthy();
   });
 });

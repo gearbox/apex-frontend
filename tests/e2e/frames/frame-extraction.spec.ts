@@ -3,7 +3,7 @@ import { Buffer } from 'node:buffer';
 import { test, expect } from '../fixtures/auth.fixture';
 import { jsonRoute } from '../helpers/api';
 
-const SOURCE_ID = 'upload-video-001';
+const SOURCE_ID = 'c0000000-0000-4000-8000-000000000001';
 const DURATION_MS = 3_000;
 const portraitVideo = readFileSync(
   new URL('../fixtures/media/frame-extraction-portrait.mp4', import.meta.url),

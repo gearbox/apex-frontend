@@ -75,7 +75,7 @@ export default defineConfig({
       // Absolute base + scope: this is an SPA (ssr=false) whose root route
       // client-redirects to /app/create. The plugin's default relative './'
       // scope resolves against whatever URL is current when registerSW() runs
-      // (e.g. /app/gallery), producing the wrong SW scope and a 404 for the
+      // (e.g. /app/library), producing the wrong SW scope and a 404 for the
       // script. Forcing absolute paths makes registration scope-correct from
       // any route.
       base: '/',

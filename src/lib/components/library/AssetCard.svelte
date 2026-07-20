@@ -48,6 +48,8 @@
     favoriteMutation.mutate({ assetRef: item.asset_ref, favorite: !item.is_favorite });
   }
 
+  let contextMenu: ReturnType<typeof ContextMenu> | undefined = $state();
+
   const menuItems = $derived(
     item.available_actions
       .map((action) => {
@@ -70,7 +72,7 @@
   );
 </script>
 
-<ContextMenu items={menuItems}>
+<ContextMenu bind:this={contextMenu} items={menuItems}>
   <SwipeToDelete
     ondelete={() => onDelete(item)}
     disabled={!item.available_actions.includes('delete')}
@@ -117,18 +119,22 @@
       </div>
 
       <!-- Favorite toggle -->
-      <button
-        type="button"
-        onclick={(e) => {
-          e.stopPropagation();
-          toggleFavorite();
-        }}
-        class="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-sm transition-colors hover:bg-black/70"
-        aria-label={item.is_favorite ? m.library_action_unfavorite() : m.library_action_favorite()}
-        aria-pressed={item.is_favorite}
-      >
-        <Heart size={13} fill={item.is_favorite ? 'currentColor' : 'none'} />
-      </button>
+      {#if item.available_actions.includes('favorite')}
+        <button
+          type="button"
+          onclick={(e) => {
+            e.stopPropagation();
+            toggleFavorite();
+          }}
+          class="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-sm transition-colors hover:bg-black/70"
+          aria-label={item.is_favorite
+            ? m.library_action_unfavorite()
+            : m.library_action_favorite()}
+          aria-pressed={item.is_favorite}
+        >
+          <Heart size={13} fill={item.is_favorite ? 'currentColor' : 'none'} />
+        </button>
+      {/if}
 
       <!-- Video duration chip -->
       {#if isVideo && item.duration_ms}
@@ -165,14 +171,7 @@
           onclick={(e) => {
             e.stopPropagation();
             const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-            (e.currentTarget as HTMLElement).closest('[role="presentation"]')?.dispatchEvent(
-              new MouseEvent('contextmenu', {
-                clientX: rect.left,
-                clientY: rect.bottom,
-                bubbles: true,
-                cancelable: true,
-              }),
-            );
+            contextMenu?.openAt(rect.left, rect.bottom);
           }}
           class="absolute bottom-7 right-2 hidden h-7 w-7 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-sm transition-colors hover:bg-black/70 md:flex {isVideo &&
           item.duration_ms

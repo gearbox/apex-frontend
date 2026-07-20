@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, beforeAll, afterAll } from 'vitest';
+import { tick } from 'svelte';
 import { render, screen, fireEvent, within } from '@testing-library/svelte';
 import type { components } from '$lib/api/types';
 import { makeLibraryAssetDetail } from '../../../mocks/factories/library';
@@ -96,6 +97,20 @@ describe('AssetDetailsSheet — conditional metadata sections', () => {
 });
 
 describe('AssetDetailsSheet — rename flow', () => {
+  it('startInRename opens directly in rename mode once detail data is loaded', async () => {
+    detailData = makeLibraryAssetDetail({
+      display_title: null,
+      original_filename: 'old-name.jpg',
+      available_actions: ['rename', 'favorite', 'download', 'delete'],
+    });
+    render(AssetDetailsSheet, {
+      props: { assetRef: 'upload:abc', onclose: oncloseMock, startInRename: true },
+    });
+    await tick();
+
+    expect(screen.getByDisplayValue('old-name.jpg')).toBeTruthy();
+  });
+
   it('submitting the rename form calls the rename mutation with the trimmed title', async () => {
     detailData = makeLibraryAssetDetail({
       display_title: null,

@@ -22,17 +22,26 @@
 
   let menuEl: HTMLDivElement | undefined = $state();
 
-  function handleContextMenu(e: MouseEvent) {
-    if (!$isDesktop) return;
-    e.preventDefault();
-
+  function positionMenu(x: number, y: number) {
     const vw = window.innerWidth;
     const vh = window.innerHeight;
     const menuW = 160;
     const menuH = items.length * 40 + 8; // approx
 
-    menuX = e.clientX + menuW > vw ? e.clientX - menuW : e.clientX;
-    menuY = e.clientY + menuH > vh ? e.clientY - menuH : e.clientY;
+    menuX = x + menuW > vw ? x - menuW : x;
+    menuY = y + menuH > vh ? y - menuH : y;
+  }
+
+  function handleContextMenu(e: MouseEvent) {
+    if (!$isDesktop) return;
+    e.preventDefault();
+    positionMenu(e.clientX, e.clientY);
+    menuVisible = true;
+  }
+
+  /** Opens the menu at the given viewport coordinates — the button-triggered equivalent of a right-click. */
+  export function openAt(x: number, y: number) {
+    positionMenu(x, y);
     menuVisible = true;
   }
 

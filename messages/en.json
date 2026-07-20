@@ -90,6 +90,7 @@
   "library_delete_confirm_text": "This will be permanently deleted. This action cannot be undone.",
   "library_delete_success": "Deleted",
   "library_delete_error": "Failed to delete. Please try again.",
+  "library_download_error": "Download failed. Please try again.",
   "library_view_group": "View all {count} outputs",
   "library_meta_created": "Created",
   "library_meta_expires": "Expires",

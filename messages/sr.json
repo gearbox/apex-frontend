@@ -90,6 +90,7 @@
   "library_delete_confirm_text": "Ovo će biti trajno obrisano. Ova radnja se ne može poništiti.",
   "library_delete_success": "Obrisano",
   "library_delete_error": "Brisanje nije uspelo. Pokušajte ponovo.",
+  "library_download_error": "Preuzimanje nije uspelo. Pokušajte ponovo.",
   "library_view_group": "Prikaži svih {count} rezultata",
   "library_meta_created": "Kreirano",
   "library_meta_expires": "Ističe",

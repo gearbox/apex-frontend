@@ -3,6 +3,7 @@ import { http, HttpResponse } from 'msw';
 import { QueryClient } from '@tanstack/svelte-query';
 import { server } from '../../mocks/server';
 import { makeLibraryCursorPage, makeLibraryAssetDetail } from '../../mocks/factories/library';
+import { storageKeys } from './storage';
 import {
   libraryKeys,
   libraryListInfiniteQueryOptions,
@@ -175,6 +176,21 @@ describe('favoriteMutationOptions() — optimistic update', () => {
     }>(listKey);
     expect(restored?.pages[0].items[0].is_favorite).toBe(false);
   });
+
+  it('patches the asset detail cache and restores it on error', async () => {
+    const queryClient = new QueryClient();
+    const assetKey = libraryKeys.asset('output:abc');
+    queryClient.setQueryData(assetKey, makeLibraryAssetDetail({ is_favorite: false }));
+
+    const opts = favoriteMutationOptions(queryClient);
+    const context = await opts.onMutate({ assetRef: 'output:abc', favorite: true });
+
+    expect(queryClient.getQueryData<{ is_favorite: boolean }>(assetKey)?.is_favorite).toBe(true);
+
+    opts.onError(new Error('boom'), { assetRef: 'output:abc', favorite: true }, context);
+
+    expect(queryClient.getQueryData<{ is_favorite: boolean }>(assetKey)?.is_favorite).toBe(false);
+  });
 });
 
 describe('renameMutationOptions()', () => {
@@ -237,6 +253,7 @@ describe('deleteAssetMutationOptions()', () => {
 
     const invalidatedKeys = invalidateSpy.mock.calls.map((call) => call[0]?.queryKey);
     expect(invalidatedKeys).toContainEqual(libraryKeys.all);
+    expect(invalidatedKeys).toContainEqual(storageKeys.all);
     expect(invalidatedKeys).toContainEqual(['jobs']);
     expect(invalidatedKeys).toContainEqual(['user']);
   });

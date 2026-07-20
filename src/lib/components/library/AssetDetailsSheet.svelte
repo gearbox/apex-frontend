@@ -9,6 +9,7 @@
   } from '$lib/queries/library';
   import { favoriteMutationOptions } from '$lib/queries/library';
   import { resolveLibraryAction, libraryActionLabel, LIBRARY_ACTION_ICONS } from './actions';
+  import { parseAssetRef } from '$lib/utils/assetRef';
   import { isDesktop } from '$lib/utils/breakpoints';
   import { timeAgo, timeUntil, formatAspectRatio } from '$lib/utils/format';
   import { EXPIRES_SOON_MS } from '$lib/utils/constants';
@@ -23,11 +24,14 @@
     assetRef,
     onclose,
     onOpenGroup,
+    startInRename = false,
   }: {
     assetRef: string;
     onclose: () => void;
     /** Called when the asset belongs to a multi-output job the user wants to browse. */
     onOpenGroup?: (jobId: string) => void;
+    /** Opens the sheet directly in rename mode once detail data has loaded. */
+    startInRename?: boolean;
   } = $props();
 
   let showDeleteConfirm = $state(false);
@@ -35,6 +39,7 @@
   let frameExtractionTrigger = $state<HTMLButtonElement | null>(null);
   let renaming = $state(false);
   let renameValue = $state('');
+  let renameApplied = false;
 
   function focusOnMount(node: HTMLElement) {
     node.focus();
@@ -57,6 +62,13 @@
     renameValue = detailQuery.data.display_title ?? detailQuery.data.original_filename ?? '';
     renaming = true;
   }
+
+  $effect(() => {
+    if (startInRename && !renameApplied && detailQuery.data) {
+      renameApplied = true;
+      startRename();
+    }
+  });
 
   async function submitRename() {
     try {
@@ -98,6 +110,7 @@
             });
             if (!handler) return null;
             return {
+              action,
               label: libraryActionLabel(action),
               icon: LIBRARY_ACTION_ICONS[action],
               onclick: handler,
@@ -189,7 +202,12 @@
         {/if}
         {#each menuItems as entry (entry.label)}
           <button
-            onclick={entry.onclick}
+            onclick={(e) => {
+              if (entry.action === 'extract_frame') {
+                frameExtractionTrigger = e.currentTarget as HTMLButtonElement;
+              }
+              entry.onclick();
+            }}
             class="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-accent/15 px-3 py-2 text-xs font-semibold text-accent transition-colors hover:bg-accent/25"
           >
             {entry.label}
@@ -393,11 +411,9 @@
 {/if}
 
 {#if showFrameExtraction && detailQuery.data}
+  {@const parsedRef = parseAssetRef(assetRef)}
   <FrameExtractModal
-    source={{
-      type: detailQuery.data.source === 'upload' ? 'upload' : 'output',
-      id: assetRef.split(':')[1],
-    }}
+    source={{ type: parsedRef.source, id: parsedRef.id }}
     media={detailQuery.data.media}
     trigger={frameExtractionTrigger}
     onclose={() => (showFrameExtraction = false)}

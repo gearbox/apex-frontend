@@ -1,7 +1,7 @@
 <script lang="ts">
+  import { tick } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
-  import { SvelteURLSearchParams } from 'svelte/reactivity';
   import {
     createInfiniteQuery,
     createMutation,
@@ -59,14 +59,21 @@
   let selectedModel = $state<string | null>($page.url.searchParams.get('model'));
 
   function syncUrl() {
-    const params = new SvelteURLSearchParams();
+    // Built and discarded synchronously within this function — never read reactively,
+    // so the plain built-in suffices over SvelteURLSearchParams.
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity
+    const params = new URLSearchParams();
     if (tab === 'generated') params.set('source', 'output');
     if (tab === 'uploads') params.set('source', 'upload');
     if (tab === 'favorites') params.set('favorite', 'true');
     if (mediaFilter !== 'all') params.set('media', mediaFilter);
     if (selectedModel) params.set('model', selectedModel);
     const qs = params.toString();
-    goto(qs ? `?${qs}` : '?', { replaceState: true, keepFocus: true, noScroll: true });
+    goto(qs ? `?${qs}` : $page.url.pathname, {
+      replaceState: true,
+      keepFocus: true,
+      noScroll: true,
+    });
   }
 
   function handleTabChange(next: LibraryTab) {
@@ -114,18 +121,44 @@
 
   /* ─── Selection / detail sheets ─── */
 
-  let detailsAssetRef = $state<string | null>(null);
+  interface DetailsRequest {
+    assetRef: string;
+    rename?: boolean;
+  }
+
+  let detailsRequest = $state<DetailsRequest | null>(null);
   let groupJobId = $state<string | null>(null);
   let deleteTarget = $state<LibraryAssetItem | null>(null);
 
   const queryClient = useQueryClient();
   const deleteMutation = createMutation(() => deleteAssetMutationOptions(queryClient));
 
+  function openDetails(assetRef: string, options: Omit<DetailsRequest, 'assetRef'> = {}) {
+    detailsRequest = { assetRef, ...options };
+  }
+
+  /**
+   * Both sheets lock/unlock body scroll in onMount/onDestroy. Setting the close and open
+   * state in the same tick makes the final lock state depend on which {#if} block updates
+   * first; sequencing the close through a tick guarantees destroy-before-mount either way.
+   */
+  async function switchFromGroupToDetails(assetRef: string) {
+    groupJobId = null;
+    await tick();
+    openDetails(assetRef);
+  }
+
+  async function switchFromDetailsToGroup(jobId: string) {
+    detailsRequest = null;
+    await tick();
+    groupJobId = jobId;
+  }
+
   function handleCardClick(item: LibraryAssetItem) {
     if (item.output_count && item.output_count > 1 && item.job_id) {
       groupJobId = item.job_id;
     } else {
-      detailsAssetRef = item.asset_ref;
+      openDetails(item.asset_ref);
     }
   }
 
@@ -280,6 +313,9 @@
       items={allItems}
       onCardClick={handleCardClick}
       onCardDelete={(item) => (deleteTarget = item)}
+      onCardRename={(item) => openDetails(item.asset_ref, { rename: true })}
+      onCardExtractFrame={(item) => openDetails(item.asset_ref)}
+      onCardViewSettings={(item) => openDetails(item.asset_ref)}
       onLoadMore={handleLoadMore}
       loadMoreDisabled={!libraryQuery.hasNextPage || libraryQuery.isFetchingNextPage}
     />
@@ -296,19 +332,21 @@
   {/if}
 </div>
 
-{#if detailsAssetRef}
+{#if detailsRequest}
   <AssetDetailsSheet
-    assetRef={detailsAssetRef}
-    onclose={() => (detailsAssetRef = null)}
-    onOpenGroup={(jobId) => {
-      detailsAssetRef = null;
-      groupJobId = jobId;
-    }}
+    assetRef={detailsRequest.assetRef}
+    startInRename={detailsRequest.rename ?? false}
+    onclose={() => (detailsRequest = null)}
+    onOpenGroup={switchFromDetailsToGroup}
   />
 {/if}
 
 {#if groupJobId}
-  <GroupSheet jobId={groupJobId} onclose={() => (groupJobId = null)} />
+  <GroupSheet
+    jobId={groupJobId}
+    onclose={() => (groupJobId = null)}
+    onOpenAsset={switchFromGroupToDetails}
+  />
 {/if}
 
 {#if deleteTarget}

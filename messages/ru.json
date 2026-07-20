@@ -90,6 +90,7 @@
   "library_delete_confirm_text": "Это будет безвозвратно удалено. Это действие нельзя отменить.",
   "library_delete_success": "Удалено",
   "library_delete_error": "Не удалось удалить. Попробуйте ещё раз.",
+  "library_download_error": "Не удалось скачать. Попробуйте ещё раз.",
   "library_view_group": "Показать все результаты ({count})",
   "library_meta_created": "Создано",
   "library_meta_expires": "Истекает",

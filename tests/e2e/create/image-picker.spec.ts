@@ -18,9 +18,9 @@ function makeMedia(url: string, mediaType: 'image' | 'video' = 'image') {
 
 function makeUploadItem(overrides: Record<string, unknown> = {}) {
   return {
-    asset_ref: 'upload:upload_001',
+    asset_ref: 'upload:b0000000-0000-4000-8000-000000000001',
     source: 'upload',
-    media: makeMedia('/v1/content/uploads/upload_001'),
+    media: makeMedia('/v1/content/uploads/b0000000-0000-4000-8000-000000000001'),
     created_at: '2025-06-01T00:00:00Z',
     expires_at: '2025-07-01T00:00:00Z',
     display_title: null,
@@ -38,9 +38,9 @@ function makeUploadItem(overrides: Record<string, unknown> = {}) {
 
 function makeOutputItem(overrides: Record<string, unknown> = {}) {
   return {
-    asset_ref: 'output:out_001',
+    asset_ref: 'output:a0000000-0000-4000-8000-000000000001',
     source: 'output',
-    media: makeMedia('/v1/content/outputs/out_001'),
+    media: makeMedia('/v1/content/outputs/a0000000-0000-4000-8000-000000000001'),
     created_at: '2025-06-03T00:00:00Z',
     expires_at: '2025-07-03T00:00:00Z',
     display_title: null,
@@ -58,37 +58,37 @@ function makeOutputItem(overrides: Record<string, unknown> = {}) {
 
 const mockUploadItems = [
   makeUploadItem({
-    asset_ref: 'upload:upload_001',
+    asset_ref: 'upload:b0000000-0000-4000-8000-000000000001',
     original_filename: 'photo.jpg',
-    media: makeMedia('/v1/content/uploads/upload_001'),
+    media: makeMedia('/v1/content/uploads/b0000000-0000-4000-8000-000000000001'),
   }),
   makeUploadItem({
-    asset_ref: 'upload:upload_002',
+    asset_ref: 'upload:b0000000-0000-4000-8000-000000000002',
     original_filename: 'sketch.png',
-    media: makeMedia('/v1/content/uploads/upload_002'),
+    media: makeMedia('/v1/content/uploads/b0000000-0000-4000-8000-000000000002'),
   }),
 ];
 
 // Only returned when the caller does not filter by media_type=image — used to prove
 // the picker's server-side image filter excludes it from the Uploads tab.
 const mockUploadVideoItem = makeUploadItem({
-  asset_ref: 'upload:upload_003',
+  asset_ref: 'upload:b0000000-0000-4000-8000-000000000003',
   original_filename: 'clip.mp4',
-  media: makeMedia('/v1/content/uploads/upload_003', 'video'),
+  media: makeMedia('/v1/content/uploads/b0000000-0000-4000-8000-000000000003', 'video'),
   duration_ms: 4000,
 });
 
 const mockGeneratedItems = [
   makeOutputItem({
-    asset_ref: 'output:out_001',
+    asset_ref: 'output:a0000000-0000-4000-8000-000000000001',
     job_id: 'job_gen_001',
-    media: makeMedia('/v1/content/outputs/out_001'),
+    media: makeMedia('/v1/content/outputs/a0000000-0000-4000-8000-000000000001'),
   }),
   makeOutputItem({
-    asset_ref: 'output:out_i2i_cover',
+    asset_ref: 'output:a0000000-0000-4000-8000-00000000000c',
     job_id: 'job_i2i_001',
     generation_type: 'i2i',
-    media: makeMedia('/v1/content/outputs/out_i2i_cover'),
+    media: makeMedia('/v1/content/outputs/a0000000-0000-4000-8000-00000000000c'),
   }),
 ];
 
@@ -113,7 +113,7 @@ const mockAssetDetailI2i = {
   token_cost: 15,
   completed_at: '2025-06-04T00:01:00Z',
   lineage: {
-    source_asset_ref: 'upload:upload_src_001',
+    source_asset_ref: 'upload:b0000000-0000-4000-8000-000000000099',
     source_job_id: null,
     source_timestamp_ms: null,
   },
@@ -141,7 +141,8 @@ test.describe('Image Picker', () => {
     // loosely and dispatch on the decoded URL instead of the raw glob suffix.
     await page.route('**/v1/library/assets/**', (route) => {
       const url = decodeURIComponent(route.request().url());
-      if (url.endsWith('output:out_i2i_cover')) return jsonRoute(mockAssetDetailI2i)(route);
+      if (url.endsWith('output:a0000000-0000-4000-8000-00000000000c'))
+        return jsonRoute(mockAssetDetailI2i)(route);
       return jsonRoute(mockAssetDetailT2i)(route);
     });
     await page.route('**/v1/content/**', (route) =>

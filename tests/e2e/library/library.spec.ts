@@ -23,9 +23,9 @@ function makeMedia(
 
 // Single-output t2i image asset — opens AssetDetailsSheet on click.
 const itemImageSingle = {
-  asset_ref: 'output:out_001',
+  asset_ref: 'output:a0000000-0000-4000-8000-000000000001',
   source: 'output',
-  media: makeMedia('/v1/content/outputs/out_001'),
+  media: makeMedia('/v1/content/outputs/a0000000-0000-4000-8000-000000000001'),
   created_at: '2025-01-01T00:00:00Z',
   expires_at: '2025-07-01T00:00:00Z',
   display_title: null,
@@ -41,9 +41,9 @@ const itemImageSingle = {
 
 // Multi-output i2i job — opens GroupSheet on click.
 const itemImageGroup = {
-  asset_ref: 'output:out_002',
+  asset_ref: 'output:a0000000-0000-4000-8000-000000000002',
   source: 'output',
-  media: makeMedia('/v1/content/outputs/out_002'),
+  media: makeMedia('/v1/content/outputs/a0000000-0000-4000-8000-000000000002'),
   created_at: '2025-01-02T00:00:00Z',
   expires_at: '2025-07-02T00:00:00Z',
   display_title: null,
@@ -59,9 +59,9 @@ const itemImageGroup = {
 
 // Single-output t2v video asset.
 const itemVideoSingle = {
-  asset_ref: 'output:vid_003',
+  asset_ref: 'output:a0000000-0000-4000-8000-000000000003',
   source: 'output',
-  media: makeMedia('/v1/content/outputs/vid_003', 'video'),
+  media: makeMedia('/v1/content/outputs/a0000000-0000-4000-8000-000000000003', 'video'),
   created_at: '2025-01-03T00:00:00Z',
   expires_at: '2025-07-03T00:00:00Z',
   display_title: null,
@@ -77,9 +77,9 @@ const itemVideoSingle = {
 
 // Uploaded asset — provenance badge should read "Uploaded".
 const itemUpload = {
-  asset_ref: 'upload:upload_001',
+  asset_ref: 'upload:b0000000-0000-4000-8000-000000000001',
   source: 'upload',
-  media: makeMedia('/v1/content/uploads/upload_001'),
+  media: makeMedia('/v1/content/uploads/b0000000-0000-4000-8000-000000000001'),
   created_at: '2025-01-04T00:00:00Z',
   expires_at: '2025-07-04T00:00:00Z',
   display_title: null,
@@ -129,25 +129,25 @@ const mockAssetDetailVideo = {
 const mockGroupDetail = {
   job_id: 'job_002',
   badge: 'image',
-  input_media: makeMedia('/v1/content/uploads/upload_src_001'),
+  input_media: makeMedia('/v1/content/uploads/b0000000-0000-4000-8000-000000000099'),
   prompt: 'Ocean waves crashing on shore under a stylised sky',
   negative_prompt: null,
   outputs: [
     {
-      id: 'out_002a',
-      asset_ref: 'output:out_002a',
+      id: 'a0000000-0000-4000-8000-00000000002a',
+      asset_ref: 'output:a0000000-0000-4000-8000-00000000002a',
       output_index: 0,
       created_at: '2025-01-02T00:01:00Z',
       expires_at: '2025-07-02T00:00:00Z',
-      media: makeMedia('/v1/content/outputs/out_002a'),
+      media: makeMedia('/v1/content/outputs/a0000000-0000-4000-8000-00000000002a'),
     },
     {
-      id: 'out_002b',
-      asset_ref: 'output:out_002b',
+      id: 'a0000000-0000-4000-8000-00000000002b',
+      asset_ref: 'output:a0000000-0000-4000-8000-00000000002b',
       output_index: 1,
       created_at: '2025-01-02T00:01:00Z',
       expires_at: '2025-07-02T00:00:00Z',
-      media: makeMedia('/v1/content/outputs/out_002b'),
+      media: makeMedia('/v1/content/outputs/a0000000-0000-4000-8000-00000000002b'),
     },
   ],
   media_type: 'image',
@@ -641,16 +641,16 @@ test.describe('Library media rendering', () => {
   test('8. Empty-variants: details sheet img uses original src and has no srcset', async ({
     authenticatedPage: page,
   }) => {
-    const legacyUrl = '/v1/content/outputs/out_legacy';
+    const legacyUrl = '/v1/content/outputs/a0000000-0000-4000-8000-0000000000fe';
     const legacyItem = {
       ...itemImageSingle,
-      asset_ref: 'output:out_legacy',
+      asset_ref: 'output:a0000000-0000-4000-8000-0000000000fe',
       job_id: 'job_legacy',
       media: makeMedia(legacyUrl, 'image'),
     };
     const legacyDetail = {
       ...mockAssetDetailImage,
-      asset_ref: 'output:out_legacy',
+      asset_ref: 'output:a0000000-0000-4000-8000-0000000000fe',
       job_id: 'job_legacy',
       media: makeMedia(legacyUrl, 'image'),
       prompt: 'Legacy image',
@@ -674,20 +674,20 @@ test.describe('Library media rendering', () => {
   test('9. Variants-present: details sheet img srcset contains 150w and 512w', async ({
     authenticatedPage: page,
   }) => {
-    const baseUrl = '/v1/content/outputs/out_srcset';
+    const baseUrl = '/v1/content/outputs/a0000000-0000-4000-8000-0000000000fd';
     const variants = [
       { label: 'sm', width: 150, height: 150, url: `${baseUrl}_sm` },
       { label: 'md', width: 512, height: 512, url: `${baseUrl}_md` },
     ];
     const srcsetItem = {
       ...itemImageSingle,
-      asset_ref: 'output:out_srcset',
+      asset_ref: 'output:a0000000-0000-4000-8000-0000000000fd',
       job_id: 'job_srcset',
       media: makeMedia(baseUrl, 'image', variants),
     };
     const srcsetDetail = {
       ...mockAssetDetailImage,
-      asset_ref: 'output:out_srcset',
+      asset_ref: 'output:a0000000-0000-4000-8000-0000000000fd',
       job_id: 'job_srcset',
       media: makeMedia(baseUrl, 'image', variants),
       prompt: 'Srcset image',

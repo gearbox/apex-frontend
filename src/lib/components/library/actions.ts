@@ -15,11 +15,11 @@ import {
 } from 'lucide-svelte';
 import type { ComponentType, SvelteComponent } from 'svelte';
 import { generationStore, type GenerationMode } from '$lib/stores/generation';
-import { getAccessToken } from '$lib/stores/auth';
 import { mediaFallbackSrc } from '$lib/media';
-import { API_BASE_URL } from '$lib/utils/constants';
 import { ROUTES } from '$lib/utils/routes';
 import { parseAssetRef } from '$lib/utils/assetRef';
+import { downloadLibraryMedia } from './download';
+import { addToast } from '$lib/stores/toasts';
 import type { components } from '$lib/api/types';
 import * as m from '$paraglide/messages';
 
@@ -50,28 +50,12 @@ export interface LibraryActionCallbacks {
 const DEFAULT_MODEL: ModelType = 'grok-imagine-image';
 
 async function downloadAsset(asset: LibraryActionAsset) {
-  const token = getAccessToken();
-  const absoluteUrl = `${API_BASE_URL}${asset.media.original.url}`;
-  const response = await fetch(absoluteUrl, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
-  const blob = await response.blob();
-  const mimeToExt: Record<string, string> = {
-    'image/jpeg': 'jpg',
-    'image/png': 'png',
-    'image/webp': 'webp',
-    'video/mp4': 'mp4',
-    'video/webm': 'webm',
-  };
-  const ext =
-    mimeToExt[asset.media.original.content_type] ??
-    (asset.media.media_type === 'video' ? 'mp4' : 'jpg');
   const { id } = parseAssetRef(asset.asset_ref);
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `apex-${id}.${ext}`;
-  a.click();
-  URL.revokeObjectURL(a.href);
+  try {
+    await downloadLibraryMedia(asset.media, `apex-${id}`);
+  } catch {
+    addToast({ type: 'error', message: m.library_download_error() });
+  }
 }
 
 /** Prefills the generation store with this asset as the source image and navigates to Create. */

@@ -7,10 +7,9 @@
   import { mediaFallbackSrc } from '$lib/media/index';
   import { isDesktop } from '$lib/utils/breakpoints';
   import { ROUTES } from '$lib/utils/routes';
-  import { X, Download, Repeat2, Trash2 } from 'lucide-svelte';
+  import { X, Download, Repeat2, Trash2, Info } from 'lucide-svelte';
   import { libraryGroupQueryOptions, deleteAssetMutationOptions } from '$lib/queries/library';
-  import { getAccessToken } from '$lib/stores/auth';
-  import { API_BASE_URL } from '$lib/utils/constants';
+  import { downloadLibraryMedia } from './download';
   import { addToast } from '$lib/stores/toasts';
   import MediaImage from '$lib/media/MediaImage.svelte';
   import MediaVideo from '$lib/media/MediaVideo.svelte';
@@ -26,9 +25,12 @@
   let {
     jobId,
     onclose,
+    onOpenAsset,
   }: {
     jobId: string;
     onclose: () => void;
+    /** Opens the full details sheet (rename/favorite/metadata) for the selected output. */
+    onOpenAsset?: (assetRef: string) => void;
   } = $props();
 
   let downloading = $state(false);
@@ -108,27 +110,9 @@
   async function handleDownload(output: LibraryOutputItem) {
     downloading = true;
     try {
-      const token = getAccessToken();
-      const absoluteUrl = `${API_BASE_URL}${output.media.original.url}`;
-      const response = await fetch(absoluteUrl, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      const blob = await response.blob();
-      const mimeToExt: Record<string, string> = {
-        'image/jpeg': 'jpg',
-        'image/png': 'png',
-        'image/webp': 'webp',
-        'video/mp4': 'mp4',
-        'video/webm': 'webm',
-      };
-      const ext =
-        mimeToExt[output.media.original.content_type] ??
-        (output.media.media_type === 'video' ? 'mp4' : 'jpg');
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `apex-${output.id}.${ext}`;
-      a.click();
-      URL.revokeObjectURL(a.href);
+      await downloadLibraryMedia(output.media, `apex-${output.id}`);
+    } catch {
+      addToast({ type: 'error', message: m.library_download_error() });
     } finally {
       downloading = false;
     }
@@ -194,6 +178,16 @@
           class="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-accent/15 px-3 py-2 text-xs font-semibold text-accent transition-colors hover:bg-accent/25"
         >
           {m.frames_extract_action()}
+        </button>
+      {/if}
+      {#if onOpenAsset}
+        <button
+          onclick={() => onOpenAsset(output.asset_ref)}
+          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border text-text transition-colors hover:bg-surface-hover"
+          aria-label={m.library_meta_details()}
+          title={m.library_meta_details()}
+        >
+          <Info size={13} />
         </button>
       {/if}
     {/if}

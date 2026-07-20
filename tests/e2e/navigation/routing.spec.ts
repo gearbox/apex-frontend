@@ -24,8 +24,8 @@ authTest.describe('Navigation routing (authenticated)', () => {
     await page.route('**/v1/grok', jsonRoute(mockProviderInfo));
     await page.route('**/v1/billing/pricing', jsonRoute([]));
     await page.route(
-      '**/v1/gallery*',
-      jsonRoute({ items: [], limit: 20, has_more: false, next_cursor: null }),
+      '**/v1/library*',
+      jsonRoute({ items: [], limit: 30, has_more: false, next_cursor: null }),
     );
   });
 
@@ -35,7 +35,7 @@ authTest.describe('Navigation routing (authenticated)', () => {
 
     // DesktopSidebar is inside .desktop-shell
     await expect(page.locator('.desktop-shell')).toBeVisible({ timeout: 5000 });
-    // Sidebar nav links (Create, Gallery, etc.) should be present
+    // Sidebar nav links (Create, Library, etc.) should be present
     await expect(page.getByRole('link', { name: /create/i }).first()).toBeVisible();
   });
 

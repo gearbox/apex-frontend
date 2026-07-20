@@ -40,11 +40,14 @@ beforeEach(() => {
   mutateMock.mockClear();
 });
 
-function renderCard(overrides: Partial<LibraryAssetItem> = {}) {
+function renderCard(
+  overrides: Partial<LibraryAssetItem> = {},
+  extraProps: Record<string, unknown> = {},
+) {
   const item = makeLibraryAssetItem(overrides);
   const onDelete = vi.fn();
   const onclick = vi.fn();
-  const result = render(AssetCard, { props: { item, onclick, onDelete } });
+  const result = render(AssetCard, { props: { item, onclick, onDelete, ...extraProps } });
   return { ...result, item, onDelete, onclick };
 }
 
@@ -69,7 +72,7 @@ describe('AssetCard', () => {
     expect(onclick).toHaveBeenCalledTimes(1);
   });
 
-  it('shows the stack indicator only when output_count > 1', () => {
+  it('hides the stack indicator when output_count is 1', () => {
     renderCard({ output_count: 1 });
     expect(screen.queryByText(/×\d/)).toBeNull();
   });
@@ -109,5 +112,59 @@ describe('AssetCard', () => {
     await fireEvent.click(getByLabelText('Favorite'));
 
     expect(mutateMock).toHaveBeenCalledWith({ assetRef: item.asset_ref, favorite: true });
+  });
+
+  it('hides the favorite heart when "favorite" is not in available_actions', () => {
+    renderCard({ available_actions: ['download', 'delete'] });
+    expect(screen.queryByLabelText('Favorite')).toBeNull();
+    expect(screen.queryByLabelText('Unfavorite')).toBeNull();
+  });
+
+  it('renders rename/view_settings/extract_frame menu entries only when both the callback is provided and the action is available', async () => {
+    const onRename = vi.fn();
+    const onExtractFrame = vi.fn();
+    const onViewSettings = vi.fn();
+    const { container, item } = renderCard(
+      { available_actions: ['rename', 'view_settings', 'extract_frame', 'delete'] },
+      { onRename, onExtractFrame, onViewSettings },
+    );
+
+    const wrapper = container.querySelector('[role="presentation"]');
+
+    // The menu closes itself after each item click, so it's reopened before each assertion.
+    await fireEvent.contextMenu(wrapper!, { clientX: 10, clientY: 10 });
+    await fireEvent.click(screen.getByRole('menuitem', { name: /rename/i }));
+    expect(onRename).toHaveBeenCalledWith(item);
+
+    await fireEvent.contextMenu(wrapper!, { clientX: 10, clientY: 10 });
+    await fireEvent.click(screen.getByRole('menuitem', { name: /view settings/i }));
+    expect(onViewSettings).toHaveBeenCalledWith(item);
+
+    await fireEvent.contextMenu(wrapper!, { clientX: 10, clientY: 10 });
+    await fireEvent.click(screen.getByRole('menuitem', { name: /extract/i }));
+    expect(onExtractFrame).toHaveBeenCalledWith(item);
+  });
+
+  it('omits rename/view_settings/extract_frame menu entries when no callback is passed, even if the action is available', async () => {
+    const { container } = renderCard({
+      available_actions: ['rename', 'view_settings', 'extract_frame', 'download'],
+    });
+
+    const wrapper = container.querySelector('[role="presentation"]');
+    await fireEvent.contextMenu(wrapper!, { clientX: 10, clientY: 10 });
+
+    expect(screen.queryByRole('menuitem', { name: /rename/i })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: /view settings/i })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: /extract/i })).toBeNull();
+    expect(screen.getByRole('menuitem', { name: /download/i })).toBeTruthy();
+  });
+
+  it('opens the overflow menu via ContextMenu.openAt instead of a synthetic contextmenu dispatch', async () => {
+    const { container, getByLabelText } = renderCard({ available_actions: ['download'] });
+
+    await fireEvent.click(getByLabelText('More actions'));
+
+    expect(container.querySelector('.context-menu')).not.toBeNull();
+    expect(screen.getByRole('menuitem', { name: /download/i })).toBeTruthy();
   });
 });

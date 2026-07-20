@@ -5,6 +5,7 @@ import {
   LIBRARY_LIST_STALE_MS,
   LIBRARY_ASSET_STALE_MS,
 } from '$lib/utils/constants';
+import { storageKeys } from '$lib/queries/storage';
 import type { QueryClient, InfiniteData } from '@tanstack/svelte-query';
 import type { components } from '$lib/api/types';
 
@@ -161,10 +162,23 @@ export function favoriteMutationOptions(queryClient: QueryClient) {
       const previous = patchAssetInLists(queryClient, variables.assetRef, {
         is_favorite: variables.favorite,
       });
-      return { previous };
+      const previousDetail = queryClient.getQueryData<LibraryAssetDetail>(
+        libraryKeys.asset(variables.assetRef),
+      );
+      queryClient.setQueryData<LibraryAssetDetail>(libraryKeys.asset(variables.assetRef), (d) =>
+        d ? { ...d, is_favorite: variables.favorite } : d,
+      );
+      return { previous, previousDetail };
     },
-    onError: (_err: unknown, _variables: unknown, context?: { previous: ListSnapshot }) => {
+    onError: (
+      _err: unknown,
+      variables: { assetRef: string; favorite: boolean },
+      context?: { previous: ListSnapshot; previousDetail?: LibraryAssetDetail },
+    ) => {
       if (context?.previous) restoreLists(queryClient, context.previous);
+      if (context?.previousDetail !== undefined) {
+        queryClient.setQueryData(libraryKeys.asset(variables.assetRef), context.previousDetail);
+      }
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: libraryKeys.all });
@@ -220,6 +234,7 @@ export function deleteAssetMutationOptions(queryClient: QueryClient) {
       // the invalidated query refetches.
       removeAssetFromLists(queryClient, assetRef);
       queryClient.invalidateQueries({ queryKey: libraryKeys.all });
+      queryClient.invalidateQueries({ queryKey: storageKeys.all });
       queryClient.invalidateQueries({ queryKey: ['jobs'] });
       queryClient.invalidateQueries({ queryKey: ['user'] });
     },
