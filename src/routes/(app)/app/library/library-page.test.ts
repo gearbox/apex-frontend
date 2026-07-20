@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, beforeAll, afterAll } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
+import { tick } from 'svelte';
 import * as m from '$paraglide/messages';
 import type { components } from '$lib/api/types';
 import {
@@ -163,6 +164,47 @@ describe('/app/library page — restoring filter state from the URL', () => {
 
     expect(screen.getByRole('tab', { name: 'Uploads' }).getAttribute('aria-selected')).toBe('true');
     expect(state.capturedListParams).toMatchObject({ source: 'upload', media_type: 'video' });
+  });
+
+  it('restores project, server search, expiration, and sort from the URL', async () => {
+    state.pageUrl = new URL(
+      'http://localhost/app/library?project=project-1&query=mountain&expiring=true&sort=expiring_soon',
+    );
+    render(Page);
+    await tick();
+
+    expect(state.capturedListParams).toMatchObject({
+      project_id: 'project-1',
+      query: 'mountain',
+      expiring: true,
+      sort: 'expiring_soon',
+    });
+    expect((screen.getByLabelText('Search library') as HTMLInputElement).value).toBe('mountain');
+  });
+});
+
+describe('/app/library page — server-side search', () => {
+  it('debounces URL updates for 300ms and uses replaceState', async () => {
+    vi.useFakeTimers();
+    render(Page);
+
+    await fireEvent.input(screen.getByLabelText('Search library'), { target: { value: 'nebula' } });
+    expect(state.gotoMock).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(300);
+    expect(state.gotoMock).toHaveBeenCalledWith(
+      '?query=nebula',
+      expect.objectContaining({ replaceState: true }),
+    );
+    vi.useRealTimers();
+  });
+
+  it('shows the search-specific empty state', () => {
+    state.libraryItems = [];
+    state.pageUrl = new URL('http://localhost/app/library?query=missing');
+    render(Page);
+
+    expect(screen.getByText('No assets match your search')).toBeTruthy();
   });
 });
 

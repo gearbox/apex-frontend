@@ -1375,23 +1375,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/storage/uploads": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** ListUploads */
-        get: operations["V1StorageUploadsListUploads"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/v1/storage/upload": {
         parameters: {
             query?: never;
@@ -1529,40 +1512,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/gallery/{job_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** GetGalleryDetail */
-        get: operations["V1GalleryJobIdGetGalleryDetail"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/gallery": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** ListGallery */
-        get: operations["V1GalleryListGallery"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/v1/library/assets/{asset_ref}/favorite": {
         parameters: {
             query?: never;
@@ -1576,6 +1525,23 @@ export interface paths {
         post?: never;
         /** RemoveFavorite */
         delete: operations["V1LibraryAssetsAssetRefFavoriteRemoveFavorite"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/library/assets/bulk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** BulkApply */
+        post: operations["V1LibraryAssetsBulkBulkApply"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1634,21 +1600,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/content/{content_id}": {
+    "/v1/library/projects": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** ListProjects */
+        get: operations["V1LibraryProjectsListProjects"];
         put?: never;
-        post?: never;
-        /** DeleteContent */
-        delete: operations["V1ContentContentIdDeleteContent"];
+        /** CreateProject */
+        post: operations["V1LibraryProjectsCreateProject"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/v1/library/projects/{project_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetProject */
+        get: operations["V1LibraryProjectsProjectIdGetProject"];
+        put?: never;
+        post?: never;
+        /** DeleteProject */
+        delete: operations["V1LibraryProjectsProjectIdDeleteProject"];
+        options?: never;
+        head?: never;
+        /** PatchProject */
+        patch: operations["V1LibraryProjectsProjectIdPatchProject"];
         trace?: never;
     };
     "/v1/content/outputs/{output_id}": {
@@ -1857,6 +1843,38 @@ export interface components {
             preferred_account: string | null;
             message: string;
         };
+        /** BulkDelete */
+        BulkDelete: {
+            asset_refs: string[];
+            /** @constant */
+            type: "delete";
+        };
+        /** BulkOperationItemResult */
+        BulkOperationItemResult: {
+            asset_ref: string;
+            success: boolean;
+        };
+        /** BulkOperationResult */
+        BulkOperationResult: {
+            op: string;
+            results: components["schemas"]["BulkOperationItemResult"][];
+            succeeded: number;
+            failed: number;
+        };
+        /** BulkSetFavorite */
+        BulkSetFavorite: {
+            asset_refs: string[];
+            value: boolean;
+            /** @constant */
+            type: "set_favorite";
+        };
+        /** BulkSetProject */
+        BulkSetProject: {
+            asset_refs: string[];
+            project_id: string | null;
+            /** @constant */
+            type: "set_project";
+        };
         /** CategoryHealthResponse */
         CategoryHealthResponse: {
             status: string;
@@ -1935,13 +1953,6 @@ export interface components {
             has_more: boolean;
             next_cursor?: string | null;
         };
-        /** CursorPage[GalleryGridItem] */
-        "CursorPage_src.api.schemas.gallery.GalleryGridItem_": {
-            items: components["schemas"]["GalleryGridItem"][];
-            limit: number;
-            has_more: boolean;
-            next_cursor?: string | null;
-        };
         /** CursorPage[UnifiedJobResponse] */
         "CursorPage_src.api.schemas.jobs.UnifiedJobResponse_": {
             items: components["schemas"]["UnifiedJobResponse"][];
@@ -1956,9 +1967,9 @@ export interface components {
             has_more: boolean;
             next_cursor?: string | null;
         };
-        /** CursorPage[ImageListItem] */
-        "CursorPage_src.api.schemas.storage.ImageListItem_": {
-            items: components["schemas"]["ImageListItem"][];
+        /** CursorPage[LibraryProjectListItem] */
+        "CursorPage_src.api.schemas.library.LibraryProjectListItem_": {
+            items: components["schemas"]["LibraryProjectListItem"][];
             limit: number;
             has_more: boolean;
             next_cursor?: string | null;
@@ -2064,73 +2075,6 @@ export interface components {
             expires_in_seconds: number;
             duration_ms: number;
         };
-        /**
-         * GalleryBadge
-         * @description Badge type for gallery grid — describes the input source.
-         * @enum {string}
-         */
-        GalleryBadge: "image" | "prompt";
-        /** GalleryGridItem */
-        GalleryGridItem: {
-            /** Format: uuid */
-            job_id: string;
-            cover: components["schemas"]["MediaObject"];
-            badge: components["schemas"]["GalleryBadge"];
-            output_count: number;
-            generation_type: components["schemas"]["GenerationType"];
-            model?: string | null;
-            aspect_ratio?: string | null;
-            prompt_snippet: string;
-            /** Format: date-time */
-            created_at: string;
-            /** Format: date-time */
-            expires_at: string;
-        };
-        /** GalleryGroupDetail */
-        GalleryGroupDetail: {
-            /** Format: uuid */
-            job_id: string;
-            badge: components["schemas"]["GalleryBadge"];
-            input_media?: components["schemas"]["MediaObject"] | null;
-            prompt: string;
-            negative_prompt?: string | null;
-            outputs: components["schemas"]["GalleryOutputItem"][];
-            media_type: components["schemas"]["OutputMediaType"];
-            model?: string | null;
-            provider: string;
-            generation_type: components["schemas"]["GenerationType"];
-            aspect_ratio?: string | null;
-            token_cost?: number | null;
-            /** Format: date-time */
-            created_at: string;
-            completed_at?: string | null;
-            lineage?: components["schemas"]["GalleryLineage"] | null;
-        };
-        /** GalleryLineage */
-        GalleryLineage: {
-            source_type: components["schemas"]["GallerySourceType"];
-            source_upload_id?: string | null;
-            source_job_id?: string | null;
-            source_job_name?: string | null;
-            source_output_id?: string | null;
-        };
-        /** GalleryOutputItem */
-        GalleryOutputItem: {
-            /** Format: uuid */
-            id: string;
-            output_index: number;
-            /** Format: date-time */
-            created_at: string;
-            /** Format: date-time */
-            expires_at: string;
-            media: components["schemas"]["MediaObject"];
-        };
-        /**
-         * GallerySourceType
-         * @description Type of input source for lineage display.
-         * @enum {string}
-         */
-        GallerySourceType: "upload" | "generation";
         /** GenerationModelResponse */
         GenerationModelResponse: {
             model_key: string;
@@ -2220,16 +2164,6 @@ export interface components {
             } | null;
             edit_aspect_ratios?: string[];
         };
-        /** ImageListItem */
-        ImageListItem: {
-            id: string;
-            filename: string;
-            /** Format: date-time */
-            created_at: string;
-            /** Format: date-time */
-            expires_at: string;
-            media: components["schemas"]["MediaObject"];
-        };
         /** ImageVariant */
         ImageVariant: {
             label: string;
@@ -2288,6 +2222,8 @@ export interface components {
             model?: string | null;
             generation_type?: components["schemas"]["GenerationType"] | null;
             available_actions: components["schemas"]["LibraryAction"][];
+            project_id?: string | null;
+            project_name?: string | null;
             prompt?: string | null;
             negative_prompt?: string | null;
             provider?: string | null;
@@ -2315,10 +2251,13 @@ export interface components {
             model?: string | null;
             generation_type?: components["schemas"]["GenerationType"] | null;
             available_actions: components["schemas"]["LibraryAction"][];
+            project_id?: string | null;
+            project_name?: string | null;
         };
         /** LibraryAssetPatch */
         LibraryAssetPatch: {
             display_title?: string | null;
+            project_id?: string | null;
         };
         /**
          * LibraryAssetSource
@@ -2329,9 +2268,6 @@ export interface components {
         /**
          * LibraryBadge
          * @description Badge type for a library group detail — describes the input source.
-         *
-         *     Distinct from GalleryBadge (D1 — no cross-import between gallery and
-         *     library modules).
          * @enum {string}
          */
         LibraryBadge: "image" | "prompt";
@@ -2371,9 +2307,6 @@ export interface components {
         /**
          * LibraryGroupSourceType
          * @description Type of input source for library group-detail lineage display.
-         *
-         *     Distinct from GallerySourceType (D1 — Library uses upload/output
-         *     vocabulary, not upload/generation).
          * @enum {string}
          */
         LibraryGroupSourceType: "upload" | "output";
@@ -2395,13 +2328,46 @@ export interface components {
             expires_at: string;
             media: components["schemas"]["MediaObject"];
         };
+        /** LibraryProject */
+        LibraryProject: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            description?: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        /** LibraryProjectCreate */
+        LibraryProjectCreate: {
+            name: string;
+            description?: string | null;
+        };
+        /** LibraryProjectListItem */
+        LibraryProjectListItem: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            description?: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+            asset_count: number;
+        };
+        /** LibraryProjectPatch */
+        LibraryProjectPatch: {
+            name?: string;
+            description?: string | null;
+        };
         /**
          * LibrarySort
          * @description Sort order for the library list endpoint.
          * @default newest
          * @enum {string}
          */
-        LibrarySort: "newest" | "oldest";
+        LibrarySort: "newest" | "oldest" | "expiring_soon";
         /** ListSessionsResponse */
         ListSessionsResponse: {
             sessions: components["schemas"]["GpuSessionResponse"][];
@@ -6014,44 +5980,6 @@ export interface operations {
             };
         };
     };
-    V1StorageUploadsListUploads: {
-        parameters: {
-            query?: {
-                limit?: number;
-                cursor?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Request fulfilled, document follows */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CursorPage_src.api.schemas.storage.ImageListItem_"];
-                };
-            };
-            /** @description Bad request syntax or unsupported method */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        status_code: number;
-                        detail: string;
-                        extra?: null | {
-                            [key: string]: unknown;
-                        } | unknown[];
-                    };
-                };
-            };
-        };
-    };
     V1StorageUploadUploadImage: {
         parameters: {
             query?: never;
@@ -6376,84 +6304,6 @@ export interface operations {
             };
         };
     };
-    V1GalleryJobIdGetGalleryDetail: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                job_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Request fulfilled, document follows */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GalleryGroupDetail"] | components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Bad request syntax or unsupported method */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        status_code: number;
-                        detail: string;
-                        extra?: null | {
-                            [key: string]: unknown;
-                        } | unknown[];
-                    };
-                };
-            };
-        };
-    };
-    V1GalleryListGallery: {
-        parameters: {
-            query?: {
-                limit?: number;
-                cursor?: string | null;
-                media_type?: components["schemas"]["OutputMediaType"] | null;
-                generation_type?: components["schemas"]["GenerationType"] | null;
-                model?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Request fulfilled, document follows */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CursorPage_src.api.schemas.gallery.GalleryGridItem_"];
-                };
-            };
-            /** @description Bad request syntax or unsupported method */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        status_code: number;
-                        detail: string;
-                        extra?: null | {
-                            [key: string]: unknown;
-                        } | unknown[];
-                    };
-                };
-            };
-        };
-    };
     V1LibraryAssetsAssetRefFavoriteAddFavorite: {
         parameters: {
             query?: never;
@@ -6506,6 +6356,45 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1LibraryAssetsBulkBulkApply: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BulkSetFavorite"] | components["schemas"]["BulkSetProject"] | components["schemas"]["BulkDelete"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BulkOperationResult"] | components["schemas"]["ErrorEnvelope"];
+                };
             };
             /** @description Bad request syntax or unsupported method */
             400: {
@@ -6683,6 +6572,8 @@ export interface operations {
                 media_type?: components["schemas"]["OutputMediaType"] | null;
                 model?: string | null;
                 favorite?: boolean | null;
+                project_id?: string | null;
+                expiring?: boolean | null;
                 created_from?: string | null;
                 created_to?: string | null;
                 /** @description Sort order for the library list endpoint. */
@@ -6720,12 +6611,126 @@ export interface operations {
             };
         };
     };
-    V1ContentContentIdDeleteContent: {
+    V1LibraryProjectsListProjects: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CursorPage_src.api.schemas.library.LibraryProjectListItem_"] | components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1LibraryProjectsCreateProject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LibraryProjectCreate"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryProject"] | components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1LibraryProjectsProjectIdGetProject: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                content_id: string;
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryProject"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1LibraryProjectsProjectIdDeleteProject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
             };
             cookie?: never;
         };
@@ -6737,6 +6742,47 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1LibraryProjectsProjectIdPatchProject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LibraryProjectPatch"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryProject"] | components["schemas"]["ErrorEnvelope"];
+                };
             };
             /** @description Bad request syntax or unsupported method */
             400: {

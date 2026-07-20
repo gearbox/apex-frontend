@@ -29,13 +29,34 @@ const deleteMutateAsyncMock = vi.fn();
 const oncloseMock = vi.fn();
 
 vi.mock('@tanstack/svelte-query', () => ({
-  createQuery: vi.fn(() => ({
-    get data() {
-      return detailData;
-    },
-    isLoading: false,
-    isError: false,
-  })),
+  createQuery: vi.fn((optionsFn: () => { queryKey: readonly unknown[] }) => {
+    const [, kind] = optionsFn().queryKey;
+    if (kind === 'projects') {
+      return {
+        data: {
+          items: [
+            {
+              id: 'project-one',
+              name: 'Campaign',
+              description: null,
+              asset_count: 1,
+              created_at: '2025-01-01T00:00:00Z',
+              updated_at: '2025-01-01T00:00:00Z',
+            },
+          ],
+        },
+        isLoading: false,
+        isError: false,
+      };
+    }
+    return {
+      get data() {
+        return detailData;
+      },
+      isLoading: false,
+      isError: false,
+    };
+  }),
   createMutation: vi.fn((optionsFn: () => { mutationFn: (v: unknown) => Promise<unknown> }) => {
     const opts = optionsFn();
     // Route all three mutations (favorite/rename/delete) through a generic mutateAsync
@@ -128,6 +149,22 @@ describe('AssetDetailsSheet — rename flow', () => {
       assetRef: 'upload:abc',
       displayTitle: 'New Name',
     });
+  });
+});
+
+describe('AssetDetailsSheet — project assignment', () => {
+  it('assigns a project and sends null to unassign it', async () => {
+    detailData = makeLibraryAssetDetail({ project_id: null, project_name: null });
+    render(AssetDetailsSheet, { props: { assetRef: 'output:abc', onclose: oncloseMock } });
+
+    await fireEvent.change(screen.getByLabelText('Project'), { target: { value: 'project-one' } });
+    expect(mutateAsyncMock).toHaveBeenCalledWith({
+      assetRef: 'output:abc',
+      projectId: 'project-one',
+    });
+
+    await fireEvent.change(screen.getByLabelText('Project'), { target: { value: '' } });
+    expect(mutateAsyncMock).toHaveBeenLastCalledWith({ assetRef: 'output:abc', projectId: null });
   });
 });
 

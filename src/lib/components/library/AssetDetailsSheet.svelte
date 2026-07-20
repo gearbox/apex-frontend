@@ -6,6 +6,8 @@
     libraryAssetQueryOptions,
     renameMutationOptions,
     deleteAssetMutationOptions,
+    projectAssignmentMutationOptions,
+    projectsListQueryOptions,
   } from '$lib/queries/library';
   import { favoriteMutationOptions } from '$lib/queries/library';
   import { resolveLibraryAction, libraryActionLabel, LIBRARY_ACTION_ICONS } from './actions';
@@ -50,12 +52,14 @@
   const deleteMutation = createMutation(() => deleteAssetMutationOptions(queryClient));
   const favoriteMutation = createMutation(() => favoriteMutationOptions(queryClient));
   const renameMutation = createMutation(() => renameMutationOptions(queryClient));
+  const projectMutation = createMutation(() => projectAssignmentMutationOptions(queryClient));
+  const projectsQuery = createQuery(() => projectsListQueryOptions());
 
-  const isExpiringSoon = $derived(
-    detailQuery.data
-      ? new Date(detailQuery.data.expires_at).getTime() - Date.now() < EXPIRES_SOON_MS
-      : false,
-  );
+  const isExpiringSoon = $derived.by(() => {
+    if (!detailQuery.data) return false;
+    const remaining = new Date(detailQuery.data.expires_at).getTime() - Date.now();
+    return remaining > 0 && remaining < EXPIRES_SOON_MS;
+  });
 
   function startRename() {
     if (!detailQuery.data) return;
@@ -98,6 +102,14 @@
   function toggleFavorite() {
     if (!detailQuery.data) return;
     favoriteMutation.mutate({ assetRef, favorite: !detailQuery.data.is_favorite });
+  }
+
+  async function changeProject(projectId: string | null) {
+    try {
+      await projectMutation.mutateAsync({ assetRef, projectId });
+    } catch {
+      addToast({ type: 'error', message: m.library_project_assign_error() });
+    }
   }
 
   const menuItems = $derived(
@@ -242,6 +254,24 @@
           {m.library_view_group({ count: detail.output_count })}
         </button>
       {/if}
+
+      <!-- Project supports the PATCH tri-state: a concrete project, loading/unknown, or null. -->
+      <div class="flex items-center justify-between gap-3 border-y border-border py-3">
+        <label for="asset-project" class="text-xs text-text-dim">{m.library_project()}</label>
+        <select
+          id="asset-project"
+          value={detail.project_id ?? ''}
+          disabled={projectsQuery.isLoading || projectMutation.isPending}
+          onchange={(event) =>
+            changeProject((event.currentTarget as HTMLSelectElement).value || null)}
+          class="min-w-0 max-w-44 rounded-lg border border-border bg-bg px-2 py-1.5 text-xs font-medium text-text disabled:opacity-50"
+        >
+          <option value="">{m.library_project_unassigned()}</option>
+          {#each projectsQuery.data?.items ?? [] as project (project.id)}
+            <option value={project.id}>{project.name}</option>
+          {/each}
+        </select>
+      </div>
 
       <!-- Metadata -->
       <div class="flex flex-col gap-1.5 text-xs">

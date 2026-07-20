@@ -15,8 +15,20 @@ type LibraryGroupDetail = components['schemas']['LibraryGroupDetail'];
 type LibraryAssetSource = components['schemas']['LibraryAssetSource'];
 type LibraryAssetPatch = components['schemas']['LibraryAssetPatch'];
 type OutputMediaType = components['schemas']['OutputMediaType'];
+type LibrarySort = components['schemas']['LibrarySort'];
+type LibraryProject = components['schemas']['LibraryProject'];
+type LibraryProjectCreate = components['schemas']['LibraryProjectCreate'];
+type LibraryProjectPatch = components['schemas']['LibraryProjectPatch'];
+type LibraryProjectListItem = components['schemas']['LibraryProjectListItem'];
+type BulkOperationResult = components['schemas']['BulkOperationResult'];
 type LibraryPage = {
   items: LibraryAssetItem[];
+  limit: number;
+  has_more: boolean;
+  next_cursor?: string | null;
+};
+type ProjectPage = {
+  items: LibraryProjectListItem[];
   limit: number;
   has_more: boolean;
   next_cursor?: string | null;
@@ -31,6 +43,12 @@ export const libraryKeys = {
   group: (jobId: string) => ['library', 'group', jobId] as const,
 };
 
+export const projectKeys = {
+  all: ['library', 'projects'] as const,
+  list: () => ['library', 'projects', 'list'] as const,
+  detail: (projectId: string) => ['library', 'projects', 'detail', projectId] as const,
+};
+
 /* ─── Types ─── */
 
 export interface LibraryListParams {
@@ -38,6 +56,11 @@ export interface LibraryListParams {
   media_type?: OutputMediaType | null;
   model?: string | null;
   favorite?: boolean | null;
+  project_id?: string | null;
+  /** Server-side text search. Kept here while the downloaded OpenAPI schema catches up. */
+  query?: string | null;
+  expiring?: boolean | null;
+  sort?: LibrarySort | null;
 }
 
 /* ─── Query Options ─── */
@@ -46,16 +69,23 @@ export function libraryListInfiniteQueryOptions(params: LibraryListParams = {}) 
   return {
     queryKey: libraryKeys.list(params),
     queryFn: async ({ pageParam }: { pageParam: string | null }) => {
+      // The Phase 2 backend accepts `query`, but the downloaded schema currently omits it.
+      // Keep the narrow compatibility cast here instead of leaking untyped requests into UI.
+      const apiQuery = {
+        limit: LIBRARY_PAGE_SIZE,
+        ...(pageParam ? { cursor: pageParam } : {}),
+        ...(params.source ? { source: params.source } : {}),
+        ...(params.media_type ? { media_type: params.media_type } : {}),
+        ...(params.model ? { model: params.model } : {}),
+        ...(params.favorite ? { favorite: params.favorite } : {}),
+        ...(params.project_id ? { project_id: params.project_id } : {}),
+        ...(params.query ? { query: params.query } : {}),
+        ...(params.expiring ? { expiring: params.expiring } : {}),
+        ...(params.sort ? { sort: params.sort } : {}),
+      };
       const { data, error } = await apiClient.GET('/v1/library', {
         params: {
-          query: {
-            limit: LIBRARY_PAGE_SIZE,
-            ...(pageParam ? { cursor: pageParam } : {}),
-            ...(params.source ? { source: params.source } : {}),
-            ...(params.media_type ? { media_type: params.media_type } : {}),
-            ...(params.model ? { model: params.model } : {}),
-            ...(params.favorite ? { favorite: params.favorite } : {}),
-          },
+          query: apiQuery,
         },
       });
       if (error) throw error;
@@ -71,6 +101,27 @@ export function libraryListInfiniteQueryOptions(params: LibraryListParams = {}) 
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage: LibraryPage) =>
       lastPage.has_more ? lastPage.next_cursor : undefined,
+    staleTime: LIBRARY_LIST_STALE_MS,
+  };
+}
+
+export function projectsListQueryOptions() {
+  return {
+    queryKey: projectKeys.list(),
+    queryFn: async () => {
+      const { data, error } = await apiClient.GET('/v1/library/projects', {
+        params: { query: { limit: 50 } },
+      });
+      if (error) throw new ApiRequestError(parseApiError(error, 0));
+      return (
+        (data as ProjectPage | undefined) ?? {
+          items: [] as LibraryProjectListItem[],
+          limit: 50,
+          has_more: false,
+          next_cursor: null,
+        }
+      );
+    },
     staleTime: LIBRARY_LIST_STALE_MS,
   };
 }
@@ -204,6 +255,70 @@ export function renameMutationOptions(queryClient: QueryClient) {
   };
 }
 
+export function projectAssignmentMutationOptions(queryClient: QueryClient) {
+  return {
+    mutationFn: async (variables: { assetRef: string; projectId: string | null }) => {
+      const patch: LibraryAssetPatch = { project_id: variables.projectId };
+      const { data, error } = await apiClient.PATCH('/v1/library/assets/{asset_ref}', {
+        params: { path: { asset_ref: variables.assetRef } },
+        body: patch,
+      });
+      if (error) throw new ApiRequestError(parseApiError(error, 0));
+      return data as LibraryAssetDetail;
+    },
+    onSuccess: (_data: LibraryAssetDetail, variables: { assetRef: string }) => {
+      queryClient.invalidateQueries({ queryKey: libraryKeys.all });
+      queryClient.invalidateQueries({ queryKey: projectKeys.all });
+      queryClient.invalidateQueries({ queryKey: libraryKeys.asset(variables.assetRef) });
+    },
+  };
+}
+
+function invalidateProjectAndLibraryQueries(queryClient: QueryClient) {
+  queryClient.invalidateQueries({ queryKey: libraryKeys.all });
+  queryClient.invalidateQueries({ queryKey: projectKeys.all });
+}
+
+export function createProjectMutationOptions(queryClient: QueryClient) {
+  return {
+    mutationFn: async (project: LibraryProjectCreate) => {
+      const { data, error } = await apiClient.POST('/v1/library/projects', { body: project });
+      if (error) throw new ApiRequestError(parseApiError(error, 0));
+      return data as LibraryProject;
+    },
+    onSuccess: () => invalidateProjectAndLibraryQueries(queryClient),
+  };
+}
+
+export function renameProjectMutationOptions(queryClient: QueryClient) {
+  return {
+    mutationFn: async (variables: { projectId: string; patch: LibraryProjectPatch }) => {
+      const { data, error } = await apiClient.PATCH('/v1/library/projects/{project_id}', {
+        params: { path: { project_id: variables.projectId } },
+        body: variables.patch,
+      });
+      if (error) throw new ApiRequestError(parseApiError(error, 0));
+      return data as LibraryProject;
+    },
+    onSuccess: (_data: LibraryProject, variables: { projectId: string }) => {
+      invalidateProjectAndLibraryQueries(queryClient);
+      queryClient.invalidateQueries({ queryKey: projectKeys.detail(variables.projectId) });
+    },
+  };
+}
+
+export function deleteProjectMutationOptions(queryClient: QueryClient) {
+  return {
+    mutationFn: async (projectId: string) => {
+      const { error } = await apiClient.DELETE('/v1/library/projects/{project_id}', {
+        params: { path: { project_id: projectId } },
+      });
+      if (error) throw new ApiRequestError(parseApiError(error, 0));
+    },
+    onSuccess: () => invalidateProjectAndLibraryQueries(queryClient),
+  };
+}
+
 function removeAssetFromLists(queryClient: QueryClient, assetRef: string) {
   // Scoped to list queries only — see patchAssetInLists for why libraryKeys.all is unsafe here.
   queryClient.setQueriesData<InfiniteData<LibraryPage>>(
@@ -234,6 +349,105 @@ export function deleteAssetMutationOptions(queryClient: QueryClient) {
       // the invalidated query refetches.
       removeAssetFromLists(queryClient, assetRef);
       queryClient.invalidateQueries({ queryKey: libraryKeys.all });
+      queryClient.invalidateQueries({ queryKey: storageKeys.all });
+      queryClient.invalidateQueries({ queryKey: ['jobs'] });
+      queryClient.invalidateQueries({ queryKey: ['user'] });
+    },
+  };
+}
+
+export type BulkMutationVariables =
+  | { type: 'set_favorite'; assetRefs: string[]; value: boolean }
+  | { type: 'set_project'; assetRefs: string[]; projectId: string | null }
+  | { type: 'delete'; assetRefs: string[] };
+
+function toBulkRequest(
+  variables: BulkMutationVariables,
+):
+  | components['schemas']['BulkSetFavorite']
+  | components['schemas']['BulkSetProject']
+  | components['schemas']['BulkDelete'] {
+  if (variables.type === 'set_favorite') {
+    return { type: variables.type, asset_refs: variables.assetRefs, value: variables.value };
+  }
+  if (variables.type === 'set_project') {
+    return {
+      type: variables.type,
+      asset_refs: variables.assetRefs,
+      project_id: variables.projectId,
+    };
+  }
+  return { type: variables.type, asset_refs: variables.assetRefs };
+}
+
+/**
+ * Parse offending asset refs from the backend's validation envelope. The API has used
+ * both `extra.asset_refs` and `detail.offenders`; accepting either keeps the UI useful
+ * across backend deployments without treating a 400 as a successful bulk operation.
+ */
+export function bulkOffenderRefs(error: unknown): string[] {
+  const source = error instanceof ApiRequestError ? [error.extra, error.detail] : [];
+  const refs = new Set<string>();
+  const collect = (value: unknown): void => {
+    if (Array.isArray(value)) {
+      for (const item of value) collect(item);
+      return;
+    }
+    if (typeof value !== 'object' || value === null) return;
+    const object = value as Record<string, unknown>;
+    for (const key of ['asset_refs', 'offenders', 'offending_refs', 'failed_refs']) {
+      const candidate = object[key];
+      if (Array.isArray(candidate)) {
+        for (const item of candidate) if (typeof item === 'string') refs.add(item);
+      }
+    }
+  };
+  for (const value of source) collect(value);
+  return [...refs];
+}
+
+export function bulkMutationOptions(queryClient: QueryClient) {
+  return {
+    mutationFn: async (variables: BulkMutationVariables) => {
+      const { data, error, response } = await apiClient.POST('/v1/library/assets/bulk', {
+        body: toBulkRequest(variables),
+      });
+      if (error) throw new ApiRequestError(parseApiError(error, response.status));
+      return data as BulkOperationResult;
+    },
+    onMutate: async (variables: BulkMutationVariables) => {
+      if (variables.type !== 'delete') return { previous: undefined };
+      await queryClient.cancelQueries({ queryKey: libraryKeys.all });
+      const previous = queryClient.getQueriesData<InfiniteData<LibraryPage>>({
+        queryKey: ['library', 'list'],
+      }) as ListSnapshot;
+      const deletedRefs = new Set(variables.assetRefs);
+      queryClient.setQueriesData<InfiniteData<LibraryPage>>(
+        { queryKey: ['library', 'list'] },
+        (data) => {
+          if (!data) return data;
+          return {
+            ...data,
+            pages: data.pages.map((page) => ({
+              ...page,
+              items: page.items.filter((item) => !deletedRefs.has(item.asset_ref)),
+            })),
+          };
+        },
+      );
+      return { previous };
+    },
+    onError: (
+      _error: unknown,
+      variables: BulkMutationVariables,
+      context?: { previous?: ListSnapshot },
+    ) => {
+      if (variables.type === 'delete' && context?.previous) {
+        restoreLists(queryClient, context.previous);
+      }
+    },
+    onSettled: () => {
+      invalidateProjectAndLibraryQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: storageKeys.all });
       queryClient.invalidateQueries({ queryKey: ['jobs'] });
       queryClient.invalidateQueries({ queryKey: ['user'] });

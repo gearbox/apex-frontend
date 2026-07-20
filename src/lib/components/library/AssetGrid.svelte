@@ -14,6 +14,10 @@
     onCardViewSettings,
     onLoadMore,
     loadMoreDisabled = true,
+    selectionActive = false,
+    selectedRefs = new Set<string>(),
+    bulkErrorRefs = new Set<string>(),
+    onToggleSelect,
   }: {
     items: LibraryAssetItem[];
     onCardClick: (item: LibraryAssetItem) => void;
@@ -23,6 +27,10 @@
     onCardViewSettings?: (item: LibraryAssetItem) => void;
     onLoadMore: () => void;
     loadMoreDisabled?: boolean;
+    selectionActive?: boolean;
+    selectedRefs?: ReadonlySet<string>;
+    bulkErrorRefs?: ReadonlySet<string>;
+    onToggleSelect?: (item: LibraryAssetItem) => void;
   } = $props();
 </script>
 
@@ -35,6 +43,10 @@
       onRename={onCardRename}
       onExtractFrame={onCardExtractFrame}
       onViewSettings={onCardViewSettings}
+      selectable={selectionActive}
+      selected={selectedRefs.has(item.asset_ref)}
+      bulkError={bulkErrorRefs.has(item.asset_ref)}
+      {onToggleSelect}
     />
   {/each}
 </div>

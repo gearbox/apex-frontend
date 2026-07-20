@@ -9,6 +9,17 @@ import {
 } from '../factories/library';
 import { makeVideoMediaObject, makeStandardImageMedia, makeMediaObject } from '../factories/media';
 
+const mockProjects = [
+  {
+    id: 'project_mock_001',
+    name: 'Inspiration',
+    description: null,
+    asset_count: 2,
+    created_at: '2025-06-01T12:00:00Z',
+    updated_at: '2025-06-01T12:00:00Z',
+  },
+];
+
 // Exported failure variant for testing
 export const libraryAssetNotFoundHandler = http.delete(`${BASE}/v1/library/assets/:asset_ref`, () =>
   HttpResponse.json(
@@ -39,6 +50,53 @@ export const libraryHandlers = [
     }
 
     return HttpResponse.json(makeLibraryCursorPage(6, {}, true));
+  }),
+
+  // Projects
+  http.get(`${BASE}/v1/library/projects`, () =>
+    HttpResponse.json({ items: mockProjects, limit: 50, has_more: false, next_cursor: null }),
+  ),
+  http.post(`${BASE}/v1/library/projects`, async ({ request }) => {
+    const body = (await request.json()) as { name: string; description?: string | null };
+    return HttpResponse.json(
+      {
+        id: 'project_mock_new',
+        name: body.name,
+        description: body.description ?? null,
+        created_at: '2025-06-01T12:00:00Z',
+        updated_at: '2025-06-01T12:00:00Z',
+      },
+      { status: 201 },
+    );
+  }),
+  http.patch(`${BASE}/v1/library/projects/:project_id`, async ({ params, request }) => {
+    const body = (await request.json()) as { name?: string; description?: string | null };
+    const existing = mockProjects.find((project) => project.id === params.project_id);
+    return HttpResponse.json({
+      id: params.project_id,
+      name: body.name ?? existing?.name ?? 'Project',
+      description: body.description ?? existing?.description ?? null,
+      created_at: existing?.created_at ?? '2025-06-01T12:00:00Z',
+      updated_at: '2025-06-02T12:00:00Z',
+    });
+  }),
+  http.delete(
+    `${BASE}/v1/library/projects/:project_id`,
+    () => new HttpResponse(null, { status: 204 }),
+  ),
+
+  // Bulk selection actions
+  http.post(`${BASE}/v1/library/assets/bulk`, async ({ request }) => {
+    const body = (await request.json()) as { type: string; asset_refs: string[] };
+    return HttpResponse.json(
+      {
+        op: body.type,
+        results: body.asset_refs.map((asset_ref) => ({ asset_ref, success: true })),
+        succeeded: body.asset_refs.length,
+        failed: 0,
+      },
+      { status: 201 },
+    );
   }),
 
   // Asset detail
@@ -120,13 +178,17 @@ export const libraryHandlers = [
     () => new HttpResponse(null, { status: 204 }),
   ),
 
-  // Rename
+  // Rename / project assignment
   http.patch(`${BASE}/v1/library/assets/:asset_ref`, async ({ params, request }) => {
-    const body = (await request.json()) as { display_title?: string | null };
+    const body = (await request.json()) as {
+      display_title?: string | null;
+      project_id?: string | null;
+    };
     return HttpResponse.json(
       makeLibraryAssetDetail({
         asset_ref: params.asset_ref as string,
         display_title: body.display_title ?? null,
+        project_id: body.project_id,
       }),
     );
   }),

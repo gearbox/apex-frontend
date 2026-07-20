@@ -17,6 +17,8 @@ import { addToast } from '$lib/stores/toasts';
 import { pushNudge } from '$lib/stores/pushNudge.svelte';
 import { jobKeys } from '$lib/queries/jobs';
 import { billingKeys } from '$lib/queries/billing';
+import { libraryKeys, projectKeys } from '$lib/queries/library';
+import { inheritProjectForCompletedJobId } from '$lib/services/projectInheritance';
 import { getPendingPaymentScope, reconcilePendingPayments } from '$lib/stores/pendingPayments';
 import { fetchPendingPaymentTransactions } from './pendingPaymentReconciliation';
 import {
@@ -232,6 +234,16 @@ export class EventStreamService {
     if (terminal) {
       this.queryClient.invalidateQueries({ queryKey: jobKeys.all });
       this.queryClient.invalidateQueries({ queryKey: ['gallery'] });
+      if (status === 'completed') {
+        // Jobs started while a Library project was active are assigned after outputs exist.
+        // This is deliberately best effort: project metadata must never block job completion.
+        void inheritProjectForCompletedJobId(job_id)
+          .then(() => {
+            this.queryClient.invalidateQueries({ queryKey: libraryKeys.all });
+            this.queryClient.invalidateQueries({ queryKey: projectKeys.all });
+          })
+          .catch(() => undefined);
+      }
       // Safety invalidation with small delay in case balance.updated event is lost
       setTimeout(() => {
         this.queryClient.invalidateQueries({ queryKey: billingKeys.balance() });
