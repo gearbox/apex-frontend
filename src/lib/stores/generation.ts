@@ -269,15 +269,82 @@ function createGenerationStore() {
         // Reset i2i aspect to Auto unless explicitly provided in params
         editAspectRatio: params.editAspectRatio !== undefined ? params.editAspectRatio : null,
       }));
+      onGenerationDraftPrefill?.();
     },
 
     reset() {
       set(initial);
+      onGenerationDraftReset?.();
     },
   };
 }
 
 export const generationStore = createGenerationStore();
+
+/**
+ * A stable value comparison for all user-editable generation inputs. UI-only
+ * preview URLs and backend job progress are deliberately excluded: neither is
+ * user-authored work that needs to block a safe application-shell reload.
+ */
+export function generationDraftFingerprint(state: GenerationState): string {
+  return JSON.stringify({
+    provider: state.provider,
+    model: state.model,
+    mode: state.mode,
+    prompt: state.prompt,
+    negativePrompt: state.negativePrompt,
+    uploadedImageId: state.uploadedImageId,
+    sourceOutputId: state.sourceOutputId,
+    aspectRatio: state.aspectRatio,
+    editAspectRatio: state.editAspectRatio,
+    imageCount: state.imageCount,
+    videoDuration: state.videoDuration,
+    videoResolution: state.videoResolution,
+    sizingMode: state.sizingMode,
+    imageTier: state.imageTier,
+    customWidth: state.customWidth,
+    customHeight: state.customHeight,
+    seed: state.seed,
+    steps: state.steps,
+    cfg: state.cfg,
+    sampler: state.sampler,
+    scheduler: state.scheduler,
+    denoise: state.denoise,
+  });
+}
+
+const initialGenerationDraftFingerprint = generationDraftFingerprint(get(generationStore));
+const savedGenerationDraftFingerprint = writable(initialGenerationDraftFingerprint);
+const prefillNeedsSaving = writable(false);
+
+// These callbacks are deliberately declared after the singleton is created.
+// The store methods close over them and cannot run until module evaluation has
+// completed, while the callbacks themselves need the baseline stores above.
+const onGenerationDraftReset = () => {
+  savedGenerationDraftFingerprint.set(initialGenerationDraftFingerprint);
+  prefillNeedsSaving.set(false);
+};
+
+const onGenerationDraftPrefill = () => {
+  prefillNeedsSaving.set(true);
+};
+
+/**
+ * A gallery remix/prefill is intentionally dirty even when it happens to
+ * equal a prior submitted fingerprint. It was supplied from another view and
+ * would otherwise be lost on reload before the user has submitted or reset it.
+ */
+export const generationDraftIsDirty = derived(
+  [generationStore, savedGenerationDraftFingerprint, prefillNeedsSaving],
+  ([$state, $savedFingerprint, $prefillNeedsSaving]) =>
+    $prefillNeedsSaving || generationDraftFingerprint($state) !== $savedFingerprint,
+);
+
+/** Call after the API accepts a generation request; job tracking remains excluded from the baseline. */
+export function markGenerationDraftSaved(): void {
+  savedGenerationDraftFingerprint.set(generationDraftFingerprint(get(generationStore)));
+  prefillNeedsSaving.set(false);
+}
 
 export const isGenerating = derived(
   generationStore,

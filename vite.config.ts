@@ -61,7 +61,9 @@ export default defineConfig({
     // stale precache entry.
     appVersionManifestPlugin({ version: APP_VERSION, buildSha: BUILD_SHA }),
     SvelteKitPWA({
-      registerType: 'autoUpdate',
+      // pwaUpdate.ts is the sole owner of activation/reload decisions. Prompt
+      // mode keeps a new worker waiting until its build-scoped message arrives.
+      registerType: 'prompt',
       // Custom SW (push notifications need push/notificationclick/pushsubscriptionchange
       // handlers, which generateSW's declarative config can't express).
       // @vite-pwa/sveltekit's injectManifest strategy rides on SvelteKit's native
@@ -98,6 +100,9 @@ export default defineConfig({
       },
       injectManifest: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        // Browser-test workers are served as static fixtures, never as part of
+        // the production shell's precache or update lifecycle.
+        globIgnores: ['client/pwa-lifecycle-fixture/**'],
       },
     }),
   ],

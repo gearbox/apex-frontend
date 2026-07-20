@@ -98,7 +98,7 @@
   <div class="appearance-section">
     <p class="section-header">{m.pwa_update_section()}</p>
     <p class="build-label">{m.pwa_update_build({ version: APP_VERSION, buildSha: BUILD_SHA })}</p>
-    {#if $pwaUpdateStatus.state === 'reload-required'}
+    {#if ['ready-to-activate', 'reload-required'].includes($pwaUpdateStatus.state)}
       <p class="update-ready-copy">
         {$appIsDirty ? m.pwa_update_dirty_title() : m.pwa_update_ready_title()}
       </p>

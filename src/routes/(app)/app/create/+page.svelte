@@ -4,7 +4,7 @@
   import apiClient from '$lib/api/client';
   import { parseApiError } from '$lib/api/errors';
   import { generateIdempotencyKey } from '$lib/utils/idempotency';
-  import { generationStore, isGenerating } from '$lib/stores/generation';
+  import { generationStore, isGenerating, markGenerationDraftSaved } from '$lib/stores/generation';
   import { activeJobStore } from '$lib/stores/jobs';
   import { addToast } from '$lib/stores/toasts';
   import { lookupCost } from '$lib/utils/pricing';
@@ -37,7 +37,6 @@
   import GenerateButton from '$lib/components/create/GenerateButton.svelte';
   import ResultsPanel from '$lib/components/create/ResultsPanel.svelte';
   import { ROUTES } from '$lib/utils/routes';
-  import { setAppDirty } from '$lib/services/appDirty';
 
   const queryClient = useQueryClient();
 
@@ -331,6 +330,9 @@
         return;
       }
 
+      // The accepted request is recoverable from Jobs/Gallery. Establishing a
+      // saved baseline here means only later user edits block a PWA reload.
+      markGenerationDraftSaved();
       generationStore.startJob(jobId);
       startPolling(jobId);
     } catch {
@@ -350,16 +352,6 @@
       $generationStore.mode === 'flf2v',
   );
   const showSkeleton = $derived($isGenerating);
-  // A text prompt or a selected media source lives only in this browser state.
-  // Completed backend jobs are intentionally excluded: they remain recoverable
-  // from Jobs/Gallery and must not block a safe update reload.
-  const hasUnsavedCreateWork = $derived(
-    $generationStore.prompt.trim().length > 0 ||
-      $generationStore.uploadedImageId !== null ||
-      $generationStore.sourceOutputId !== null,
-  );
-
-  $effect(() => setAppDirty('create-draft', hasUnsavedCreateWork));
 </script>
 
 <svelte:head>

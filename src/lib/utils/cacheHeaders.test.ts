@@ -10,5 +10,9 @@ describe('Cloudflare cache headers', () => {
     expect(headers).toContain(`/service-worker.js\n  ${noStore}`);
     expect(headers).toContain('/\n  Cache-Control: no-cache, must-revalidate');
     expect(headers).toContain('/*.html\n  Cache-Control: no-cache, must-revalidate');
+    expect(headers).toContain('/*\n  Cache-Control: no-cache, must-revalidate');
+    expect(headers).toContain(
+      '/_app/immutable/*\n  Cache-Control: public, max-age=31536000, immutable',
+    );
   });
 });

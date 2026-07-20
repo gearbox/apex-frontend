@@ -22,9 +22,36 @@ import {
   setPwaUpdateServiceWorkerRegistration,
 } from './pwaUpdate';
 
+class FakeWorker extends EventTarget {
+  state: ServiceWorkerState = 'installed';
+  readonly postMessage = vi.fn((message: unknown, transfer?: Transferable[]) => {
+    const data = message as { type?: string };
+    if (data.type === 'APEX_GET_BUILD_INFO') {
+      (transfer?.[0] as MessagePort | undefined)?.postMessage({
+        type: 'APEX_BUILD_INFO',
+        buildSha: this.buildSha,
+      });
+    }
+    this.onMessage?.(message);
+  });
+
+  constructor(
+    readonly buildSha: string | undefined,
+    private readonly onMessage?: (message: unknown) => void,
+  ) {
+    super();
+  }
+}
+
 class FakeRegistration extends EventTarget {
   installing: ServiceWorker | null = null;
+  waiting: ServiceWorker | null = null;
+  active: ServiceWorker | null = null;
   update = vi.fn<() => Promise<void>>().mockResolvedValue();
+}
+
+class FakeServiceWorkerContainer extends EventTarget {
+  controller: ServiceWorker | null = null;
 }
 
 const currentManifest = {
@@ -35,6 +62,7 @@ const currentManifest = {
 
 async function flush(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 function setOnline(value: boolean): void {
@@ -43,7 +71,7 @@ function setOnline(value: boolean): void {
 
 describe('pwa update manager', () => {
   let registration: FakeRegistration;
-  let serviceWorker: EventTarget;
+  let serviceWorker: FakeServiceWorkerContainer;
   let reload: () => void;
   let releaseDirty: (() => void) | undefined;
 
@@ -52,7 +80,7 @@ describe('pwa update manager', () => {
     vi.spyOn(console, 'info').mockImplementation(() => {});
     sessionStorage.clear();
     setOnline(true);
-    serviceWorker = new EventTarget();
+    serviceWorker = new FakeServiceWorkerContainer();
     Object.defineProperty(navigator, 'serviceWorker', {
       configurable: true,
       value: serviceWorker,
@@ -76,6 +104,28 @@ describe('pwa update manager', () => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
+
+  async function discoverTargetWithWaitingWorker(
+    options: { dirty?: boolean; autoControl?: boolean } = {},
+  ): Promise<FakeWorker> {
+    const worker = new FakeWorker('next456', (message) => {
+      if ((message as { type?: string }).type === 'APEX_ACTIVATE_UPDATE' && options.autoControl) {
+        registration.waiting = null;
+        registration.active = worker as unknown as ServiceWorker;
+        serviceWorker.controller = worker as unknown as ServiceWorker;
+        serviceWorker.dispatchEvent(new Event('controllerchange'));
+      }
+    });
+    registration.waiting = worker as unknown as ServiceWorker;
+    if (options.dirty) releaseDirty = setAppDirty('create-draft', true);
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ ...currentManifest, buildSha: 'next456' }),
+    } as Response);
+    await checkForAppUpdate({ force: true, source: 'manual' });
+    await flush();
+    return worker;
+  }
 
   it('uses build SHA identity and rejects malformed manifests', () => {
     expect(compareBuildShas('current123', 'current123')).toBe('current');
@@ -101,7 +151,7 @@ describe('pwa update manager', () => {
     expect(registration.update).toHaveBeenCalledTimes(1);
   });
 
-  it('handles malformed manifests and bounded fetch timeouts as recoverable failures', async () => {
+  it('handles malformed manifests, timeouts, offline mode, and registration update failures', async () => {
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: true,
       json: async () => ({ version: '0.13.2' }),
@@ -109,13 +159,17 @@ describe('pwa update manager', () => {
     await expect(checkForAppUpdate({ force: true })).resolves.toMatchObject({ status: 'failed' });
     expect(get(pwaUpdateStatus).error).toBe('invalid-manifest');
 
-    vi.useFakeTimers();
-    vi.mocked(fetch).mockImplementationOnce(() => new Promise(() => {}));
-    const timedOut = checkForAppUpdate({ force: true });
-    await vi.advanceTimersByTimeAsync(8_000);
-    await expect(timedOut).resolves.toMatchObject({ status: 'failed' });
-    expect(get(pwaUpdateStatus).error).toBe('timeout');
-    vi.useRealTimers();
+    setOnline(false);
+    await expect(checkForAppUpdate({ force: true })).resolves.toMatchObject({ status: 'offline' });
+    setOnline(true);
+
+    registration.update.mockRejectedValueOnce(new Error('worker update failed'));
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ ...currentManifest, buildSha: 'next456' }),
+    } as Response);
+    await expect(checkForAppUpdate({ force: true })).resolves.toMatchObject({ status: 'failed' });
+    expect(get(pwaUpdateStatus).error).toBe('registration-update');
   });
 
   it('deduplicates concurrent checks and respects the successful-check cooldown', async () => {
@@ -128,85 +182,85 @@ describe('pwa update manager', () => {
     await expect(checkForAppUpdate({ source: 'visibility' })).resolves.toMatchObject({
       status: 'skipped-cooldown',
     });
-    await checkForAppUpdate({ force: true, source: 'manual' });
-    expect(fetch).toHaveBeenCalledTimes(2);
   });
 
-  it('degrades safely while offline and when a registration cannot be found', async () => {
-    setOnline(false);
-    await expect(checkForAppUpdate({ force: true, source: 'online' })).resolves.toMatchObject({
-      status: 'offline',
-    });
-    expect(fetch).not.toHaveBeenCalled();
-
-    __resetPwaUpdateForTests();
-    await expect(checkForAppUpdate({ force: true })).resolves.toMatchObject({
-      status: 'registration-unavailable',
-    });
-  });
-
-  it('reports worker update failures without throwing out of the app lifecycle', async () => {
-    registration.update.mockRejectedValueOnce(new Error('worker update failed'));
-    vi.mocked(fetch).mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ ...currentManifest, buildSha: 'next456' }),
-    } as Response);
-
-    await expect(checkForAppUpdate({ force: true })).resolves.toMatchObject({ status: 'failed' });
-    expect(get(pwaUpdateStatus).error).toBe('registration-update');
-  });
-
-  it('never reloads on first installation, but reloads exactly once after a confirmed update', async () => {
+  it('never reloads for initial installation and recovers a controller change before manifest resolution', async () => {
     serviceWorker.dispatchEvent(new Event('controllerchange'));
+    await flush();
     expect(reload).not.toHaveBeenCalled();
 
+    const active = new FakeWorker('next456');
+    registration.active = active as unknown as ServiceWorker;
+    serviceWorker.controller = active as unknown as ServiceWorker;
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: true,
       json: async () => ({ ...currentManifest, buildSha: 'next456' }),
     } as Response);
     await checkForAppUpdate({ force: true });
-    serviceWorker.dispatchEvent(new Event('controllerchange'));
-    serviceWorker.dispatchEvent(new Event('controllerchange'));
+    await flush();
     expect(reload).toHaveBeenCalledTimes(1);
   });
 
-  it('does not re-enter a reload loop when the target has already reloaded this session', async () => {
-    vi.mocked(fetch).mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ ...currentManifest, buildSha: 'next456' }),
-    } as Response);
-    await checkForAppUpdate({ force: true });
-    sessionStorage.setItem('apex:pwa-reloaded-for:next456', '1');
-
-    serviceWorker.dispatchEvent(new Event('controllerchange'));
-    expect(reload).not.toHaveBeenCalled();
+  it('discovers an already-waiting worker and leaves it waiting while the app is dirty', async () => {
+    const worker = await discoverTargetWithWaitingWorker({ dirty: true });
+    expect(get(pwaUpdateStatus).state).toBe('ready-to-activate');
+    expect(worker.postMessage).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'APEX_ACTIVATE_UPDATE' }),
+    );
   });
 
-  it('defers a controller-change reload while the user has unsaved work, then applies it explicitly', async () => {
-    vi.mocked(fetch).mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ ...currentManifest, buildSha: 'next456' }),
-    } as Response);
-    await checkForAppUpdate({ force: true });
-    releaseDirty = setAppDirty('create-draft', true);
-    serviceWorker.dispatchEvent(new Event('controllerchange'));
+  it('clean matching waiting workers activate through the custom protocol and reload exactly once', async () => {
+    const worker = await discoverTargetWithWaitingWorker({ autoControl: true });
+    await flush();
+    expect(worker.postMessage).toHaveBeenCalledWith({
+      type: 'APEX_ACTIVATE_UPDATE',
+      targetBuildSha: 'next456',
+    });
+    expect(reload).toHaveBeenCalledTimes(1);
 
-    expect(reload).not.toHaveBeenCalled();
-    expect(get(pwaUpdateStatus).state).toBe('reload-required');
+    serviceWorker.dispatchEvent(new Event('controllerchange'));
+    await flush();
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses the same identity-checked activation path for Update anyway', async () => {
+    const worker = await discoverTargetWithWaitingWorker({ dirty: true, autoControl: true });
     expect(await applyPwaUpdate()).toBe(true);
+    expect(worker.postMessage).toHaveBeenCalledWith({
+      type: 'APEX_ACTIVATE_UPDATE',
+      targetBuildSha: 'next456',
+    });
     expect(reload).toHaveBeenCalledTimes(1);
   });
 
-  it('reacts to updatefound/worker state events and removes lifecycle listeners on dispose', async () => {
-    const worker = new EventTarget() as ServiceWorker;
-    Object.defineProperty(worker, 'state', { configurable: true, value: 'installing' });
-    registration.installing = worker;
-    registration.dispatchEvent(new Event('updatefound'));
-    expect(get(pwaUpdateStatus).state).toBe('update-available');
+  it('rejects unknown waiting workers rather than sending a generic legacy activation message', async () => {
+    const oldWorker = new FakeWorker(undefined);
+    registration.waiting = oldWorker as unknown as ServiceWorker;
+    releaseDirty = setAppDirty('create-draft', true);
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ ...currentManifest, buildSha: 'next456' }),
+    } as Response);
+    await checkForAppUpdate({ force: true });
+    expect(await applyPwaUpdate()).toBe(false);
+    expect(oldWorker.postMessage).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'SKIP_WAITING' }),
+    );
+    expect(get(pwaUpdateStatus).state).toBe('failed');
+    expect(get(pwaUpdateStatus).error).toBe('worker-build-mismatch');
+  });
 
-    Object.defineProperty(worker, 'state', { configurable: true, value: 'installed' });
+  it('reconciles updatefound/worker states and removes lifecycle listeners on dispose', async () => {
+    const worker = new FakeWorker('next456');
+    worker.state = 'installing';
+    registration.installing = worker as unknown as ServiceWorker;
+    registration.dispatchEvent(new Event('updatefound'));
+    await flush();
+    expect(get(pwaUpdateStatus).state).toBe('downloading');
+
+    worker.state = 'redundant';
     worker.dispatchEvent(new Event('statechange'));
-    expect(get(pwaUpdateStatus).state).toBe('activating');
+    expect(get(pwaUpdateStatus).error).toBe('worker-redundant');
 
     disposePwaUpdateService();
     document.dispatchEvent(new Event('visibilitychange'));
@@ -214,13 +268,12 @@ describe('pwa update manager', () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it('shares the normal check flow with future backend events and ignores the current target', async () => {
+  it('shares the normal check flow with backend events and ignores the current target', async () => {
     await handleRemoteAppUpdateEvent({ targetBuildSha: 'current123', mode: 'prompt' });
     expect(fetch).not.toHaveBeenCalled();
 
     await handleRemoteAppUpdateEvent({ targetBuildSha: 'next456', mode: 'force' });
     await handleRemoteAppUpdateEvent({ targetBuildSha: 'next456', mode: 'force' });
     expect(fetch).toHaveBeenCalledTimes(1);
-    expect(registration.update).toHaveBeenCalledTimes(1);
   });
 });

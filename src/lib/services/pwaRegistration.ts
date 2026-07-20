@@ -25,6 +25,9 @@ export async function registerPwaServiceWorker(
   try {
     const { registerSW } = await loadRegisterSW();
     try {
+      // No plugin refresh callback is supplied. In prompt mode registerSW
+      // creates the single registration only; pwaUpdate owns activation and
+      // reloads through the build-scoped worker protocol.
       registerSW({
         immediate: true,
         onRegisteredSW: (_swScriptUrl, registration) => {

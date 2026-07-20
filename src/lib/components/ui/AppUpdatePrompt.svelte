@@ -7,10 +7,14 @@
   let canShow = $derived(
     !$pwaUpdateStatus.dismissed &&
       Boolean($pwaUpdateStatus.targetBuildSha) &&
-      ['update-available', 'activating', 'reload-required'].includes($pwaUpdateStatus.state),
+      ['downloading', 'ready-to-activate', 'activating', 'reload-required'].includes(
+        $pwaUpdateStatus.state,
+      ),
   );
-  let readyToReload = $derived($pwaUpdateStatus.state === 'reload-required');
-  let waitingForWorker = $derived(!readyToReload);
+  let canApply = $derived(
+    ['ready-to-activate', 'reload-required'].includes($pwaUpdateStatus.state),
+  );
+  let lifecyclePending = $derived(!canApply);
 
   async function updateNow() {
     applying = true;
@@ -31,13 +35,13 @@
   >
     <div class="copy">
       <p class="title">
-        {waitingForWorker
+        {lifecyclePending
           ? m.pwa_update_applying()
           : $appIsDirty
             ? m.pwa_update_dirty_title()
             : m.pwa_update_ready_title()}
       </p>
-      {#if $appIsDirty && readyToReload}
+      {#if $appIsDirty && canApply}
         <p class="description">{m.pwa_update_dirty_description()}</p>
       {/if}
     </div>
@@ -45,11 +49,7 @@
       <button type="button" class="secondary" onclick={dismissPwaUpdatePrompt} disabled={applying}
         >{m.pwa_update_later()}</button
       >
-      <button
-        type="button"
-        class="primary"
-        onclick={updateNow}
-        disabled={applying || waitingForWorker}
+      <button type="button" class="primary" onclick={updateNow} disabled={applying || !canApply}
         >{applying
           ? m.common_loading()
           : $appIsDirty

@@ -3,11 +3,17 @@ import { BUILD_SHA, APP_VERSION } from '$lib/utils/appVersion';
 import { isBrowser } from '$lib/utils/env';
 import { isStandalone } from '$lib/utils/platform';
 import { isAppDirty } from '$lib/services/appDirty';
+import {
+  PWA_ACTIVATE_UPDATE,
+  PWA_GET_BUILD_INFO,
+  isPwaWorkerToClientMessage,
+} from '$lib/pwa/protocol';
 
 export type PwaUpdateState =
   | 'idle'
   | 'checking'
-  | 'update-available'
+  | 'downloading'
+  | 'ready-to-activate'
   | 'activating'
   | 'reload-required'
   | 'up-to-date'
@@ -29,13 +35,23 @@ export interface AppVersionManifest {
   builtAt: string;
 }
 
+export type PwaUpdateError =
+  | 'network'
+  | 'timeout'
+  | 'invalid-manifest'
+  | 'registration-update'
+  | 'worker-installation'
+  | 'worker-redundant'
+  | 'worker-activation-timeout'
+  | 'worker-build-mismatch';
+
 export interface PwaUpdateSnapshot {
   state: PwaUpdateState;
   source?: UpdateCheckSource;
   targetBuildSha?: string;
   targetVersion?: string;
   dismissed: boolean;
-  error?: 'network' | 'timeout' | 'invalid-manifest' | 'registration-update';
+  error?: PwaUpdateError;
 }
 
 export type UpdateCheckStatus =
@@ -55,12 +71,31 @@ export interface UpdateCheckResult {
 export interface RemoteAppUpdateEvent {
   targetBuildSha?: string;
   minimumVersion?: string;
-  /** `force` is reserved for a future mandatory-update policy; it never bypasses dirty-work protection. */
+  /** `force` is reserved for a future mandatory-update policy; it never bypasses draft safety. */
   mode?: 'prompt' | 'force';
+}
+
+type ReconcileContext =
+  | 'registration'
+  | 'updatefound'
+  | 'worker-state'
+  | 'registration-update'
+  | 'controllerchange'
+  | 'resume'
+  | 'activation-timeout'
+  | 'manual';
+
+interface WorkerReferences {
+  installing: ServiceWorker | null;
+  waiting: ServiceWorker | null;
+  active: ServiceWorker | null;
+  controller: ServiceWorker | null;
 }
 
 const MANIFEST_URL = '/app-version.json';
 const MANIFEST_TIMEOUT_MS = 8_000;
+const WORKER_BUILD_INFO_TIMEOUT_MS = 1_500;
+const ACTIVATION_TIMEOUT_MS = 12_000;
 const CHECK_COOLDOWN_MS = 60_000;
 const CHECK_INTERVAL_MS = 30 * 60 * 1_000;
 const RELOAD_GUARD_PREFIX = 'apex:pwa-reloaded-for:';
@@ -73,11 +108,14 @@ export const pwaUpdateStatus = writable<PwaUpdateSnapshot>(INITIAL_SNAPSHOT);
 
 let activeRegistration: ServiceWorkerRegistration | undefined;
 let inFlightCheck: Promise<UpdateCheckResult> | undefined;
+let activationInFlight: Promise<boolean> | undefined;
 let lastSuccessfulCheckAt = 0;
 let targetBuildSha: string | undefined;
 let reloadInitiated = false;
+let controllerChangedBeforeTarget = false;
 let lifecycleCleanups: Array<() => void> = [];
 let registrationCleanups: Array<() => void> = [];
+let observedWorkers = new WeakSet<ServiceWorker>();
 let reloadPage = () => window.location.reload();
 let lastRemoteEventFingerprint: string | undefined;
 
@@ -127,8 +165,7 @@ export function compareBuildShas(
 }
 
 function report(event: string, fields: Record<string, unknown> = {}): void {
-  // Keep this intentionally limited to safe build/lifecycle metadata. It must
-  // never include URLs, auth data, user content, or exception messages.
+  // Lifecycle diagnostics intentionally contain build/state metadata only.
   console.info('[pwa_update]', event, {
     ...fields,
     currentVersion: APP_VERSION,
@@ -155,7 +192,7 @@ function writeSession(key: string, value: string): void {
   try {
     sessionStorage.setItem(key, value);
   } catch {
-    // Private browsing/storage restrictions must not block an update.
+    // Storage is an optional reload-loop guard, not a hard dependency.
   }
 }
 
@@ -173,7 +210,7 @@ function clearStaleSessionGuards(currentTarget: string): void {
       }
     }
   } catch {
-    // Storage is an optional reload-loop guard, not a hard dependency.
+    // Storage failures must not stop a recoverable update flow.
   }
 }
 
@@ -187,6 +224,49 @@ function hasNavigatorServiceWorker(): boolean {
 
 function isOffline(): boolean {
   return isBrowser() && navigator.onLine === false;
+}
+
+function workerReferences(registration: ServiceWorkerRegistration): WorkerReferences {
+  return {
+    installing: registration.installing,
+    waiting: registration.waiting,
+    active: registration.active,
+    controller: hasNavigatorServiceWorker() ? navigator.serviceWorker.controller : null,
+  };
+}
+
+/** A bounded handshake; older workers are intentionally treated as unknown. */
+export function getWorkerBuildSha(worker: ServiceWorker | null): Promise<string | undefined> {
+  if (
+    !worker ||
+    typeof worker.postMessage !== 'function' ||
+    typeof MessageChannel === 'undefined'
+  ) {
+    return Promise.resolve(undefined);
+  }
+
+  return new Promise((resolve) => {
+    const channel = new MessageChannel();
+    let settled = false;
+    const finish = (buildSha: string | undefined) => {
+      if (settled) return;
+      settled = true;
+      globalThis.clearTimeout(timeout);
+      channel.port1.close();
+      resolve(buildSha);
+    };
+    const timeout = globalThis.setTimeout(() => finish(undefined), WORKER_BUILD_INFO_TIMEOUT_MS);
+
+    channel.port1.onmessage = (event: MessageEvent<unknown>) => {
+      finish(isPwaWorkerToClientMessage(event.data) ? event.data.buildSha : undefined);
+    };
+
+    try {
+      worker.postMessage({ type: PWA_GET_BUILD_INFO }, [channel.port2]);
+    } catch {
+      finish(undefined);
+    }
+  });
 }
 
 export async function fetchAppVersionManifest(): Promise<AppVersionManifest> {
@@ -243,30 +323,82 @@ class PwaUpdateRequestError extends Error {
   }
 }
 
-function workerStateChanged(worker: ServiceWorker): void {
-  report('pwa_update.worker_state_changed', { workerState: worker.state });
-  if (worker.state === 'installed') {
-    updateSnapshot({ state: 'activating' });
-  } else if (worker.state === 'activating') {
-    updateSnapshot({ state: 'activating' });
-  }
+function setWorkerFailure(error: Extract<PwaUpdateError, `worker-${string}`>): void {
+  updateSnapshot({
+    state: 'failed',
+    error,
+    targetBuildSha,
+    dismissed: isPromptDismissed(targetBuildSha),
+  });
+  report('pwa_update.worker_failed', { error, targetBuildSha });
 }
 
 function listenForWorkerStateChanges(worker: ServiceWorker): void {
-  const listener = () => workerStateChanged(worker);
+  if (observedWorkers.has(worker)) return;
+  observedWorkers.add(worker);
+
+  const listener = () => {
+    report('pwa_update.worker_state_changed', { workerState: worker.state });
+    if (worker.state === 'installing') {
+      updateSnapshot({
+        state: 'downloading',
+        targetBuildSha,
+        dismissed: isPromptDismissed(targetBuildSha),
+      });
+    } else if (worker.state === 'redundant') {
+      setWorkerFailure('worker-redundant');
+    } else if (worker.state === 'activated') {
+      void reconcileRegistration(activeRegistration, 'worker-state');
+    } else if (worker.state === 'installed' || worker.state === 'activating') {
+      void reconcileRegistration(activeRegistration, 'worker-state');
+    }
+  };
+
   worker.addEventListener('statechange', listener);
-  registrationCleanups.push(() => worker.removeEventListener('statechange', listener));
+  registrationCleanups.push(() => {
+    worker.removeEventListener('statechange', listener);
+    observedWorkers.delete(worker);
+  });
 }
 
-function reloadAfterControllerChange(force = false): boolean {
+async function controllerMatchesTarget(target: string): Promise<boolean> {
+  if (!hasNavigatorServiceWorker()) return false;
+  const controller = navigator.serviceWorker.controller;
+  return (await getWorkerBuildSha(controller)) === target;
+}
+
+/**
+ * Reload is permitted only after the page's controller is confirmed to be the
+ * target worker. The narrow unknown-worker escape hatch is for an observed
+ * controllerchange that beat the manifest response on old workers.
+ */
+async function reloadAfterControllerChange(
+  force = false,
+  allowEarlyUnknownController = false,
+): Promise<boolean> {
   const target = targetBuildSha;
-  if (!target || !isUsableBuildSha(target)) return false;
+  if (!target || !isUsableBuildSha(target) || !hasNavigatorServiceWorker()) return false;
+
+  const controller = navigator.serviceWorker.controller;
+  const controllerBuildSha = await getWorkerBuildSha(controller);
+  const confirmed = controllerBuildSha === target;
+  const guardedUnknownRecovery =
+    allowEarlyUnknownController &&
+    controllerChangedBeforeTarget &&
+    controller !== null &&
+    controllerBuildSha === undefined;
+
+  if (!confirmed && !guardedUnknownRecovery) {
+    report('pwa_update.reload_waiting_for_expected_controller', { targetBuildSha: target });
+    return false;
+  }
 
   clearStaleSessionGuards(target);
   updateSnapshot({
     state: 'reload-required',
     targetBuildSha: target,
     dismissed: isPromptDismissed(target),
+    error: undefined,
   });
 
   if (isAppDirty() && !force) {
@@ -274,49 +406,232 @@ function reloadAfterControllerChange(force = false): boolean {
     return false;
   }
 
-  if (reloadInitiated) return false;
-  reloadInitiated = true;
-
   const guardKey = `${RELOAD_GUARD_PREFIX}${target}`;
   if (readSession(guardKey)) {
     report('pwa_update.reload_skipped_session_guard', { targetBuildSha: target });
     return false;
   }
+  if (reloadInitiated) return false;
 
+  // The persisted guard is checked before the in-memory one and is written
+  // immediately before the controlled reload, avoiding both loop variants.
   writeSession(guardKey, '1');
-  report('pwa_update.reload_started', { targetBuildSha: target });
+  reloadInitiated = true;
+  report('pwa_update.reload_started', {
+    targetBuildSha: target,
+    recoveredEarlyControllerChange: guardedUnknownRecovery,
+  });
   reloadPage();
   return true;
 }
 
-function handleControllerChange(): void {
-  // controllerchange also fires when an app gets its very first service
-  // worker. A confirmed remote target is required before a page is reloaded.
-  if (!targetBuildSha) {
-    report('pwa_update.controller_changed_ignored_initial');
+function canAutomaticallyActivate(target: string): boolean {
+  return !isAppDirty() && !isPromptDismissed(target);
+}
+
+function waitForExpectedController(
+  target: string,
+  expectedWorker: ServiceWorker,
+): Promise<boolean> {
+  if (!hasNavigatorServiceWorker()) return Promise.resolve(false);
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (matched: boolean) => {
+      if (settled) return;
+      settled = true;
+      globalThis.clearTimeout(timeout);
+      navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
+      resolve(matched);
+    };
+    const inspect = async () => {
+      const controller = navigator.serviceWorker.controller;
+      if (controller === expectedWorker) {
+        finish(true);
+        return;
+      }
+      if ((await getWorkerBuildSha(controller)) === target) finish(true);
+    };
+    const onControllerChange = () => void inspect();
+    const timeout = globalThis.setTimeout(() => finish(false), ACTIVATION_TIMEOUT_MS);
+
+    navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
+    void inspect();
+  });
+}
+
+async function activateWaitingWorker(force: boolean): Promise<boolean> {
+  const registration = activeRegistration;
+  const target = targetBuildSha;
+  if (!registration || !target || !isUsableBuildSha(target)) return false;
+
+  const waiting = registration.waiting;
+  if (!waiting) return false;
+
+  const waitingBuildSha = await getWorkerBuildSha(waiting);
+  if (waitingBuildSha !== target) {
+    setWorkerFailure('worker-build-mismatch');
+    return false;
+  }
+
+  if (isAppDirty() && !force) {
+    updateSnapshot({
+      state: 'ready-to-activate',
+      targetBuildSha: target,
+      dismissed: isPromptDismissed(target),
+    });
+    report('pwa_update.activation_deferred_dirty', { targetBuildSha: target });
+    return false;
+  }
+
+  if (activationInFlight !== undefined) return activationInFlight;
+
+  activationInFlight = (async () => {
+    updateSnapshot({
+      state: 'activating',
+      targetBuildSha: target,
+      dismissed: isPromptDismissed(target),
+    });
+    report('pwa_update.activation_requested', { targetBuildSha: target });
+
+    const controllerWait = waitForExpectedController(target, waiting);
+    try {
+      waiting.postMessage({ type: PWA_ACTIVATE_UPDATE, targetBuildSha: target });
+    } catch {
+      setWorkerFailure('worker-installation');
+      return false;
+    }
+
+    if (await controllerWait) return reloadAfterControllerChange(force);
+
+    // Safari can delay/miss lifecycle events. Re-read before declaring a
+    // recoverable timeout instead of leaving the prompt disabled forever.
+    await reconcileRegistration(registration, 'activation-timeout');
+    if (await controllerMatchesTarget(target)) return reloadAfterControllerChange(force);
+    setWorkerFailure('worker-activation-timeout');
+    return false;
+  })();
+
+  try {
+    return await activationInFlight;
+  } finally {
+    activationInFlight = undefined;
+  }
+}
+
+/**
+ * Reconciliation intentionally reads state rather than relying only on events:
+ * a worker can have installed while a standalone PWA was suspended.
+ */
+export async function reconcileRegistration(
+  registration = activeRegistration,
+  context: ReconcileContext = 'manual',
+): Promise<void> {
+  if (!registration || registration !== activeRegistration) return;
+
+  const workers = workerReferences(registration);
+  for (const worker of [workers.installing, workers.waiting, workers.active, workers.controller]) {
+    if (worker) listenForWorkerStateChanges(worker);
+  }
+
+  const target = targetBuildSha;
+  if (!target) {
+    if (workers.installing) updateSnapshot({ state: 'downloading', dismissed: false });
     return;
   }
 
-  report('pwa_update.controller_changed', { targetBuildSha });
-  reloadAfterControllerChange();
+  if (workers.installing) {
+    updateSnapshot({
+      state: 'downloading',
+      targetBuildSha: target,
+      dismissed: isPromptDismissed(target),
+    });
+  }
+
+  if (workers.waiting) {
+    const waitingBuildSha = await getWorkerBuildSha(workers.waiting);
+    if (waitingBuildSha === target) {
+      updateSnapshot({
+        state: 'ready-to-activate',
+        targetBuildSha: target,
+        dismissed: isPromptDismissed(target),
+        error: undefined,
+      });
+      report('pwa_update.waiting_worker_ready', { context, targetBuildSha: target });
+      if (canAutomaticallyActivate(target)) void activateWaitingWorker(false);
+      return;
+    }
+    if (waitingBuildSha !== undefined) {
+      setWorkerFailure('worker-build-mismatch');
+      return;
+    }
+    // A worker from an old release has no handshake. It must stay waiting;
+    // unknown identity is never an excuse to force activation or reload.
+    updateSnapshot({
+      state: 'ready-to-activate',
+      targetBuildSha: target,
+      dismissed: isPromptDismissed(target),
+    });
+    return;
+  }
+
+  const controllerBuildSha = await getWorkerBuildSha(workers.controller);
+  if (controllerBuildSha === target) {
+    updateSnapshot({
+      state: 'reload-required',
+      targetBuildSha: target,
+      dismissed: isPromptDismissed(target),
+      error: undefined,
+    });
+    void reloadAfterControllerChange(false);
+    return;
+  }
+
+  const activeBuildSha = await getWorkerBuildSha(workers.active);
+  if (activeBuildSha === target) {
+    // It has activated, but this page has not yet received control.
+    updateSnapshot({
+      state: 'activating',
+      targetBuildSha: target,
+      dismissed: isPromptDismissed(target),
+    });
+    return;
+  }
+
+  if (
+    controllerChangedBeforeTarget &&
+    workers.controller &&
+    !workers.installing &&
+    !workers.waiting &&
+    controllerBuildSha === undefined
+  ) {
+    // This is the bounded migration/race fallback: only an actually observed
+    // early controller change plus a successful registration reconciliation
+    // can reach it. The target-scoped reload guard prevents a loop.
+    updateSnapshot({
+      state: 'reload-required',
+      targetBuildSha: target,
+      dismissed: isPromptDismissed(target),
+    });
+    void reloadAfterControllerChange(false, true);
+  }
 }
 
 function attachRegistrationListeners(registration: ServiceWorkerRegistration): void {
   const onUpdateFound = () => {
     report('pwa_update.update_found');
-    updateSnapshot({ state: 'update-available' });
     if (registration.installing) listenForWorkerStateChanges(registration.installing);
+    void reconcileRegistration(registration, 'updatefound');
   };
   registration.addEventListener('updatefound', onUpdateFound);
   registrationCleanups.push(() => registration.removeEventListener('updatefound', onUpdateFound));
-
-  if (registration.installing) listenForWorkerStateChanges(registration.installing);
 }
 
 function attachLifecycleListeners(): void {
   if (!hasNavigatorServiceWorker() || lifecycleCleanups.length > 0) return;
 
   const check = (source: UpdateCheckSource) => {
+    void reconcileRegistration(activeRegistration, 'resume');
     void checkForAppUpdate({ source }).catch(() => {});
   };
   const onVisibilityChange = () => {
@@ -324,7 +639,11 @@ function attachLifecycleListeners(): void {
   };
   const onPageShow = () => check('pageshow');
   const onOnline = () => check('online');
-  const onControllerChange = () => handleControllerChange();
+  const onControllerChange = () => {
+    if (!targetBuildSha) controllerChangedBeforeTarget = true;
+    report('pwa_update.controller_changed', { targetBuildSha: targetBuildSha ?? 'unknown' });
+    void reconcileRegistration(activeRegistration, 'controllerchange');
+  };
 
   document.addEventListener('visibilitychange', onVisibilityChange);
   window.addEventListener('pageshow', onPageShow);
@@ -345,14 +664,20 @@ function attachLifecycleListeners(): void {
 export function setPwaUpdateServiceWorkerRegistration(
   registration: ServiceWorkerRegistration,
 ): void {
-  if (!isBrowser() || activeRegistration === registration) return;
+  if (!isBrowser()) return;
+  if (activeRegistration === registration) {
+    void reconcileRegistration(registration, 'registration');
+    return;
+  }
 
   registrationCleanups.forEach((cleanup) => cleanup());
   registrationCleanups = [];
+  observedWorkers = new WeakSet<ServiceWorker>();
   activeRegistration = registration;
   attachRegistrationListeners(registration);
   attachLifecycleListeners();
   report('pwa_update.registration_ready');
+  void reconcileRegistration(registration, 'registration');
   void checkForAppUpdate({ source: 'startup' }).catch(() => {});
 }
 
@@ -360,11 +685,9 @@ export function checkForAppUpdate(
   options: { force?: boolean; source?: UpdateCheckSource } = {},
 ): Promise<UpdateCheckResult> {
   const source = options.source ?? 'manual';
-  if (!activeRegistration) {
-    return Promise.resolve({ status: 'registration-unavailable', source });
-  }
+  if (!activeRegistration) return Promise.resolve({ status: 'registration-unavailable', source });
 
-  if (inFlightCheck) {
+  if (inFlightCheck !== undefined) {
     report('pwa_update.check_deduplicated', { source });
     return inFlightCheck;
   }
@@ -379,6 +702,7 @@ export function checkForAppUpdate(
     return Promise.resolve({ status: 'offline', source });
   }
 
+  const registration = activeRegistration;
   inFlightCheck = (async () => {
     const startedAt = Date.now();
     updateSnapshot({ state: 'checking', source, error: undefined });
@@ -387,33 +711,24 @@ export function checkForAppUpdate(
     try {
       const remote = await fetchAppVersionManifest();
       lastSuccessfulCheckAt = Date.now();
-      report('pwa_update.remote_version_loaded', {
-        source,
-        remoteVersion: remote.version,
-        remoteBuildSha: remote.buildSha,
-        elapsedMs: Date.now() - startedAt,
-      });
-
       const comparison = compareBuildShas(BUILD_SHA, remote.buildSha);
+
       if (comparison === 'update-available') {
+        if (targetBuildSha !== remote.buildSha) reloadInitiated = false;
         targetBuildSha = remote.buildSha;
-        reloadInitiated = false;
         clearStaleSessionGuards(remote.buildSha);
         updateSnapshot({
-          state: 'update-available',
+          state: 'checking',
           source,
           targetBuildSha: remote.buildSha,
           targetVersion: remote.version,
           dismissed: isPromptDismissed(remote.buildSha),
         });
-        report('pwa_update.version_mismatch', {
-          source,
-          remoteVersion: remote.version,
-          remoteBuildSha: remote.buildSha,
-        });
+        report('pwa_update.version_mismatch', { source, remoteBuildSha: remote.buildSha });
       } else {
         targetBuildSha = undefined;
         reloadInitiated = false;
+        controllerChangedBeforeTarget = false;
         updateSnapshot({
           state: 'up-to-date',
           source,
@@ -422,12 +737,9 @@ export function checkForAppUpdate(
         });
       }
 
-      // A forced/manual request deliberately asks the browser to check the
-      // worker even if the manifest race reports the current build.
       if (comparison === 'update-available' || options.force) {
-        report('pwa_update.registration_update_started', { source });
         try {
-          await activeRegistration?.update();
+          await registration.update();
         } catch (error) {
           updateSnapshot({ state: 'failed', source, error: 'registration-update' });
           report('pwa_update.check_failed', {
@@ -438,6 +750,7 @@ export function checkForAppUpdate(
         }
       }
 
+      await reconcileRegistration(registration, 'registration-update');
       return {
         status: comparison === 'update-available' ? 'update-available' : 'up-to-date',
         source,
@@ -465,9 +778,43 @@ export function checkForAppUpdate(
   return inFlightCheck;
 }
 
-/** Apply a controller-confirmed update. `force` only means user-confirmed, never mandatory. */
+/** User confirmation may bypass dirty state, never worker identity or sequencing. */
 export async function applyPwaUpdate(): Promise<boolean> {
-  return reloadAfterControllerChange(true);
+  if (!activeRegistration) return false;
+
+  if (!targetBuildSha) {
+    await checkForAppUpdate({ force: true, source: 'manual' });
+  }
+  const registration = activeRegistration;
+  const target = targetBuildSha;
+  if (!registration || !target) return false;
+
+  await reconcileRegistration(registration, 'manual');
+  if (await controllerMatchesTarget(target)) return reloadAfterControllerChange(true);
+  if (registration.waiting) return activateWaitingWorker(true);
+
+  try {
+    await registration.update();
+  } catch {
+    updateSnapshot({ state: 'failed', error: 'registration-update' });
+    return false;
+  }
+  await reconcileRegistration(registration, 'manual');
+  if (await controllerMatchesTarget(target)) return reloadAfterControllerChange(true);
+  if (registration.waiting) return activateWaitingWorker(true);
+
+  // An installing worker is still recoverable and should remain actionable on
+  // its next statechange; all other no-worker cases surface a retry state.
+  if (registration.installing) {
+    updateSnapshot({
+      state: 'downloading',
+      targetBuildSha: target,
+      dismissed: isPromptDismissed(target),
+    });
+  } else {
+    setWorkerFailure('worker-build-mismatch');
+  }
+  return false;
 }
 
 export function dismissPwaUpdatePrompt(): void {
@@ -476,10 +823,7 @@ export function dismissPwaUpdatePrompt(): void {
   updateSnapshot({ dismissed: true });
 }
 
-/**
- * Integration seam for a future typed SSE/Web Push system event. It shares
- * the normal fetch/update lifecycle and intentionally does not force reloads.
- */
+/** Integration seam for a future typed SSE/Web Push system event. */
 export async function handleRemoteAppUpdateEvent(payload: RemoteAppUpdateEvent): Promise<void> {
   if (payload.targetBuildSha && payload.targetBuildSha === BUILD_SHA) return;
   const fingerprint = `${payload.targetBuildSha ?? ''}|${payload.minimumVersion ?? ''}|${payload.mode ?? 'prompt'}`;
@@ -488,7 +832,7 @@ export async function handleRemoteAppUpdateEvent(payload: RemoteAppUpdateEvent):
   await checkForAppUpdate({ force: true, source: 'backend-event' });
 }
 
-/** Dispose page lifecycle bindings when the root application layout unmounts. */
+/** Dispose root-layout lifecycle bindings. */
 export function disposePwaUpdateService(): void {
   lifecycleCleanups.forEach((cleanup) => cleanup());
   lifecycleCleanups = [];
@@ -496,15 +840,17 @@ export function disposePwaUpdateService(): void {
   registrationCleanups = [];
   activeRegistration = undefined;
   inFlightCheck = undefined;
+  activationInFlight = undefined;
+  observedWorkers = new WeakSet<ServiceWorker>();
 }
 
-// Test-only hooks keep production browser code simple while making the
-// controllerchange/reload contract deterministic under jsdom.
+// Test-only hooks keep browser lifecycle tests deterministic under jsdom.
 export function __resetPwaUpdateForTests(): void {
   disposePwaUpdateService();
   lastSuccessfulCheckAt = 0;
   targetBuildSha = undefined;
   reloadInitiated = false;
+  controllerChangedBeforeTarget = false;
   lastRemoteEventFingerprint = undefined;
   reloadPage = () => window.location.reload();
   pwaUpdateStatus.set(INITIAL_SNAPSHOT);
