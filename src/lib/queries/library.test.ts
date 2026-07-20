@@ -15,6 +15,7 @@ import {
   deleteAssetMutationOptions,
   bulkMutationOptions,
   bulkOffenderRefs,
+  projectsListQueryOptions,
 } from './library';
 
 const BASE = 'http://localhost:8000';
@@ -145,6 +146,101 @@ describe('bulkMutationOptions()', () => {
         }),
       ),
     ).toEqual(['output:bad']);
+  });
+
+  it('throws partial failures with failed refs and restores only failed optimistic deletes', async () => {
+    server.use(
+      http.post(`${BASE}/v1/library/assets/bulk`, () =>
+        HttpResponse.json({
+          op: 'delete',
+          results: [
+            { asset_ref: 'output:out_mock_001', success: true },
+            { asset_ref: 'output:out_mock_002', success: false },
+          ],
+          succeeded: 1,
+          failed: 1,
+        }),
+      ),
+    );
+
+    const queryClient = new QueryClient();
+    const listKey = libraryKeys.list();
+    queryClient.setQueryData(listKey, {
+      pages: [makeLibraryCursorPage(2, {}, false)],
+      pageParams: [null],
+    });
+    const options = bulkMutationOptions(queryClient);
+    const variables = {
+      type: 'delete' as const,
+      assetRefs: ['output:out_mock_001', 'output:out_mock_002'],
+    };
+    const context = await options.onMutate(variables);
+
+    let partialError: unknown;
+    try {
+      await options.mutationFn(variables);
+    } catch (error) {
+      partialError = error;
+    }
+
+    expect(partialError).toMatchObject({ error: 'bulk_partial_failure' });
+    expect(bulkOffenderRefs(partialError)).toEqual(['output:out_mock_002']);
+    options.onError(partialError, variables, context);
+    expect(
+      (
+        queryClient.getQueryData(listKey) as { pages: { items: { asset_ref: string }[] }[] }
+      ).pages[0].items.map((item) => item.asset_ref),
+    ).toEqual(['output:out_mock_002']);
+  });
+});
+
+describe('projectsListQueryOptions()', () => {
+  it('aggregates every cursor page into one project list', async () => {
+    const cursors: Array<string | null> = [];
+    server.use(
+      http.get(`${BASE}/v1/library/projects`, ({ request }) => {
+        const cursor = new URL(request.url).searchParams.get('cursor');
+        cursors.push(cursor);
+        if (cursor === 'page-2') {
+          return HttpResponse.json({
+            items: [
+              {
+                id: 'project-2',
+                name: 'Second page',
+                description: null,
+                asset_count: 0,
+                created_at: '2025-06-01T12:00:00Z',
+                updated_at: '2025-06-01T12:00:00Z',
+              },
+            ],
+            limit: 50,
+            has_more: false,
+            next_cursor: null,
+          });
+        }
+        return HttpResponse.json({
+          items: [
+            {
+              id: 'project-1',
+              name: 'First page',
+              description: null,
+              asset_count: 0,
+              created_at: '2025-06-01T12:00:00Z',
+              updated_at: '2025-06-01T12:00:00Z',
+            },
+          ],
+          limit: 50,
+          has_more: true,
+          next_cursor: 'page-2',
+        });
+      }),
+    );
+
+    const result = await projectsListQueryOptions().queryFn();
+
+    expect(cursors).toEqual([null, 'page-2']);
+    expect(result.items.map((project) => project.id)).toEqual(['project-1', 'project-2']);
+    expect(result.has_more).toBe(false);
   });
 });
 

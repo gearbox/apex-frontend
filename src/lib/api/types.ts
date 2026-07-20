@@ -6574,6 +6574,7 @@ export interface operations {
                 favorite?: boolean | null;
                 project_id?: string | null;
                 expiring?: boolean | null;
+                query?: string | null;
                 created_from?: string | null;
                 created_to?: string | null;
                 /** @description Sort order for the library list endpoint. */

@@ -128,6 +128,14 @@
 
   function resetFilters() {
     selection.clearForFilterChange();
+    if (searchTimer) {
+      clearTimeout(searchTimer);
+      searchTimer = null;
+    }
+    searchValue = '';
+    // `goto` updates the URL asynchronously. Clear the cross-route hand-off now so
+    // an upload started immediately after reset cannot inherit the just-cleared project.
+    activeProject.set(null);
     updateUrl({
       source: null,
       favorite: null,

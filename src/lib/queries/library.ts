@@ -57,7 +57,7 @@ export interface LibraryListParams {
   model?: string | null;
   favorite?: boolean | null;
   project_id?: string | null;
-  /** Server-side text search. Kept here while the downloaded OpenAPI schema catches up. */
+  /** Server-side text search. */
   query?: string | null;
   expiring?: boolean | null;
   sort?: LibrarySort | null;
@@ -69,8 +69,6 @@ export function libraryListInfiniteQueryOptions(params: LibraryListParams = {}) 
   return {
     queryKey: libraryKeys.list(params),
     queryFn: async ({ pageParam }: { pageParam: string | null }) => {
-      // The Phase 2 backend accepts `query`, but the downloaded schema currently omits it.
-      // Keep the narrow compatibility cast here instead of leaking untyped requests into UI.
       const apiQuery = {
         limit: LIBRARY_PAGE_SIZE,
         ...(pageParam ? { cursor: pageParam } : {}),
@@ -109,18 +107,45 @@ export function projectsListQueryOptions() {
   return {
     queryKey: projectKeys.list(),
     queryFn: async () => {
-      const { data, error } = await apiClient.GET('/v1/library/projects', {
-        params: { query: { limit: 50 } },
-      });
-      if (error) throw new ApiRequestError(parseApiError(error, 0));
-      return (
-        (data as ProjectPage | undefined) ?? {
-          items: [] as LibraryProjectListItem[],
-          limit: 50,
-          has_more: false,
-          next_cursor: null,
+      const fetchPage = async (cursor?: string): Promise<ProjectPage> => {
+        const { data, error } = await apiClient.GET('/v1/library/projects', {
+          params: {
+            query: {
+              limit: 50,
+              ...(cursor ? { cursor } : {}),
+            },
+          },
+        });
+        if (error) throw new ApiRequestError(parseApiError(error, 0));
+        return (
+          (data as ProjectPage | undefined) ?? {
+            items: [] as LibraryProjectListItem[],
+            limit: 50,
+            has_more: false,
+            next_cursor: null,
+          }
+        );
+      };
+
+      let page = await fetchPage();
+      const items = [...page.items];
+      const cursors = new Set<string>();
+
+      while (page.has_more) {
+        const cursor = page.next_cursor;
+        if (!cursor || cursors.has(cursor)) {
+          throw new ApiRequestError({
+            error: 'invalid_pagination',
+            message: 'Could not load all projects due to an invalid pagination cursor.',
+            status_code: 0,
+          });
         }
-      );
+        cursors.add(cursor);
+        page = await fetchPage(cursor);
+        items.push(...page.items);
+      }
+
+      return { ...page, items, has_more: false, next_cursor: null };
     },
     staleTime: LIBRARY_LIST_STALE_MS,
   };
@@ -413,7 +438,20 @@ export function bulkMutationOptions(queryClient: QueryClient) {
         body: toBulkRequest(variables),
       });
       if (error) throw new ApiRequestError(parseApiError(error, response.status));
-      return data as BulkOperationResult;
+      const result = data as BulkOperationResult;
+      if (result.failed > 0) {
+        throw new ApiRequestError({
+          error: 'bulk_partial_failure',
+          message: `${result.failed} asset${result.failed === 1 ? '' : 's'} could not be updated.`,
+          status_code: response.status,
+          extra: {
+            failed_refs: result.results
+              .filter((item) => !item.success)
+              .map((item) => item.asset_ref),
+          },
+        });
+      }
+      return result;
     },
     onMutate: async (variables: BulkMutationVariables) => {
       if (variables.type !== 'delete') return { previous: undefined };
@@ -438,12 +476,23 @@ export function bulkMutationOptions(queryClient: QueryClient) {
       return { previous };
     },
     onError: (
-      _error: unknown,
+      error: unknown,
       variables: BulkMutationVariables,
       context?: { previous?: ListSnapshot },
     ) => {
       if (variables.type === 'delete' && context?.previous) {
         restoreLists(queryClient, context.previous);
+        // Preserve successfully deleted assets while putting only the backend-reported failures
+        // back into the optimistic cache. If the response omitted refs, restore everything
+        // conservatively until the invalidation below refetches the source of truth.
+        if (error instanceof ApiRequestError && error.error === 'bulk_partial_failure') {
+          const failedRefs = new Set(bulkOffenderRefs(error));
+          if (failedRefs.size > 0) {
+            for (const assetRef of variables.assetRefs) {
+              if (!failedRefs.has(assetRef)) removeAssetFromLists(queryClient, assetRef);
+            }
+          }
+        }
       }
     },
     onSettled: () => {
