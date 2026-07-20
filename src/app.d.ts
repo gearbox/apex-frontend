@@ -33,5 +33,6 @@ declare module 'virtual:pwa-register' {
     ) => void;
     onRegisterError?: (error: unknown) => void;
   }
+  /** The returned generic update helper is intentionally never used by the app. */
   export function registerSW(options?: RegisterSWOptions): (reloadPage?: boolean) => Promise<void>;
 }

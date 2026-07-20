@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <meta charset="utf-8" />
+  <title>PWA lifecycle fixture</title>
+  <body>
+    <p>Visible page build: <output id="build">loading</output></p>
+    <p id="status" role="status">starting</p>
+    <label><input id="dirty" type="checkbox" /> Keep unsaved draft</label>
+    <button id="deploy">Deploy build B</button>
+    <button id="apply" disabled>Update anyway</button>
+    <script type="module">
+      const BUILD_A = 'fixture-a';
+      const BUILD_B = 'fixture-b';
+      const scope = '/pwa-lifecycle-fixture/';
+      const build = new URLSearchParams(location.search).get('build') === 'b' ? BUILD_B : BUILD_A;
+      const workerUrl = build === BUILD_B ? './sw-b.js' : './sw-a.js';
+      const output = document.querySelector('#build');
+      const status = document.querySelector('#status');
+      const dirty = document.querySelector('#dirty');
+      const apply = document.querySelector('#apply');
+      let registration;
+      let reloadStarted = false;
+
+      output.value = build;
+
+      function getWorkerBuild(worker) {
+        return new Promise((resolve) => {
+          if (!worker) return resolve(undefined);
+          const channel = new MessageChannel();
+          const timeout = setTimeout(() => resolve(undefined), 1000);
+          channel.port1.onmessage = (event) => {
+            clearTimeout(timeout);
+            resolve(event.data?.type === 'APEX_BUILD_INFO' ? event.data.buildSha : undefined);
+          };
+          worker.postMessage({ type: 'APEX_GET_BUILD_INFO' }, [channel.port2]);
+        });
+      }
+
+      async function reconcile() {
+        if (!registration?.waiting) return;
+        const waitingBuild = await getWorkerBuild(registration.waiting);
+        if (waitingBuild !== BUILD_B) return;
+        status.textContent = 'build-b-waiting';
+        apply.disabled = false;
+        if (!dirty.checked) activate();
+      }
+
+      function activate() {
+        const waiting = registration?.waiting;
+        if (!waiting) return;
+        status.textContent = 'activating';
+        waiting.postMessage({ type: 'APEX_ACTIVATE_UPDATE', targetBuildSha: BUILD_B });
+      }
+
+      function waitForWaitingWorker(nextRegistration) {
+        if (nextRegistration.waiting) return Promise.resolve();
+        return new Promise((resolve) => {
+          const installing = nextRegistration.installing;
+          if (!installing) return resolve();
+          installing.addEventListener('statechange', () => {
+            if (nextRegistration.waiting || installing.state === 'redundant') resolve();
+          });
+        });
+      }
+
+      navigator.serviceWorker.addEventListener('controllerchange', async () => {
+        if (reloadStarted || (await getWorkerBuild(navigator.serviceWorker.controller)) !== BUILD_B)
+          return;
+        reloadStarted = true;
+        sessionStorage.setItem(
+          'fixture-reload-count',
+          String(Number(sessionStorage.getItem('fixture-reload-count') || 0) + 1),
+        );
+        location.reload();
+      });
+
+      document.querySelector('#deploy').addEventListener('click', async () => {
+        history.replaceState(null, '', '?build=b');
+        registration = await navigator.serviceWorker.register('./sw-b.js', { scope });
+        await waitForWaitingWorker(registration);
+        await reconcile();
+      });
+      apply.addEventListener('click', activate);
+
+      registration = await navigator.serviceWorker.register(workerUrl, { scope });
+      registration.addEventListener('updatefound', () => {
+        registration.installing?.addEventListener('statechange', reconcile);
+      });
+      await navigator.serviceWorker.ready;
+      await waitForWaitingWorker(registration);
+      await reconcile();
+      if (!registration.waiting) status.textContent = 'build-a-controlled';
+    </script>
+  </body>
+</html>

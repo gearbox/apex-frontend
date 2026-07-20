@@ -4,6 +4,7 @@ import tailwindcss from '@tailwindcss/vite';
 import { SvelteKitPWA } from '@vite-pwa/sveltekit';
 import { defineConfig } from 'vite';
 import { APP_VERSION, BUILD_SHA } from './build-meta.js';
+import { appVersionManifestPlugin } from './build-version-manifest.js';
 
 const productId = process.env.VITE_PRODUCT_ID || 'vex';
 
@@ -55,8 +56,14 @@ export default defineConfig({
     paraglide({ project: './project.inlang', outdir: './src/paraglide' }),
     tailwindcss(),
     sveltekit(),
+    // This is deliberately emitted at build time rather than checked in under
+    // static/. Workbox's glob below excludes JSON, so it can never become a
+    // stale precache entry.
+    appVersionManifestPlugin({ version: APP_VERSION, buildSha: BUILD_SHA }),
     SvelteKitPWA({
-      registerType: 'autoUpdate',
+      // pwaUpdate.ts is the sole owner of activation/reload decisions. Prompt
+      // mode keeps a new worker waiting until its build-scoped message arrives.
+      registerType: 'prompt',
       // Custom SW (push notifications need push/notificationclick/pushsubscriptionchange
       // handlers, which generateSW's declarative config can't express).
       // @vite-pwa/sveltekit's injectManifest strategy rides on SvelteKit's native
@@ -93,6 +100,9 @@ export default defineConfig({
       },
       injectManifest: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        // Browser-test workers are served as static fixtures, never as part of
+        // the production shell's precache or update lifecycle.
+        globIgnores: ['client/pwa-lifecycle-fixture/**'],
       },
     }),
   ],
