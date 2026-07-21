@@ -9,6 +9,7 @@
     tagsListQueryOptions,
   } from '$lib/queries/library';
   import ConfirmDeleteModal from '$lib/components/shared/ConfirmDeleteModal.svelte';
+  import EntityNameDialog from '$lib/components/shared/EntityNameDialog.svelte';
   import { addToast } from '$lib/stores/toasts';
   import * as m from '$paraglide/messages';
 
@@ -275,39 +276,18 @@
 </div>
 
 {#if editing}
-  <div
-    class="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4"
-    role="presentation"
-  >
-    <form
-      class="w-full max-w-sm rounded-2xl bg-surface p-5 shadow-2xl"
-      onsubmit={(event) => {
-        event.preventDefault();
-        void saveRename();
-      }}
-    >
-      <h2 class="mb-3 text-sm font-semibold text-text">{m.library_tag_rename()}</h2>
-      <input
-        bind:value={editing.name}
-        maxlength="50"
-        aria-label={m.library_tag_name()}
-        class="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text outline-none focus:border-accent"
-      />
-      <div class="mt-4 flex justify-end gap-2">
-        <button
-          type="button"
-          class="rounded-lg px-3 py-2 text-xs font-semibold text-text-muted hover:bg-surface-hover"
-          onclick={() => (editing = null)}>{m.common_cancel()}</button
-        >
-        <button
-          type="submit"
-          disabled={renameMutation.isPending}
-          class="rounded-lg bg-accent px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
-          >{m.common_save()}</button
-        >
-      </div>
-    </form>
-  </div>
+  <EntityNameDialog
+    title={m.library_tag_rename()}
+    inputLabel={m.library_tag_name()}
+    inputId="tag-name"
+    bind:value={editing.name}
+    maxLength={50}
+    cancelLabel={m.common_cancel()}
+    submitLabel={m.common_save()}
+    isPending={renameMutation.isPending}
+    onsubmit={() => void saveRename()}
+    oncancel={() => (editing = null)}
+  />
 {/if}
 
 {#if deleteTarget}

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/svelte';
+import { fireEvent, render, screen, within } from '@testing-library/svelte';
 
 const state = vi.hoisted(() => ({
   tags: [] as Array<{ id: string; name: string; asset_count: number }>,
@@ -101,7 +101,8 @@ describe('TagPickerSheet', () => {
 
     await fireEvent.click(screen.getByRole('button', { name: 'Manage tags' }));
     await fireEvent.click(screen.getByRole('button', { name: 'Rename tag: Tag 0' }));
-    await fireEvent.input(screen.getAllByLabelText('Tag name')[1], {
+    const renameDialog = screen.getByRole('dialog', { name: 'Rename tag' });
+    await fireEvent.input(within(renameDialog).getByLabelText('Tag name'), {
       target: { value: 'Renamed' },
     });
     await fireEvent.click(screen.getByRole('button', { name: 'Save' }));

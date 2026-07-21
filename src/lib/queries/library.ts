@@ -27,24 +27,16 @@ type LibraryTagListItem = components['schemas']['LibraryTagListItem'];
 type LibraryTagRef = components['schemas']['LibraryTagRef'];
 type LibraryLineageGraph = components['schemas']['LibraryLineageGraph'];
 type BulkOperationResult = components['schemas']['BulkOperationResult'];
-type LibraryPage = {
-  items: LibraryAssetItem[];
+type CursorPage<Item> = {
+  items: Item[];
   limit: number;
   has_more: boolean;
   next_cursor?: string | null;
 };
-type ProjectPage = {
-  items: LibraryProjectListItem[];
-  limit: number;
-  has_more: boolean;
-  next_cursor?: string | null;
-};
-type TagPage = {
-  items: LibraryTagListItem[];
-  limit: number;
-  has_more: boolean;
-  next_cursor?: string | null;
-};
+type LibraryPage = CursorPage<LibraryAssetItem>;
+type LibraryCollectionPath = '/v1/library/projects' | '/v1/library/tags';
+
+const LIBRARY_COLLECTION_PAGE_SIZE = 50;
 
 /* ─── Query Key Factory ─── */
 
@@ -124,50 +116,65 @@ export function libraryListInfiniteQueryOptions(params: LibraryListParams = {}) 
   };
 }
 
+function emptyCursorPage<Item>(): CursorPage<Item> {
+  return {
+    items: [],
+    limit: LIBRARY_COLLECTION_PAGE_SIZE,
+    has_more: false,
+    next_cursor: null,
+  };
+}
+
+async function fetchLibraryCollectionPage<Item>(
+  path: LibraryCollectionPath,
+  cursor?: string,
+): Promise<CursorPage<Item>> {
+  const { data, error } = await apiClient.GET(path, {
+    params: {
+      query: {
+        limit: LIBRARY_COLLECTION_PAGE_SIZE,
+        ...(cursor ? { cursor } : {}),
+      },
+    },
+  });
+  if (error) throw new ApiRequestError(parseApiError(error, 0));
+  return (data as CursorPage<Item> | undefined) ?? emptyCursorPage<Item>();
+}
+
+/**
+ * Loads finite library collections completely while rejecting malformed cursor chains.
+ * Keeping this traversal in one place makes projects and tags follow identical safeguards.
+ */
+async function fetchAllLibraryCollectionPages<Item>(
+  path: LibraryCollectionPath,
+  collectionName: string,
+): Promise<CursorPage<Item>> {
+  let page = await fetchLibraryCollectionPage<Item>(path);
+  const items = [...page.items];
+  const cursors = new Set<string>();
+
+  while (page.has_more) {
+    const cursor = page.next_cursor;
+    if (!cursor || cursors.has(cursor)) {
+      throw new ApiRequestError({
+        error: 'invalid_pagination',
+        message: `Could not load all ${collectionName} due to an invalid pagination cursor.`,
+        status_code: 0,
+      });
+    }
+    cursors.add(cursor);
+    page = await fetchLibraryCollectionPage<Item>(path, cursor);
+    items.push(...page.items);
+  }
+
+  return { ...page, items, has_more: false, next_cursor: null };
+}
+
 export function projectsListQueryOptions() {
   return {
     queryKey: projectKeys.list(),
-    queryFn: async () => {
-      const fetchPage = async (cursor?: string): Promise<ProjectPage> => {
-        const { data, error } = await apiClient.GET('/v1/library/projects', {
-          params: {
-            query: {
-              limit: 50,
-              ...(cursor ? { cursor } : {}),
-            },
-          },
-        });
-        if (error) throw new ApiRequestError(parseApiError(error, 0));
-        return (
-          (data as ProjectPage | undefined) ?? {
-            items: [] as LibraryProjectListItem[],
-            limit: 50,
-            has_more: false,
-            next_cursor: null,
-          }
-        );
-      };
-
-      let page = await fetchPage();
-      const items = [...page.items];
-      const cursors = new Set<string>();
-
-      while (page.has_more) {
-        const cursor = page.next_cursor;
-        if (!cursor || cursors.has(cursor)) {
-          throw new ApiRequestError({
-            error: 'invalid_pagination',
-            message: 'Could not load all projects due to an invalid pagination cursor.',
-            status_code: 0,
-          });
-        }
-        cursors.add(cursor);
-        page = await fetchPage(cursor);
-        items.push(...page.items);
-      }
-
-      return { ...page, items, has_more: false, next_cursor: null };
-    },
+    queryFn: () =>
+      fetchAllLibraryCollectionPages<LibraryProjectListItem>('/v1/library/projects', 'projects'),
     staleTime: LIBRARY_LIST_STALE_MS,
   };
 }
@@ -176,47 +183,7 @@ export function projectsListQueryOptions() {
 export function tagsListQueryOptions() {
   return {
     queryKey: tagKeys.list(),
-    queryFn: async () => {
-      const fetchPage = async (cursor?: string): Promise<TagPage> => {
-        const { data, error } = await apiClient.GET('/v1/library/tags', {
-          params: {
-            query: {
-              limit: 50,
-              ...(cursor ? { cursor } : {}),
-            },
-          },
-        });
-        if (error) throw new ApiRequestError(parseApiError(error, 0));
-        return (
-          (data as TagPage | undefined) ?? {
-            items: [] as LibraryTagListItem[],
-            limit: 50,
-            has_more: false,
-            next_cursor: null,
-          }
-        );
-      };
-
-      let page = await fetchPage();
-      const items = [...page.items];
-      const cursors = new Set<string>();
-
-      while (page.has_more) {
-        const cursor = page.next_cursor;
-        if (!cursor || cursors.has(cursor)) {
-          throw new ApiRequestError({
-            error: 'invalid_pagination',
-            message: 'Could not load all tags due to an invalid pagination cursor.',
-            status_code: 0,
-          });
-        }
-        cursors.add(cursor);
-        page = await fetchPage(cursor);
-        items.push(...page.items);
-      }
-
-      return { ...page, items, has_more: false, next_cursor: null };
-    },
+    queryFn: () => fetchAllLibraryCollectionPages<LibraryTagListItem>('/v1/library/tags', 'tags'),
     staleTime: LIBRARY_LIST_STALE_MS,
   };
 }

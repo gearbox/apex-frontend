@@ -12,6 +12,7 @@
     renameProjectMutationOptions,
   } from '$lib/queries/library';
   import ConfirmDeleteModal from '$lib/components/shared/ConfirmDeleteModal.svelte';
+  import EntityNameDialog from '$lib/components/shared/EntityNameDialog.svelte';
   import { addToast } from '$lib/stores/toasts';
   import * as m from '$paraglide/messages';
 
@@ -228,51 +229,18 @@
 </div>
 
 {#if editing}
-  <div
-    class="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4"
-    role="presentation"
-  >
-    <form
-      class="w-full max-w-sm rounded-2xl bg-surface p-5 shadow-2xl"
-      onsubmit={(event) => {
-        event.preventDefault();
-        saveProject();
-      }}
-    >
-      <div class="mb-4 flex items-center gap-2">
-        <Pencil size={17} class="text-accent" />
-        <h2 class="text-sm font-semibold text-text">
-          {editing.id ? m.library_project_rename() : m.library_project_new()}
-        </h2>
-      </div>
-      <label class="mb-1 block text-xs font-medium text-text-muted" for="project-name"
-        >{m.library_project_name()}</label
-      >
-      <input
-        id="project-name"
-        bind:value={editing.name}
-        required
-        maxlength="120"
-        class="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text outline-none focus:border-accent"
-      />
-      <div class="mt-4 flex justify-end gap-2">
-        <button
-          type="button"
-          class="rounded-lg px-3 py-2 text-xs font-semibold text-text-muted hover:bg-surface-hover"
-          onclick={() => (editing = null)}
-        >
-          {m.common_cancel()}
-        </button>
-        <button
-          type="submit"
-          disabled={createMutation.isPending || renameMutation.isPending}
-          class="rounded-lg bg-accent px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
-        >
-          {editing.id ? m.common_save() : m.library_project_create()}
-        </button>
-      </div>
-    </form>
-  </div>
+  <EntityNameDialog
+    title={editing.id ? m.library_project_rename() : m.library_project_new()}
+    inputLabel={m.library_project_name()}
+    inputId="project-name"
+    bind:value={editing.name}
+    maxLength={120}
+    cancelLabel={m.common_cancel()}
+    submitLabel={editing.id ? m.common_save() : m.library_project_create()}
+    isPending={createMutation.isPending || renameMutation.isPending}
+    onsubmit={() => void saveProject()}
+    oncancel={() => (editing = null)}
+  />
 {/if}
 
 {#if deleteTarget}
