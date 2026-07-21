@@ -7,11 +7,15 @@ import { storageKeys } from './storage';
 import { ApiRequestError } from '$lib/api/errors';
 import {
   libraryKeys,
+  tagKeys,
   libraryListInfiniteQueryOptions,
+  tagsListQueryOptions,
   libraryAssetQueryOptions,
   libraryGroupQueryOptions,
   favoriteMutationOptions,
+  assetTagsMutationOptions,
   renameMutationOptions,
+  renameTagMutationOptions,
   deleteAssetMutationOptions,
   bulkMutationOptions,
   bulkOffenderRefs,
@@ -80,6 +84,7 @@ describe('libraryListInfiniteQueryOptions() — cursor paging', () => {
       model: 'grok-imagine-image',
       favorite: true,
       project_id: 'project-123',
+      tag_id: 'tag-123',
       query: 'sunset beach',
       expiring: true,
       sort: 'expiring_soon',
@@ -91,13 +96,169 @@ describe('libraryListInfiniteQueryOptions() — cursor paging', () => {
     expect(capturedUrl?.searchParams.get('model')).toBe('grok-imagine-image');
     expect(capturedUrl?.searchParams.get('favorite')).toBe('true');
     expect(capturedUrl?.searchParams.get('project_id')).toBe('project-123');
+    expect(capturedUrl?.searchParams.get('tag_id')).toBe('tag-123');
     expect(capturedUrl?.searchParams.get('query')).toBe('sunset beach');
     expect(capturedUrl?.searchParams.get('expiring')).toBe('true');
     expect(capturedUrl?.searchParams.get('sort')).toBe('expiring_soon');
   });
 });
 
+describe('tagsListQueryOptions()', () => {
+  it('aggregates tag cursor pages and exposes a stable tag query key', async () => {
+    const cursors: Array<string | null> = [];
+    server.use(
+      http.get(`${BASE}/v1/library/tags`, ({ request }) => {
+        const cursor = new URL(request.url).searchParams.get('cursor');
+        cursors.push(cursor);
+        return HttpResponse.json(
+          cursor
+            ? {
+                items: [
+                  {
+                    id: 'tag-2',
+                    name: 'Second',
+                    asset_count: 0,
+                    created_at: '2025-06-01T12:00:00Z',
+                    updated_at: '2025-06-01T12:00:00Z',
+                  },
+                ],
+                limit: 50,
+                has_more: false,
+                next_cursor: null,
+              }
+            : {
+                items: [
+                  {
+                    id: 'tag-1',
+                    name: 'First',
+                    asset_count: 1,
+                    created_at: '2025-06-01T12:00:00Z',
+                    updated_at: '2025-06-01T12:00:00Z',
+                  },
+                ],
+                limit: 50,
+                has_more: true,
+                next_cursor: 'tag-page-2',
+              },
+        );
+      }),
+    );
+
+    const result = await tagsListQueryOptions().queryFn();
+    expect(cursors).toEqual([null, 'tag-page-2']);
+    expect(result.items.map((tag) => tag.id)).toEqual(['tag-1', 'tag-2']);
+    expect(tagKeys.list()).toEqual(['library', 'tags', 'list']);
+  });
+
+  it('aggregates a valid twelve-page tag cursor chain without truncating it', async () => {
+    const cursors: Array<string | null> = [];
+    server.use(
+      http.get(`${BASE}/v1/library/tags`, ({ request }) => {
+        const cursor = new URL(request.url).searchParams.get('cursor');
+        cursors.push(cursor);
+        const pageIndex = cursor ? Number(cursor.replace('tag-page-', '')) : 0;
+        const isLastPage = pageIndex === 11;
+
+        return HttpResponse.json({
+          items: Array.from({ length: 50 }, (_, itemIndex) => ({
+            id: `tag-${pageIndex * 50 + itemIndex}`,
+            name: `Tag ${pageIndex * 50 + itemIndex}`,
+            asset_count: itemIndex,
+            created_at: '2025-06-01T12:00:00Z',
+            updated_at: '2025-06-01T12:00:00Z',
+          })),
+          limit: 50,
+          has_more: !isLastPage,
+          next_cursor: isLastPage ? null : `tag-page-${pageIndex + 1}`,
+        });
+      }),
+    );
+
+    const result = await tagsListQueryOptions().queryFn();
+
+    expect(cursors).toEqual([
+      null,
+      ...Array.from({ length: 11 }, (_, index) => `tag-page-${index + 1}`),
+    ]);
+    expect(result.items.map((tag) => tag.id)).toEqual(
+      Array.from({ length: 600 }, (_, index) => `tag-${index}`),
+    );
+    expect(result.has_more).toBe(false);
+    expect(result.next_cursor).toBeNull();
+  });
+
+  it('rejects a missing next cursor without issuing another request', async () => {
+    const cursors: Array<string | null> = [];
+    server.use(
+      http.get(`${BASE}/v1/library/tags`, ({ request }) => {
+        cursors.push(new URL(request.url).searchParams.get('cursor'));
+        return HttpResponse.json({
+          items: [],
+          limit: 50,
+          has_more: true,
+          next_cursor: null,
+        });
+      }),
+    );
+
+    await expect(tagsListQueryOptions().queryFn()).rejects.toMatchObject({
+      error: 'invalid_pagination',
+    });
+    expect(cursors).toEqual([null]);
+  });
+
+  it('rejects a repeated cursor before issuing a third request', async () => {
+    const cursors: Array<string | null> = [];
+    server.use(
+      http.get(`${BASE}/v1/library/tags`, ({ request }) => {
+        cursors.push(new URL(request.url).searchParams.get('cursor'));
+        return HttpResponse.json({
+          items: [],
+          limit: 50,
+          has_more: true,
+          next_cursor: 'same-cursor',
+        });
+      }),
+    );
+
+    await expect(tagsListQueryOptions().queryFn()).rejects.toMatchObject({
+      error: 'invalid_pagination',
+    });
+    expect(cursors).toEqual([null, 'same-cursor']);
+  });
+});
+
 describe('bulkMutationOptions()', () => {
+  it('sends tag operations through one bulk request and refreshes tag counts', async () => {
+    let receivedBody: unknown;
+    server.use(
+      http.post(`${BASE}/v1/library/assets/bulk`, async ({ request }) => {
+        receivedBody = await request.json();
+        return HttpResponse.json(
+          { op: 'add_tags', results: [], succeeded: 2, failed: 0 },
+          { status: 201 },
+        );
+      }),
+    );
+    const queryClient = new QueryClient();
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+    const options = bulkMutationOptions(queryClient);
+    const variables = {
+      type: 'add_tags' as const,
+      assetRefs: ['output:one', 'upload:two'],
+      tagIds: ['tag-a'],
+    };
+
+    await options.mutationFn(variables);
+    options.onSettled();
+
+    expect(receivedBody).toEqual({
+      type: 'add_tags',
+      asset_refs: variables.assetRefs,
+      tag_ids: variables.tagIds,
+    });
+    expect(invalidateSpy.mock.calls.map((call) => call[0]?.queryKey)).toContainEqual(tagKeys.all);
+  });
   it('POSTs one bulk body and optimistically removes every deleted ref from cached pages', async () => {
     let receivedBody: unknown;
     server.use(
@@ -191,6 +352,62 @@ describe('bulkMutationOptions()', () => {
         queryClient.getQueryData(listKey) as { pages: { items: { asset_ref: string }[] }[] }
       ).pages[0].items.map((item) => item.asset_ref),
     ).toEqual(['output:out_mock_002']);
+  });
+});
+
+describe('assetTagsMutationOptions()', () => {
+  it('PATCHes the complete tag id set, optimistically updates detail cache, and rolls it back', async () => {
+    let receivedBody: unknown;
+    server.use(
+      http.patch(`${BASE}/v1/library/assets/:asset_ref`, async ({ request }) => {
+        receivedBody = await request.json();
+        return HttpResponse.json(
+          makeLibraryAssetDetail({ tags: [{ id: 'tag-new', name: 'New' }] }),
+        );
+      }),
+    );
+    const queryClient = new QueryClient();
+    const assetRef = 'output:abc';
+    queryClient.setQueryData(libraryKeys.asset(assetRef), makeLibraryAssetDetail({ tags: [] }));
+    const options = assetTagsMutationOptions(queryClient);
+    const variables = { assetRef, tags: [{ id: 'tag-new', name: 'New' }] };
+
+    const context = await options.onMutate(variables);
+    expect(
+      queryClient.getQueryData<{ tags: { id: string }[] }>(libraryKeys.asset(assetRef))?.tags,
+    ).toEqual(variables.tags);
+
+    await options.mutationFn(variables);
+    expect(receivedBody).toEqual({ tag_ids: ['tag-new'] });
+
+    options.onError(new Error('failed'), variables, context);
+    expect(
+      queryClient.getQueryData<{ tags: { id: string }[] }>(libraryKeys.asset(assetRef))?.tags,
+    ).toEqual([]);
+  });
+
+  it('invalidates tags and library records when a tag is renamed', async () => {
+    server.use(
+      http.patch(`${BASE}/v1/library/tags/:tag_id`, () =>
+        HttpResponse.json({
+          id: 'tag-a',
+          name: 'Renamed',
+          created_at: '2025-06-01T12:00:00Z',
+          updated_at: '2025-06-01T12:00:00Z',
+        }),
+      ),
+    );
+    const queryClient = new QueryClient();
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+    const options = renameTagMutationOptions(queryClient);
+    const variables = { tagId: 'tag-a', patch: { name: 'Renamed' } };
+
+    const result = await options.mutationFn(variables);
+    options.onSuccess(result, variables);
+
+    const keys = invalidateSpy.mock.calls.map((call) => call[0]?.queryKey);
+    expect(keys).toContainEqual(tagKeys.all);
+    expect(keys).toContainEqual(libraryKeys.all);
   });
 });
 

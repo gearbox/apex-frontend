@@ -40,6 +40,7 @@ export function makeLibraryAssetItem(overrides: Partial<LibraryAssetItem> = {}):
     model: 'grok-imagine-image',
     generation_type: 't2i',
     available_actions: [...ALL_ACTIONS],
+    tags: [],
     ...overrides,
   };
 }

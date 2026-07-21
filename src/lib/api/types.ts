@@ -1566,6 +1566,23 @@ export interface paths {
         patch: operations["V1LibraryAssetsAssetRefPatchAsset"];
         trace?: never;
     };
+    "/v1/library/assets/{asset_ref}/lineage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetAssetLineage */
+        get: operations["V1LibraryAssetsAssetRefLineageGetAssetLineage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/library/groups/{job_id}": {
         parameters: {
             query?: never;
@@ -1635,6 +1652,43 @@ export interface paths {
         head?: never;
         /** PatchProject */
         patch: operations["V1LibraryProjectsProjectIdPatchProject"];
+        trace?: never;
+    };
+    "/v1/library/tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListTags */
+        get: operations["V1LibraryTagsListTags"];
+        put?: never;
+        /** CreateTag */
+        post: operations["V1LibraryTagsCreateTag"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/library/tags/{tag_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetTag */
+        get: operations["V1LibraryTagsTagIdGetTag"];
+        put?: never;
+        post?: never;
+        /** DeleteTag */
+        delete: operations["V1LibraryTagsTagIdDeleteTag"];
+        options?: never;
+        head?: never;
+        /** PatchTag */
+        patch: operations["V1LibraryTagsTagIdPatchTag"];
         trace?: never;
     };
     "/v1/content/outputs/{output_id}": {
@@ -1843,6 +1897,13 @@ export interface components {
             preferred_account: string | null;
             message: string;
         };
+        /** BulkAddTags */
+        BulkAddTags: {
+            asset_refs: string[];
+            tag_ids: string[];
+            /** @constant */
+            type: "add_tags";
+        };
         /** BulkDelete */
         BulkDelete: {
             asset_refs: string[];
@@ -1860,6 +1921,13 @@ export interface components {
             results: components["schemas"]["BulkOperationItemResult"][];
             succeeded: number;
             failed: number;
+        };
+        /** BulkRemoveTags */
+        BulkRemoveTags: {
+            asset_refs: string[];
+            tag_ids: string[];
+            /** @constant */
+            type: "remove_tags";
         };
         /** BulkSetFavorite */
         BulkSetFavorite: {
@@ -1970,6 +2038,13 @@ export interface components {
         /** CursorPage[LibraryProjectListItem] */
         "CursorPage_src.api.schemas.library.LibraryProjectListItem_": {
             items: components["schemas"]["LibraryProjectListItem"][];
+            limit: number;
+            has_more: boolean;
+            next_cursor?: string | null;
+        };
+        /** CursorPage[LibraryTagListItem] */
+        "CursorPage_src.api.schemas.library.LibraryTagListItem_": {
+            items: components["schemas"]["LibraryTagListItem"][];
             limit: number;
             has_more: boolean;
             next_cursor?: string | null;
@@ -2224,6 +2299,8 @@ export interface components {
             available_actions: components["schemas"]["LibraryAction"][];
             project_id?: string | null;
             project_name?: string | null;
+            /** @default [] */
+            tags: components["schemas"]["LibraryTagRef"][];
             prompt?: string | null;
             negative_prompt?: string | null;
             provider?: string | null;
@@ -2253,11 +2330,14 @@ export interface components {
             available_actions: components["schemas"]["LibraryAction"][];
             project_id?: string | null;
             project_name?: string | null;
+            /** @default [] */
+            tags: components["schemas"]["LibraryTagRef"][];
         };
         /** LibraryAssetPatch */
         LibraryAssetPatch: {
             display_title?: string | null;
             project_id?: string | null;
+            tag_ids?: string[];
         };
         /**
          * LibraryAssetSource
@@ -2316,6 +2396,15 @@ export interface components {
             source_job_id?: string | null;
             source_timestamp_ms?: number | null;
         };
+        /** LibraryLineageGraph */
+        LibraryLineageGraph: {
+            focus: components["schemas"]["LineageNode"];
+            ancestors: components["schemas"]["LineageEdge"][];
+            descendants: components["schemas"]["LineageEdge"][];
+            descendant_totals: components["schemas"]["LibraryDescendants"];
+            ancestors_truncated: boolean;
+            descendants_truncated: boolean;
+        };
         /** LibraryOutputItem */
         LibraryOutputItem: {
             /** Format: uuid */
@@ -2368,6 +2457,63 @@ export interface components {
          * @enum {string}
          */
         LibrarySort: "newest" | "oldest" | "expiring_soon";
+        /** LibraryTag */
+        LibraryTag: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        /** LibraryTagCreate */
+        LibraryTagCreate: {
+            name: string;
+        };
+        /** LibraryTagListItem */
+        LibraryTagListItem: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+            asset_count: number;
+        };
+        /** LibraryTagPatch */
+        LibraryTagPatch: {
+            name?: string;
+        };
+        /** LibraryTagRef */
+        LibraryTagRef: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+        };
+        /** LineageEdge */
+        LineageEdge: {
+            relation: components["schemas"]["LineageRelation"];
+            node: components["schemas"]["LineageNode"];
+            source_timestamp_ms?: number | null;
+        };
+        /** LineageNode */
+        LineageNode: {
+            asset_ref: string;
+            source: components["schemas"]["LibraryAssetSource"];
+            media: components["schemas"]["MediaObject"];
+            /** Format: date-time */
+            created_at: string;
+            model?: string | null;
+            generation_type?: components["schemas"]["GenerationType"] | null;
+        };
+        /**
+         * LineageRelation
+         * @description How a lineage edge's node relates to the node it's attached to.
+         * @enum {string}
+         */
+        LineageRelation: "generated_from_upload" | "generated_from_output" | "frame_of_output" | "frame_of_upload";
         /** ListSessionsResponse */
         ListSessionsResponse: {
             sessions: components["schemas"]["GpuSessionResponse"][];
@@ -6383,7 +6529,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["BulkSetFavorite"] | components["schemas"]["BulkSetProject"] | components["schemas"]["BulkDelete"];
+                "application/json": components["schemas"]["BulkSetFavorite"] | components["schemas"]["BulkSetProject"] | components["schemas"]["BulkDelete"] | components["schemas"]["BulkAddTags"] | components["schemas"]["BulkRemoveTags"];
             };
         };
         responses: {
@@ -6526,6 +6672,43 @@ export interface operations {
             };
         };
     };
+    V1LibraryAssetsAssetRefLineageGetAssetLineage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                asset_ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryLineageGraph"] | components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
     V1LibraryGroupsJobIdGetGroupDetail: {
         parameters: {
             query?: never;
@@ -6573,6 +6756,7 @@ export interface operations {
                 model?: string | null;
                 favorite?: boolean | null;
                 project_id?: string | null;
+                tag_id?: string | null;
                 expiring?: boolean | null;
                 query?: string | null;
                 created_from?: string | null;
@@ -6687,6 +6871,15 @@ export interface operations {
                     };
                 };
             };
+            /** @description A project with this name already exists for the caller (case-insensitive). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
         };
     };
     V1LibraryProjectsProjectIdGetProject: {
@@ -6724,6 +6917,21 @@ export interface operations {
                     };
                 };
             };
+            /** @description Nothing matches the given URI */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
         };
     };
     V1LibraryProjectsProjectIdDeleteProject: {
@@ -6746,6 +6954,21 @@ export interface operations {
             };
             /** @description Bad request syntax or unsupported method */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+            /** @description Nothing matches the given URI */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -6798,6 +7021,283 @@ export interface operations {
                             [key: string]: unknown;
                         } | unknown[];
                     };
+                };
+            };
+            /** @description Nothing matches the given URI */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+            /** @description A project with this name already exists for the caller (case-insensitive). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1LibraryTagsListTags: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CursorPage_src.api.schemas.library.LibraryTagListItem_"] | components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1LibraryTagsCreateTag: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LibraryTagCreate"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryTag"] | components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+            /** @description A tag with this name already exists for the caller (case-insensitive). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1LibraryTagsTagIdGetTag: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tag_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryTag"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+            /** @description Nothing matches the given URI */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1LibraryTagsTagIdDeleteTag: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tag_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, nothing follows */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+            /** @description Nothing matches the given URI */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1LibraryTagsTagIdPatchTag: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tag_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LibraryTagPatch"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryTag"] | components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+            /** @description Nothing matches the given URI */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+            /** @description A tag with this name already exists for the caller (case-insensitive). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
         };

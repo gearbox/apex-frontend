@@ -20,19 +20,23 @@ type LibraryProject = components['schemas']['LibraryProject'];
 type LibraryProjectCreate = components['schemas']['LibraryProjectCreate'];
 type LibraryProjectPatch = components['schemas']['LibraryProjectPatch'];
 type LibraryProjectListItem = components['schemas']['LibraryProjectListItem'];
+type LibraryTag = components['schemas']['LibraryTag'];
+type LibraryTagCreate = components['schemas']['LibraryTagCreate'];
+type LibraryTagPatch = components['schemas']['LibraryTagPatch'];
+type LibraryTagListItem = components['schemas']['LibraryTagListItem'];
+type LibraryTagRef = components['schemas']['LibraryTagRef'];
+type LibraryLineageGraph = components['schemas']['LibraryLineageGraph'];
 type BulkOperationResult = components['schemas']['BulkOperationResult'];
-type LibraryPage = {
-  items: LibraryAssetItem[];
+type CursorPage<Item> = {
+  items: Item[];
   limit: number;
   has_more: boolean;
   next_cursor?: string | null;
 };
-type ProjectPage = {
-  items: LibraryProjectListItem[];
-  limit: number;
-  has_more: boolean;
-  next_cursor?: string | null;
-};
+type LibraryPage = CursorPage<LibraryAssetItem>;
+type LibraryCollectionPath = '/v1/library/projects' | '/v1/library/tags';
+
+const LIBRARY_COLLECTION_PAGE_SIZE = 50;
 
 /* ─── Query Key Factory ─── */
 
@@ -41,12 +45,19 @@ export const libraryKeys = {
   list: (params?: LibraryListParams) => ['library', 'list', params ?? {}] as const,
   asset: (assetRef: string) => ['library', 'asset', assetRef] as const,
   group: (jobId: string) => ['library', 'group', jobId] as const,
+  lineage: (assetRef: string) => ['library', 'lineage', assetRef] as const,
 };
 
 export const projectKeys = {
   all: ['library', 'projects'] as const,
   list: () => ['library', 'projects', 'list'] as const,
   detail: (projectId: string) => ['library', 'projects', 'detail', projectId] as const,
+};
+
+export const tagKeys = {
+  all: ['library', 'tags'] as const,
+  list: () => ['library', 'tags', 'list'] as const,
+  detail: (tagId: string) => ['library', 'tags', 'detail', tagId] as const,
 };
 
 /* ─── Types ─── */
@@ -57,6 +68,7 @@ export interface LibraryListParams {
   model?: string | null;
   favorite?: boolean | null;
   project_id?: string | null;
+  tag_id?: string | null;
   /** Server-side text search. */
   query?: string | null;
   expiring?: boolean | null;
@@ -77,6 +89,7 @@ export function libraryListInfiniteQueryOptions(params: LibraryListParams = {}) 
         ...(params.model ? { model: params.model } : {}),
         ...(params.favorite ? { favorite: params.favorite } : {}),
         ...(params.project_id ? { project_id: params.project_id } : {}),
+        ...(params.tag_id ? { tag_id: params.tag_id } : {}),
         ...(params.query ? { query: params.query } : {}),
         ...(params.expiring ? { expiring: params.expiring } : {}),
         ...(params.sort ? { sort: params.sort } : {}),
@@ -103,50 +116,74 @@ export function libraryListInfiniteQueryOptions(params: LibraryListParams = {}) 
   };
 }
 
+function emptyCursorPage<Item>(): CursorPage<Item> {
+  return {
+    items: [],
+    limit: LIBRARY_COLLECTION_PAGE_SIZE,
+    has_more: false,
+    next_cursor: null,
+  };
+}
+
+async function fetchLibraryCollectionPage<Item>(
+  path: LibraryCollectionPath,
+  cursor?: string,
+): Promise<CursorPage<Item>> {
+  const { data, error } = await apiClient.GET(path, {
+    params: {
+      query: {
+        limit: LIBRARY_COLLECTION_PAGE_SIZE,
+        ...(cursor ? { cursor } : {}),
+      },
+    },
+  });
+  if (error) throw new ApiRequestError(parseApiError(error, 0));
+  return (data as CursorPage<Item> | undefined) ?? emptyCursorPage<Item>();
+}
+
+/**
+ * Loads finite library collections completely while rejecting malformed cursor chains.
+ * Keeping this traversal in one place makes projects and tags follow identical safeguards.
+ */
+async function fetchAllLibraryCollectionPages<Item>(
+  path: LibraryCollectionPath,
+  collectionName: string,
+): Promise<CursorPage<Item>> {
+  let page = await fetchLibraryCollectionPage<Item>(path);
+  const items = [...page.items];
+  const cursors = new Set<string>();
+
+  while (page.has_more) {
+    const cursor = page.next_cursor;
+    if (!cursor || cursors.has(cursor)) {
+      throw new ApiRequestError({
+        error: 'invalid_pagination',
+        message: `Could not load all ${collectionName} due to an invalid pagination cursor.`,
+        status_code: 0,
+      });
+    }
+    cursors.add(cursor);
+    page = await fetchLibraryCollectionPage<Item>(path, cursor);
+    items.push(...page.items);
+  }
+
+  return { ...page, items, has_more: false, next_cursor: null };
+}
+
 export function projectsListQueryOptions() {
   return {
     queryKey: projectKeys.list(),
-    queryFn: async () => {
-      const fetchPage = async (cursor?: string): Promise<ProjectPage> => {
-        const { data, error } = await apiClient.GET('/v1/library/projects', {
-          params: {
-            query: {
-              limit: 50,
-              ...(cursor ? { cursor } : {}),
-            },
-          },
-        });
-        if (error) throw new ApiRequestError(parseApiError(error, 0));
-        return (
-          (data as ProjectPage | undefined) ?? {
-            items: [] as LibraryProjectListItem[],
-            limit: 50,
-            has_more: false,
-            next_cursor: null,
-          }
-        );
-      };
+    queryFn: () =>
+      fetchAllLibraryCollectionPages<LibraryProjectListItem>('/v1/library/projects', 'projects'),
+    staleTime: LIBRARY_LIST_STALE_MS,
+  };
+}
 
-      let page = await fetchPage();
-      const items = [...page.items];
-      const cursors = new Set<string>();
-
-      while (page.has_more) {
-        const cursor = page.next_cursor;
-        if (!cursor || cursors.has(cursor)) {
-          throw new ApiRequestError({
-            error: 'invalid_pagination',
-            message: 'Could not load all projects due to an invalid pagination cursor.',
-            status_code: 0,
-          });
-        }
-        cursors.add(cursor);
-        page = await fetchPage(cursor);
-        items.push(...page.items);
-      }
-
-      return { ...page, items, has_more: false, next_cursor: null };
-    },
+/** Load the complete tag vocabulary for the editor and picker, rejecting malformed cursor chains. */
+export function tagsListQueryOptions() {
+  return {
+    queryKey: tagKeys.list(),
+    queryFn: () => fetchAllLibraryCollectionPages<LibraryTagListItem>('/v1/library/tags', 'tags'),
     staleTime: LIBRARY_LIST_STALE_MS,
   };
 }
@@ -176,6 +213,21 @@ export function libraryGroupQueryOptions(jobId: string) {
       return data as LibraryGroupDetail;
     },
     staleTime: LIBRARY_ASSET_STALE_MS,
+  };
+}
+
+/** Mounted only when the details-sheet lineage section is expanded. */
+export function lineageQueryOptions(assetRef: string) {
+  return {
+    queryKey: libraryKeys.lineage(assetRef),
+    queryFn: async () => {
+      const { data, error } = await apiClient.GET('/v1/library/assets/{asset_ref}/lineage', {
+        params: { path: { asset_ref: assetRef } },
+      });
+      if (error) throw new ApiRequestError(parseApiError(error, 0));
+      return data as LibraryLineageGraph;
+    },
+    staleTime: 5 * 60 * 1_000,
   };
 }
 
@@ -299,9 +351,103 @@ export function projectAssignmentMutationOptions(queryClient: QueryClient) {
   };
 }
 
+/**
+ * Tag PATCH is deliberately separate from title/project patches: its caller always supplies
+ * the complete desired tag set, so optimistic cache updates can be rolled back as one unit.
+ */
+export function assetTagsMutationOptions(queryClient: QueryClient) {
+  return {
+    mutationFn: async (variables: { assetRef: string; tags: LibraryTagRef[] }) => {
+      const patch: LibraryAssetPatch = { tag_ids: variables.tags.map((tag) => tag.id) };
+      const { data, error } = await apiClient.PATCH('/v1/library/assets/{asset_ref}', {
+        params: { path: { asset_ref: variables.assetRef } },
+        body: patch,
+      });
+      if (error) throw new ApiRequestError(parseApiError(error, 0));
+      return data as LibraryAssetDetail;
+    },
+    onMutate: async (variables: { assetRef: string; tags: LibraryTagRef[] }) => {
+      await queryClient.cancelQueries({ queryKey: libraryKeys.asset(variables.assetRef) });
+      const previous = patchAssetInLists(queryClient, variables.assetRef, { tags: variables.tags });
+      const previousDetail = queryClient.getQueryData<LibraryAssetDetail>(
+        libraryKeys.asset(variables.assetRef),
+      );
+      queryClient.setQueryData<LibraryAssetDetail>(libraryKeys.asset(variables.assetRef), (data) =>
+        data ? { ...data, tags: variables.tags } : data,
+      );
+      return { previous, previousDetail };
+    },
+    onError: (
+      _error: unknown,
+      variables: { assetRef: string; tags: LibraryTagRef[] },
+      context?: { previous: ListSnapshot; previousDetail?: LibraryAssetDetail },
+    ) => {
+      if (context?.previous) restoreLists(queryClient, context.previous);
+      if (context?.previousDetail !== undefined) {
+        queryClient.setQueryData(libraryKeys.asset(variables.assetRef), context.previousDetail);
+      }
+    },
+    onSettled: (
+      _data: LibraryAssetDetail | undefined,
+      _error: unknown,
+      variables: { assetRef: string },
+    ) => {
+      queryClient.invalidateQueries({ queryKey: libraryKeys.all });
+      queryClient.invalidateQueries({ queryKey: libraryKeys.asset(variables.assetRef) });
+      queryClient.invalidateQueries({ queryKey: tagKeys.all });
+    },
+  };
+}
+
 function invalidateProjectAndLibraryQueries(queryClient: QueryClient) {
   queryClient.invalidateQueries({ queryKey: libraryKeys.all });
   queryClient.invalidateQueries({ queryKey: projectKeys.all });
+}
+
+function invalidateTagAndLibraryQueries(queryClient: QueryClient) {
+  // Tags also live on cached detail/list records, so a rename or deletion must refresh both.
+  queryClient.invalidateQueries({ queryKey: tagKeys.all });
+  queryClient.invalidateQueries({ queryKey: libraryKeys.all });
+}
+
+export function createTagMutationOptions(queryClient: QueryClient) {
+  return {
+    mutationFn: async (tag: LibraryTagCreate) => {
+      const { data, error } = await apiClient.POST('/v1/library/tags', { body: tag });
+      if (error) throw new ApiRequestError(parseApiError(error, 0));
+      return data as LibraryTag;
+    },
+    onSuccess: () => invalidateTagAndLibraryQueries(queryClient),
+  };
+}
+
+export function renameTagMutationOptions(queryClient: QueryClient) {
+  return {
+    mutationFn: async (variables: { tagId: string; patch: LibraryTagPatch }) => {
+      const { data, error } = await apiClient.PATCH('/v1/library/tags/{tag_id}', {
+        params: { path: { tag_id: variables.tagId } },
+        body: variables.patch,
+      });
+      if (error) throw new ApiRequestError(parseApiError(error, 0));
+      return data as LibraryTag;
+    },
+    onSuccess: (_data: LibraryTag, variables: { tagId: string }) => {
+      invalidateTagAndLibraryQueries(queryClient);
+      queryClient.invalidateQueries({ queryKey: tagKeys.detail(variables.tagId) });
+    },
+  };
+}
+
+export function deleteTagMutationOptions(queryClient: QueryClient) {
+  return {
+    mutationFn: async (tagId: string) => {
+      const { error } = await apiClient.DELETE('/v1/library/tags/{tag_id}', {
+        params: { path: { tag_id: tagId } },
+      });
+      if (error) throw new ApiRequestError(parseApiError(error, 0));
+    },
+    onSuccess: () => invalidateTagAndLibraryQueries(queryClient),
+  };
 }
 
 export function createProjectMutationOptions(queryClient: QueryClient) {
@@ -384,6 +530,8 @@ export function deleteAssetMutationOptions(queryClient: QueryClient) {
 export type BulkMutationVariables =
   | { type: 'set_favorite'; assetRefs: string[]; value: boolean }
   | { type: 'set_project'; assetRefs: string[]; projectId: string | null }
+  | { type: 'add_tags'; assetRefs: string[]; tagIds: string[] }
+  | { type: 'remove_tags'; assetRefs: string[]; tagIds: string[] }
   | { type: 'delete'; assetRefs: string[] };
 
 function toBulkRequest(
@@ -391,6 +539,8 @@ function toBulkRequest(
 ):
   | components['schemas']['BulkSetFavorite']
   | components['schemas']['BulkSetProject']
+  | components['schemas']['BulkAddTags']
+  | components['schemas']['BulkRemoveTags']
   | components['schemas']['BulkDelete'] {
   if (variables.type === 'set_favorite') {
     return { type: variables.type, asset_refs: variables.assetRefs, value: variables.value };
@@ -400,6 +550,13 @@ function toBulkRequest(
       type: variables.type,
       asset_refs: variables.assetRefs,
       project_id: variables.projectId,
+    };
+  }
+  if (variables.type === 'add_tags' || variables.type === 'remove_tags') {
+    return {
+      type: variables.type,
+      asset_refs: variables.assetRefs,
+      tag_ids: variables.tagIds,
     };
   }
   return { type: variables.type, asset_refs: variables.assetRefs };
@@ -497,6 +654,7 @@ export function bulkMutationOptions(queryClient: QueryClient) {
     },
     onSettled: () => {
       invalidateProjectAndLibraryQueries(queryClient);
+      queryClient.invalidateQueries({ queryKey: tagKeys.all });
       queryClient.invalidateQueries({ queryKey: storageKeys.all });
       queryClient.invalidateQueries({ queryKey: ['jobs'] });
       queryClient.invalidateQueries({ queryKey: ['user'] });

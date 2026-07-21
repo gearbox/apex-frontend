@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createMutation, useQueryClient } from '@tanstack/svelte-query';
-  import { FolderPlus, Heart, HeartOff, Trash2, X } from 'lucide-svelte';
+  import { FolderPlus, Heart, HeartOff, Tag, Trash2, X } from 'lucide-svelte';
   import type { components } from '$lib/api/types';
   import {
     bulkMutationOptions,
@@ -8,6 +8,7 @@
     type BulkMutationVariables,
   } from '$lib/queries/library';
   import ConfirmDeleteModal from '$lib/components/shared/ConfirmDeleteModal.svelte';
+  import TagPickerSheet from '$lib/components/library/TagPickerSheet.svelte';
   import { addToast } from '$lib/stores/toasts';
   import * as m from '$paraglide/messages';
 
@@ -20,17 +21,20 @@
     projects,
     onclear,
     onoffenders,
+    onTagDeleted,
   }: {
     selectedItems: LibraryAssetItem[];
     selectedRefs: string[];
     projects: LibraryProjectListItem[];
     onclear: () => void;
     onoffenders: (assetRefs: string[]) => void;
+    onTagDeleted?: (tagId: string) => void;
   } = $props();
 
   const queryClient = useQueryClient();
   const bulkMutation = createMutation(() => bulkMutationOptions(queryClient));
   let showProjectPicker = $state(false);
+  let tagPickerMode = $state<'add' | 'remove' | null>(null);
   let showDeleteConfirm = $state(false);
 
   const selectionCount = $derived(selectedRefs.length);
@@ -42,12 +46,22 @@
   // Project membership is universal according to the bulk API; the length check still
   // protects us from firing when a selected ref is not represented in the current list.
   const projectEligible = $derived(selectedItems.length === selectionCount);
+  // Tagging has no available_actions gate in the regenerated contract, so it is valid for
+  // every represented source just like project membership.
+  const tagEligible = $derived(selectedItems.length === selectionCount);
 
-  async function runBulk(variables: BulkMutationVariables) {
+  async function runBulk(variables: BulkMutationVariables): Promise<boolean> {
     try {
       onoffenders([]);
       await bulkMutation.mutateAsync(variables);
       if (variables.type === 'delete') onclear();
+      if (variables.type === 'add_tags' || variables.type === 'remove_tags') {
+        addToast({
+          type: 'success',
+          message: m.library_tags_bulk_success({ count: selectionCount }),
+        });
+      }
+      return true;
     } catch (error) {
       const offenders = bulkOffenderRefs(error);
       if (offenders.length > 0) onoffenders(offenders);
@@ -55,6 +69,7 @@
         type: 'error',
         message: offenders.length > 0 ? m.library_bulk_error() : m.error_generic(),
       });
+      return false;
     }
   }
 
@@ -80,6 +95,26 @@
   >
     <FolderPlus size={15} />
     <span class="hidden sm:inline">{m.library_add_to_project()}</span>
+  </button>
+  <button
+    type="button"
+    disabled={!tagEligible || bulkMutation.isPending}
+    title={actionTitle(tagEligible)}
+    onclick={() => (tagPickerMode = 'add')}
+    class="flex items-center gap-1 rounded-lg px-2.5 py-2 text-xs font-semibold text-text-muted hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-45"
+  >
+    <Tag size={15} />
+    <span class="hidden sm:inline">{m.library_tags_add()}</span>
+  </button>
+  <button
+    type="button"
+    disabled={!tagEligible || bulkMutation.isPending}
+    title={actionTitle(tagEligible)}
+    onclick={() => (tagPickerMode = 'remove')}
+    class="flex items-center gap-1 rounded-lg px-2.5 py-2 text-xs font-semibold text-text-muted hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-45"
+  >
+    <Tag size={15} />
+    <span class="hidden sm:inline">{m.library_tags_remove()}</span>
   </button>
   <button
     type="button"
@@ -170,6 +205,21 @@
       </div>
     </div>
   </div>
+{/if}
+
+{#if tagPickerMode}
+  <TagPickerSheet
+    mode={tagPickerMode}
+    assetRefs={selectedRefs}
+    onapply={(tagIds) =>
+      runBulk({
+        type: tagPickerMode === 'add' ? 'add_tags' : 'remove_tags',
+        assetRefs: selectedRefs,
+        tagIds,
+      })}
+    onclose={() => (tagPickerMode = null)}
+    {onTagDeleted}
+  />
 {/if}
 
 {#if showDeleteConfirm}
