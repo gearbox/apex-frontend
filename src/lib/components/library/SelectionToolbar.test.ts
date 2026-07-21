@@ -5,9 +5,19 @@ import { makeLibraryAssetItem } from '../../../mocks/factories/library';
 
 const state = vi.hoisted(() => ({
   mutateAsync: vi.fn(),
+  tags: [
+    {
+      id: 'tag-a',
+      name: 'Campaign',
+      asset_count: 1,
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+    },
+  ],
 }));
 
 vi.mock('@tanstack/svelte-query', () => ({
+  createQuery: vi.fn(() => ({ data: { items: state.tags }, isLoading: false, isError: false })),
   createMutation: vi.fn(() => ({ mutateAsync: state.mutateAsync, isPending: false })),
   useQueryClient: vi.fn(() => ({ invalidateQueries: vi.fn(), cancelQueries: vi.fn() })),
 }));
@@ -62,6 +72,31 @@ describe('SelectionToolbar', () => {
     await fireEvent.click(screen.getByRole('button', { name: 'Favorite' }));
 
     await waitFor(() => expect(onoffenders).toHaveBeenLastCalledWith(['output:two']));
+  });
+
+  it.each([
+    ['Add tags', 'add_tags'],
+    ['Remove tags', 'remove_tags'],
+  ] as const)('sends one %s bulk request and preserves selection', async (label, type) => {
+    render(SelectionToolbar, {
+      props: {
+        selectedItems,
+        selectedRefs,
+        projects: [],
+        onclear: vi.fn(),
+        onoffenders: vi.fn(),
+      },
+    });
+
+    await fireEvent.click(screen.getByRole('button', { name: label }));
+    await fireEvent.click(screen.getByRole('checkbox', { name: /Campaign/ }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Apply tags' }));
+
+    expect(state.mutateAsync).toHaveBeenCalledWith({
+      type,
+      assetRefs: selectedRefs,
+      tagIds: ['tag-a'],
+    });
   });
 
   it('requires confirmation before sending a bulk delete', async () => {

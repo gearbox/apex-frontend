@@ -40,6 +40,7 @@ const libraryUploadItem = {
   model: null,
   generation_type: null,
   available_actions: ['extract_frame', 'download', 'favorite', 'delete'],
+  tags: [],
 };
 
 const libraryPage = {

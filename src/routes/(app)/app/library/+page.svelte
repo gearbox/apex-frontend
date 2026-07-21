@@ -16,6 +16,7 @@
     libraryKeys,
     projectKeys,
     projectsListQueryOptions,
+    tagsListQueryOptions,
     type LibraryListParams,
   } from '$lib/queries/library';
   import { storageStatsQueryOptions, storageKeys } from '$lib/queries/storage';
@@ -35,6 +36,7 @@
   import ConfirmDeleteModal from '$lib/components/shared/ConfirmDeleteModal.svelte';
   import ProjectNav from '$lib/components/library/ProjectNav.svelte';
   import SelectionToolbar from '$lib/components/library/SelectionToolbar.svelte';
+  import TagPickerSheet from '$lib/components/library/TagPickerSheet.svelte';
   import { LibrarySelection } from '$lib/components/library/selection.svelte';
   import { productInfo } from '$lib/stores/product';
   import type { components } from '$lib/api/types';
@@ -74,6 +76,7 @@
   let mediaFilter = $derived<LibraryMediaFilter>(mediaFilterFromUrl($page.url));
   let selectedModel = $derived<string | null>($page.url.searchParams.get('model'));
   let activeProjectId = $derived<string | null>($page.url.searchParams.get('project'));
+  let activeTagId = $derived<string | null>($page.url.searchParams.get('tag'));
   let expiring = $derived($page.url.searchParams.get('expiring') === 'true');
   let sort = $derived<LibrarySort>(sortFromUrl($page.url));
   let urlSearch = $derived($page.url.searchParams.get('query') ?? '');
@@ -116,6 +119,11 @@
     updateUrl({ project: projectId });
   }
 
+  function handleTagChange(tagId: string | null) {
+    selection.clearForFilterChange();
+    updateUrl({ tag: tagId });
+  }
+
   function handleExpiringChange() {
     selection.clearForFilterChange();
     updateUrl({ expiring: expiring ? null : 'true' });
@@ -142,6 +150,7 @@
       media: null,
       model: null,
       project: null,
+      tag: null,
       query: null,
       expiring: null,
       sort: null,
@@ -183,6 +192,7 @@
     media_type: mediaFilter === 'all' ? null : mediaFilter,
     model: selectedModel,
     project_id: activeProjectId,
+    tag_id: activeTagId,
     query: urlSearch || null,
     expiring: expiring || null,
     sort,
@@ -191,6 +201,7 @@
   const libraryQuery = createInfiniteQuery(() => libraryListInfiniteQueryOptions(listParams));
   const statsQuery = createQuery(() => storageStatsQueryOptions());
   const projectsQuery = createQuery(() => projectsListQueryOptions());
+  const tagsQuery = createQuery(() => tagsListQueryOptions());
 
   const allItems = $derived((libraryQuery.data?.pages ?? []).flatMap((p) => p.items));
   const availableModels = $derived(
@@ -204,6 +215,7 @@
       mediaFilter !== 'all' ||
       !!selectedModel ||
       !!activeProjectId ||
+      !!activeTagId ||
       !!urlSearch ||
       expiring ||
       sort !== 'newest',
@@ -219,7 +231,7 @@
   let bulkErrorRefs = $state<Set<string>>(new Set());
   let lastFilterKey = $state<string | null>(null);
   const filterKey = $derived(
-    `${tab}|${mediaFilter}|${selectedModel ?? ''}|${activeProjectId ?? ''}|${urlSearch}|${expiring}|${sort}`,
+    `${tab}|${mediaFilter}|${selectedModel ?? ''}|${activeProjectId ?? ''}|${activeTagId ?? ''}|${urlSearch}|${expiring}|${sort}`,
   );
   const selectedRefs = $derived([...selection.refs]);
   const selectedItems = $derived(allItems.filter((item) => selection.refs.has(item.asset_ref)));
@@ -247,6 +259,7 @@
   let detailsRequest = $state<DetailsRequest | null>(null);
   let groupJobId = $state<string | null>(null);
   let deleteTarget = $state<LibraryAssetItem | null>(null);
+  let showTagManager = $state(false);
 
   const queryClient = useQueryClient();
   const deleteMutation = createMutation(() => deleteAssetMutationOptions(queryClient));
@@ -270,6 +283,13 @@
     detailsRequest = null;
     await tick();
     groupJobId = jobId;
+  }
+
+  async function switchDetailsAsset(assetRef: string) {
+    if (detailsRequest?.assetRef === assetRef) return;
+    detailsRequest = null;
+    await tick();
+    openDetails(assetRef);
   }
 
   function handleCardClick(item: LibraryAssetItem) {
@@ -426,6 +446,10 @@
         models={availableModels}
         {selectedModel}
         onModelChange={handleModelChange}
+        tags={tagsQuery.data?.items ?? []}
+        selectedTagId={activeTagId}
+        onTagChange={handleTagChange}
+        onManageTags={() => (showTagManager = true)}
       />
       {#if allItems.length > 0}
         <button
@@ -468,6 +492,8 @@
         <p class="text-sm text-text-dim">
           {#if urlSearch}
             {m.library_search_empty()}
+          {:else if activeTagId}
+            {m.library_tag_empty_filter()}
           {:else if activeProjectId}
             {m.library_project_empty()}
           {:else if tab === 'favorites'}
@@ -532,6 +558,9 @@
       bulkErrorRefs = new Set();
     }}
     onoffenders={(refs) => (bulkErrorRefs = new Set(refs))}
+    onTagDeleted={(tagId) => {
+      if (tagId === activeTagId) handleTagChange(null);
+    }}
   />
 {/if}
 
@@ -541,6 +570,16 @@
     startInRename={detailsRequest.rename ?? false}
     onclose={() => (detailsRequest = null)}
     onOpenGroup={switchFromDetailsToGroup}
+    onNavigate={switchDetailsAsset}
+  />
+{/if}
+
+{#if showTagManager}
+  <TagPickerSheet
+    onclose={() => (showTagManager = false)}
+    onTagDeleted={(tagId) => {
+      if (tagId === activeTagId) handleTagChange(null);
+    }}
   />
 {/if}
 

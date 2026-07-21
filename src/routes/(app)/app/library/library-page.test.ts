@@ -50,6 +50,7 @@ const state = vi.hoisted(() => ({
   capturedListParams: undefined as unknown,
   assetDetailData: undefined as LibraryAssetDetail | undefined,
   groupDetailData: undefined as LibraryGroupDetail | undefined,
+  tagItems: [] as Array<{ id: string; name: string; asset_count: number }>,
 }));
 
 vi.mock('$app/navigation', () => ({ goto: state.gotoMock }));
@@ -108,6 +109,16 @@ vi.mock('@tanstack/svelte-query', () => ({
         isError: false,
       };
     }
+    if (scope === 'library' && kind === 'tags') {
+      return {
+        get data() {
+          return { items: state.tagItems };
+        },
+        isLoading: false,
+        isError: false,
+        refetch: vi.fn(),
+      };
+    }
     return { data: undefined, isLoading: false, isError: false };
   }),
   createMutation: vi.fn(() => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false })),
@@ -125,6 +136,7 @@ beforeEach(() => {
   state.capturedListParams = undefined;
   state.assetDetailData = undefined;
   state.groupDetailData = undefined;
+  state.tagItems = [];
   observerCallback = null;
 });
 
@@ -181,6 +193,27 @@ describe('/app/library page — restoring filter state from the URL', () => {
     });
     expect((screen.getByLabelText('Search library') as HTMLInputElement).value).toBe('mountain');
   });
+
+  it('restores ?tag= into the API filter and round-trips tag selection through the URL', async () => {
+    state.tagItems = [
+      { id: 'tag-1', name: 'Portraits', asset_count: 3 },
+      { id: 'tag-2', name: 'Favorites', asset_count: 1 },
+    ];
+    state.pageUrl = new URL('http://localhost/app/library?tag=tag-1');
+    render(Page);
+
+    expect(state.capturedListParams).toMatchObject({ tag_id: 'tag-1' });
+    await fireEvent.change(screen.getByLabelText('Filter by tag'), { target: { value: 'tag-2' } });
+    expect(state.gotoMock).toHaveBeenCalledWith(
+      '?tag=tag-2',
+      expect.objectContaining({ replaceState: true }),
+    );
+  });
+
+  it('hides the tag control when the user has no tags', () => {
+    render(Page);
+    expect(screen.queryByLabelText('Filter by tag')).toBeNull();
+  });
 });
 
 describe('/app/library page — server-side search', () => {
@@ -229,6 +262,14 @@ describe('/app/library page — empty states per tab', () => {
     state.pageUrl = new URL('http://localhost/app/library?source=upload');
     render(Page);
     expect(screen.getByText('No uploads yet')).toBeTruthy();
+    expect(screen.getByText('Reset filters')).toBeTruthy();
+  });
+
+  it('shows the tag-specific empty state and a reset action', () => {
+    state.libraryItems = [];
+    state.pageUrl = new URL('http://localhost/app/library?tag=tag-1');
+    render(Page);
+    expect(screen.getByText('No assets with this tag')).toBeTruthy();
     expect(screen.getByText('Reset filters')).toBeTruthy();
   });
 });

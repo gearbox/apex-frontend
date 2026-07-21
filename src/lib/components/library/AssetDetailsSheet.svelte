@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { createQuery, createMutation, useQueryClient } from '@tanstack/svelte-query';
-  import { X, Check, Pencil, Download } from 'lucide-svelte';
+  import { X, Check, ChevronDown, ChevronRight, Pencil, Download } from 'lucide-svelte';
   import {
     libraryAssetQueryOptions,
     renameMutationOptions,
@@ -19,6 +19,8 @@
   import MediaVideo from '$lib/media/MediaVideo.svelte';
   import ConfirmDeleteModal from '$lib/components/shared/ConfirmDeleteModal.svelte';
   import FrameExtractModal from '$lib/components/frames/FrameExtractModal.svelte';
+  import TagChipEditor from '$lib/components/library/TagChipEditor.svelte';
+  import LineagePanel from '$lib/components/library/LineagePanel.svelte';
   import { addToast } from '$lib/stores/toasts';
   import * as m from '$paraglide/messages';
 
@@ -26,12 +28,15 @@
     assetRef,
     onclose,
     onOpenGroup,
+    onNavigate,
     startInRename = false,
   }: {
     assetRef: string;
     onclose: () => void;
     /** Called when the asset belongs to a multi-output job the user wants to browse. */
     onOpenGroup?: (jobId: string) => void;
+    /** Opens another asset from the lazy lineage chain. */
+    onNavigate?: (assetRef: string) => void;
     /** Opens the sheet directly in rename mode once detail data has loaded. */
     startInRename?: boolean;
   } = $props();
@@ -42,6 +47,7 @@
   let renaming = $state(false);
   let renameValue = $state('');
   let renameApplied = false;
+  let lineageExpanded = $state(false);
 
   function focusOnMount(node: HTMLElement) {
     node.focus();
@@ -110,6 +116,10 @@
     } catch {
       addToast({ type: 'error', message: m.library_project_assign_error() });
     }
+  }
+
+  function navigateLineage(nextAssetRef: string) {
+    onNavigate?.(nextAssetRef);
   }
 
   const menuItems = $derived(
@@ -333,6 +343,8 @@
         {/if}
       </div>
 
+      <TagChipEditor {assetRef} tags={detail.tags} />
+
       {#if detail.prompt}
         <div>
           <p class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-text-muted">
@@ -351,19 +363,35 @@
         </div>
       {/if}
 
-      {#if detail.lineage}
-        <div>
-          <p class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-text-muted">
-            {m.library_meta_lineage()}
-          </p>
-          <p class="text-xs text-text-dim">
-            {#if detail.lineage.source_timestamp_ms != null}
+      {#if detail.lineage || detail.descendants.job_count > 0 || detail.descendants.frame_count > 0}
+        <section class="border-t border-border pt-3">
+          <button
+            type="button"
+            class="flex w-full items-center justify-between text-left"
+            onclick={() => (lineageExpanded = !lineageExpanded)}
+            aria-expanded={lineageExpanded}
+          >
+            <span class="text-[11px] font-semibold uppercase tracking-wide text-text-muted">
+              {m.library_meta_lineage()}
+            </span>
+            {#if lineageExpanded}<ChevronDown size={14} />{:else}<ChevronRight size={14} />{/if}
+          </button>
+          <p class="mt-1 text-xs text-text-dim">
+            {#if detail.lineage?.source_timestamp_ms != null}
               {m.library_lineage_frame_from_video()}
-            {:else}
+            {:else if detail.lineage}
               {m.library_lineage_extracted()}
+            {:else}
+              {m.library_lineage_descendants({
+                jobs: detail.descendants.job_count,
+                frames: detail.descendants.frame_count,
+              })}
             {/if}
           </p>
-        </div>
+          {#if lineageExpanded}
+            <LineagePanel {assetRef} onNavigate={navigateLineage} />
+          {/if}
+        </section>
       {/if}
     </div>
   {/if}

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, beforeAll, afterAll } from 'vites
 import { tick } from 'svelte';
 import { render, screen, fireEvent, within } from '@testing-library/svelte';
 import type { components } from '$lib/api/types';
-import { makeLibraryAssetDetail } from '../../../mocks/factories/library';
+import { makeLibraryAssetDetail, makeLibraryLineage } from '../../../mocks/factories/library';
 import { makeMediaObject } from '../../../mocks/factories/media';
 
 type LibraryAssetDetail = components['schemas']['LibraryAssetDetail'];
@@ -23,6 +23,7 @@ afterAll(() => {
 });
 
 let detailData: LibraryAssetDetail | undefined;
+let lineageQueryCalls = 0;
 const mutateAsyncMock = vi.fn();
 const renameMutateAsyncMock = vi.fn();
 const deleteMutateAsyncMock = vi.fn();
@@ -47,6 +48,29 @@ vi.mock('@tanstack/svelte-query', () => ({
         },
         isLoading: false,
         isError: false,
+      };
+    }
+    if (kind === 'lineage') {
+      lineageQueryCalls += 1;
+      return {
+        data: {
+          focus: {
+            asset_ref: 'output:abc',
+            source: 'output',
+            media: makeMediaObject(),
+            created_at: '2025-01-01T00:00:00Z',
+            model: 'grok-imagine-image',
+            generation_type: 't2i',
+          },
+          ancestors: [],
+          descendants: [],
+          descendant_totals: { job_count: 0, frame_count: 0 },
+          ancestors_truncated: false,
+          descendants_truncated: false,
+        },
+        isLoading: false,
+        isError: false,
+        refetch: vi.fn(),
       };
     }
     return {
@@ -80,6 +104,7 @@ beforeEach(() => {
   renameMutateAsyncMock.mockClear();
   deleteMutateAsyncMock.mockClear();
   oncloseMock.mockClear();
+  lineageQueryCalls = 0;
 });
 
 describe('AssetDetailsSheet — conditional metadata sections', () => {
@@ -165,6 +190,19 @@ describe('AssetDetailsSheet — project assignment', () => {
 
     await fireEvent.change(screen.getByLabelText('Project'), { target: { value: '' } });
     expect(mutateAsyncMock).toHaveBeenLastCalledWith({ assetRef: 'output:abc', projectId: null });
+  });
+});
+
+describe('AssetDetailsSheet — lazy lineage', () => {
+  it('does not create the lineage query until the section is expanded', async () => {
+    detailData = makeLibraryAssetDetail({ lineage: makeLibraryLineage() });
+    render(AssetDetailsSheet, {
+      props: { assetRef: 'output:abc', onclose: oncloseMock, onNavigate: vi.fn() },
+    });
+
+    expect(lineageQueryCalls).toBe(0);
+    await fireEvent.click(screen.getByRole('button', { name: /Lineage/ }));
+    expect(lineageQueryCalls).toBe(1);
   });
 });
 
