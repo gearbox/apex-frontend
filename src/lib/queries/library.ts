@@ -172,10 +172,7 @@ export function projectsListQueryOptions() {
   };
 }
 
-/**
- * Tags form a small, user-owned vocabulary. Load every cursor page for the editor and
- * picker, but cap the traversal so a malformed remote cursor cannot loop forever.
- */
+/** Load the complete tag vocabulary for the editor and picker, rejecting malformed cursor chains. */
 export function tagsListQueryOptions() {
   return {
     queryKey: tagKeys.list(),
@@ -203,12 +200,10 @@ export function tagsListQueryOptions() {
       let page = await fetchPage();
       const items = [...page.items];
       const cursors = new Set<string>();
-      let pagesFetched = 1;
-      const MAX_TAG_PAGES = 10;
 
       while (page.has_more) {
         const cursor = page.next_cursor;
-        if (!cursor || cursors.has(cursor) || pagesFetched >= MAX_TAG_PAGES) {
+        if (!cursor || cursors.has(cursor)) {
           throw new ApiRequestError({
             error: 'invalid_pagination',
             message: 'Could not load all tags due to an invalid pagination cursor.',
@@ -217,7 +212,6 @@ export function tagsListQueryOptions() {
         }
         cursors.add(cursor);
         page = await fetchPage(cursor);
-        pagesFetched += 1;
         items.push(...page.items);
       }
 

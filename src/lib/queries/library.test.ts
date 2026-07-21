@@ -150,21 +150,81 @@ describe('tagsListQueryOptions()', () => {
     expect(tagKeys.list()).toEqual(['library', 'tags', 'list']);
   });
 
-  it('stops malformed pagination before it can loop indefinitely', async () => {
+  it('aggregates a valid twelve-page tag cursor chain without truncating it', async () => {
+    const cursors: Array<string | null> = [];
     server.use(
-      http.get(`${BASE}/v1/library/tags`, () =>
-        HttpResponse.json({
+      http.get(`${BASE}/v1/library/tags`, ({ request }) => {
+        const cursor = new URL(request.url).searchParams.get('cursor');
+        cursors.push(cursor);
+        const pageIndex = cursor ? Number(cursor.replace('tag-page-', '')) : 0;
+        const isLastPage = pageIndex === 11;
+
+        return HttpResponse.json({
+          items: Array.from({ length: 50 }, (_, itemIndex) => ({
+            id: `tag-${pageIndex * 50 + itemIndex}`,
+            name: `Tag ${pageIndex * 50 + itemIndex}`,
+            asset_count: itemIndex,
+            created_at: '2025-06-01T12:00:00Z',
+            updated_at: '2025-06-01T12:00:00Z',
+          })),
+          limit: 50,
+          has_more: !isLastPage,
+          next_cursor: isLastPage ? null : `tag-page-${pageIndex + 1}`,
+        });
+      }),
+    );
+
+    const result = await tagsListQueryOptions().queryFn();
+
+    expect(cursors).toEqual([
+      null,
+      ...Array.from({ length: 11 }, (_, index) => `tag-page-${index + 1}`),
+    ]);
+    expect(result.items.map((tag) => tag.id)).toEqual(
+      Array.from({ length: 600 }, (_, index) => `tag-${index}`),
+    );
+    expect(result.has_more).toBe(false);
+    expect(result.next_cursor).toBeNull();
+  });
+
+  it('rejects a missing next cursor without issuing another request', async () => {
+    const cursors: Array<string | null> = [];
+    server.use(
+      http.get(`${BASE}/v1/library/tags`, ({ request }) => {
+        cursors.push(new URL(request.url).searchParams.get('cursor'));
+        return HttpResponse.json({
           items: [],
           limit: 50,
           has_more: true,
-          next_cursor: 'same-cursor',
-        }),
-      ),
+          next_cursor: null,
+        });
+      }),
     );
 
     await expect(tagsListQueryOptions().queryFn()).rejects.toMatchObject({
       error: 'invalid_pagination',
     });
+    expect(cursors).toEqual([null]);
+  });
+
+  it('rejects a repeated cursor before issuing a third request', async () => {
+    const cursors: Array<string | null> = [];
+    server.use(
+      http.get(`${BASE}/v1/library/tags`, ({ request }) => {
+        cursors.push(new URL(request.url).searchParams.get('cursor'));
+        return HttpResponse.json({
+          items: [],
+          limit: 50,
+          has_more: true,
+          next_cursor: 'same-cursor',
+        });
+      }),
+    );
+
+    await expect(tagsListQueryOptions().queryFn()).rejects.toMatchObject({
+      error: 'invalid_pagination',
+    });
+    expect(cursors).toEqual([null, 'same-cursor']);
   });
 });
 

@@ -55,12 +55,42 @@ describe('TagPickerSheet', () => {
       props: { assetRefs: ['output:one', 'upload:two'], onapply, onclose: vi.fn() },
     });
 
+    expect(screen.getByRole('dialog', { name: 'Add tags' })).toBeTruthy();
     const checkboxes = screen.getAllByRole('checkbox');
     for (const checkbox of checkboxes.slice(0, 10)) await fireEvent.click(checkbox);
 
     expect((checkboxes[10] as HTMLInputElement).disabled).toBe(true);
     await fireEvent.click(screen.getByRole('button', { name: 'Apply tags' }));
     expect(onapply).toHaveBeenCalledWith(Array.from({ length: 10 }, (_, index) => `tag-${index}`));
+  });
+
+  it('opens management-only invocations directly in an actionable manage mode', () => {
+    render(TagPickerSheet, { props: { onclose: vi.fn() } });
+
+    expect(screen.getByRole('dialog', { name: 'Manage tags' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Manage tags' })).toBeTruthy();
+    expect(screen.getByLabelText('Tag name')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Create' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Rename tag: Tag 0' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Delete: Tag 0' })).toBeTruthy();
+    expect(screen.queryByRole('checkbox')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Apply tags' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Back to tag picker' })).toBeNull();
+  });
+
+  it('lets bulk invocations enter management mode and return to the picker', async () => {
+    render(TagPickerSheet, {
+      props: { assetRefs: ['output:one'], onapply: vi.fn(), onclose: vi.fn() },
+    });
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Manage tags' }));
+    expect(screen.getByRole('dialog', { name: 'Manage tags' })).toBeTruthy();
+    expect(screen.queryByRole('checkbox')).toBeNull();
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Back to tag picker' }));
+    expect(screen.getByRole('dialog', { name: 'Add tags' })).toBeTruthy();
+    expect(screen.getAllByRole('checkbox')).toHaveLength(11);
+    expect(screen.getByRole('button', { name: 'Apply tags' })).toBeTruthy();
   });
 
   it('renames and deletes tags from manage mode, reporting the deleted tag to its owner', async () => {

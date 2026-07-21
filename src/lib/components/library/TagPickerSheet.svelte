@@ -16,6 +16,13 @@
 
   const MAX_BULK_TAGS = 10;
 
+  function isManagementOnly(
+    assetRefs: string[],
+    onapply: ((tagIds: string[]) => Promise<boolean>) | undefined,
+  ) {
+    return assetRefs.length === 0 || !onapply;
+  }
+
   let {
     mode = 'add',
     assetRefs = [],
@@ -37,15 +44,22 @@
   const deleteMutation = createMutation(() => deleteTagMutationOptions(queryClient));
 
   let selectedIds = $state<string[]>([]);
-  let manageMode = $state(false);
+  // Without an actionable bulk callback, the picker has no valid selection workflow.
+  const managementOnly = $derived(isManagementOnly(assetRefs, onapply));
+  let bulkManageMode = $state(false);
+  // Management-only invocations always resolve to manage mode; bulk invocations start in picker mode.
+  const manageMode = $derived(managementOnly || bulkManageMode);
   let newTagName = $state('');
   let editing = $state<{ id: string; name: string } | null>(null);
   let deleteTarget = $state<LibraryTagListItem | null>(null);
   let applying = $state(false);
 
   const tags = $derived(tagsQuery.data?.items ?? []);
-  const managementOnly = $derived(assetRefs.length === 0 || !onapply);
   const canCreate = $derived(newTagName.trim().length > 0 && newTagName.trim().length <= 50);
+
+  function toggleManageMode() {
+    if (!managementOnly) bulkManageMode = !bulkManageMode;
+  }
 
   function toggleTag(tagId: string) {
     if (selectedIds.includes(tagId)) {
@@ -133,15 +147,17 @@
         {/if}
       </div>
       <div class="flex items-center gap-1">
-        <button
-          type="button"
-          class="flex h-8 w-8 items-center justify-center rounded-lg text-text-muted hover:bg-surface-hover"
-          onclick={() => (manageMode = !manageMode)}
-          aria-label={manageMode ? m.library_tags_back_to_picker() : m.library_tags_manage()}
-          title={manageMode ? m.library_tags_back_to_picker() : m.library_tags_manage()}
-        >
-          {#if manageMode}<Tag size={16} />{:else}<Settings2 size={16} />{/if}
-        </button>
+        {#if !managementOnly}
+          <button
+            type="button"
+            class="flex h-8 w-8 items-center justify-center rounded-lg text-text-muted hover:bg-surface-hover"
+            onclick={toggleManageMode}
+            aria-label={manageMode ? m.library_tags_back_to_picker() : m.library_tags_manage()}
+            title={manageMode ? m.library_tags_back_to_picker() : m.library_tags_manage()}
+          >
+            {#if manageMode}<Tag size={16} />{:else}<Settings2 size={16} />{/if}
+          </button>
+        {/if}
         <button
           type="button"
           class="flex h-8 w-8 items-center justify-center rounded-lg text-text-muted hover:bg-surface-hover"

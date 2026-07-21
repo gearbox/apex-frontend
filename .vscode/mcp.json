@@ -1,0 +1,12 @@
+{
+  "servers": {
+    "dev.svelte/mcp": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["@sveltejs/mcp@0.1.25"],
+      "gallery": "https://api.mcp.github.com",
+      "version": "0.1.25"
+    }
+  },
+  "inputs": []
+}
