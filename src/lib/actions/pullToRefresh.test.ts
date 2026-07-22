@@ -7,10 +7,11 @@ function makeTouch(clientX: number, clientY: number): Touch {
   return { clientX, clientY } as Touch;
 }
 
-function makeTouchEvent(touches: Touch[]): TouchEvent {
+function makeTouchEvent(touches: Touch[], path: EventTarget[] = []): TouchEvent {
   return {
     touches,
     preventDefault: vi.fn(),
+    composedPath: () => path,
   } as unknown as TouchEvent;
 }
 
@@ -54,6 +55,21 @@ describe('pullToRefresh action', () => {
     fire('touchmove', makeTouchEvent([makeTouch(0, 100)]));
 
     expect(onProgress).not.toHaveBeenCalled();
+  });
+
+  it('ignores a downward gesture that starts inside a modal dialog', () => {
+    attach();
+    const modal = document.createElement('div');
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    const path = [modal, el];
+
+    fire('touchstart', makeTouchEvent([makeTouch(0, 0)], path));
+    fire('touchmove', makeTouchEvent([makeTouch(0, 200)], path));
+    fire('touchend', makeTouchEvent([], path));
+
+    expect(onProgress).not.toHaveBeenCalled();
+    expect(onTrigger).not.toHaveBeenCalled();
   });
 
   it('disengages for the rest of the gesture when horizontal displacement exceeds vertical', () => {
