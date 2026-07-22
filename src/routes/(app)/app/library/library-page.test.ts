@@ -167,6 +167,43 @@ describe('/app/library page — tab and filter → URL param mapping', () => {
       expect.objectContaining({ replaceState: true }),
     );
   });
+
+  it('adds expiring to the current category URL without changing the active tab', async () => {
+    state.pageUrl = new URL('http://localhost/app/library?source=upload');
+    render(Page);
+
+    await fireEvent.click(screen.getByRole('checkbox', { name: 'Expiring' }));
+
+    expect(screen.getByRole('tab', { name: 'Uploads' }).getAttribute('aria-selected')).toBe('true');
+    expect(state.gotoMock).toHaveBeenCalledWith(
+      '?source=upload&expiring=true',
+      expect.objectContaining({ replaceState: true }),
+    );
+  });
+
+  it('keeps Expiring enabled when a category tab is selected', async () => {
+    state.pageUrl = new URL('http://localhost/app/library?expiring=true');
+    render(Page);
+
+    await fireEvent.click(screen.getByRole('tab', { name: 'Generated' }));
+
+    expect(state.gotoMock).toHaveBeenCalledWith(
+      '?expiring=true&source=output',
+      expect.objectContaining({ replaceState: true }),
+    );
+  });
+
+  it('removes expiring while preserving the current category', async () => {
+    state.pageUrl = new URL('http://localhost/app/library?favorite=true&expiring=true');
+    render(Page);
+
+    await fireEvent.click(screen.getByRole('checkbox', { name: 'Expiring' }));
+
+    expect(state.gotoMock).toHaveBeenCalledWith(
+      '?favorite=true',
+      expect.objectContaining({ replaceState: true }),
+    );
+  });
 });
 
 describe('/app/library page — restoring filter state from the URL', () => {
@@ -192,6 +229,9 @@ describe('/app/library page — restoring filter state from the URL', () => {
       sort: 'expiring_soon',
     });
     expect((screen.getByLabelText('Search library') as HTMLInputElement).value).toBe('mountain');
+    expect((screen.getByRole('checkbox', { name: 'Expiring' }) as HTMLInputElement).checked).toBe(
+      true,
+    );
   });
 
   it('restores ?tag= into the API filter and round-trips tag selection through the URL', async () => {
@@ -254,6 +294,14 @@ describe('/app/library page — empty states per tab', () => {
     state.pageUrl = new URL('http://localhost/app/library?favorite=true');
     render(Page);
     expect(screen.getByText('No favorites yet')).toBeTruthy();
+    expect(screen.getByText('Reset filters')).toBeTruthy();
+  });
+
+  it('shows the expiring filtered empty state before category-only empty states', () => {
+    state.libraryItems = [];
+    state.pageUrl = new URL('http://localhost/app/library?favorite=true&expiring=true');
+    render(Page);
+    expect(screen.getByText('No expiring assets match the current filters')).toBeTruthy();
     expect(screen.getByText('Reset filters')).toBeTruthy();
   });
 
