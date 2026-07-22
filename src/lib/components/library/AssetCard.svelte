@@ -1,6 +1,14 @@
 <script lang="ts">
   import { createMutation, useQueryClient } from '@tanstack/svelte-query';
-  import { Heart, Layers, MoreVertical } from 'lucide-svelte';
+  import {
+    Circle,
+    CircleCheckBig,
+    Heart,
+    Image as ImageIcon,
+    Layers,
+    MoreVertical,
+    Video,
+  } from 'lucide-svelte';
   import Media from '$lib/media/Media.svelte';
   import ContextMenu from '$lib/components/shared/ContextMenu.svelte';
   import SwipeToDelete from '$lib/components/shared/SwipeToDelete.svelte';
@@ -92,6 +100,20 @@
     onclick();
   }
 
+  function handleSelectionControlClick(event: MouseEvent) {
+    event.stopPropagation();
+    onToggleSelect?.(item);
+  }
+
+  /**
+   * The card and SwipeToDelete both listen for touch events above this button. Keep an
+   * explicit selection tap out of those gesture handlers so a held tap cannot start the
+   * card long-press timer and toggle the item a second time.
+   */
+  function stopSelectionTouchPropagation(event: TouchEvent) {
+    event.stopPropagation();
+  }
+
   const menuItems = $derived(
     item.available_actions
       .map((action) => {
@@ -140,18 +162,41 @@
       {#if onToggleSelect}
         <button
           type="button"
-          onclick={(e) => {
-            e.stopPropagation();
-            onToggleSelect?.(item);
-          }}
-          class="absolute left-2 top-2 z-10 hidden h-5 w-5 rounded-md border-2 transition-opacity md:flex md:items-center md:justify-center {selectable
-            ? 'opacity-100'
-            : 'opacity-0 group-hover:opacity-100 focus:opacity-100'} {selected
-            ? 'border-accent bg-accent'
-            : 'border-white/70 bg-black/20'}"
+          onclick={handleSelectionControlClick}
+          ontouchstart={stopSelectionTouchPropagation}
+          ontouchmove={stopSelectionTouchPropagation}
+          ontouchend={stopSelectionTouchPropagation}
+          ontouchcancel={stopSelectionTouchPropagation}
+          class="absolute left-0 top-0 z-10 flex h-11 w-11 touch-manipulation items-center justify-center rounded-full transition-opacity md:left-1 md:top-1 md:h-9 md:w-9 {selectable ||
+          selected
+            ? 'md:opacity-100'
+            : 'md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100'}"
           aria-label={m.library_select()}
           aria-pressed={selected}
-        ></button>
+          data-testid="library-selection-control"
+        >
+          <span
+            class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-black/50 text-white transition-colors {selected
+              ? 'bg-accent'
+              : ''}"
+          >
+            {#if selected}
+              <CircleCheckBig
+                data-testid="library-selection-check"
+                size={22}
+                strokeWidth={2.5}
+                aria-hidden="true"
+              />
+            {:else}
+              <Circle
+                data-testid="library-selection-unchecked"
+                size={20}
+                strokeWidth={2.5}
+                aria-hidden="true"
+              />
+            {/if}
+          </span>
+        </button>
       {/if}
 
       <Media
@@ -162,11 +207,33 @@
       />
 
       <!-- Provenance badge -->
-      <div
-        class="absolute left-2 top-2 rounded-md bg-black/50 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm"
-        class:top-9={selectable || !!onToggleSelect}
-      >
-        {item.source === 'upload' ? m.library_badge_uploaded() : m.library_badge_generated()}
+      <div class="absolute left-12 top-0 z-10 flex h-11 items-center">
+        <div
+          class="flex items-center gap-1 rounded-md bg-black/50 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm"
+        >
+          {#if isVideo}
+            <Video
+              data-testid="library-media-icon-video"
+              size={11}
+              strokeWidth={2.25}
+              aria-hidden="true"
+              class="shrink-0"
+            />
+          {:else}
+            <ImageIcon
+              data-testid="library-media-icon-image"
+              size={11}
+              strokeWidth={2.25}
+              aria-hidden="true"
+              class="shrink-0"
+            />
+          {/if}
+          <span
+            >{item.source === 'upload'
+              ? m.library_badge_uploaded()
+              : m.library_badge_generated()}</span
+          >
+        </div>
       </div>
 
       <!-- Favorite toggle -->
@@ -177,13 +244,17 @@
             e.stopPropagation();
             toggleFavorite();
           }}
-          class="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-sm transition-colors hover:bg-black/70"
+          class="absolute right-0 top-0 z-10 flex h-11 w-11 items-center justify-center rounded-full text-white transition-colors"
           aria-label={item.is_favorite
             ? m.library_action_unfavorite()
             : m.library_action_favorite()}
           aria-pressed={item.is_favorite}
         >
-          <Heart size={13} fill={item.is_favorite ? 'currentColor' : 'none'} />
+          <span
+            class="flex h-7 w-7 items-center justify-center rounded-full bg-black/50 backdrop-blur-sm transition-colors hover:bg-black/70"
+          >
+            <Heart size={13} fill={item.is_favorite ? 'currentColor' : 'none'} />
+          </span>
         </button>
       {/if}
 
