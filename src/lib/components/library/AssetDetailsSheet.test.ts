@@ -242,3 +242,22 @@ describe('AssetDetailsSheet — backdrop dismiss', () => {
     expect(oncloseMock).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('AssetDetailsSheet — dismissal controls', () => {
+  it('continues to close only through the close button or Escape', async () => {
+    detailData = makeLibraryAssetDetail({ media: makeMediaObject() });
+    const first = render(AssetDetailsSheet, {
+      props: { assetRef: 'output:abc', onclose: oncloseMock },
+    });
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(oncloseMock).toHaveBeenCalledOnce();
+    first.unmount();
+
+    oncloseMock.mockClear();
+    render(AssetDetailsSheet, { props: { assetRef: 'output:abc', onclose: oncloseMock } });
+    await fireEvent.keyDown(window, { key: 'Escape' });
+
+    expect(oncloseMock).toHaveBeenCalledOnce();
+  });
+});

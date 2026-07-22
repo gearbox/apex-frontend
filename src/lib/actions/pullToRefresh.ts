@@ -12,11 +12,22 @@ const DAMPING = 0.4;
 const MAX_PULL_PX = 110;
 const INTENT_DEADZONE_PX = 5;
 
+function startsInModal(event: Event): boolean {
+  return event
+    .composedPath()
+    .some(
+      (target) =>
+        target instanceof Element &&
+        target.getAttribute('role') === 'dialog' &&
+        target.getAttribute('aria-modal') === 'true',
+    );
+}
+
 /**
  * Pull-to-reload gesture for a scroll container. Only engages when the
  * container is already at scrollTop 0, and only once vertical intent is
- * confirmed (protects horizontal scrollers nested inside, e.g. Lightbox
- * thumbnail row).
+ * confirmed. Modal interactions are excluded so a drag inside a media viewer
+ * cannot reload the page and dismiss the viewer.
  */
 export const pullToRefresh: Action<HTMLElement, PullToRefreshOptions> = (node, options) => {
   let opts = options;
@@ -36,7 +47,7 @@ export const pullToRefresh: Action<HTMLElement, PullToRefreshOptions> = (node, o
   };
 
   const onTouchStart = (e: TouchEvent) => {
-    if (node.scrollTop > 0) {
+    if (startsInModal(e) || node.scrollTop > 0) {
       reset();
       return;
     }
