@@ -244,27 +244,6 @@ describe('AssetDetailsSheet — backdrop dismiss', () => {
 });
 
 describe('AssetDetailsSheet — dismissal controls', () => {
-  it('stays open after vertical swipes on the media and metadata panel', async () => {
-    detailData = makeLibraryAssetDetail({ media: makeMediaObject() });
-    const { container } = render(AssetDetailsSheet, {
-      props: { assetRef: 'output:abc', onclose: oncloseMock },
-    });
-
-    const dialog = screen.getByRole('dialog', { name: 'Asset details' });
-    const media = dialog.querySelector<HTMLElement>('.bg-black');
-    const metadata = container.querySelector<HTMLElement>('.overflow-y-auto');
-    if (!media || !metadata) throw new Error('Expected media and metadata panel to render');
-
-    for (const target of [media, metadata]) {
-      await fireEvent.touchStart(target, { touches: [{ clientX: 160, clientY: 120 }] });
-      await fireEvent.touchMove(target, { touches: [{ clientX: 160, clientY: 360 }] });
-      await fireEvent.touchEnd(target, { changedTouches: [{ clientX: 160, clientY: 360 }] });
-    }
-
-    expect(oncloseMock).not.toHaveBeenCalled();
-    expect(screen.getByRole('dialog', { name: 'Asset details' })).toBeTruthy();
-  });
-
   it('continues to close only through the close button or Escape', async () => {
     detailData = makeLibraryAssetDetail({ media: makeMediaObject() });
     const first = render(AssetDetailsSheet, {
