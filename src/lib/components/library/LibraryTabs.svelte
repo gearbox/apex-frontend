@@ -4,6 +4,7 @@
 
 <script lang="ts">
   import * as m from '$paraglide/messages';
+  import { Square, SquareCheckBig } from 'lucide-svelte';
 
   let {
     active,
@@ -50,8 +51,13 @@
       type="checkbox"
       checked={expiring}
       onchange={(event) => onExpiringChange((event.currentTarget as HTMLInputElement).checked)}
-      class="h-3.5 w-3.5 accent-warning"
+      class="sr-only"
     />
+    {#if expiring}
+      <SquareCheckBig size={14} strokeWidth={1.5} aria-hidden="true" />
+    {:else}
+      <Square size={14} strokeWidth={1.5} aria-hidden="true" />
+    {/if}
     <span>{m.library_expiring_filter()}</span>
   </label>
 </div>
