@@ -1,9 +1,14 @@
 <script lang="ts">
   import { page } from '$app/stores';
-  import { openMoreSheet } from '$lib/stores/ui';
+  import {
+    moreSheetOpen,
+    openMoreSheet,
+    openProjectsSheet,
+    projectsSheetOpen,
+  } from '$lib/stores/ui';
   import { TAB_ITEMS } from '$lib/utils/constants';
   import * as m from '$paraglide/messages';
-  import { Plus, Images, MoreVertical } from 'lucide-svelte';
+  import { Folder, Plus, Images, MoreVertical } from 'lucide-svelte';
 
   const iconMap: Record<string, typeof Plus> = {
     plus: Plus,
@@ -23,7 +28,28 @@
     </a>
   {/each}
 
-  <button onclick={openMoreSheet} class="btm-tab">
+  <button
+    type="button"
+    onclick={openProjectsSheet}
+    class="btm-tab"
+    class:active={$projectsSheetOpen}
+    aria-expanded={$projectsSheetOpen}
+    aria-controls="mobile-projects-sheet"
+  >
+    <span class="btm-tab-icon">
+      <Folder size={22} strokeWidth={$projectsSheetOpen ? 2.25 : 1.75} />
+    </span>
+    <span class="btm-tab-label">{m.library_projects()}</span>
+  </button>
+
+  <button
+    type="button"
+    onclick={openMoreSheet}
+    class="btm-tab"
+    class:active={$moreSheetOpen}
+    aria-expanded={$moreSheetOpen}
+    aria-controls="mobile-more-sheet"
+  >
     <span class="btm-tab-icon">
       <MoreVertical size={22} strokeWidth={1.75} />
     </span>

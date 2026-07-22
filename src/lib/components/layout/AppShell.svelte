@@ -7,6 +7,7 @@
   import DesktopSidebar from './DesktopSidebar.svelte';
   import MobileBottomTabs from './MobileBottomTabs.svelte';
   import MobileMoreSheet from './MobileMoreSheet.svelte';
+  import MobileProjectsSheet from './MobileProjectsSheet.svelte';
   import { pullToRefresh } from '$lib/actions/pullToRefresh';
 
   let { children }: { children: Snippet } = $props();
@@ -72,6 +73,7 @@
         {@render children()}
       </div>
       <MobileBottomTabs />
+      <MobileProjectsSheet />
       <MobileMoreSheet />
     </div>
   {/if}

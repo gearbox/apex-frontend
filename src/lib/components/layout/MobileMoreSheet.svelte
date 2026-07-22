@@ -5,6 +5,7 @@
   import * as m from '$paraglide/messages';
   import { Coins, Activity, User, Shield, Server, ChevronRight } from 'lucide-svelte';
   import AppVersionBadge from '$lib/components/shared/AppVersionBadge.svelte';
+  import MobileNavSheet from './MobileNavSheet.svelte';
   import { viewportDebug } from '$lib/stores/debug.svelte';
   import { addToast } from '$lib/stores/toasts';
 
@@ -34,116 +35,60 @@
   }
 
   onDestroy(() => clearTimeout(debugTapResetTimer));
-
-  function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape') closeMoreSheet();
-  }
 </script>
 
-<svelte:window onkeydown={handleKeydown} />
-
 {#if $moreSheetOpen}
-  <div class="sheet-backdrop" onclick={closeMoreSheet} role="presentation">
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <div
-      class="sheet-panel chrome-no-select"
-      onclick={(e) => e.stopPropagation()}
-      role="dialog"
-      aria-label="More navigation"
-      tabindex="-1"
-    >
-      <!-- Handle bar -->
-      <div class="sheet-handle"></div>
+  <MobileNavSheet id="mobile-more-sheet" label={m.nav_more()} onclose={closeMoreSheet}>
+    <nav>
+      <a href="/app/sessions" onclick={closeMoreSheet} class="sheet-item">
+        <span class="sheet-item-icon"><Server size={20} strokeWidth={1.75} /></span>
+        <span class="sheet-item-label">{m.nav_sessions()}</span>
+        <span class="sheet-item-chevron"><ChevronRight size={16} /></span>
+      </a>
+      <a href="/app/billing" onclick={closeMoreSheet} class="sheet-item">
+        <span class="sheet-item-icon"><Coins size={20} strokeWidth={1.75} /></span>
+        <span class="sheet-item-label">{m.nav_billing()}</span>
+        <span class="sheet-item-chevron"><ChevronRight size={16} /></span>
+      </a>
+      <a href="/app/jobs" onclick={closeMoreSheet} class="sheet-item">
+        <span class="sheet-item-icon"><Activity size={20} strokeWidth={1.75} /></span>
+        <span class="sheet-item-label">{m.nav_jobs()}</span>
+        <span class="sheet-item-chevron"><ChevronRight size={16} /></span>
+      </a>
+      <a href="/app/profile" onclick={closeMoreSheet} class="sheet-item">
+        <span class="sheet-item-icon"><User size={20} strokeWidth={1.75} /></span>
+        <span class="sheet-item-label">{m.nav_profile()}</span>
+        <span class="sheet-item-chevron"><ChevronRight size={16} /></span>
+      </a>
 
-      <nav>
-        <a href="/app/sessions" onclick={closeMoreSheet} class="sheet-item">
-          <span class="sheet-item-icon"><Server size={20} strokeWidth={1.75} /></span>
-          <span class="sheet-item-label">{m.nav_sessions()}</span>
+      {#if $isAdmin}
+        <div class="sheet-admin-divider"></div>
+        <a href="/app/admin" onclick={closeMoreSheet} class="sheet-item">
+          <span class="sheet-item-icon">
+            <Shield size={20} strokeWidth={1.75} />
+          </span>
+          <span class="sheet-item-label">{m.nav_admin_panel()}</span>
           <span class="sheet-item-chevron"><ChevronRight size={16} /></span>
         </a>
-        <a href="/app/billing" onclick={closeMoreSheet} class="sheet-item">
-          <span class="sheet-item-icon"><Coins size={20} strokeWidth={1.75} /></span>
-          <span class="sheet-item-label">{m.nav_billing()}</span>
-          <span class="sheet-item-chevron"><ChevronRight size={16} /></span>
-        </a>
-        <a href="/app/jobs" onclick={closeMoreSheet} class="sheet-item">
-          <span class="sheet-item-icon"><Activity size={20} strokeWidth={1.75} /></span>
-          <span class="sheet-item-label">{m.nav_jobs()}</span>
-          <span class="sheet-item-chevron"><ChevronRight size={16} /></span>
-        </a>
-        <a href="/app/profile" onclick={closeMoreSheet} class="sheet-item">
-          <span class="sheet-item-icon"><User size={20} strokeWidth={1.75} /></span>
-          <span class="sheet-item-label">{m.nav_profile()}</span>
-          <span class="sheet-item-chevron"><ChevronRight size={16} /></span>
-        </a>
+      {/if}
+    </nav>
 
-        {#if $isAdmin}
-          <div class="sheet-admin-divider"></div>
-          <a href="/app/admin" onclick={closeMoreSheet} class="sheet-item">
-            <span class="sheet-item-icon">
-              <Shield size={20} strokeWidth={1.75} />
-            </span>
-            <span class="sheet-item-label">{m.nav_admin_panel()}</span>
-            <span class="sheet-item-chevron"><ChevronRight size={16} /></span>
-          </a>
-        {/if}
-      </nav>
-
-      <div class="sheet-cancel-wrap">
-        <button onclick={closeMoreSheet} class="sheet-cancel">{m.common_cancel()}</button>
-      </div>
-
-      <button
-        type="button"
-        class="version-tap-target"
-        onclick={handleVersionTap}
-        aria-label="App version"
-      >
-        <AppVersionBadge />
-      </button>
+    <div class="sheet-cancel-wrap">
+      <button onclick={closeMoreSheet} class="sheet-cancel">{m.common_cancel()}</button>
     </div>
-  </div>
+
+    <button
+      type="button"
+      class="version-tap-target"
+      onclick={handleVersionTap}
+      aria-label="App version"
+    >
+      <AppVersionBadge />
+    </button>
+  </MobileNavSheet>
 {/if}
 
 <style>
-  @keyframes slideUp {
-    from {
-      transform: translateY(100%);
-    }
-    to {
-      transform: translateY(0);
-    }
-  }
-
-  .sheet-backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.5);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
-    z-index: 200;
-    display: flex;
-    align-items: flex-end;
-    justify-content: center;
-  }
-
-  .sheet-panel {
-    background: var(--apex-surface);
-    border-radius: 20px 20px 0 0;
-    width: 100%;
-    max-width: 480px;
-    padding: 12px 0 max(16px, env(safe-area-inset-bottom));
-    animation: slideUp 0.25s ease-out;
-  }
-
-  .sheet-handle {
-    width: 36px;
-    height: 4px;
-    border-radius: 2px;
-    background: var(--apex-border);
-    margin: 0 auto 16px;
-  }
-
   .sheet-item {
     display: flex;
     align-items: center;

@@ -1,4 +1,4 @@
-import { writable } from 'svelte/store';
+import { derived, writable } from 'svelte/store';
 import { STORAGE_KEYS } from '$lib/utils/constants';
 import { isBrowser } from '$lib/utils/env';
 
@@ -18,13 +18,27 @@ export function toggleSidebar(): void {
   });
 }
 
-/* ─── Mobile More Sheet ─── */
-export const moreSheetOpen = writable(false);
+/* ─── Mobile navigation sheets ─── */
+export type MobileNavSheet = 'projects' | 'more' | null;
+
+/** One authoritative drawer state prevents competing backdrops and focus locks. */
+export const mobileNavSheet = writable<MobileNavSheet>(null);
+
+export const projectsSheetOpen = derived(mobileNavSheet, (sheet) => sheet === 'projects');
+export const moreSheetOpen = derived(mobileNavSheet, (sheet) => sheet === 'more');
+
+export function openProjectsSheet(): void {
+  mobileNavSheet.set('projects');
+}
 
 export function openMoreSheet(): void {
-  moreSheetOpen.set(true);
+  mobileNavSheet.set('more');
+}
+
+export function closeMobileNavSheet(): void {
+  mobileNavSheet.set(null);
 }
 
 export function closeMoreSheet(): void {
-  moreSheetOpen.set(false);
+  closeMobileNavSheet();
 }

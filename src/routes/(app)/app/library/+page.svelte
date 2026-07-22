@@ -34,7 +34,6 @@
   import AssetDetailsSheet from '$lib/components/library/AssetDetailsSheet.svelte';
   import GroupSheet from '$lib/components/library/GroupSheet.svelte';
   import ConfirmDeleteModal from '$lib/components/shared/ConfirmDeleteModal.svelte';
-  import ProjectNav from '$lib/components/library/ProjectNav.svelte';
   import SelectionToolbar from '$lib/components/library/SelectionToolbar.svelte';
   import TagPickerSheet from '$lib/components/library/TagPickerSheet.svelte';
   import { LibrarySelection } from '$lib/components/library/selection.svelte';
@@ -111,12 +110,6 @@
   function handleModelChange(next: string | null) {
     selection.clearForFilterChange();
     updateUrl({ model: next });
-  }
-
-  function handleProjectChange(projectId: string | null) {
-    selection.clearForFilterChange();
-    activeProject.set(projectId);
-    updateUrl({ project: projectId });
   }
 
   function handleTagChange(tagId: string | null) {
@@ -366,186 +359,179 @@
   <title>{m.library_title()} — {appTitle}</title>
 </svelte:head>
 
-<div class="flex flex-col gap-4 p-4 md:flex-row md:p-0">
-  <ProjectNav {activeProjectId} onActiveChange={handleProjectChange} />
-
-  <div class="min-w-0 flex-1 space-y-4">
-    <!-- Header -->
-    <div class="flex items-center justify-between gap-3">
-      <div>
-        <h1 class="text-lg font-semibold text-text">{m.library_title()}</h1>
-        {#if statsQuery.data}
-          <p class="text-xs text-text-dim">
-            {statsQuery.data.upload_count}
-            {m.library_stats_uploads()} · {statsQuery.data.total_mb.toFixed(1)} MB
-          </p>
-        {/if}
-      </div>
-      <button
-        onclick={() => fileInput.click()}
-        disabled={uploading}
-        class="flex shrink-0 items-center gap-1.5 rounded-xl bg-accent px-3.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-accent/90 disabled:opacity-50"
-      >
-        <UploadIcon size={14} />
-        {uploading ? m.create_uploading() : m.library_upload_cta()}
-      </button>
-      <input
-        bind:this={fileInput}
-        type="file"
-        accept={ACCEPTED_TYPES.join(',')}
-        class="hidden"
-        onchange={handleFileChange}
-      />
+<div class="min-w-0 space-y-4 p-4 md:p-0">
+  <!-- Header -->
+  <div class="flex items-center justify-between gap-3">
+    <div>
+      <h1 class="text-lg font-semibold text-text">{m.library_title()}</h1>
+      {#if statsQuery.data}
+        <p class="text-xs text-text-dim">
+          {statsQuery.data.upload_count}
+          {m.library_stats_uploads()} · {statsQuery.data.total_mb.toFixed(1)} MB
+        </p>
+      {/if}
     </div>
+    <button
+      onclick={() => fileInput.click()}
+      disabled={uploading}
+      class="flex shrink-0 items-center gap-1.5 rounded-xl bg-accent px-3.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-accent/90 disabled:opacity-50"
+    >
+      <UploadIcon size={14} />
+      {uploading ? m.create_uploading() : m.library_upload_cta()}
+    </button>
+    <input
+      bind:this={fileInput}
+      type="file"
+      accept={ACCEPTED_TYPES.join(',')}
+      class="hidden"
+      onchange={handleFileChange}
+    />
+  </div>
 
-    <div class="flex flex-wrap items-center gap-2">
-      <div class="min-w-44 flex-1 md:max-w-sm">
-        <label class="sr-only" for="library-search">{m.library_search_placeholder()}</label>
-        <div class="relative">
-          <Search
-            size={15}
-            class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-dim"
-          />
-          <input
-            id="library-search"
-            value={searchValue}
-            oninput={scheduleSearch}
-            placeholder={m.library_search_placeholder()}
-            class="w-full rounded-xl border border-border bg-surface py-2 pl-9 pr-3 text-xs text-text outline-none transition-colors placeholder:text-text-dim focus:border-accent"
-          />
-        </div>
+  <div class="flex flex-wrap items-center gap-2">
+    <div class="min-w-44 flex-1 md:max-w-sm">
+      <label class="sr-only" for="library-search">{m.library_search_placeholder()}</label>
+      <div class="relative">
+        <Search
+          size={15}
+          class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-dim"
+        />
+        <input
+          id="library-search"
+          value={searchValue}
+          oninput={scheduleSearch}
+          placeholder={m.library_search_placeholder()}
+          class="w-full rounded-xl border border-border bg-surface py-2 pl-9 pr-3 text-xs text-text outline-none transition-colors placeholder:text-text-dim focus:border-accent"
+        />
       </div>
+    </div>
+    <button
+      type="button"
+      onclick={handleExpiringChange}
+      class="rounded-full px-3 py-2 text-xs font-medium transition-colors {expiring
+        ? 'bg-warning/15 text-warning'
+        : 'border border-border bg-surface text-text-muted hover:text-text'}"
+    >
+      {m.library_expiring_filter()}
+    </button>
+    <select
+      value={sort}
+      onchange={(event) =>
+        handleSortChange((event.currentTarget as HTMLSelectElement).value as LibrarySort)}
+      aria-label={m.library_sort()}
+      class="rounded-xl border border-border bg-surface px-3 py-2 text-xs font-medium text-text-muted"
+    >
+      <option value="newest">{m.library_sort_newest()}</option>
+      <option value="oldest">{m.library_sort_oldest()}</option>
+      <option value="expiring_soon">{m.library_sort_expiring()}</option>
+    </select>
+  </div>
+
+  <LibraryTabs active={tab} onchange={handleTabChange} />
+
+  <div class="flex flex-wrap items-center gap-2">
+    <LibraryFilterBar
+      {mediaFilter}
+      onMediaFilterChange={handleMediaFilterChange}
+      models={availableModels}
+      {selectedModel}
+      onModelChange={handleModelChange}
+      tags={tagsQuery.data?.items ?? []}
+      selectedTagId={activeTagId}
+      onTagChange={handleTagChange}
+      onManageTags={() => (showTagManager = true)}
+    />
+    {#if allItems.length > 0}
       <button
         type="button"
-        onclick={handleExpiringChange}
-        class="rounded-full px-3 py-2 text-xs font-medium transition-colors {expiring
-          ? 'bg-warning/15 text-warning'
-          : 'border border-border bg-surface text-text-muted hover:text-text'}"
+        onclick={() => selection.selectPage(allItems.map((item) => item.asset_ref))}
+        class="flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium text-text-muted hover:bg-surface-hover hover:text-text"
       >
-        {m.library_expiring_filter()}
+        <CheckSquare size={14} />
+        {m.library_select_page()}
       </button>
-      <select
-        value={sort}
-        onchange={(event) =>
-          handleSortChange((event.currentTarget as HTMLSelectElement).value as LibrarySort)}
-        aria-label={m.library_sort()}
-        class="rounded-xl border border-border bg-surface px-3 py-2 text-xs font-medium text-text-muted"
-      >
-        <option value="newest">{m.library_sort_newest()}</option>
-        <option value="oldest">{m.library_sort_oldest()}</option>
-        <option value="expiring_soon">{m.library_sort_expiring()}</option>
-      </select>
-    </div>
-
-    <LibraryTabs active={tab} onchange={handleTabChange} />
-
-    <div class="flex flex-wrap items-center gap-2">
-      <LibraryFilterBar
-        {mediaFilter}
-        onMediaFilterChange={handleMediaFilterChange}
-        models={availableModels}
-        {selectedModel}
-        onModelChange={handleModelChange}
-        tags={tagsQuery.data?.items ?? []}
-        selectedTagId={activeTagId}
-        onTagChange={handleTagChange}
-        onManageTags={() => (showTagManager = true)}
-      />
-      {#if allItems.length > 0}
-        <button
-          type="button"
-          onclick={() => selection.selectPage(allItems.map((item) => item.asset_ref))}
-          class="flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium text-text-muted hover:bg-surface-hover hover:text-text"
-        >
-          <CheckSquare size={14} />
-          {m.library_select_page()}
-        </button>
-      {/if}
-      <span class="ml-auto shrink-0 text-xs text-text-dim">
-        {allItems.length}
-        {m.library_loaded()}{libraryQuery.hasNextPage ? '+' : ''}
-      </span>
-    </div>
-
-    {#if libraryQuery.isLoading}
-      <div class="grid grid-cols-2 gap-2 md:grid-cols-[repeat(auto-fill,minmax(180px,1fr))]">
-        {#each Array(8) as _, i (i)}
-          <div class="aspect-square animate-pulse rounded-xl bg-surface"></div>
-        {/each}
-      </div>
-    {:else if libraryQuery.isError}
-      <div
-        class="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface/50 py-20"
-      >
-        <p class="text-sm text-danger">{m.library_load_error()}</p>
-        <button
-          onclick={() => libraryQuery.refetch()}
-          class="mt-2 text-sm font-medium text-accent hover:underline"
-        >
-          {m.common_retry()}
-        </button>
-      </div>
-    {:else if allItems.length === 0}
-      <div
-        class="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface/50 py-20"
-      >
-        <p class="text-sm text-text-dim">
-          {#if urlSearch}
-            {m.library_search_empty()}
-          {:else if activeTagId}
-            {m.library_tag_empty_filter()}
-          {:else if activeProjectId}
-            {m.library_project_empty()}
-          {:else if tab === 'favorites'}
-            {m.library_empty_favorites()}
-          {:else if tab === 'uploads'}
-            {m.library_empty_uploads()}
-          {:else if tab === 'generated'}
-            {m.library_empty_generated()}
-          {:else}
-            {m.library_empty_all()}
-          {/if}
-        </p>
-        {#if hasActiveFilters}
-          <button
-            onclick={resetFilters}
-            class="mt-2 text-sm font-medium text-accent hover:underline"
-          >
-            {m.library_reset_filters()}
-          </button>
-        {:else}
-          <a href="/app/create" class="mt-2 text-sm font-medium text-accent hover:underline">
-            {m.library_start_creating()}
-          </a>
-        {/if}
-      </div>
-    {:else}
-      <AssetGrid
-        items={allItems}
-        onCardClick={handleCardClick}
-        onCardDelete={(item) => (deleteTarget = item)}
-        onCardRename={(item) => openDetails(item.asset_ref, { rename: true })}
-        onCardExtractFrame={(item) => openDetails(item.asset_ref)}
-        onCardViewSettings={(item) => openDetails(item.asset_ref)}
-        onLoadMore={handleLoadMore}
-        loadMoreDisabled={!libraryQuery.hasNextPage || libraryQuery.isFetchingNextPage}
-        selectionActive={selection.active}
-        selectedRefs={selection.refs}
-        {bulkErrorRefs}
-        onToggleSelect={toggleSelection}
-      />
-
-      {#if libraryQuery.isFetchingNextPage}
-        <div class="flex justify-center py-4">
-          <div
-            class="h-5 w-5 animate-spin rounded-full border-2 border-accent border-t-transparent"
-          ></div>
-        </div>
-      {:else if !libraryQuery.hasNextPage && allItems.length > 0}
-        <p class="py-4 text-center text-xs text-text-dim">{m.library_all_caught_up()}</p>
-      {/if}
     {/if}
+    <span class="ml-auto shrink-0 text-xs text-text-dim">
+      {allItems.length}
+      {m.library_loaded()}{libraryQuery.hasNextPage ? '+' : ''}
+    </span>
   </div>
+
+  {#if libraryQuery.isLoading}
+    <div class="grid grid-cols-2 gap-2 md:grid-cols-[repeat(auto-fill,minmax(180px,1fr))]">
+      {#each Array(8) as _, i (i)}
+        <div class="aspect-square animate-pulse rounded-xl bg-surface"></div>
+      {/each}
+    </div>
+  {:else if libraryQuery.isError}
+    <div
+      class="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface/50 py-20"
+    >
+      <p class="text-sm text-danger">{m.library_load_error()}</p>
+      <button
+        onclick={() => libraryQuery.refetch()}
+        class="mt-2 text-sm font-medium text-accent hover:underline"
+      >
+        {m.common_retry()}
+      </button>
+    </div>
+  {:else if allItems.length === 0}
+    <div
+      class="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface/50 py-20"
+    >
+      <p class="text-sm text-text-dim">
+        {#if urlSearch}
+          {m.library_search_empty()}
+        {:else if activeTagId}
+          {m.library_tag_empty_filter()}
+        {:else if activeProjectId}
+          {m.library_project_empty()}
+        {:else if tab === 'favorites'}
+          {m.library_empty_favorites()}
+        {:else if tab === 'uploads'}
+          {m.library_empty_uploads()}
+        {:else if tab === 'generated'}
+          {m.library_empty_generated()}
+        {:else}
+          {m.library_empty_all()}
+        {/if}
+      </p>
+      {#if hasActiveFilters}
+        <button onclick={resetFilters} class="mt-2 text-sm font-medium text-accent hover:underline">
+          {m.library_reset_filters()}
+        </button>
+      {:else}
+        <a href="/app/create" class="mt-2 text-sm font-medium text-accent hover:underline">
+          {m.library_start_creating()}
+        </a>
+      {/if}
+    </div>
+  {:else}
+    <AssetGrid
+      items={allItems}
+      onCardClick={handleCardClick}
+      onCardDelete={(item) => (deleteTarget = item)}
+      onCardRename={(item) => openDetails(item.asset_ref, { rename: true })}
+      onCardExtractFrame={(item) => openDetails(item.asset_ref)}
+      onCardViewSettings={(item) => openDetails(item.asset_ref)}
+      onLoadMore={handleLoadMore}
+      loadMoreDisabled={!libraryQuery.hasNextPage || libraryQuery.isFetchingNextPage}
+      selectionActive={selection.active}
+      selectedRefs={selection.refs}
+      {bulkErrorRefs}
+      onToggleSelect={toggleSelection}
+    />
+
+    {#if libraryQuery.isFetchingNextPage}
+      <div class="flex justify-center py-4">
+        <div
+          class="h-5 w-5 animate-spin rounded-full border-2 border-accent border-t-transparent"
+        ></div>
+      </div>
+    {:else if !libraryQuery.hasNextPage && allItems.length > 0}
+      <p class="py-4 text-center text-xs text-text-dim">{m.library_all_caught_up()}</p>
+    {/if}
+  {/if}
 </div>
 
 {#if selection.active}

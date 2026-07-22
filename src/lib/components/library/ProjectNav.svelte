@@ -4,7 +4,9 @@
     createQuery,
     useQueryClient,
   } from '@tanstack/svelte-query';
-  import { ChevronDown, ChevronRight, Folder, FolderPlus, Pencil, Trash2, X } from 'lucide-svelte';
+  import { goto } from '$app/navigation';
+  import { page } from '$app/stores';
+  import { ChevronDown, ChevronRight, Folder, FolderPlus, Pencil, Trash2 } from 'lucide-svelte';
   import {
     createProjectMutationOptions,
     deleteProjectMutationOptions,
@@ -13,15 +15,23 @@
   } from '$lib/queries/library';
   import ConfirmDeleteModal from '$lib/components/shared/ConfirmDeleteModal.svelte';
   import EntityNameDialog from '$lib/components/shared/EntityNameDialog.svelte';
+  import { activeProject } from '$lib/stores/activeProject.svelte';
   import { addToast } from '$lib/stores/toasts';
+  import {
+    getActiveLibraryProjectId,
+    getProjectNavigationTarget,
+    isLibraryUrl,
+  } from '$lib/utils/projectNavigation';
   import * as m from '$paraglide/messages';
 
+  type ProjectNavSurface = 'desktop' | 'mobile';
+
   let {
-    activeProjectId,
-    onActiveChange,
+    surface,
+    onclose,
   }: {
-    activeProjectId: string | null;
-    onActiveChange: (projectId: string | null) => void;
+    surface: ProjectNavSurface;
+    onclose?: () => void;
   } = $props();
 
   const queryClient = useQueryClient();
@@ -31,15 +41,25 @@
   const deleteMutation = createSvelteMutation(() => deleteProjectMutationOptions(queryClient));
 
   let expanded = $state(true);
-  let mobileOpen = $state(false);
   let editing = $state<{ id: string | null; name: string } | null>(null);
   let deleteTarget = $state<{ id: string; name: string } | null>(null);
 
   const projects = $derived(projectsQuery.data?.items ?? []);
+  const activeProjectId = $derived(getActiveLibraryProjectId($page.url));
+  const isLibraryRoute = $derived(isLibraryUrl($page.url));
 
   function choose(projectId: string | null) {
-    onActiveChange(projectId);
-    mobileOpen = false;
+    // Close the mobile sheet before navigation so neither its backdrop nor focus lock remains
+    // around while the Library route is rendered.
+    onclose?.();
+    activeProject.set(projectId);
+
+    const target = getProjectNavigationTarget($page.url, projectId);
+    goto(target.href, {
+      replaceState: target.replaceState,
+      keepFocus: true,
+      noScroll: true,
+    });
   }
 
   function startCreate() {
@@ -54,13 +74,16 @@
     if (!editing) return;
     const name = editing.name.trim();
     if (!name) return;
+
     const isRename = editing.id !== null;
     try {
       if (editing.id) {
         await renameMutation.mutateAsync({ projectId: editing.id, patch: { name } });
       } else {
         const created = await createMutation.mutateAsync({ name });
+        editing = null;
         choose(created.id);
+        return;
       }
       editing = null;
     } catch {
@@ -73,160 +96,148 @@
 
   async function confirmDelete() {
     if (!deleteTarget) return;
+    const deletedProject = deleteTarget;
     try {
-      await deleteMutation.mutateAsync(deleteTarget.id);
-      if (activeProjectId === deleteTarget.id) choose(null);
+      await deleteMutation.mutateAsync(deletedProject.id);
       deleteTarget = null;
+      if (activeProjectId === deletedProject.id || activeProject.id === deletedProject.id) {
+        choose(null);
+      }
     } catch {
       addToast({ type: 'error', message: m.library_project_delete_error() });
     }
   }
 </script>
 
-{#snippet projectList()}
+{#snippet allAssets()}
   <button
     type="button"
+    data-testid="all-assets-project-action"
     onclick={() => choose(null)}
-    class="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs font-medium transition-colors {activeProjectId ===
-    null
-      ? 'bg-accent/15 text-accent'
-      : 'text-text-muted hover:bg-surface-hover hover:text-text'}"
+    class="project-choice {isLibraryRoute && activeProjectId === null
+      ? 'project-choice-active'
+      : ''}"
   >
-    <Folder size={14} />
+    <Folder size={surface === 'mobile' ? 17 : 14} />
     <span class="min-w-0 flex-1 truncate">{m.library_projects_all()}</span>
   </button>
+{/snippet}
 
+{#snippet projectRows()}
   {#if projectsQuery.isLoading}
-    <div class="space-y-2 px-2 py-2">
+    <div class="space-y-2 px-2 py-2" aria-label={m.common_loading()}>
       <div class="h-3 animate-pulse rounded bg-surface-hover"></div>
       <div class="h-3 w-3/4 animate-pulse rounded bg-surface-hover"></div>
     </div>
+  {:else if projectsQuery.isError}
+    <div class="px-2 py-3 text-xs text-danger" role="alert">
+      <p>{m.library_load_error()}</p>
+      <button
+        type="button"
+        class="mt-1 font-medium text-accent hover:underline"
+        onclick={() => projectsQuery.refetch()}
+      >
+        {m.common_retry()}
+      </button>
+    </div>
   {:else}
     {#each projects as project (project.id)}
-      <div class="group flex items-center gap-1 rounded-lg pr-1 hover:bg-surface-hover">
+      <div class="project-row group">
         <button
           type="button"
           onclick={() => choose(project.id)}
-          class="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-2 text-left text-xs font-medium transition-colors {activeProjectId ===
-          project.id
-            ? 'bg-accent/15 text-accent'
-            : 'text-text-muted hover:text-text'}"
+          class="project-choice {isLibraryRoute && activeProjectId === project.id
+            ? 'project-choice-active'
+            : ''}"
         >
-          <Folder size={14} />
+          <Folder size={surface === 'mobile' ? 17 : 14} />
           <span class="min-w-0 flex-1 truncate">{project.name}</span>
-          <span aria-hidden="true" class="text-[10px] tabular-nums text-text-dim"
-            >{project.asset_count}</span
-          >
+          <span aria-hidden="true" class="shrink-0 text-[10px] tabular-nums text-text-dim">
+            {project.asset_count}
+          </span>
         </button>
         <button
           type="button"
-          class="hidden h-6 w-6 shrink-0 items-center justify-center rounded text-text-dim hover:bg-bg hover:text-text group-hover:flex focus:flex"
+          class="project-action {surface === 'mobile'
+            ? 'project-action-mobile'
+            : 'project-action-desktop'}"
           aria-label={`${m.library_project_rename()}: ${project.name}`}
           onclick={(event) => {
             event.stopPropagation();
             startRename(project);
           }}
         >
-          <Pencil size={13} />
+          <Pencil size={surface === 'mobile' ? 16 : 13} />
         </button>
         <button
           type="button"
-          class="hidden h-6 w-6 shrink-0 items-center justify-center rounded text-text-dim hover:bg-danger/10 hover:text-danger group-hover:flex focus:flex"
+          class="project-action project-action-delete {surface === 'mobile'
+            ? 'project-action-mobile'
+            : 'project-action-desktop'}"
           aria-label={`${m.common_delete()}: ${project.name}`}
           onclick={(event) => {
             event.stopPropagation();
             deleteTarget = project;
           }}
         >
-          <Trash2 size={13} />
+          <Trash2 size={surface === 'mobile' ? 16 : 13} />
         </button>
       </div>
     {/each}
   {/if}
 {/snippet}
 
-<!-- Desktop sidebar section -->
-<aside
-  class="hidden w-52 shrink-0 self-start rounded-xl border border-border bg-surface/60 p-2 md:block"
->
-  <div class="flex items-center gap-1 px-1 py-1">
-    <button
-      type="button"
-      class="flex min-w-0 flex-1 items-center gap-1.5 text-left text-xs font-semibold text-text"
-      onclick={() => (expanded = !expanded)}
-      aria-expanded={expanded}
-    >
-      {#if expanded}<ChevronDown size={14} />{:else}<ChevronRight size={14} />{/if}
-      {m.library_projects()}
-    </button>
-    <button
-      type="button"
-      class="flex h-7 w-7 items-center justify-center rounded-md text-accent hover:bg-accent/10"
-      onclick={startCreate}
-      aria-label={m.library_project_new()}
-    >
-      <FolderPlus size={15} />
-    </button>
-  </div>
-  {#if expanded}
-    <div class="mt-1 space-y-0.5">{@render projectList()}</div>
-  {/if}
-</aside>
-
-<!-- Mobile selector / drawer -->
-<div class="md:hidden">
-  <button
-    type="button"
-    class="flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 text-xs font-medium text-text-muted"
-    onclick={() => (mobileOpen = true)}
-  >
-    <Folder size={13} />
-    {activeProjectId
-      ? projects.find((project) => project.id === activeProjectId)?.name
-      : m.library_projects_all()}
-  </button>
-
-  {#if mobileOpen}
-    <div
-      class="fixed inset-0 z-[160] bg-black/50"
-      role="presentation"
-      onclick={(event) => {
-        if (event.target === event.currentTarget) mobileOpen = false;
-      }}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={m.library_projects()}
-        tabindex="-1"
-        class="absolute inset-x-0 bottom-0 max-h-[75dvh] overflow-y-auto rounded-t-2xl bg-bg p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl"
+{#if surface === 'desktop'}
+  <section class="desktop-project-nav" aria-label={m.library_projects()}>
+    <div class="desktop-project-header">
+      <button
+        type="button"
+        class="desktop-project-toggle"
+        onclick={() => (expanded = !expanded)}
+        aria-expanded={expanded}
       >
-        <div class="mb-3 flex items-center justify-between">
-          <h2 class="text-sm font-semibold text-text">{m.library_projects()}</h2>
-          <div class="flex items-center gap-1">
-            <button
-              type="button"
-              class="flex h-8 w-8 items-center justify-center rounded-lg text-accent hover:bg-accent/10"
-              onclick={startCreate}
-              aria-label={m.library_project_new()}
-            >
-              <FolderPlus size={17} />
-            </button>
-            <button
-              type="button"
-              class="flex h-8 w-8 items-center justify-center rounded-lg text-text-muted hover:bg-surface-hover"
-              onclick={() => (mobileOpen = false)}
-              aria-label={m.common_close()}
-            >
-              <X size={17} />
-            </button>
-          </div>
-        </div>
-        <div class="space-y-0.5">{@render projectList()}</div>
-      </div>
+        {#if expanded}<ChevronDown size={14} />{:else}<ChevronRight size={14} />{/if}
+        <span>{m.library_projects()}</span>
+      </button>
+      <button
+        type="button"
+        class="desktop-project-create"
+        onclick={startCreate}
+        aria-label={m.library_project_new()}
+      >
+        <FolderPlus size={15} />
+      </button>
     </div>
-  {/if}
-</div>
+    {#if expanded}
+      <div class="desktop-project-all-assets">{@render allAssets()}</div>
+      <div
+        class="desktop-project-list"
+        data-testid="desktop-project-scroll-region"
+        aria-label={m.library_projects()}
+      >
+        {@render projectRows()}
+      </div>
+    {/if}
+  </section>
+{:else}
+  <section class="mobile-project-nav" aria-labelledby="mobile-projects-heading">
+    <div class="mobile-project-header">
+      <h2 id="mobile-projects-heading" class="text-base font-semibold text-text">
+        {m.library_projects()}
+      </h2>
+      <button
+        type="button"
+        class="flex h-10 w-10 items-center justify-center rounded-xl text-accent hover:bg-accent/10"
+        onclick={startCreate}
+        aria-label={m.library_project_new()}
+      >
+        <FolderPlus size={19} />
+      </button>
+    </div>
+    <div class="mobile-project-all-assets">{@render allAssets()}</div>
+    <div class="mobile-project-list" aria-label={m.library_projects()}>{@render projectRows()}</div>
+  </section>
+{/if}
 
 {#if editing}
   <EntityNameDialog
@@ -252,3 +263,200 @@
     oncancel={() => (deleteTarget = null)}
   />
 {/if}
+
+<style>
+  .desktop-project-nav {
+    margin: 2px 0 6px 12px;
+    min-width: 0;
+    border-left: 1px solid var(--apex-border);
+    padding-left: 8px;
+  }
+
+  .desktop-project-header,
+  .mobile-project-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px;
+  }
+
+  .desktop-project-header {
+    min-height: 32px;
+  }
+
+  .desktop-project-toggle {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    align-items: center;
+    gap: 6px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    padding: 6px 4px;
+    color: var(--apex-text-muted);
+    font: inherit;
+    font-size: 11px;
+    font-weight: 700;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .desktop-project-toggle:hover {
+    background: var(--apex-surface-hover);
+    color: var(--apex-text);
+  }
+
+  .desktop-project-create {
+    display: flex;
+    width: 28px;
+    height: 28px;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--apex-accent);
+    cursor: pointer;
+  }
+
+  .desktop-project-create:hover {
+    background: var(--apex-accent-glow);
+  }
+
+  .desktop-project-all-assets {
+    margin: 2px 0;
+  }
+
+  .desktop-project-list {
+    max-height: 216px; /* six 36px project rows */
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+
+  .project-row {
+    display: flex;
+    height: 36px;
+    min-width: 0;
+    align-items: center;
+    gap: 1px;
+    border-radius: 7px;
+  }
+
+  .project-row:hover {
+    background: var(--apex-surface-hover);
+  }
+
+  .project-choice {
+    display: flex;
+    height: 100%;
+    min-width: 0;
+    flex: 1;
+    align-items: center;
+    gap: 7px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    padding: 0 8px;
+    color: var(--apex-text-muted);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .project-choice:hover {
+    color: var(--apex-text);
+  }
+
+  .project-choice-active {
+    background: var(--apex-accent-glow);
+    color: var(--apex-accent);
+  }
+
+  .desktop-project-all-assets .project-choice {
+    height: 32px;
+  }
+
+  .project-action {
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--apex-text-dim);
+    cursor: pointer;
+  }
+
+  .project-action:hover {
+    background: var(--apex-bg);
+    color: var(--apex-text);
+  }
+
+  .project-action-delete:hover {
+    background: color-mix(in srgb, var(--apex-danger) 10%, transparent);
+    color: var(--apex-danger);
+  }
+
+  .project-action-desktop {
+    display: none;
+    width: 24px;
+    height: 24px;
+  }
+
+  .project-row:hover .project-action-desktop,
+  .project-row:focus-within .project-action-desktop {
+    display: flex;
+  }
+
+  .mobile-project-nav {
+    display: flex;
+    min-height: 0;
+    flex: 1;
+    flex-direction: column;
+  }
+
+  .mobile-project-header {
+    flex: 0 0 auto;
+    padding: 0 20px 10px;
+  }
+
+  .mobile-project-all-assets {
+    flex: 0 0 auto;
+    padding: 0 12px 8px;
+  }
+
+  .mobile-project-all-assets .project-choice {
+    height: 48px;
+    padding: 0 12px;
+    font-size: 14px;
+  }
+
+  .mobile-project-list {
+    min-height: 0;
+    flex: 1;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 0 12px;
+  }
+
+  .mobile-project-list .project-row {
+    height: 52px;
+    gap: 4px;
+  }
+
+  .mobile-project-list .project-choice {
+    padding: 0 12px;
+    font-size: 14px;
+  }
+
+  .project-action-mobile {
+    display: flex;
+    width: 40px;
+    height: 40px;
+  }
+</style>
