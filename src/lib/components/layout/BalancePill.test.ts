@@ -50,12 +50,12 @@ beforeEach(() => {
 });
 
 describe('BalancePill — positive balance', () => {
-  it('renders balance value and links to ROUTES.billing', () => {
+  it('renders balance value and links to ROUTES.billingTopUp', () => {
     mockQuery({ balance: 1250, account_id: 'acc_001' });
     render(BalancePill);
     const link = document.querySelector('a') as HTMLAnchorElement;
     expect(link).not.toBeNull();
-    expect(link.href).toContain(ROUTES.billing);
+    expect(link.href).toContain(ROUTES.billingTopUp);
     expect(link.classList.contains('debt')).toBe(false);
   });
 });

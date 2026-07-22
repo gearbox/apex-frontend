@@ -1,6 +1,6 @@
 {
   "name": "apex-frontend",
-  "version": "0.17.7",
+  "version": "0.17.8",
   "private": true,
   "type": "module",
   "description": "Apex AI Content Studio — Progressive Web App",

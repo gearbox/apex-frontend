@@ -20,7 +20,7 @@
 </script>
 
 <a
-  href={isDebt ? ROUTES.billingTopUp : ROUTES.billing}
+  href={ROUTES.billingTopUp}
   class="pill"
   class:debt={isDebt}
   aria-label={balanceQuery.isLoading ? m.balance_loading_aria_label() : debtLabel}
