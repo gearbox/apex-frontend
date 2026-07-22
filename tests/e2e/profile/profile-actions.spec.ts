@@ -126,9 +126,9 @@ test.describe('Profile actions', () => {
     });
 
     await page.goto('/app/profile');
-    await page.waitForLoadState('networkidle');
-
-    await page.getByRole('button', { name: 'Delete Account' }).click();
+    const deleteAccountButton = page.getByRole('button', { name: 'Delete Account' });
+    await expect(deleteAccountButton).toBeVisible({ timeout: 5000 });
+    await deleteAccountButton.click();
     await expect(page.getByRole('dialog')).toBeVisible({ timeout: 5000 });
 
     // Delete button should be disabled initially

@@ -69,15 +69,10 @@
   const presets = $derived.by(() => {
     if (!options) return [];
     const tiers = [...options.tiers].sort((a, b) => a.threshold_usd - b.threshold_usd);
-    const cards = tiers.map((tier) => ({
+    return tiers.map((tier) => ({
       amount: tier.threshold_usd,
       discountPct: tier.discount_pct,
     }));
-    const firstThreshold = tiers[0]?.threshold_usd;
-    if (firstThreshold === undefined || options.min_amount_usd < firstThreshold) {
-      cards.unshift({ amount: options.min_amount_usd, discountPct: 0 });
-    }
-    return cards;
   });
 
   const amountUsd = $derived(amountInput === '' ? null : Number(amountInput));
@@ -329,6 +324,7 @@
       {#each presets as preset (preset.amount)}
         <button
           type="button"
+          aria-label={formatUsdWhole(preset.amount)}
           disabled={isCheckoutLocked}
           onclick={() => selectPreset(preset.amount)}
           class="relative rounded-xl border p-3 text-left transition-colors {selectedPreset ===

@@ -2,6 +2,7 @@
   import { CircleDollarSign } from 'lucide-svelte';
   import * as m from '$paraglide/messages';
   import type { PublicCurrency } from '$lib/api/billing';
+  import { fitCurrencyName } from './currencyNameFit';
 
   interface Props {
     currencies: PublicCurrency[];
@@ -43,6 +44,23 @@
     <p id="payment-currency-help" class="currency-help">{m.billing_currency_picker_hint()}</p>
 
     <div class="currency-options">
+      <label class="currency-option currency-option--default" class:selected={value === null}>
+        <input
+          type="radio"
+          name="payment-currency"
+          checked={value === null}
+          onchange={() => (value = null)}
+          {disabled}
+        />
+        <span class="currency-icon" aria-hidden="true"><CircleDollarSign size={18} /></span>
+        <span class="currency-copy">
+          <span class="currency-name" use:fitCurrencyName>
+            {m.billing_currency_picker_other()}
+          </span>
+          <span class="currency-ticker">{m.billing_currency_picker_other_hint()}</span>
+        </span>
+      </label>
+
       {#each sortedCurrencies as currency (currency.ticker)}
         {@const hasLogo = currency.logo_url !== null && !failedLogos.has(logoKey(currency))}
         <label class="currency-option" class:selected={value === currency.ticker}>
@@ -63,7 +81,7 @@
             <span class="currency-icon" aria-hidden="true"><CircleDollarSign size={18} /></span>
           {/if}
           <span class="currency-copy">
-            <span class="currency-name">{label(currency)}</span>
+            <span class="currency-name" use:fitCurrencyName>{label(currency)}</span>
             <span class="currency-ticker">{currency.ticker}</span>
           </span>
           {#if currency.network !== null}
@@ -71,21 +89,6 @@
           {/if}
         </label>
       {/each}
-
-      <label class="currency-option" class:selected={value === null}>
-        <input
-          type="radio"
-          name="payment-currency"
-          checked={value === null}
-          onchange={() => (value = null)}
-          {disabled}
-        />
-        <span class="currency-icon" aria-hidden="true"><CircleDollarSign size={18} /></span>
-        <span class="currency-copy">
-          <span class="currency-name">{m.billing_currency_picker_other()}</span>
-          <span class="currency-ticker">{m.billing_currency_picker_other_hint()}</span>
-        </span>
-      </label>
     </div>
   </fieldset>
 {/if}
@@ -122,8 +125,11 @@
     cursor: pointer;
     display: flex;
     gap: 8px;
-    min-height: 54px;
+    min-height: 70px;
     padding: 8px;
+  }
+  .currency-option--default {
+    grid-column: 1 / -1;
   }
   .currency-option.selected {
     border-color: var(--apex-accent);
@@ -162,11 +168,18 @@
   }
   .currency-name {
     color: var(--apex-text);
+    display: block;
     font-size: 13px;
     font-weight: 600;
+    line-height: 1.2;
+    max-height: 2.4em;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  :global(.currency-name--compact) {
+    font-size: 11px;
+    max-height: none;
   }
   .currency-ticker {
     color: var(--apex-text-dim);
@@ -177,7 +190,15 @@
     background: var(--apex-surface-hover);
     border-radius: 999px;
     color: var(--apex-text-muted);
+    flex: 0 1 auto;
     font-size: 10px;
+    max-width: 40%;
+    overflow-wrap: anywhere;
     padding: 2px 6px;
+  }
+  @media (min-width: 768px) {
+    .currency-option--default {
+      grid-column: auto;
+    }
   }
 </style>
