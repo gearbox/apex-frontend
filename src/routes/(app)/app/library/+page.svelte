@@ -117,9 +117,9 @@
     updateUrl({ tag: tagId });
   }
 
-  function handleExpiringChange() {
+  function handleExpiringChange(checked: boolean) {
     selection.clearForFilterChange();
-    updateUrl({ expiring: expiring ? null : 'true' });
+    updateUrl({ expiring: checked ? 'true' : null });
   }
 
   function handleSortChange(next: LibrarySort) {
@@ -405,15 +405,6 @@
         />
       </div>
     </div>
-    <button
-      type="button"
-      onclick={handleExpiringChange}
-      class="rounded-full px-3 py-2 text-xs font-medium transition-colors {expiring
-        ? 'bg-warning/15 text-warning'
-        : 'border border-border bg-surface text-text-muted hover:text-text'}"
-    >
-      {m.library_expiring_filter()}
-    </button>
     <select
       value={sort}
       onchange={(event) =>
@@ -427,7 +418,12 @@
     </select>
   </div>
 
-  <LibraryTabs active={tab} onchange={handleTabChange} />
+  <LibraryTabs
+    active={tab}
+    onchange={handleTabChange}
+    {expiring}
+    onExpiringChange={handleExpiringChange}
+  />
 
   <div class="flex flex-wrap items-center gap-2">
     <LibraryFilterBar
@@ -486,6 +482,8 @@
           {m.library_tag_empty_filter()}
         {:else if activeProjectId}
           {m.library_project_empty()}
+        {:else if expiring}
+          {m.library_expiring_empty_filter()}
         {:else if tab === 'favorites'}
           {m.library_empty_favorites()}
         {:else if tab === 'uploads'}

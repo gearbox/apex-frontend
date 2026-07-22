@@ -5,7 +5,17 @@
 <script lang="ts">
   import * as m from '$paraglide/messages';
 
-  let { active, onchange }: { active: LibraryTab; onchange: (tab: LibraryTab) => void } = $props();
+  let {
+    active,
+    onchange,
+    expiring,
+    onExpiringChange,
+  }: {
+    active: LibraryTab;
+    onchange: (tab: LibraryTab) => void;
+    expiring: boolean;
+    onExpiringChange: (checked: boolean) => void;
+  } = $props();
 
   const tabs: { key: LibraryTab; label: () => string }[] = [
     { key: 'all', label: () => m.library_tab_all() },
@@ -15,16 +25,33 @@
   ];
 </script>
 
-<div class="flex gap-1.5 overflow-x-auto" role="tablist">
-  {#each tabs as tab (tab.key)}
-    <button
-      onclick={() => onchange(tab.key)}
-      role="tab"
-      aria-selected={active === tab.key}
-      class="shrink-0 rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors
-        {active === tab.key ? 'bg-accent/15 text-accent' : 'text-text-muted hover:text-text'}"
-    >
-      {tab.label()}
-    </button>
-  {/each}
+<div class="flex items-center gap-1.5 overflow-x-auto">
+  <div class="flex gap-1.5" role="tablist">
+    {#each tabs as tab (tab.key)}
+      <button
+        onclick={() => onchange(tab.key)}
+        role="tab"
+        aria-selected={active === tab.key}
+        class="shrink-0 rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors
+          {active === tab.key ? 'bg-accent/15 text-accent' : 'text-text-muted hover:text-text'}"
+      >
+        {tab.label()}
+      </button>
+    {/each}
+  </div>
+
+  <label
+    class="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors
+      {expiring
+      ? 'bg-warning/15 text-warning'
+      : 'text-text-muted hover:bg-surface-hover hover:text-text'}"
+  >
+    <input
+      type="checkbox"
+      checked={expiring}
+      onchange={(event) => onExpiringChange((event.currentTarget as HTMLInputElement).checked)}
+      class="h-3.5 w-3.5 accent-warning"
+    />
+    <span>{m.library_expiring_filter()}</span>
+  </label>
 </div>
