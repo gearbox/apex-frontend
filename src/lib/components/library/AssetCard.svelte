@@ -2,11 +2,11 @@
   import { createMutation, useQueryClient } from '@tanstack/svelte-query';
   import {
     Circle,
-    CircleCheckBig,
+    CircleCheck,
     Heart,
     Image as ImageIcon,
     Layers,
-    MoreVertical,
+    EllipsisVertical,
     Video,
   } from 'lucide-svelte';
   import Media from '$lib/media/Media.svelte';
@@ -167,10 +167,7 @@
           ontouchmove={stopSelectionTouchPropagation}
           ontouchend={stopSelectionTouchPropagation}
           ontouchcancel={stopSelectionTouchPropagation}
-          class="absolute left-0 top-0 z-10 flex h-11 w-11 touch-manipulation items-center justify-center rounded-full transition-opacity md:left-1 md:top-1 md:h-9 md:w-9 {selectable ||
-          selected
-            ? 'md:opacity-100'
-            : 'md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100'}"
+          class="absolute left-0 top-0 z-10 flex h-11 w-11 touch-manipulation items-center justify-center rounded-full"
           aria-label={m.library_select()}
           aria-pressed={selected}
           data-testid="library-selection-control"
@@ -181,17 +178,17 @@
               : ''}"
           >
             {#if selected}
-              <CircleCheckBig
+              <CircleCheck
                 data-testid="library-selection-check"
                 size={22}
-                strokeWidth={2.5}
+                strokeWidth={1.5}
                 aria-hidden="true"
               />
             {:else}
               <Circle
                 data-testid="library-selection-unchecked"
                 size={20}
-                strokeWidth={2.5}
+                strokeWidth={1.5}
                 aria-hidden="true"
               />
             {/if}
@@ -207,8 +204,9 @@
       />
 
       <!-- Provenance badge -->
-      <div class="absolute left-12 top-0 z-10 flex h-11 items-center">
+      <div class="absolute left-1/2 top-0 z-10 flex h-11 -translate-x-1/2 items-center">
         <div
+          data-testid="library-provenance-badge"
           class="flex items-center gap-1 rounded-md bg-black/50 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm"
         >
           {#if isVideo}
@@ -251,6 +249,7 @@
           aria-pressed={item.is_favorite}
         >
           <span
+            data-testid="library-favorite-icon"
             class="flex h-7 w-7 items-center justify-center rounded-full bg-black/50 backdrop-blur-sm transition-colors hover:bg-black/70"
           >
             <Heart size={13} fill={item.is_favorite ? 'currentColor' : 'none'} />
@@ -301,7 +300,7 @@
             : ''}"
           aria-label={m.library_more_actions()}
         >
-          <MoreVertical size={13} />
+          <EllipsisVertical size={13} />
         </button>
       {/if}
 

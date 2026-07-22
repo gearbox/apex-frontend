@@ -641,6 +641,21 @@ test.describe('Library page', () => {
       expect(firstControlBox?.width).toBeGreaterThanOrEqual(40);
       expect(firstControlBox?.height).toBeGreaterThanOrEqual(40);
 
+      const [selectionIconBox, badgeBox, favoriteIconBox] = await Promise.all([
+        page.getByTestId('library-selection-unchecked').first().boundingBox(),
+        page.getByTestId('library-provenance-badge').first().boundingBox(),
+        page.getByTestId('library-favorite-icon').first().boundingBox(),
+      ]);
+      const cardBox = await selectionControls.nth(0).locator('xpath=..').boundingBox();
+      if (!selectionIconBox || !badgeBox || !favoriteIconBox || !cardBox) {
+        throw new Error('Expected the first card top overlays to have bounding boxes');
+      }
+      const centerY = (box: { y: number; height: number }) => box.y + box.height / 2;
+      const centerX = (box: { x: number; width: number }) => box.x + box.width / 2;
+      expect(Math.abs(centerY(selectionIconBox) - centerY(badgeBox))).toBeLessThanOrEqual(1);
+      expect(Math.abs(centerY(selectionIconBox) - centerY(favoriteIconBox))).toBeLessThanOrEqual(1);
+      expect(Math.abs(centerX(badgeBox) - centerX(cardBox))).toBeLessThanOrEqual(1);
+
       await selectionControls.nth(0).tap();
       await expect(selectionControls.nth(0)).toHaveAttribute('aria-pressed', 'true');
       await expect(page.getByRole('toolbar', { name: '1 selected' })).toBeVisible();
@@ -657,8 +672,8 @@ test.describe('Library page', () => {
   );
 
   test(
-    'Desktop selection controls are hover-revealed and stay visible after selection',
-    { tag: '@desktop' },
+    'Selection controls are always visible and remain actionable',
+    { tag: '@selection' },
     async ({ authenticatedPage: page }) => {
       await page.route((url) => url.pathname === '/v1/library', jsonRoute(mockLibraryPage));
 
@@ -668,9 +683,6 @@ test.describe('Library page', () => {
       const selectionControl = page.getByTestId('library-selection-control').first();
       const opacity = () =>
         selectionControl.evaluate((element) => getComputedStyle(element).opacity);
-      await expect.poll(opacity).toBe('0');
-
-      await selectionControl.hover();
       await expect.poll(opacity).toBe('1');
 
       await selectionControl.click();
