@@ -3,6 +3,7 @@
   import { sidebarCollapsed, toggleSidebar } from '$lib/stores/ui';
   import { isAdmin } from '$lib/stores/auth';
   import { productInfo } from '$lib/stores/product';
+  import ProjectNav from '$lib/components/library/ProjectNav.svelte';
   import * as m from '$paraglide/messages';
   import { ROUTES } from '$lib/utils/routes';
   import {
@@ -74,6 +75,9 @@
           <span class="nav-label">{item.label()}</span>
         {/if}
       </a>
+      {#if item.href === ROUTES.library && !$sidebarCollapsed}
+        <ProjectNav surface="desktop" />
+      {/if}
     {/each}
 
     {#if $isAdmin}
