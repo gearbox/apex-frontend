@@ -124,14 +124,39 @@ beforeEach(() => {
 });
 
 describe('TopUpPanel', () => {
-  it('renders preset cards from topup options, prepending the min-amount card', () => {
+  it('renders only API-provided preset cards while retaining the minimum as the input placeholder', () => {
     render(TopUpPanel);
 
-    expect(screen.getByText('$5')).toBeTruthy();
-    expect(screen.getByText('$25')).toBeTruthy();
-    expect(screen.getByText('$50')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: '$5' })).toBeNull();
+    expect(screen.getByRole('button', { name: '$25' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: '$50' })).toBeTruthy();
     expect(screen.getByText('-5%')).toBeTruthy();
     expect(screen.getByText('-10%')).toBeTruthy();
+    expect(screen.getByLabelText('Amount (USD)').getAttribute('placeholder')).toBe('5');
+  });
+
+  it('keeps the minimum amount valid for manual entry', async () => {
+    render(TopUpPanel);
+
+    await fireEvent.input(screen.getByLabelText('Amount (USD)'), { target: { value: '5' } });
+
+    expect(
+      (screen.getByRole('button', { name: /pay with stripe/i }) as HTMLButtonElement).disabled,
+    ).toBe(false);
+    expect(
+      (screen.getByRole('button', { name: /pay with crypto/i }) as HTMLButtonElement).disabled,
+    ).toBe(false);
+  });
+
+  it('renders a minimum-value card when that tier is supplied by the API', () => {
+    optionsData = {
+      ...structuredClone(BASE_OPTIONS),
+      tiers: [{ threshold_usd: 5, discount_pct: 0 }, ...BASE_OPTIONS.tiers],
+    };
+
+    render(TopUpPanel);
+
+    expect(screen.getByRole('button', { name: '$5' })).toBeTruthy();
   });
 
   it('shows a bounds validation message for an out-of-range amount', async () => {

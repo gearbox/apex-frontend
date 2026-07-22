@@ -38,4 +38,45 @@ test.describe('Billing', () => {
     await expect(page).toHaveURL(/\/app\/billing\?tab=buy/);
     await expect(page.getByRole('button', { name: /pay with stripe/i })).toBeVisible();
   });
+
+  test('the default crypto currency is first and full-width on mobile', async ({
+    authenticatedPage: page,
+  }) => {
+    await page.setViewportSize({ width: 393, height: 852 });
+    await page.route(
+      '**/v1/billing/providers',
+      jsonRoute([
+        { provider: 'stripe', display_order: 0 },
+        { provider: 'nowpayments', display_order: 1 },
+      ]),
+    );
+    await page.route(
+      '**/v1/billing/currencies',
+      jsonRoute([
+        { ticker: 'USDTTRC20', name: 'Tether', network: 'TRX', logo_url: null },
+        {
+          ticker: 'LONG',
+          name: 'A genuinely long currency name that should remain visible',
+          network: null,
+          logo_url: null,
+        },
+      ]),
+    );
+
+    await page.goto('/app/billing?tab=buy');
+
+    const radios = page.getByRole('radio');
+    await expect(radios).toHaveCount(3);
+    await expect(radios.nth(0)).toHaveAccessibleName(/other.*choose on payment page/i);
+
+    const defaultBox = await radios.nth(0).locator('..').boundingBox();
+    const currencyBox = await radios.nth(1).locator('..').boundingBox();
+    expect(defaultBox).not.toBeNull();
+    expect(currencyBox).not.toBeNull();
+    expect(defaultBox!.width).toBeGreaterThan(currencyBox!.width * 1.8);
+    expect(currencyBox!.y).toBeGreaterThan(defaultBox!.y);
+    await expect(
+      page.getByText('A genuinely long currency name that should remain visible'),
+    ).toBeVisible();
+  });
 });
