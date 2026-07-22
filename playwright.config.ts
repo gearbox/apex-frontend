@@ -20,10 +20,12 @@ export default defineConfig({
     {
       name: 'desktop-chrome',
       use: { ...devices['Desktop Chrome'] },
+      grepInvert: /@mobile/,
     },
     {
       name: 'mobile-chrome',
       use: { ...devices['Pixel 5'] },
+      grepInvert: /@desktop/,
     },
     // WebKit (Safari/iOS) — requires macOS 14+ or Linux.
     // Skipped locally on macOS 13; runs in CI via `playwright install webkit`.
@@ -32,6 +34,7 @@ export default defineConfig({
           {
             name: 'mobile-safari',
             use: { ...devices['iPhone 15 Pro'] },
+            grepInvert: /@desktop/,
           },
         ]
       : []),

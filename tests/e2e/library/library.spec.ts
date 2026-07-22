@@ -234,67 +234,70 @@ test.describe('Library deletion', () => {
     );
   });
 
-  test('Mobile revealed swipe delete action opens the confirmation dialog', async ({
-    authenticatedPage: page,
-  }, testInfo) => {
-    test.skip(!testInfo.project.use.isMobile, 'Swipe-to-delete is mobile-only.');
-    await page.route((url) => url.pathname === '/v1/library', jsonRoute(mockLibraryPage));
+  test(
+    'Mobile revealed swipe delete action opens the confirmation dialog',
+    { tag: '@mobile' },
+    async ({ authenticatedPage: page }) => {
+      await page.route((url) => url.pathname === '/v1/library', jsonRoute(mockLibraryPage));
 
-    await page.goto('/app/library');
-    await expect(page.getByText(/\d+\s*loaded/i)).toBeVisible({ timeout: 5000 });
+      await page.goto('/app/library');
+      await expect(page.getByText(/\d+\s*loaded/i)).toBeVisible({ timeout: 5000 });
 
-    const { swipeWrapper } = await revealDeleteAction(page);
-    const deleteAction = swipeWrapper.locator('.delete-action');
-    const box = await deleteAction.boundingBox();
-    if (!box) throw new Error('Expected delete action to have a bounding box');
+      const { swipeWrapper } = await revealDeleteAction(page);
+      const deleteAction = swipeWrapper.locator('.delete-action');
+      const box = await deleteAction.boundingBox();
+      if (!box) throw new Error('Expected delete action to have a bounding box');
 
-    const actionPoint = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-    const hitTarget = await page.evaluate(({ x, y }) => {
-      const element = document.elementFromPoint(x, y);
-      return element?.closest('.delete-action')?.className ?? element?.className ?? null;
-    }, actionPoint);
-    expect(hitTarget).toContain('delete-action');
-    await page.mouse.click(actionPoint.x, actionPoint.y);
+      const actionPoint = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+      const hitTarget = await page.evaluate(({ x, y }) => {
+        const element = document.elementFromPoint(x, y);
+        return element?.closest('.delete-action')?.className ?? element?.className ?? null;
+      }, actionPoint);
+      expect(hitTarget).toContain('delete-action');
+      await page.mouse.click(actionPoint.x, actionPoint.y);
 
-    await expect(page.getByText(/permanently deleted/i)).toHaveCount(1);
-  });
+      await expect(page.getByText(/permanently deleted/i)).toHaveCount(1);
+    },
+  );
 
-  test('Mobile open card tap closes the swipe without opening or deleting the card', async ({
-    authenticatedPage: page,
-  }, testInfo) => {
-    test.skip(!testInfo.project.use.isMobile, 'Swipe-to-delete is mobile-only.');
-    await page.route((url) => url.pathname === '/v1/library', jsonRoute(mockLibraryPage));
+  test(
+    'Mobile open card tap closes the swipe without opening or deleting the card',
+    { tag: '@mobile' },
+    async ({ authenticatedPage: page }) => {
+      await page.route((url) => url.pathname === '/v1/library', jsonRoute(mockLibraryPage));
 
-    await page.goto('/app/library');
-    await expect(page.getByText(/\d+\s*loaded/i)).toBeVisible({ timeout: 5000 });
+      await page.goto('/app/library');
+      await expect(page.getByText(/\d+\s*loaded/i)).toBeVisible({ timeout: 5000 });
 
-    const { swipeWrapper, swipeContent } = await revealDeleteAction(page);
-    const closeOverlay = swipeWrapper.locator('.swipe-close-overlay');
-    const box = await closeOverlay.boundingBox();
-    if (!box) throw new Error('Expected close overlay to have a bounding box');
+      const { swipeWrapper, swipeContent } = await revealDeleteAction(page);
+      const closeOverlay = swipeWrapper.locator('.swipe-close-overlay');
+      const box = await closeOverlay.boundingBox();
+      if (!box) throw new Error('Expected close overlay to have a bounding box');
 
-    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+      await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
 
-    await expect(closeOverlay).toHaveCount(0);
-    await expect(swipeContent).toHaveAttribute('style', /translateX\(0px\)/);
-    await expect(page.getByRole('dialog', { name: /asset details/i })).toHaveCount(0);
-    await expect(page.getByText(/permanently deleted/i)).toHaveCount(0);
-  });
+      await expect(closeOverlay).toHaveCount(0);
+      await expect(swipeContent).toHaveAttribute('style', /translateX\(0px\)/);
+      await expect(page.getByRole('dialog', { name: /asset details/i })).toHaveCount(0);
+      await expect(page.getByText(/permanently deleted/i)).toHaveCount(0);
+    },
+  );
 
-  test('Mobile overswipe still opens the deletion confirmation dialog', async ({
-    authenticatedPage: page,
-  }, testInfo) => {
-    test.skip(!testInfo.project.use.isMobile, 'Swipe-to-delete is mobile-only.');
-    await page.route((url) => url.pathname === '/v1/library', jsonRoute(mockLibraryPage));
+  test(
+    'Mobile overswipe still opens the deletion confirmation dialog',
+    { tag: '@mobile' },
+    async ({ authenticatedPage: page }) => {
+      await page.route((url) => url.pathname === '/v1/library', jsonRoute(mockLibraryPage));
 
-    await page.goto('/app/library');
-    await expect(page.getByText(/\d+\s*loaded/i)).toBeVisible({ timeout: 5000 });
+      await page.goto('/app/library');
+      await expect(page.getByText(/\d+\s*loaded/i)).toBeVisible({ timeout: 5000 });
 
-    const swipeContent = page.locator('.swipe-wrapper').first().locator('.swipe-content');
-    await swipeLeft(swipeContent, 130);
+      const swipeContent = page.locator('.swipe-wrapper').first().locator('.swipe-content');
+      await swipeLeft(swipeContent, 130);
 
-    await expect(page.getByText(/permanently deleted/i)).toHaveCount(1);
-  });
+      await expect(page.getByText(/permanently deleted/i)).toHaveCount(1);
+    },
+  );
 
   test('Delete button in Asset Details shows confirm dialog', async ({
     authenticatedPage: page,
@@ -617,7 +620,76 @@ test.describe('Library page', () => {
 
     await expect(page.getByText('Generated').first()).toBeVisible();
     await expect(page.getByText('Uploaded').first()).toBeVisible();
+    await expect(page.getByTestId('library-media-icon-image')).toHaveCount(3);
+    await expect(page.getByTestId('library-media-icon-video')).toHaveCount(1);
   });
+
+  test(
+    'Mobile cards support direct multi-selection without opening their details',
+    { tag: '@mobile' },
+    async ({ authenticatedPage: page }) => {
+      await page.route((url) => url.pathname === '/v1/library', jsonRoute(mockLibraryPage));
+
+      await page.goto('/app/library');
+      await expect(page.getByText(/\d+\s*loaded/i)).toBeVisible({ timeout: 5000 });
+
+      const selectionControls = page.getByTestId('library-selection-control');
+      await expect(selectionControls).toHaveCount(4);
+      await expect(selectionControls.nth(0)).toBeVisible();
+      await expect(selectionControls.nth(1)).toBeVisible();
+      const firstControlBox = await selectionControls.nth(0).boundingBox();
+      expect(firstControlBox?.width).toBeGreaterThanOrEqual(40);
+      expect(firstControlBox?.height).toBeGreaterThanOrEqual(40);
+
+      const [selectionIconBox, badgeBox, favoriteIconBox] = await Promise.all([
+        page.getByTestId('library-selection-unchecked').first().boundingBox(),
+        page.getByTestId('library-provenance-badge').first().boundingBox(),
+        page.getByTestId('library-favorite-icon').first().boundingBox(),
+      ]);
+      const cardBox = await selectionControls.nth(0).locator('xpath=..').boundingBox();
+      if (!selectionIconBox || !badgeBox || !favoriteIconBox || !cardBox) {
+        throw new Error('Expected the first card top overlays to have bounding boxes');
+      }
+      const centerY = (box: { y: number; height: number }) => box.y + box.height / 2;
+      const centerX = (box: { x: number; width: number }) => box.x + box.width / 2;
+      expect(Math.abs(centerY(selectionIconBox) - centerY(badgeBox))).toBeLessThanOrEqual(1);
+      expect(Math.abs(centerY(selectionIconBox) - centerY(favoriteIconBox))).toBeLessThanOrEqual(1);
+      expect(Math.abs(centerX(badgeBox) - centerX(cardBox))).toBeLessThanOrEqual(1);
+
+      await selectionControls.nth(0).tap();
+      await expect(selectionControls.nth(0)).toHaveAttribute('aria-pressed', 'true');
+      await expect(page.getByRole('toolbar', { name: '1 selected' })).toBeVisible();
+      await expect(page.getByRole('dialog', { name: /asset details/i })).toHaveCount(0);
+
+      await selectionControls.nth(1).tap();
+      await expect(selectionControls.nth(1)).toHaveAttribute('aria-pressed', 'true');
+      await expect(page.getByRole('toolbar', { name: '2 selected' })).toBeVisible();
+
+      await selectionControls.nth(0).tap();
+      await expect(selectionControls.nth(0)).toHaveAttribute('aria-pressed', 'false');
+      await expect(page.getByRole('toolbar', { name: '1 selected' })).toBeVisible();
+    },
+  );
+
+  test(
+    'Selection controls are always visible and remain actionable',
+    { tag: '@selection' },
+    async ({ authenticatedPage: page }) => {
+      await page.route((url) => url.pathname === '/v1/library', jsonRoute(mockLibraryPage));
+
+      await page.goto('/app/library');
+      await expect(page.getByText(/\d+\s*loaded/i)).toBeVisible({ timeout: 5000 });
+
+      const selectionControl = page.getByTestId('library-selection-control').first();
+      const opacity = () =>
+        selectionControl.evaluate((element) => getComputedStyle(element).opacity);
+      await expect.poll(opacity).toBe('1');
+
+      await selectionControl.click();
+      await page.mouse.move(0, 0);
+      await expect.poll(opacity).toBe('1');
+    },
+  );
 });
 
 test.describe('Library media rendering', () => {

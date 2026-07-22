@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from 'vites
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import type { components } from '$lib/api/types';
 import { makeLibraryAssetItem } from '../../../mocks/factories/library';
-import { makeMediaObject } from '../../../mocks/factories/media';
+import { makeMediaObject, makeVideoMediaObject } from '../../../mocks/factories/media';
 
 type LibraryAssetItem = components['schemas']['LibraryAssetItem'];
 type LibraryAction = components['schemas']['LibraryAction'];
@@ -52,14 +52,72 @@ function renderCard(
 }
 
 describe('AssetCard', () => {
-  it('renders an uploaded asset with the "Uploaded" provenance badge', () => {
+  it('renders an image icon and "Uploaded" in the uploaded-image provenance badge', () => {
     renderCard({ source: 'upload', original_filename: 'photo.jpg', media: makeMediaObject() });
     expect(screen.getByText('Uploaded')).toBeTruthy();
+    expect(screen.getByTestId('library-media-icon-image').getAttribute('aria-hidden')).toBe('true');
   });
 
-  it('renders a generated asset with the "Generated" provenance badge', () => {
+  it('renders an image icon and "Generated" in the generated-image provenance badge', () => {
     renderCard({ source: 'output', media: makeMediaObject() });
     expect(screen.getByText('Generated')).toBeTruthy();
+    expect(screen.getByTestId('library-media-icon-image').getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it('renders a video icon and "Generated" in the generated-video provenance badge', () => {
+    renderCard({ source: 'output', media: makeVideoMediaObject() });
+    expect(screen.getByText('Generated')).toBeTruthy();
+    expect(screen.getByTestId('library-media-icon-video').getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it('renders a video icon and "Uploaded" in the uploaded-video provenance badge', () => {
+    renderCard({ source: 'upload', media: makeVideoMediaObject() });
+    expect(screen.getByText('Uploaded')).toBeTruthy();
+    expect(screen.getByTestId('library-media-icon-video').getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it('renders a selection control when onToggleSelect is supplied', () => {
+    renderCard({}, { onToggleSelect: vi.fn() });
+
+    expect(screen.getByTestId('library-selection-control').getAttribute('aria-pressed')).toBe(
+      'false',
+    );
+    expect(screen.getByTestId('library-selection-unchecked').getAttribute('aria-hidden')).toBe(
+      'true',
+    );
+  });
+
+  it('toggles exactly once without opening the card when its selection control is clicked', async () => {
+    const onToggleSelect = vi.fn();
+    const { item, onclick } = renderCard({}, { onToggleSelect });
+
+    await fireEvent.click(screen.getByTestId('library-selection-control'));
+
+    expect(onToggleSelect).toHaveBeenCalledTimes(1);
+    expect(onToggleSelect).toHaveBeenCalledWith(item);
+    expect(onclick).not.toHaveBeenCalled();
+  });
+
+  it('exposes selected state and a check indicator on the selection control', () => {
+    renderCard({}, { onToggleSelect: vi.fn(), selected: true });
+
+    expect(screen.getByTestId('library-selection-control').getAttribute('aria-pressed')).toBe(
+      'true',
+    );
+    expect(screen.getByTestId('library-selection-check').getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it('does not start a delayed long-press toggle from the explicit selection control', async () => {
+    const onToggleSelect = vi.fn();
+    renderCard({}, { onToggleSelect });
+    const control = screen.getByTestId('library-selection-control');
+
+    await fireEvent.touchStart(control, { touches: [{ clientX: 10, clientY: 10 }] });
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    await fireEvent.touchEnd(control);
+    await fireEvent.click(control);
+
+    expect(onToggleSelect).toHaveBeenCalledTimes(1);
   });
 
   it('calls onclick when the card body is clicked', async () => {
