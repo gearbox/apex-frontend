@@ -114,6 +114,18 @@ vi.mock('@tanstack/svelte-query', () => ({
   useQueryClient: vi.fn(() => ({ invalidateQueries: vi.fn() })),
 }));
 
+const { resolveSaveCapabilitiesMock } = vi.hoisted(() => ({
+  resolveSaveCapabilitiesMock: vi.fn(() => ['download']),
+}));
+
+vi.mock('$lib/media/save', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('$lib/media/save')>();
+  return {
+    ...actual,
+    resolveSaveCapabilities: resolveSaveCapabilitiesMock,
+  };
+});
+
 import AssetDetailsSheet from './AssetDetailsSheet.svelte';
 
 beforeEach(() => {
@@ -121,6 +133,7 @@ beforeEach(() => {
   oncloseMock.mockClear();
   lineageQueryCalls = 0;
   groupData = undefined;
+  resolveSaveCapabilitiesMock.mockReturnValue(['download']);
 });
 
 describe('AssetDetailsSheet — unified variation selection', () => {
@@ -340,5 +353,48 @@ describe('AssetDetailsSheet — dismissal controls', () => {
     await fireEvent.keyDown(window, { key: 'Escape' });
 
     expect(oncloseMock).toHaveBeenCalledOnce();
+  });
+});
+
+describe('AssetDetailsSheet — save actions (share/download)', () => {
+  it('renders a Share button alongside Download under a mobile capability stub', () => {
+    resolveSaveCapabilitiesMock.mockReturnValue(['share', 'download']);
+    detailData = makeLibraryAssetDetail({ asset_ref: 'output:abc' });
+    render(AssetDetailsSheet, { props: { assetRef: 'output:abc', onclose: oncloseMock } });
+
+    expect(screen.getByLabelText('Share')).toBeTruthy();
+    expect(screen.getByLabelText('Download')).toBeTruthy();
+  });
+
+  it('renders only Download under a desktop capability stub', () => {
+    resolveSaveCapabilitiesMock.mockReturnValue(['download']);
+    detailData = makeLibraryAssetDetail({ asset_ref: 'output:abc' });
+    render(AssetDetailsSheet, { props: { assetRef: 'output:abc', onclose: oncloseMock } });
+
+    expect(screen.getByLabelText('Download')).toBeTruthy();
+    expect(screen.queryByLabelText('Share')).toBeNull();
+  });
+
+  it('never renders Share as a quick-action menu pill — only via the dedicated save button', () => {
+    resolveSaveCapabilitiesMock.mockReturnValue(['share', 'download']);
+    detailData = makeLibraryAssetDetail({ asset_ref: 'output:abc' });
+    render(AssetDetailsSheet, { props: { assetRef: 'output:abc', onclose: oncloseMock } });
+
+    // Remix still renders as a quick-action pill; Share must appear exactly once — via the
+    // dedicated save button — never duplicated into that pill row.
+    expect(screen.getByText('Remix')).toBeTruthy();
+    expect(screen.getAllByLabelText('Share')).toHaveLength(1);
+  });
+
+  it('omits both share and download when the download action is unavailable', () => {
+    resolveSaveCapabilitiesMock.mockReturnValue(['share', 'download']);
+    detailData = makeLibraryAssetDetail({
+      asset_ref: 'output:abc',
+      available_actions: ['remix', 'favorite', 'delete'],
+    });
+    render(AssetDetailsSheet, { props: { assetRef: 'output:abc', onclose: oncloseMock } });
+
+    expect(screen.queryByLabelText('Share')).toBeNull();
+    expect(screen.queryByLabelText('Download')).toBeNull();
   });
 });
