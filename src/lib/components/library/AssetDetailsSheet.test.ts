@@ -2,10 +2,16 @@ import { describe, it, expect, vi, beforeEach, beforeAll, afterAll } from 'vites
 import { tick } from 'svelte';
 import { render, screen, fireEvent, within } from '@testing-library/svelte';
 import type { components } from '$lib/api/types';
-import { makeLibraryAssetDetail, makeLibraryLineage } from '../../../mocks/factories/library';
+import {
+  makeLibraryAssetDetail,
+  makeLibraryGroupDetail,
+  makeLibraryLineage,
+  makeLibraryOutputItem,
+} from '../../../mocks/factories/library';
 import { makeMediaObject } from '../../../mocks/factories/media';
 
 type LibraryAssetDetail = components['schemas']['LibraryAssetDetail'];
+type LibraryGroupDetail = components['schemas']['LibraryGroupDetail'];
 
 beforeAll(() => {
   vi.stubGlobal(
@@ -23,6 +29,7 @@ afterAll(() => {
 });
 
 let detailData: LibraryAssetDetail | undefined;
+let groupData: LibraryGroupDetail | undefined;
 let lineageQueryCalls = 0;
 const mutateAsyncMock = vi.fn();
 const renameMutateAsyncMock = vi.fn();
@@ -31,7 +38,7 @@ const oncloseMock = vi.fn();
 
 vi.mock('@tanstack/svelte-query', () => ({
   createQuery: vi.fn((optionsFn: () => { queryKey: readonly unknown[] }) => {
-    const [, kind] = optionsFn().queryKey;
+    const [, kind, assetRef] = optionsFn().queryKey;
     if (kind === 'projects') {
       return {
         data: {
@@ -73,9 +80,22 @@ vi.mock('@tanstack/svelte-query', () => ({
         refetch: vi.fn(),
       };
     }
+    if (kind === 'group') {
+      return {
+        get data() {
+          return groupData;
+        },
+        isLoading: false,
+        isError: false,
+      };
+    }
     return {
       get data() {
-        return detailData;
+        // The real asset endpoint always returns the ref in its request. Keep ordinary fixtures
+        // realistic while allowing the variation test to deliberately retain stale detail data.
+        return detailData?.asset_ref === 'output:out_mock_001'
+          ? { ...detailData, asset_ref: assetRef as string }
+          : detailData;
       },
       isLoading: false,
       isError: false,
@@ -105,6 +125,41 @@ beforeEach(() => {
   deleteMutateAsyncMock.mockClear();
   oncloseMock.mockClear();
   lineageQueryCalls = 0;
+  groupData = undefined;
+});
+
+describe('AssetDetailsSheet — unified variation selection', () => {
+  it('keeps the clicked ref selected and removes stale controls while another detail loads', async () => {
+    detailData = makeLibraryAssetDetail({
+      asset_ref: 'output:b',
+      display_title: 'Variation B',
+      job_id: 'job-group',
+      output_count: 3,
+      available_actions: ['delete'],
+    });
+    groupData = makeLibraryGroupDetail({
+      job_id: 'job-group',
+      outputs: [
+        makeLibraryOutputItem({ id: 'a', asset_ref: 'output:a', media: makeMediaObject() }),
+        makeLibraryOutputItem({ id: 'b', asset_ref: 'output:b', media: makeMediaObject() }),
+        makeLibraryOutputItem({ id: 'c', asset_ref: 'output:c', media: makeMediaObject() }),
+      ],
+    });
+
+    render(AssetDetailsSheet, {
+      props: { assetRef: 'output:b', jobIdHint: 'job-group', onclose: oncloseMock },
+    });
+
+    expect(
+      screen.getByRole('button', { name: 'Variation 2 of 3' }).getAttribute('aria-pressed'),
+    ).toBe('true');
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Variation 3 of 3' }));
+    expect(
+      screen.getByRole('button', { name: 'Variation 3 of 3' }).getAttribute('aria-pressed'),
+    ).toBe('true');
+    expect(screen.queryByLabelText('Delete')).toBeNull();
+  });
 });
 
 describe('AssetDetailsSheet — conditional metadata sections', () => {

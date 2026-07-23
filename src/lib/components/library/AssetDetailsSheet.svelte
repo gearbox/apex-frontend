@@ -4,6 +4,8 @@
   import { X, Check, ChevronDown, ChevronRight, Pencil, Download } from 'lucide-svelte';
   import {
     libraryAssetQueryOptions,
+    libraryGroupQueryOptions,
+    libraryKeys,
     renameMutationOptions,
     deleteAssetMutationOptions,
     projectAssignmentMutationOptions,
@@ -23,59 +25,142 @@
   import LineagePanel from '$lib/components/library/LineagePanel.svelte';
   import { addToast } from '$lib/stores/toasts';
   import * as m from '$paraglide/messages';
+  import type { components } from '$lib/api/types';
+
+  type LibraryGroupDetail = components['schemas']['LibraryGroupDetail'];
+  type LibraryOutputItem = components['schemas']['LibraryOutputItem'];
 
   let {
     assetRef,
     onclose,
-    onOpenGroup,
     onNavigate,
+    onSelectVariation,
     startInRename = false,
+    startFrameExtraction = false,
+    jobIdHint = null,
   }: {
     assetRef: string;
     onclose: () => void;
-    /** Called when the asset belongs to a multi-output job the user wants to browse. */
-    onOpenGroup?: (jobId: string, initialAssetRef: string) => void;
     /** Opens another asset from the lazy lineage chain. */
     onNavigate?: (assetRef: string) => void;
+    /** Re-keys the viewer when a sibling output is selected. */
+    onSelectVariation?: (assetRef: string) => void;
     /** Opens the sheet directly in rename mode once detail data has loaded. */
     startInRename?: boolean;
+    /** Opens the selected video's frame extractor once its current detail is available. */
+    startFrameExtraction?: boolean;
+    /** Eagerly loads siblings for a multi-output card while its asset detail loads. */
+    jobIdHint?: string | null;
   } = $props();
 
+  // The request effect below resets this whenever the mounted viewer receives a new request.
+  let selectedAssetRef = $state(initialSelection());
   let showDeleteConfirm = $state(false);
   let showFrameExtraction = $state(false);
   let frameExtractionTrigger = $state<HTMLButtonElement | null>(null);
   let renaming = $state(false);
   let renameValue = $state('');
-  let renameApplied = false;
+  let renameAppliedFor = $state<string | null>(null);
+  let frameExtractionAppliedFor = $state<string | null>(null);
   let lineageExpanded = $state(false);
+  let previousRequestKey = $state<string | null>(null);
+
+  function initialSelection() {
+    return assetRef;
+  }
 
   function focusOnMount(node: HTMLElement) {
     node.focus();
   }
 
   const queryClient = useQueryClient();
+  // The surrounding page keys this viewer by the selected sibling, so every mounted viewer
+  // owns a stable asset query rather than retaining data from a previous variation.
   const detailQuery = createQuery(() => libraryAssetQueryOptions(assetRef));
+  const currentDetail = $derived(
+    detailQuery.data?.asset_ref === selectedAssetRef ? detailQuery.data : undefined,
+  );
+  const groupJobId = $derived(
+    currentDetail
+      ? currentDetail.source === 'output' &&
+        currentDetail.output_count &&
+        currentDetail.output_count > 1
+        ? (currentDetail.job_id ?? jobIdHint)
+        : null
+      : jobIdHint,
+  );
+  const groupQuery = createQuery(() => ({
+    ...libraryGroupQueryOptions(groupJobId ?? ''),
+    enabled: !!groupJobId,
+  }));
+  const currentGroup = $derived(
+    groupQuery.data && groupQuery.data.job_id === groupJobId ? groupQuery.data : undefined,
+  );
+  const selectedOutput = $derived(
+    currentGroup?.outputs.find((output) => output.asset_ref === selectedAssetRef),
+  );
+  const stageMedia = $derived(selectedOutput?.media ?? currentDetail?.media);
   const deleteMutation = createMutation(() => deleteAssetMutationOptions(queryClient));
   const favoriteMutation = createMutation(() => favoriteMutationOptions(queryClient));
   const renameMutation = createMutation(() => renameMutationOptions(queryClient));
   const projectMutation = createMutation(() => projectAssignmentMutationOptions(queryClient));
   const projectsQuery = createQuery(() => projectsListQueryOptions());
 
+  function resetAssetUi() {
+    renaming = false;
+    renameValue = '';
+    lineageExpanded = false;
+    showDeleteConfirm = false;
+    showFrameExtraction = false;
+    frameExtractionTrigger = null;
+  }
+
+  $effect(() => {
+    const requestKey = `${assetRef}\u0000${jobIdHint ?? ''}`;
+    if (previousRequestKey === requestKey) return;
+    previousRequestKey = requestKey;
+    selectedAssetRef = assetRef;
+    renameAppliedFor = null;
+    frameExtractionAppliedFor = null;
+    resetAssetUi();
+  });
+
+  // Selection is stable by asset_ref. A refetch only changes it if the selected output no
+  // longer exists, in which case the first surviving output is the safe fallback.
+  $effect(() => {
+    if (!currentGroup || currentGroup.outputs.length === 0) return;
+    if (!currentGroup.outputs.some((output) => output.asset_ref === selectedAssetRef)) {
+      selectedAssetRef = currentGroup.outputs[0].asset_ref;
+      resetAssetUi();
+    }
+  });
+
+  $effect(() => {
+    if (
+      startFrameExtraction &&
+      frameExtractionAppliedFor === null &&
+      currentDetail?.media.media_type === 'video'
+    ) {
+      frameExtractionAppliedFor = selectedAssetRef;
+      showFrameExtraction = true;
+    }
+  });
+
   const isExpiringSoon = $derived.by(() => {
-    if (!detailQuery.data) return false;
-    const remaining = new Date(detailQuery.data.expires_at).getTime() - Date.now();
+    if (!currentDetail) return false;
+    const remaining = new Date(currentDetail.expires_at).getTime() - Date.now();
     return remaining > 0 && remaining < EXPIRES_SOON_MS;
   });
 
   function startRename() {
-    if (!detailQuery.data) return;
-    renameValue = detailQuery.data.display_title ?? detailQuery.data.original_filename ?? '';
+    if (!currentDetail) return;
+    renameValue = currentDetail.display_title ?? currentDetail.original_filename ?? '';
     renaming = true;
   }
 
   $effect(() => {
-    if (startInRename && !renameApplied && detailQuery.data) {
-      renameApplied = true;
+    if (startInRename && renameAppliedFor === null && currentDetail) {
+      renameAppliedFor = selectedAssetRef;
       startRename();
     }
   });
@@ -83,7 +168,7 @@
   async function submitRename() {
     try {
       await renameMutation.mutateAsync({
-        assetRef,
+        assetRef: selectedAssetRef,
         displayTitle: renameValue.trim() || null,
       });
     } catch {
@@ -95,9 +180,33 @@
 
   async function handleDelete() {
     try {
-      await deleteMutation.mutateAsync(assetRef);
+      const deletingAssetRef = selectedAssetRef;
+      const group = currentGroup;
+      const index =
+        group?.outputs.findIndex((output) => output.asset_ref === deletingAssetRef) ?? -1;
+      const nextAssetRef =
+        group && index >= 0
+          ? (group.outputs[index + 1]?.asset_ref ?? group.outputs[index - 1]?.asset_ref ?? null)
+          : null;
+
+      await deleteMutation.mutateAsync(deletingAssetRef);
       addToast({ type: 'success', message: m.library_delete_success() });
-      onclose();
+      if (!group || group.outputs.length <= 1 || !nextAssetRef) {
+        onclose();
+      } else {
+        queryClient.setQueryData<LibraryGroupDetail>(libraryKeys.group(group.job_id), (cached) =>
+          cached
+            ? {
+                ...cached,
+                outputs: cached.outputs.filter((output) => output.asset_ref !== deletingAssetRef),
+              }
+            : cached,
+        );
+        selectedAssetRef = nextAssetRef;
+        resetAssetUi();
+        queryClient.invalidateQueries({ queryKey: libraryKeys.group(group.job_id) });
+        queryClient.invalidateQueries({ queryKey: libraryKeys.asset(deletingAssetRef) });
+      }
     } catch {
       addToast({ type: 'error', message: m.library_delete_error() });
     } finally {
@@ -106,28 +215,38 @@
   }
 
   function toggleFavorite() {
-    if (!detailQuery.data) return;
-    favoriteMutation.mutate({ assetRef, favorite: !detailQuery.data.is_favorite });
+    if (!currentDetail) return;
+    favoriteMutation.mutate({ assetRef: selectedAssetRef, favorite: !currentDetail.is_favorite });
   }
 
   async function changeProject(projectId: string | null) {
     try {
-      await projectMutation.mutateAsync({ assetRef, projectId });
+      await projectMutation.mutateAsync({ assetRef: selectedAssetRef, projectId });
     } catch {
       addToast({ type: 'error', message: m.library_project_assign_error() });
     }
   }
 
   function navigateLineage(nextAssetRef: string) {
+    if (nextAssetRef === selectedAssetRef) return;
+    selectedAssetRef = nextAssetRef;
+    resetAssetUi();
     onNavigate?.(nextAssetRef);
   }
 
+  function selectVariation(output: LibraryOutputItem) {
+    if (output.asset_ref === selectedAssetRef) return;
+    selectedAssetRef = output.asset_ref;
+    resetAssetUi();
+    onSelectVariation?.(output.asset_ref);
+  }
+
   const menuItems = $derived(
-    detailQuery.data
-      ? detailQuery.data.available_actions
+    currentDetail
+      ? currentDetail.available_actions
           .filter((action) => action !== 'delete' && action !== 'favorite' && action !== 'rename')
           .map((action) => {
-            const handler = resolveLibraryAction(action, detailQuery.data!, {
+            const handler = resolveLibraryAction(action, currentDetail, {
               onExtractFrame: () => (showFrameExtraction = true),
             });
             if (!handler) return null;
@@ -167,16 +286,66 @@
 </script>
 
 {#snippet detailsPanel()}
-  {#if detailQuery.isLoading}
+  {#if currentGroup && currentGroup.outputs.length > 1}
+    <section aria-label={m.library_all_outputs()} class="p-5 pb-0">
+      <p class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-muted">
+        {m.library_all_outputs()}
+      </p>
+      <div class="grid grid-cols-4 gap-1.5 md:grid-cols-3">
+        {#each currentGroup.outputs as output, index (output.asset_ref)}
+          <button
+            type="button"
+            onclick={() => selectVariation(output)}
+            aria-label={m.library_variation_label({
+              index: index + 1,
+              count: currentGroup.outputs.length,
+            })}
+            aria-pressed={selectedAssetRef === output.asset_ref}
+            class="relative aspect-square overflow-hidden rounded-lg ring-offset-2 ring-offset-bg transition-opacity hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent {selectedAssetRef ===
+            output.asset_ref
+              ? 'ring-2 ring-accent'
+              : ''}"
+          >
+            {#if output.media.media_type === 'video'}
+              <MediaVideo
+                media={output.media}
+                muted
+                playsinline
+                class="h-full w-full object-cover"
+              />
+            {:else}
+              <MediaImage
+                media={output.media}
+                alt={m.library_variation_label({
+                  index: index + 1,
+                  count: currentGroup.outputs.length,
+                })}
+                sizes="80px"
+                class="h-full w-full object-cover"
+              />
+            {/if}
+          </button>
+        {/each}
+      </div>
+    </section>
+  {:else if groupQuery.isError && groupJobId}
+    <p class="px-5 pt-5 text-xs text-text-dim">{m.error_generic()}</p>
+  {/if}
+
+  {#if !currentDetail && detailQuery.isLoading}
     <div class="flex flex-col gap-3 p-5">
       <div class="h-4 w-2/3 animate-pulse rounded bg-surface-hover"></div>
       <div class="h-4 w-1/2 animate-pulse rounded bg-surface-hover"></div>
     </div>
   {:else if detailQuery.isError}
     <p class="p-4 text-sm text-danger">{m.error_generic()}</p>
-  {:else if detailQuery.data}
-    {@const detail = detailQuery.data}
-    <div class="flex flex-col gap-4 p-5">
+  {:else if currentDetail}
+    {@const detail = currentDetail}
+    <div
+      class="flex flex-col gap-4 p-5 {currentGroup && currentGroup.outputs.length > 1
+        ? 'pt-4'
+        : ''}"
+    >
       <!-- Title / rename -->
       {#if renaming}
         <form
@@ -256,15 +425,6 @@
         {/if}
       </div>
 
-      {#if detail.output_count && detail.output_count > 1 && detail.job_id && onOpenGroup}
-        <button
-          onclick={() => onOpenGroup(detail.job_id!, detail.asset_ref)}
-          class="text-left text-xs font-medium text-accent hover:underline"
-        >
-          {m.library_view_group({ count: detail.output_count })}
-        </button>
-      {/if}
-
       <!-- Project supports the PATCH tri-state: a concrete project, loading/unknown, or null. -->
       <div class="flex items-center justify-between gap-3 border-y border-border py-3">
         <label for="asset-project" class="text-xs text-text-dim">{m.library_project()}</label>
@@ -343,7 +503,7 @@
         {/if}
       </div>
 
-      <TagChipEditor {assetRef} tags={detail.tags} />
+      <TagChipEditor assetRef={selectedAssetRef} tags={detail.tags} />
 
       {#if detail.prompt}
         <div>
@@ -389,7 +549,7 @@
             {/if}
           </p>
           {#if lineageExpanded}
-            <LineagePanel {assetRef} onNavigate={navigateLineage} />
+            <LineagePanel assetRef={selectedAssetRef} onNavigate={navigateLineage} />
           {/if}
         </section>
       {/if}
@@ -422,10 +582,10 @@
         <X size={18} />
       </button>
 
-      {#if detailQuery.data}
-        {#if detailQuery.data.media.media_type === 'video'}
+      {#if stageMedia}
+        {#if stageMedia.media_type === 'video'}
           <MediaVideo
-            media={detailQuery.data.media}
+            media={stageMedia}
             controls
             autoplay
             loop
@@ -435,13 +595,19 @@
           />
         {:else}
           <MediaImage
-            media={detailQuery.data.media}
-            alt={detailQuery.data.display_title ?? ''}
+            media={stageMedia}
+            alt={currentDetail?.display_title ?? ''}
             sizes="(max-width: 768px) 100vw, 66vw"
             loading="eager"
             class="max-h-[60vh] w-full object-contain md:max-h-full"
           />
         {/if}
+      {:else if detailQuery.isLoading || groupQuery.isLoading}
+        <div
+          class="h-10 w-10 animate-spin rounded-full border-2 border-accent border-t-transparent"
+        ></div>
+      {:else if detailQuery.isError}
+        <p class="text-sm text-danger">{m.error_generic()}</p>
       {/if}
     </div>
 
@@ -468,11 +634,11 @@
   />
 {/if}
 
-{#if showFrameExtraction && detailQuery.data}
-  {@const parsedRef = parseAssetRef(assetRef)}
+{#if showFrameExtraction && currentDetail}
+  {@const parsedRef = parseAssetRef(selectedAssetRef)}
   <FrameExtractModal
     source={{ type: parsedRef.source, id: parsedRef.id }}
-    media={detailQuery.data.media}
+    media={stageMedia ?? currentDetail.media}
     trigger={frameExtractionTrigger}
     onclose={() => (showFrameExtraction = false)}
   />

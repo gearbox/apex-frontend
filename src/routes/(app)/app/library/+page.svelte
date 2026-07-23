@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy, tick } from 'svelte';
+  import { onDestroy } from 'svelte';
   import { SvelteURLSearchParams } from 'svelte/reactivity';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
@@ -32,7 +32,6 @@
     type LibraryMediaFilter,
   } from '$lib/components/library/LibraryFilterBar.svelte';
   import AssetDetailsSheet from '$lib/components/library/AssetDetailsSheet.svelte';
-  import GroupSheet from '$lib/components/library/GroupSheet.svelte';
   import ConfirmDeleteModal from '$lib/components/shared/ConfirmDeleteModal.svelte';
   import SelectionToolbar from '$lib/components/library/SelectionToolbar.svelte';
   import TagPickerSheet from '$lib/components/library/TagPickerSheet.svelte';
@@ -244,58 +243,28 @@
 
   /* ─── Selection / detail sheets ─── */
 
-  interface DetailsRequest {
+  interface ViewerRequest {
     assetRef: string;
     rename?: boolean;
+    frameExtraction?: boolean;
+    jobIdHint?: string | null;
   }
 
-  interface GroupRequest {
-    jobId: string;
-    initialAssetRef: string;
-  }
-
-  let detailsRequest = $state<DetailsRequest | null>(null);
-  let groupRequest = $state<GroupRequest | null>(null);
+  let viewerRequest = $state<ViewerRequest | null>(null);
   let deleteTarget = $state<LibraryAssetItem | null>(null);
   let showTagManager = $state(false);
 
   const queryClient = useQueryClient();
   const deleteMutation = createMutation(() => deleteAssetMutationOptions(queryClient));
 
-  function openDetails(assetRef: string, options: Omit<DetailsRequest, 'assetRef'> = {}) {
-    detailsRequest = { assetRef, ...options };
-  }
-
-  /**
-   * Both sheets lock/unlock body scroll in onMount/onDestroy. Setting the close and open
-   * state in the same tick makes the final lock state depend on which {#if} block updates
-   * first; sequencing the close through a tick guarantees destroy-before-mount either way.
-   */
-  async function switchFromGroupToDetails(assetRef: string) {
-    groupRequest = null;
-    await tick();
-    openDetails(assetRef);
-  }
-
-  async function switchFromDetailsToGroup(jobId: string, initialAssetRef: string) {
-    detailsRequest = null;
-    await tick();
-    groupRequest = { jobId, initialAssetRef };
-  }
-
-  async function switchDetailsAsset(assetRef: string) {
-    if (detailsRequest?.assetRef === assetRef) return;
-    detailsRequest = null;
-    await tick();
-    openDetails(assetRef);
+  function openViewer(assetRef: string, options: Omit<ViewerRequest, 'assetRef'> = {}) {
+    viewerRequest = { assetRef, ...options };
   }
 
   function handleCardClick(item: LibraryAssetItem) {
-    if (item.output_count && item.output_count > 1 && item.job_id) {
-      groupRequest = { jobId: item.job_id, initialAssetRef: item.asset_ref };
-    } else {
-      openDetails(item.asset_ref);
-    }
+    openViewer(item.asset_ref, {
+      jobIdHint: item.output_count && item.output_count > 1 ? item.job_id : null,
+    });
   }
 
   function handleLoadMore() {
@@ -514,9 +483,9 @@
       items={allItems}
       onCardClick={handleCardClick}
       onCardDelete={(item) => (deleteTarget = item)}
-      onCardRename={(item) => openDetails(item.asset_ref, { rename: true })}
-      onCardExtractFrame={(item) => openDetails(item.asset_ref)}
-      onCardViewSettings={(item) => openDetails(item.asset_ref)}
+      onCardRename={(item) => openViewer(item.asset_ref, { rename: true })}
+      onCardExtractFrame={(item) => openViewer(item.asset_ref, { frameExtraction: true })}
+      onCardViewSettings={(item) => openViewer(item.asset_ref)}
       onLoadMore={handleLoadMore}
       loadMoreDisabled={!libraryQuery.hasNextPage || libraryQuery.isFetchingNextPage}
       selectionActive={selection.active}
@@ -553,14 +522,19 @@
   />
 {/if}
 
-{#if detailsRequest}
-  <AssetDetailsSheet
-    assetRef={detailsRequest.assetRef}
-    startInRename={detailsRequest.rename ?? false}
-    onclose={() => (detailsRequest = null)}
-    onOpenGroup={switchFromDetailsToGroup}
-    onNavigate={switchDetailsAsset}
-  />
+{#if viewerRequest}
+  {#key viewerRequest.assetRef}
+    <AssetDetailsSheet
+      assetRef={viewerRequest.assetRef}
+      jobIdHint={viewerRequest.jobIdHint}
+      startInRename={viewerRequest.rename ?? false}
+      startFrameExtraction={viewerRequest.frameExtraction ?? false}
+      onSelectVariation={(assetRef) => {
+        if (viewerRequest) viewerRequest = { ...viewerRequest, assetRef };
+      }}
+      onclose={() => (viewerRequest = null)}
+    />
+  {/key}
 {/if}
 
 {#if showTagManager}
@@ -569,15 +543,6 @@
     onTagDeleted={(tagId) => {
       if (tagId === activeTagId) handleTagChange(null);
     }}
-  />
-{/if}
-
-{#if groupRequest}
-  <GroupSheet
-    jobId={groupRequest.jobId}
-    initialAssetRef={groupRequest.initialAssetRef}
-    onclose={() => (groupRequest = null)}
-    onOpenAsset={switchFromGroupToDetails}
   />
 {/if}
 
