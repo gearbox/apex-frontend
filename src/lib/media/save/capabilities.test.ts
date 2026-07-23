@@ -2,7 +2,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { resolveSaveCapabilities, readSaveEnv, type SaveEnv } from './capabilities';
 
 describe('resolveSaveCapabilities', () => {
-  const rows: Array<{ name: string; env: SaveEnv; expected: ReturnType<typeof resolveSaveCapabilities> }> = [
+  const rows: Array<{
+    name: string;
+    env: SaveEnv;
+    expected: ReturnType<typeof resolveSaveCapabilities>;
+  }> = [
     {
       name: 'iOS Safari',
       env: { isApple: true, coarsePointer: true, canShareFiles: true, anchorDownload: true },

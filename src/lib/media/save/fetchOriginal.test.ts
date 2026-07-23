@@ -37,7 +37,12 @@ function media(overrides: Partial<MediaObject['original']> = {}): MediaObject {
       ...overrides,
     },
     variants: [
-      { label: 'thumb', url: '/v1/content/outputs/variant-should-never-be-fetched', width: 256, height: 256 },
+      {
+        label: 'thumb',
+        url: '/v1/content/outputs/variant-should-never-be-fetched',
+        width: 256,
+        height: 256,
+      },
     ],
   };
 }
@@ -58,7 +63,9 @@ describe('fetchOriginalBlob', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [requestedUrl] = fetchMock.mock.calls[0];
-    expect(requestedUrl).toBe('http://localhost:8000/v1/content/outputs/123e4567-e89b-12d3-a456-426614174000');
+    expect(requestedUrl).toBe(
+      'http://localhost:8000/v1/content/outputs/123e4567-e89b-12d3-a456-426614174000',
+    );
     expect(requestedUrl).not.toContain('variant-should-never-be-fetched');
   });
 
@@ -92,7 +99,9 @@ describe('fetchOriginalBlob', () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
 
-    await expect(fetchOriginalBlob(media({ size_bytes: MAX_SAVE_BYTES + 1 }))).rejects.toMatchObject({
+    await expect(
+      fetchOriginalBlob(media({ size_bytes: MAX_SAVE_BYTES + 1 })),
+    ).rejects.toMatchObject({
       reason: 'too-large',
     });
     expect(fetchMock).not.toHaveBeenCalled();

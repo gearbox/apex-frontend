@@ -380,10 +380,11 @@ describe('AssetDetailsSheet — save actions (share/download)', () => {
     detailData = makeLibraryAssetDetail({ asset_ref: 'output:abc' });
     render(AssetDetailsSheet, { props: { assetRef: 'output:abc', onclose: oncloseMock } });
 
-    // Remix still renders as a quick-action pill; Share must appear exactly once — via the
-    // dedicated save button — never duplicated into that pill row.
+    // Remix still renders as a quick-action pill (plain text, no aria-label). Assert on
+    // accessible *name* rather than aria-label alone, so a leak of 'share' into that
+    // plain-text pill row (no aria-label, but a "Share" text node) would still be caught.
     expect(screen.getByText('Remix')).toBeTruthy();
-    expect(screen.getAllByLabelText('Share')).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'Share' })).toHaveLength(1);
   });
 
   it('omits both share and download when the download action is unavailable', () => {
