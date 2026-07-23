@@ -34,6 +34,14 @@ export const swipeNavigation: Action<HTMLElement, SwipeNavigationOptions> = (nod
       reset();
       return;
     }
+    // The stage/fullscreen video renders native `controls`; a drag on its scrubber must
+    // seek, not be hijacked as a swipe. Hardcoded to `video` — the only interactive media
+    // element this action wraps today.
+    const target = e.target;
+    if (target instanceof Element && target.closest('video')) {
+      reset();
+      return;
+    }
     const touch = e.touches[0];
     startX = touch.clientX;
     startY = touch.clientY;
@@ -45,6 +53,7 @@ export const swipeNavigation: Action<HTMLElement, SwipeNavigationOptions> = (nod
   const onTouchMove = (e: TouchEvent) => {
     if (!tracking || !opts.enabled) return;
     const touch = e.touches[0];
+    if (!touch) return;
     const dx = touch.clientX - startX;
     const dy = touch.clientY - startY;
 

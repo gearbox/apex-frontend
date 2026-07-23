@@ -255,6 +255,9 @@
   }
 
   let viewerRequest = $state<ViewerRequest | null>(null);
+  // Fullscreen is page-owned (not sheet-local) because `{#key viewerRequest.assetRef}` below
+  // remounts AssetDetailsSheet on every prev/next; sheet-local state would reset each time.
+  let viewerFullscreen = $state(false);
   let deleteTarget = $state<LibraryAssetItem | null>(null);
   let showTagManager = $state(false);
 
@@ -289,19 +292,35 @@
     viewerIndex >= 0 && (viewerIndex < allItems.length - 1 || libraryQuery.hasNextPage),
   );
 
-  function handleViewerNavigate(direction: 'prev' | 'next') {
-    if (viewerIndex < 0) return;
+  let navigating = $state(false);
+
+  async function handleViewerNavigate(direction: 'prev' | 'next') {
+    if (viewerIndex < 0 || navigating) return;
     const targetIndex = direction === 'prev' ? viewerIndex - 1 : viewerIndex + 1;
-    const target = allItems[targetIndex];
+    let target = allItems[targetIndex];
 
     // Prefetch a page ahead of time so the neighbor is already loaded by the time
     // navigation actually reaches the tail of the currently-loaded items.
     if (
+      target &&
       targetIndex >= allItems.length - 3 &&
       libraryQuery.hasNextPage &&
       !libraryQuery.isFetchingNextPage
     ) {
       libraryQuery.fetchNextPage();
+    }
+
+    // Tapping Next directly on the last loaded item: resolve the page it needs instead
+    // of relying on `allItems` to have recomputed from the fetch above.
+    if (!target && direction === 'next' && libraryQuery.hasNextPage) {
+      navigating = true;
+      try {
+        const result = await libraryQuery.fetchNextPage();
+        const items = (result.data?.pages ?? []).flatMap((p) => p.items);
+        target = items[targetIndex];
+      } finally {
+        navigating = false;
+      }
     }
 
     if (target) openViewerForItem(target);
@@ -558,16 +577,27 @@
 {/if}
 
 {#if viewerRequest}
+  <!-- `{#key}` remounts the sheet on every asset_ref change (its internal selection is
+       untracked at mount, so a fresh mount is how it picks up a new starting asset). Svelte
+       destroys the outgoing branch before creating the incoming one here because there is no
+       transition on this block — that ordering is what lets onDestroy's body.style.overflow
+       reset and the new onMount's `'hidden'` set land in the correct sequence. Adding a
+       transition would interleave them and silently leave the body scrollable. -->
   {#key viewerRequest.assetRef}
     <AssetDetailsSheet
       assetRef={viewerRequest.assetRef}
       jobIdHint={viewerRequest.jobIdHint}
       startInRename={viewerRequest.rename ?? false}
       startFrameExtraction={viewerRequest.frameExtraction ?? false}
-      onclose={() => (viewerRequest = null)}
+      onclose={() => {
+        viewerRequest = null;
+        viewerFullscreen = false;
+      }}
       onnavigate={handleViewerNavigate}
       hasPrev={hasPrevItem}
       hasNext={hasNextItem}
+      fullscreen={viewerFullscreen}
+      onfullscreenchange={(value) => (viewerFullscreen = value)}
     />
   {/key}
 {/if}

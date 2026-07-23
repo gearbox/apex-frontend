@@ -166,4 +166,30 @@ describe('AssetDetailsSheet dynamic selection — grid navigation', () => {
     await fireEvent.keyDown(window, { key: 'ArrowRight' });
     expect(onnavigate).not.toHaveBeenCalled();
   });
+
+  it('a single bubbling ArrowRight keydown from inside the dialog calls onnavigate exactly once', async () => {
+    server.use(
+      http.get(`${MOCK_BASE_URL}/v1/library/assets/:asset_ref`, ({ params }) =>
+        HttpResponse.json(
+          makeLibraryAssetDetail({
+            asset_ref: params.asset_ref as string,
+            output_count: 1,
+          }),
+        ),
+      ),
+    );
+    const onnavigate = vi.fn();
+
+    render(AssetDetailsSheetQueryHost, {
+      props: { assetRef: 'output:solo-4', onnavigate, hasPrev: true, hasNext: true },
+    });
+    await screen.findByRole('dialog', { name: 'Asset details' });
+
+    const closeButton = screen.getByLabelText('Close');
+    closeButton.focus();
+    await fireEvent.keyDown(closeButton, { key: 'ArrowRight' });
+
+    expect(onnavigate).toHaveBeenCalledTimes(1);
+    expect(onnavigate).toHaveBeenCalledWith('next');
+  });
 });

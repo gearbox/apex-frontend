@@ -7,10 +7,15 @@ function makeTouch(clientX: number, clientY: number): Touch {
   return { clientX, clientY } as Touch;
 }
 
-function makeTouchEvent(touches: Touch[], changedTouches: Touch[] = touches): TouchEvent {
+function makeTouchEvent(
+  touches: Touch[],
+  changedTouches: Touch[] = touches,
+  target: EventTarget = document.createElement('div'),
+): TouchEvent {
   return {
     touches,
     changedTouches,
+    target,
     preventDefault: vi.fn(),
   } as unknown as TouchEvent;
 }
@@ -108,5 +113,31 @@ describe('swipeNavigation action', () => {
     expect(removed).toEqual(
       expect.arrayContaining(['touchstart', 'touchmove', 'touchend', 'touchcancel']),
     );
+  });
+
+  it('fires neither callback for a horizontal swipe starting on a <video> descendant', () => {
+    attach();
+    const video = document.createElement('video');
+    const source = document.createElement('source');
+    video.appendChild(source);
+
+    fire('touchstart', makeTouchEvent([makeTouch(200, 100)], undefined, source));
+    fire('touchmove', makeTouchEvent([makeTouch(150, 102)]));
+    fire('touchend', makeTouchEvent([], [makeTouch(150, 102)]));
+
+    expect(onnext).not.toHaveBeenCalled();
+    expect(onprev).not.toHaveBeenCalled();
+  });
+
+  it('still fires for the same swipe on a plain child element', () => {
+    attach();
+    const child = document.createElement('div');
+
+    fire('touchstart', makeTouchEvent([makeTouch(200, 100)], undefined, child));
+    fire('touchmove', makeTouchEvent([makeTouch(150, 102)]));
+    fire('touchend', makeTouchEvent([], [makeTouch(150, 102)]));
+
+    expect(onnext).toHaveBeenCalledTimes(1);
+    expect(onprev).not.toHaveBeenCalled();
   });
 });

@@ -9,6 +9,8 @@
     onnavigate,
     hasPrev = false,
     hasNext = false,
+    fullscreen = false,
+    onfullscreenchange,
   }: {
     assetRef: string;
     jobIdHint?: string | null;
@@ -16,6 +18,8 @@
     onnavigate?: (direction: 'prev' | 'next') => void;
     hasPrev?: boolean;
     hasNext?: boolean;
+    fullscreen?: boolean;
+    onfullscreenchange?: (value: boolean) => void;
   } = $props();
 
   const queryClient = new QueryClient({
@@ -24,5 +28,14 @@
 </script>
 
 <QueryClientProvider client={queryClient}>
-  <AssetDetailsSheet {assetRef} {jobIdHint} {onclose} {onnavigate} {hasPrev} {hasNext} />
+  <AssetDetailsSheet
+    {assetRef}
+    {jobIdHint}
+    {onclose}
+    {onnavigate}
+    {hasPrev}
+    {hasNext}
+    {fullscreen}
+    {onfullscreenchange}
+  />
 </QueryClientProvider>

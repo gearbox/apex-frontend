@@ -54,6 +54,8 @@
     onnavigate,
     hasPrev = false,
     hasNext = false,
+    fullscreen = false,
+    onfullscreenchange,
   }: {
     assetRef: string;
     onclose: () => void;
@@ -67,6 +69,9 @@
     onnavigate?: (direction: 'prev' | 'next') => void;
     hasPrev?: boolean;
     hasNext?: boolean;
+    /** Fullscreen is page-owned so it survives the `{#key}` remount on prev/next. */
+    fullscreen?: boolean;
+    onfullscreenchange?: (value: boolean) => void;
   } = $props();
 
   // This is the canonical selection for the viewer's entire lifetime.
@@ -80,7 +85,6 @@
   let renameIntentConsumed = $state(untrack(() => !startInRename));
   let frameExtractionIntentConsumed = $state(untrack(() => !startFrameExtraction));
   let lineageExpanded = $state(false);
-  let fullscreen = $state(false);
 
   function focusOnMount(node: HTMLElement) {
     node.focus();
@@ -292,7 +296,7 @@
     if (e.key === 'Escape') {
       e.stopPropagation();
       if (fullscreen) {
-        fullscreen = false;
+        onfullscreenchange?.(false);
       } else {
         onclose();
       }
@@ -626,7 +630,6 @@
 <div
   class="fixed inset-0 z-[150] flex flex-col bg-black/50 backdrop-blur-sm md:items-center md:justify-center md:bg-black/80 md:p-4"
   onclick={handleBackdropClick}
-  onkeydown={handleKeydown}
   inert={showFrameExtraction ? true : undefined}
   aria-hidden={showFrameExtraction ? 'true' : undefined}
   role="dialog"
@@ -682,7 +685,7 @@
             loop
             muted
             playsinline
-            class="max-h-full w-full object-contain"
+            class="max-h-[60vh] w-full object-contain md:max-h-full"
           />
         {:else}
           <MediaImage
@@ -694,7 +697,7 @@
           />
         {/if}
         <button
-          onclick={() => (fullscreen = true)}
+          onclick={() => onfullscreenchange?.(true)}
           class="absolute bottom-3 right-3 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur-sm transition-colors hover:bg-white/20"
           aria-label={m.library_fullscreen_open()}
         >
@@ -736,7 +739,7 @@
     }}
   >
     <button
-      onclick={() => (fullscreen = false)}
+      onclick={() => onfullscreenchange?.(false)}
       class="absolute right-4 top-[max(1rem,env(safe-area-inset-top))] z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur-sm transition-colors hover:bg-white/20"
       aria-label={m.library_fullscreen_close()}
     >

@@ -525,4 +525,56 @@ describe('/app/library page — grid prev/next navigation', () => {
     await fireEvent.click(await screen.findByLabelText('Next asset'));
     expect(state.fetchNextPageMock).toHaveBeenCalledTimes(1);
   });
+
+  it('loads the next page and opens its first item in one click when Next is tapped on the tail item', async () => {
+    const items = makeGridItems(2);
+    state.libraryItems = items;
+    state.hasNextPage = true;
+    state.assetDetailData = makeLibraryAssetDetail({ asset_ref: items[1].asset_ref });
+
+    const nextItem = makeLibraryAssetItem({
+      asset_ref: 'output:grid-3',
+      display_title: 'Asset 3',
+      job_id: null,
+      output_count: 1,
+    });
+    state.fetchNextPageMock.mockResolvedValue({
+      data: {
+        pages: [{ items: [...items, nextItem], limit: 30, has_more: false, next_cursor: null }],
+      },
+    });
+
+    render(Page);
+    await fireEvent.click(screen.getByRole('button', { name: 'Asset 2' }));
+    await screen.findByRole('dialog', { name: m.library_details_title() });
+
+    // Still on the last loaded item, but Next is shown because another page exists.
+    expect(screen.getByLabelText('Next asset')).toBeTruthy();
+
+    vi.mocked(createQuery).mockClear();
+    await fireEvent.click(screen.getByLabelText('Next asset'));
+
+    expect(state.fetchNextPageMock).toHaveBeenCalledTimes(1);
+    const requestedKeys = vi.mocked(createQuery).mock.calls.map((call) => call[0]().queryKey);
+    expect(requestedKeys).toContainEqual(['library', 'asset', 'output:grid-3']);
+  });
+
+  it('keeps fullscreen open across a Next navigation', async () => {
+    const items = makeGridItems(2);
+    state.libraryItems = items;
+    state.assetDetailData = makeLibraryAssetDetail({ asset_ref: items[0].asset_ref });
+
+    render(Page);
+    await fireEvent.click(screen.getByRole('button', { name: 'Asset 1' }));
+    await screen.findByRole('dialog', { name: m.library_details_title() });
+
+    await fireEvent.click(screen.getByLabelText(m.library_fullscreen_open()));
+    expect(screen.getByLabelText(m.library_fullscreen_close())).toBeTruthy();
+
+    // The {#key} remounts the sheet for the new asset_ref; match the mocked detail so
+    // stageMedia (and thus the fullscreen controls) render for the new selection too.
+    state.assetDetailData = makeLibraryAssetDetail({ asset_ref: items[1].asset_ref });
+    await fireEvent.click(screen.getByLabelText('Next asset'));
+    expect(screen.getByLabelText(m.library_fullscreen_close())).toBeTruthy();
+  });
 });
