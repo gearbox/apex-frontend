@@ -249,8 +249,13 @@
     rename?: boolean;
   }
 
+  interface GroupRequest {
+    jobId: string;
+    initialAssetRef: string;
+  }
+
   let detailsRequest = $state<DetailsRequest | null>(null);
-  let groupJobId = $state<string | null>(null);
+  let groupRequest = $state<GroupRequest | null>(null);
   let deleteTarget = $state<LibraryAssetItem | null>(null);
   let showTagManager = $state(false);
 
@@ -267,15 +272,15 @@
    * first; sequencing the close through a tick guarantees destroy-before-mount either way.
    */
   async function switchFromGroupToDetails(assetRef: string) {
-    groupJobId = null;
+    groupRequest = null;
     await tick();
     openDetails(assetRef);
   }
 
-  async function switchFromDetailsToGroup(jobId: string) {
+  async function switchFromDetailsToGroup(jobId: string, initialAssetRef: string) {
     detailsRequest = null;
     await tick();
-    groupJobId = jobId;
+    groupRequest = { jobId, initialAssetRef };
   }
 
   async function switchDetailsAsset(assetRef: string) {
@@ -287,7 +292,7 @@
 
   function handleCardClick(item: LibraryAssetItem) {
     if (item.output_count && item.output_count > 1 && item.job_id) {
-      groupJobId = item.job_id;
+      groupRequest = { jobId: item.job_id, initialAssetRef: item.asset_ref };
     } else {
       openDetails(item.asset_ref);
     }
@@ -567,10 +572,11 @@
   />
 {/if}
 
-{#if groupJobId}
+{#if groupRequest}
   <GroupSheet
-    jobId={groupJobId}
-    onclose={() => (groupJobId = null)}
+    jobId={groupRequest.jobId}
+    initialAssetRef={groupRequest.initialAssetRef}
+    onclose={() => (groupRequest = null)}
     onOpenAsset={switchFromGroupToDetails}
   />
 {/if}
