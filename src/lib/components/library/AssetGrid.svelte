@@ -18,6 +18,7 @@
     selectedRefs = new Set<string>(),
     bulkErrorRefs = new Set<string>(),
     onToggleSelect,
+    hasFlf2vModel = false,
   }: {
     items: LibraryAssetItem[];
     onCardClick: (item: LibraryAssetItem) => void;
@@ -31,6 +32,7 @@
     selectedRefs?: ReadonlySet<string>;
     bulkErrorRefs?: ReadonlySet<string>;
     onToggleSelect?: (item: LibraryAssetItem) => void;
+    hasFlf2vModel?: boolean;
   } = $props();
 </script>
 
@@ -47,6 +49,7 @@
       selected={selectedRefs.has(item.asset_ref)}
       bulkError={bulkErrorRefs.has(item.asset_ref)}
       {onToggleSelect}
+      {hasFlf2vModel}
     />
   {/each}
 </div>

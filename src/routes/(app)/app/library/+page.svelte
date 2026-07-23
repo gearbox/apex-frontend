@@ -20,6 +20,8 @@
     type LibraryListParams,
   } from '$lib/queries/library';
   import { storageStatsQueryOptions, storageKeys } from '$lib/queries/storage';
+  import { providersQueryOptions } from '$lib/queries/providers';
+  import { hasFlf2vModel as computeHasFlf2vModel } from '$lib/utils/modelCapabilities';
   import { uploadMedia } from '$lib/api/upload';
   import { ApiRequestError } from '$lib/api/errors';
   import { addToast } from '$lib/stores/toasts';
@@ -194,6 +196,8 @@
   const statsQuery = createQuery(() => storageStatsQueryOptions());
   const projectsQuery = createQuery(() => projectsListQueryOptions());
   const tagsQuery = createQuery(() => tagsListQueryOptions());
+  const providersQuery = createQuery(() => providersQueryOptions());
+  const hasFlf2vModel = $derived(computeHasFlf2vModel(providersQuery.data));
 
   const allItems = $derived((libraryQuery.data?.pages ?? []).flatMap((p) => p.items));
   const availableModels = $derived(
@@ -272,6 +276,35 @@
     if (libraryQuery.hasNextPage && !libraryQuery.isFetchingNextPage) {
       libraryQuery.fetchNextPage();
     }
+  }
+
+  // Grid prev/next is page-owned: the sheet only requests a direction, the page resolves it
+  // against `allItems` and builds the neighbor's full ViewerRequest (so jobIdHint stays correct).
+  const viewerIndex = $derived.by(() => {
+    const assetRef = viewerRequest?.assetRef;
+    return assetRef ? allItems.findIndex((item) => item.asset_ref === assetRef) : -1;
+  });
+  const hasPrevItem = $derived(viewerIndex > 0);
+  const hasNextItem = $derived(
+    viewerIndex >= 0 && (viewerIndex < allItems.length - 1 || libraryQuery.hasNextPage),
+  );
+
+  function handleViewerNavigate(direction: 'prev' | 'next') {
+    if (viewerIndex < 0) return;
+    const targetIndex = direction === 'prev' ? viewerIndex - 1 : viewerIndex + 1;
+    const target = allItems[targetIndex];
+
+    // Prefetch a page ahead of time so the neighbor is already loaded by the time
+    // navigation actually reaches the tail of the currently-loaded items.
+    if (
+      targetIndex >= allItems.length - 3 &&
+      libraryQuery.hasNextPage &&
+      !libraryQuery.isFetchingNextPage
+    ) {
+      libraryQuery.fetchNextPage();
+    }
+
+    if (target) openViewerForItem(target);
   }
 
   async function confirmCardDelete() {
@@ -493,6 +526,7 @@
       selectedRefs={selection.refs}
       {bulkErrorRefs}
       onToggleSelect={toggleSelection}
+      {hasFlf2vModel}
     />
 
     {#if libraryQuery.isFetchingNextPage}
@@ -524,13 +558,18 @@
 {/if}
 
 {#if viewerRequest}
-  <AssetDetailsSheet
-    assetRef={viewerRequest.assetRef}
-    jobIdHint={viewerRequest.jobIdHint}
-    startInRename={viewerRequest.rename ?? false}
-    startFrameExtraction={viewerRequest.frameExtraction ?? false}
-    onclose={() => (viewerRequest = null)}
-  />
+  {#key viewerRequest.assetRef}
+    <AssetDetailsSheet
+      assetRef={viewerRequest.assetRef}
+      jobIdHint={viewerRequest.jobIdHint}
+      startInRename={viewerRequest.rename ?? false}
+      startFrameExtraction={viewerRequest.frameExtraction ?? false}
+      onclose={() => (viewerRequest = null)}
+      onnavigate={handleViewerNavigate}
+      hasPrev={hasPrevItem}
+      hasNext={hasNextItem}
+    />
+  {/key}
 {/if}
 
 {#if showTagManager}

@@ -89,3 +89,81 @@ describe('AssetDetailsSheet dynamic selection', () => {
     expect(container.querySelector('[role="dialog"]')).toBe(dialog);
   });
 });
+
+describe('AssetDetailsSheet dynamic selection — grid navigation', () => {
+  it('shows nav buttons only when the matching hasPrev/hasNext flag is true, and clicking one calls onnavigate with the right direction', async () => {
+    server.use(
+      http.get(`${MOCK_BASE_URL}/v1/library/assets/:asset_ref`, ({ params }) =>
+        HttpResponse.json(
+          makeLibraryAssetDetail({
+            asset_ref: params.asset_ref as string,
+            output_count: 1,
+          }),
+        ),
+      ),
+    );
+    const onnavigate = vi.fn();
+
+    render(AssetDetailsSheetQueryHost, {
+      props: { assetRef: 'output:solo-1', onnavigate, hasPrev: false, hasNext: true },
+    });
+    await screen.findByRole('dialog', { name: 'Asset details' });
+
+    expect(screen.queryByLabelText('Previous asset')).toBeNull();
+    await fireEvent.click(screen.getByLabelText('Next asset'));
+    expect(onnavigate).toHaveBeenCalledWith('next');
+  });
+
+  it('clicking the prev button calls onnavigate with "prev"', async () => {
+    server.use(
+      http.get(`${MOCK_BASE_URL}/v1/library/assets/:asset_ref`, ({ params }) =>
+        HttpResponse.json(
+          makeLibraryAssetDetail({
+            asset_ref: params.asset_ref as string,
+            output_count: 1,
+          }),
+        ),
+      ),
+    );
+    const onnavigate = vi.fn();
+
+    render(AssetDetailsSheetQueryHost, {
+      props: { assetRef: 'output:solo-2', onnavigate, hasPrev: true, hasNext: false },
+    });
+    await screen.findByRole('dialog', { name: 'Asset details' });
+
+    expect(screen.queryByLabelText('Next asset')).toBeNull();
+    await fireEvent.click(screen.getByLabelText('Previous asset'));
+    expect(onnavigate).toHaveBeenCalledWith('prev');
+  });
+
+  it('ArrowLeft/ArrowRight call onnavigate, but ArrowRight is ignored while renaming', async () => {
+    server.use(
+      http.get(`${MOCK_BASE_URL}/v1/library/assets/:asset_ref`, ({ params }) =>
+        HttpResponse.json(
+          makeLibraryAssetDetail({
+            asset_ref: params.asset_ref as string,
+            output_count: 1,
+            available_actions: ['rename'],
+          }),
+        ),
+      ),
+    );
+    const onnavigate = vi.fn();
+
+    render(AssetDetailsSheetQueryHost, {
+      props: { assetRef: 'output:solo-3', onnavigate, hasPrev: true, hasNext: true },
+    });
+    await screen.findByRole('dialog', { name: 'Asset details' });
+
+    await fireEvent.keyDown(window, { key: 'ArrowRight' });
+    expect(onnavigate).toHaveBeenCalledWith('next');
+    await fireEvent.keyDown(window, { key: 'ArrowLeft' });
+    expect(onnavigate).toHaveBeenCalledWith('prev');
+    onnavigate.mockClear();
+
+    await fireEvent.click(await screen.findByLabelText('Rename'));
+    await fireEvent.keyDown(window, { key: 'ArrowRight' });
+    expect(onnavigate).not.toHaveBeenCalled();
+  });
+});

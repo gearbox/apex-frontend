@@ -2,12 +2,29 @@ import { describe, it, expect } from 'vitest';
 import {
   supportsAishaImageParams,
   getEditAspectRatios,
+  hasFlf2vModel,
   KNOWN_ASPECT_RATIOS,
 } from './modelCapabilities';
 import type { components } from '$lib/api/types';
 import { makeGrokImageModelInfo, makeAishaImageModelInfo } from '../../mocks/factories/providers';
 
 type ModelInfo = components['schemas']['ModelInfo'];
+type ProvidersResponse = components['schemas']['ProvidersResponse'];
+type ProviderInfo = ProvidersResponse['providers'][number];
+
+function makeProviderInfo(
+  models: ModelInfo[],
+  overrides: Partial<ProviderInfo> = {},
+): ProviderInfo {
+  return {
+    provider: 'grok',
+    name: 'xAI Grok',
+    available: true,
+    provisioning_mode: 'always_on',
+    models,
+    ...overrides,
+  };
+}
 
 const aishaModelInfo: ModelInfo = makeAishaImageModelInfo();
 
@@ -79,5 +96,39 @@ describe('getEditAspectRatios', () => {
 
   it('returns [] when image block is missing (image: null)', () => {
     expect(getEditAspectRatios(grokModelInfo)).toEqual([]);
+  });
+});
+
+describe('hasFlf2vModel', () => {
+  it('returns true when an enabled model includes flf2v in its capabilities', () => {
+    const providers: ProvidersResponse = {
+      providers: [
+        makeProviderInfo([
+          makeGrokImageModelInfo({ is_enabled: true, capabilities: ['t2i', 'flf2v'] }),
+        ]),
+      ],
+      user_context: null,
+    };
+    expect(hasFlf2vModel(providers)).toBe(true);
+  });
+
+  it('returns false when flf2v is only on a disabled model', () => {
+    const providers: ProvidersResponse = {
+      providers: [
+        makeProviderInfo([
+          makeGrokImageModelInfo({ is_enabled: false, capabilities: ['t2i', 'flf2v'] }),
+        ]),
+      ],
+      user_context: null,
+    };
+    expect(hasFlf2vModel(providers)).toBe(false);
+  });
+
+  it('returns false for an empty provider list', () => {
+    expect(hasFlf2vModel({ providers: [], user_context: null })).toBe(false);
+  });
+
+  it('returns false for undefined providers response', () => {
+    expect(hasFlf2vModel(undefined)).toBe(false);
   });
 });

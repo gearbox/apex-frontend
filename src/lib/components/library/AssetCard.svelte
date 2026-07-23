@@ -13,7 +13,12 @@
   import ContextMenu from '$lib/components/shared/ContextMenu.svelte';
   import SwipeToDelete from '$lib/components/shared/SwipeToDelete.svelte';
   import { favoriteMutationOptions } from '$lib/queries/library';
-  import { resolveLibraryAction, libraryActionLabel, LIBRARY_ACTION_ICONS } from './actions';
+  import {
+    resolveLibraryAction,
+    libraryActionLabel,
+    filterVisibleLibraryActions,
+    LIBRARY_ACTION_ICONS,
+  } from './actions';
   import { EXPIRES_SOON_MS } from '$lib/utils/constants';
   import { timeAgo, formatCountdown } from '$lib/utils/format';
   import type { components } from '$lib/api/types';
@@ -32,6 +37,7 @@
     selected = false,
     onToggleSelect,
     bulkError = false,
+    hasFlf2vModel = false,
   }: {
     item: LibraryAssetItem;
     onclick: () => void;
@@ -45,6 +51,8 @@
     onToggleSelect?: (item: LibraryAssetItem) => void;
     /** Returned by a failed bulk request; stays visible until the next bulk attempt/filter change. */
     bulkError?: boolean;
+    /** Gates first/last-frame menu actions; defaults to hidden while providers data is unresolved. */
+    hasFlf2vModel?: boolean;
   } = $props();
 
   const isVideo = $derived(item.media.media_type === 'video');
@@ -115,7 +123,7 @@
   }
 
   const menuItems = $derived(
-    item.available_actions
+    filterVisibleLibraryActions(item.available_actions, { hasFlf2vModel })
       .map((action) => {
         const handler = resolveLibraryAction(action, item, {
           onDelete: () => onDelete(item),

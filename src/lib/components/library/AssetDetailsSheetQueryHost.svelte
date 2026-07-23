@@ -6,10 +6,16 @@
     assetRef,
     jobIdHint = null,
     onclose = () => {},
+    onnavigate,
+    hasPrev = false,
+    hasNext = false,
   }: {
     assetRef: string;
     jobIdHint?: string | null;
     onclose?: () => void;
+    onnavigate?: (direction: 'prev' | 'next') => void;
+    hasPrev?: boolean;
+    hasNext?: boolean;
   } = $props();
 
   const queryClient = new QueryClient({
@@ -18,5 +24,5 @@
 </script>
 
 <QueryClientProvider client={queryClient}>
-  <AssetDetailsSheet {assetRef} {jobIdHint} {onclose} />
+  <AssetDetailsSheet {assetRef} {jobIdHint} {onclose} {onnavigate} {hasPrev} {hasNext} />
 </QueryClientProvider>

@@ -42,6 +42,7 @@
     trackProjectForJob,
   } from '$lib/services/projectInheritance';
   import { libraryKeys, projectKeys } from '$lib/queries/library';
+  import { providersQueryOptions } from '$lib/queries/providers';
 
   const queryClient = useQueryClient();
 
@@ -52,14 +53,7 @@
   });
 
   // ── Provider info (model capabilities)
-  const providerQuery = createQuery(() => ({
-    queryKey: ['providers'],
-    queryFn: async () => {
-      const { data } = await apiClient.GET('/v1/providers');
-      return data ?? { providers: [], user_context: null };
-    },
-    staleTime: 60 * 60 * 1000,
-  }));
+  const providerQuery = createQuery(() => providersQueryOptions());
 
   // ── Pricing
   const pricingQuery = createQuery(() => ({

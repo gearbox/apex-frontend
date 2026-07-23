@@ -36,7 +36,10 @@ const oncloseMock = vi.fn();
 
 vi.mock('@tanstack/svelte-query', () => ({
   createQuery: vi.fn((optionsFn: () => { queryKey: readonly unknown[] }) => {
-    const [, kind] = optionsFn().queryKey;
+    const [scope, kind] = optionsFn().queryKey;
+    if (scope === 'providers') {
+      return { data: { providers: [], user_context: null }, isLoading: false, isError: false };
+    }
     if (kind === 'projects') {
       return {
         data: {

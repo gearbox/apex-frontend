@@ -1,7 +1,18 @@
 <script lang="ts">
   import { onMount, onDestroy, untrack } from 'svelte';
   import { createQuery, createMutation, useQueryClient } from '@tanstack/svelte-query';
-  import { X, Check, ChevronDown, ChevronRight, Pencil, Download, Video } from 'lucide-svelte';
+  import {
+    X,
+    Check,
+    ChevronDown,
+    ChevronRight,
+    ChevronLeft,
+    Pencil,
+    Download,
+    Video,
+    Maximize2,
+    Minimize2,
+  } from 'lucide-svelte';
   import {
     libraryAssetQueryOptions,
     libraryGroupQueryOptions,
@@ -12,7 +23,9 @@
     projectsListQueryOptions,
     favoriteMutationOptions,
   } from '$lib/queries/library';
-  import { resolveLibraryAction, libraryActionLabel } from './actions';
+  import { providersQueryOptions } from '$lib/queries/providers';
+  import { hasFlf2vModel as computeHasFlf2vModel } from '$lib/utils/modelCapabilities';
+  import { resolveLibraryAction, libraryActionLabel, filterVisibleLibraryActions } from './actions';
   import { parseAssetRef } from '$lib/utils/assetRef';
   import { isDesktop } from '$lib/utils/breakpoints';
   import { timeAgo, timeUntil, formatAspectRatio } from '$lib/utils/format';
@@ -24,6 +37,7 @@
   import FrameExtractModal from '$lib/components/frames/FrameExtractModal.svelte';
   import TagChipEditor from '$lib/components/library/TagChipEditor.svelte';
   import LineagePanel from '$lib/components/library/LineagePanel.svelte';
+  import { swipeNavigation } from '$lib/utils/swipeNavigation';
   import { addToast } from '$lib/stores/toasts';
   import * as m from '$paraglide/messages';
   import type { components } from '$lib/api/types';
@@ -37,6 +51,9 @@
     startInRename = false,
     startFrameExtraction = false,
     jobIdHint = null,
+    onnavigate,
+    hasPrev = false,
+    hasNext = false,
   }: {
     assetRef: string;
     onclose: () => void;
@@ -46,6 +63,10 @@
     startFrameExtraction?: boolean;
     /** Eagerly loads siblings for a multi-output card while its asset detail loads. */
     jobIdHint?: string | null;
+    /** Grid prev/next navigation is page-owned — the sheet only requests a direction. */
+    onnavigate?: (direction: 'prev' | 'next') => void;
+    hasPrev?: boolean;
+    hasNext?: boolean;
   } = $props();
 
   // This is the canonical selection for the viewer's entire lifetime.
@@ -59,6 +80,7 @@
   let renameIntentConsumed = $state(untrack(() => !startInRename));
   let frameExtractionIntentConsumed = $state(untrack(() => !startFrameExtraction));
   let lineageExpanded = $state(false);
+  let fullscreen = $state(false);
 
   function focusOnMount(node: HTMLElement) {
     node.focus();
@@ -92,6 +114,10 @@
   const renameMutation = createMutation(() => renameMutationOptions(queryClient));
   const projectMutation = createMutation(() => projectAssignmentMutationOptions(queryClient));
   const projectsQuery = createQuery(() => projectsListQueryOptions());
+  // Cache-shared with the create page's ['providers'] query. While it's in flight,
+  // hasFlf2vModel stays false — the safe default, since hiding is non-destructive.
+  const providersQuery = createQuery(() => providersQueryOptions());
+  const hasFlf2vModel = $derived(computeHasFlf2vModel(providersQuery.data));
 
   function resetAssetUi() {
     renaming = false;
@@ -238,7 +264,7 @@
 
   const menuItems = $derived(
     currentDetail
-      ? currentDetail.available_actions
+      ? filterVisibleLibraryActions(currentDetail.available_actions, { hasFlf2vModel })
           .filter(
             (action) =>
               action !== 'delete' &&
@@ -265,7 +291,23 @@
     if (showFrameExtraction) return;
     if (e.key === 'Escape') {
       e.stopPropagation();
-      onclose();
+      if (fullscreen) {
+        fullscreen = false;
+      } else {
+        onclose();
+      }
+      return;
+    }
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    if (renaming) return;
+    const target = e.target;
+    if (target instanceof HTMLElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) {
+      return;
+    }
+    if (e.key === 'ArrowLeft') {
+      if (hasPrev) onnavigate?.('prev');
+    } else if (hasNext) {
+      onnavigate?.('next');
     }
   }
 
@@ -285,7 +327,7 @@
   });
 </script>
 
-{#snippet detailsPanel()}
+{#snippet variationsStrip()}
   {#if currentGroup && currentGroup.outputs.length > 1}
     <section aria-label={m.library_all_outputs()} class="p-5 pb-0">
       <p class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-muted">
@@ -350,7 +392,9 @@
   {:else if groupQuery.isError && activeGroupJobId}
     <p class="px-5 pt-5 text-xs text-text-dim">{m.error_generic()}</p>
   {/if}
+{/snippet}
 
+{#snippet detailsPanel()}
   {#if !currentDetail && detailQuery.isLoading}
     <div class="flex flex-col gap-3 p-5">
       <div class="h-4 w-2/3 animate-pulse rounded bg-surface-hover"></div>
@@ -558,6 +602,8 @@
           <p class="mt-1 text-xs text-text-dim">
             {#if detail.lineage?.source_timestamp_ms != null}
               {m.library_lineage_frame_from_video()}
+            {:else if detail.lineage && detail.source === 'output'}
+              {m.library_lineage_generated()}
             {:else if detail.lineage}
               {m.library_lineage_extracted()}
             {:else}
@@ -578,7 +624,7 @@
 
 <!-- Backdrop -->
 <div
-  class="fixed inset-0 z-[150] flex flex-col bg-black/80 backdrop-blur-sm md:items-center md:justify-center md:p-4"
+  class="fixed inset-0 z-[150] flex flex-col bg-black/50 backdrop-blur-sm md:items-center md:justify-center md:bg-black/80 md:p-4"
   onclick={handleBackdropClick}
   onkeydown={handleKeydown}
   inert={showFrameExtraction ? true : undefined}
@@ -589,10 +635,17 @@
   aria-label={m.library_details_title()}
 >
   <div
-    class="flex h-full w-full flex-1 flex-col overflow-hidden bg-bg md:mx-auto md:h-auto md:max-h-[95dvh] md:flex-none md:w-full md:max-w-4xl md:flex-row md:rounded-2xl"
+    class="flex h-full w-full flex-1 flex-col overflow-hidden md:mx-auto md:h-auto md:max-h-[95dvh] md:flex-none md:w-full md:max-w-4xl md:flex-row md:rounded-2xl md:bg-bg"
   >
     <!-- Media area -->
-    <div class="relative flex min-h-0 flex-1 items-center justify-center bg-black md:min-h-[40vh]">
+    <div
+      class="relative flex shrink-0 items-center justify-center bg-black pb-3 md:min-h-[40vh] md:flex-1 md:shrink md:pb-0"
+      use:swipeNavigation={{
+        onprev: () => onnavigate?.('prev'),
+        onnext: () => onnavigate?.('next'),
+        enabled: !!onnavigate,
+      }}
+    >
       <button
         onclick={onclose}
         class="absolute right-4 top-[max(1rem,env(safe-area-inset-top))] z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur-sm transition-colors hover:bg-white/20 md:top-4"
@@ -600,6 +653,25 @@
       >
         <X size={18} />
       </button>
+
+      {#if hasPrev}
+        <button
+          onclick={() => onnavigate?.('prev')}
+          class="absolute left-2 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur-sm transition-colors hover:bg-white/20"
+          aria-label={m.library_nav_prev()}
+        >
+          <ChevronLeft size={20} />
+        </button>
+      {/if}
+      {#if hasNext}
+        <button
+          onclick={() => onnavigate?.('next')}
+          class="absolute right-2 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur-sm transition-colors hover:bg-white/20"
+          aria-label={m.library_nav_next()}
+        >
+          <ChevronRight size={20} />
+        </button>
+      {/if}
 
       {#if stageMedia}
         {#if stageMedia.media_type === 'video'}
@@ -621,6 +693,13 @@
             class="max-h-[60vh] w-full object-contain md:max-h-full"
           />
         {/if}
+        <button
+          onclick={() => (fullscreen = true)}
+          class="absolute bottom-3 right-3 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur-sm transition-colors hover:bg-white/20"
+          aria-label={m.library_fullscreen_open()}
+        >
+          <Maximize2 size={16} />
+        </button>
       {:else if detailQuery.isLoading || groupQuery.isLoading}
         <div
           class="h-10 w-10 animate-spin rounded-full border-2 border-accent border-t-transparent"
@@ -633,15 +712,58 @@
     <!-- Panel -->
     {#if $isDesktop}
       <div class="flex w-72 shrink-0 flex-col overflow-y-auto">
+        {@render variationsStrip()}
         {@render detailsPanel()}
       </div>
     {:else}
-      <div class="safe-bottom-padding min-h-0 flex-1 overflow-y-auto">
+      <div class="shrink-0 bg-bg">
+        {@render variationsStrip()}
+      </div>
+      <div class="safe-bottom-padding min-h-0 flex-1 overflow-y-auto overscroll-contain bg-bg">
         {@render detailsPanel()}
       </div>
     {/if}
   </div>
 </div>
+
+{#if fullscreen && stageMedia}
+  <div
+    class="fixed inset-0 z-[250] flex items-center justify-center bg-black"
+    use:swipeNavigation={{
+      onprev: () => onnavigate?.('prev'),
+      onnext: () => onnavigate?.('next'),
+      enabled: !!onnavigate,
+    }}
+  >
+    <button
+      onclick={() => (fullscreen = false)}
+      class="absolute right-4 top-[max(1rem,env(safe-area-inset-top))] z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur-sm transition-colors hover:bg-white/20"
+      aria-label={m.library_fullscreen_close()}
+    >
+      <Minimize2 size={18} />
+    </button>
+
+    {#if stageMedia.media_type === 'video'}
+      <MediaVideo
+        media={stageMedia}
+        controls
+        autoplay
+        loop
+        muted
+        playsinline
+        class="h-full w-full object-contain"
+      />
+    {:else}
+      <MediaImage
+        media={stageMedia}
+        alt={currentDetail?.display_title ?? ''}
+        sizes="100vw"
+        loading="eager"
+        class="h-full w-full object-contain"
+      />
+    {/if}
+  </div>
+{/if}
 
 {#if showDeleteConfirm}
   <ConfirmDeleteModal

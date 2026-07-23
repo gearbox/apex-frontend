@@ -225,4 +225,42 @@ describe('AssetCard', () => {
     expect(container.querySelector('.context-menu')).not.toBeNull();
     expect(screen.getByRole('menuitem', { name: /download/i })).toBeTruthy();
   });
+
+  describe('action gating', () => {
+    it('always hides create_variation, even when available and flf2v is supported', async () => {
+      const { container } = renderCard(
+        { available_actions: ['remix', 'create_variation', 'download'] },
+        { hasFlf2vModel: true },
+      );
+      const wrapper = container.querySelector('[role="presentation"]');
+      await fireEvent.contextMenu(wrapper!, { clientX: 10, clientY: 10 });
+
+      expect(screen.queryByRole('menuitem', { name: /create variation/i })).toBeNull();
+      expect(screen.getByRole('menuitem', { name: /^remix$/i })).toBeTruthy();
+    });
+
+    it('hides first/last-frame actions by default (no flf2v-capable model)', async () => {
+      const { container } = renderCard({
+        available_actions: ['use_as_first_frame', 'use_as_last_frame', 'download'],
+      });
+      const wrapper = container.querySelector('[role="presentation"]');
+      await fireEvent.contextMenu(wrapper!, { clientX: 10, clientY: 10 });
+
+      expect(screen.queryByRole('menuitem', { name: /first frame/i })).toBeNull();
+      expect(screen.queryByRole('menuitem', { name: /last frame/i })).toBeNull();
+      expect(screen.getByRole('menuitem', { name: /download/i })).toBeTruthy();
+    });
+
+    it('shows first/last-frame actions when hasFlf2vModel is true', async () => {
+      const { container } = renderCard(
+        { available_actions: ['use_as_first_frame', 'use_as_last_frame', 'download'] },
+        { hasFlf2vModel: true },
+      );
+      const wrapper = container.querySelector('[role="presentation"]');
+      await fireEvent.contextMenu(wrapper!, { clientX: 10, clientY: 10 });
+
+      expect(screen.getByRole('menuitem', { name: /first frame/i })).toBeTruthy();
+      expect(screen.getByRole('menuitem', { name: /last frame/i })).toBeTruthy();
+    });
+  });
 });
