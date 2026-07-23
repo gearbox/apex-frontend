@@ -410,7 +410,7 @@ describe('/app/library page — unified variation viewer', () => {
     expect(screen.queryByLabelText('Details')).toBeNull();
   });
 
-  it('keeps the clicked variation selected in the single viewer', async () => {
+  it('switches variations inside the mounted viewer rather than opening another grid card', async () => {
     const firstVariation = makeLibraryAssetItem({
       asset_ref: 'output:first',
       display_title: 'Variation one',
@@ -433,17 +433,20 @@ describe('/app/library page — unified variation viewer', () => {
       ],
     });
     state.assetDetailData = makeLibraryAssetDetail({
-      asset_ref: secondVariation.asset_ref,
-      display_title: 'Variation two',
+      asset_ref: firstVariation.asset_ref,
+      display_title: 'Variation one',
       output_count: 2,
       job_id: 'job_abc',
     });
 
     render(Page);
-    await fireEvent.click(screen.getByRole('button', { name: 'Variation two' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Variation one' }));
+    const viewer = await screen.findByRole('dialog', { name: m.library_details_title() });
+    await fireEvent.click(screen.getByRole('button', { name: 'Variation 2 of 2' }));
 
     expect(
       screen.getByRole('button', { name: 'Variation 2 of 2' }).getAttribute('aria-pressed'),
     ).toBe('true');
+    expect(screen.getByRole('dialog', { name: m.library_details_title() })).toBe(viewer);
   });
 });

@@ -257,14 +257,15 @@
   const queryClient = useQueryClient();
   const deleteMutation = createMutation(() => deleteAssetMutationOptions(queryClient));
 
-  function openViewer(assetRef: string, options: Omit<ViewerRequest, 'assetRef'> = {}) {
-    viewerRequest = { assetRef, ...options };
-  }
-
-  function handleCardClick(item: LibraryAssetItem) {
-    openViewer(item.asset_ref, {
-      jobIdHint: item.output_count && item.output_count > 1 ? item.job_id : null,
-    });
+  function openViewerForItem(
+    item: LibraryAssetItem,
+    options: Omit<ViewerRequest, 'assetRef' | 'jobIdHint'> = {},
+  ) {
+    viewerRequest = {
+      assetRef: item.asset_ref,
+      jobIdHint: item.output_count && item.output_count > 1 ? (item.job_id ?? null) : null,
+      ...options,
+    };
   }
 
   function handleLoadMore() {
@@ -481,11 +482,11 @@
   {:else}
     <AssetGrid
       items={allItems}
-      onCardClick={handleCardClick}
+      onCardClick={(item) => openViewerForItem(item)}
       onCardDelete={(item) => (deleteTarget = item)}
-      onCardRename={(item) => openViewer(item.asset_ref, { rename: true })}
-      onCardExtractFrame={(item) => openViewer(item.asset_ref, { frameExtraction: true })}
-      onCardViewSettings={(item) => openViewer(item.asset_ref)}
+      onCardRename={(item) => openViewerForItem(item, { rename: true })}
+      onCardExtractFrame={(item) => openViewerForItem(item, { frameExtraction: true })}
+      onCardViewSettings={(item) => openViewerForItem(item)}
       onLoadMore={handleLoadMore}
       loadMoreDisabled={!libraryQuery.hasNextPage || libraryQuery.isFetchingNextPage}
       selectionActive={selection.active}
@@ -523,18 +524,13 @@
 {/if}
 
 {#if viewerRequest}
-  {#key viewerRequest.assetRef}
-    <AssetDetailsSheet
-      assetRef={viewerRequest.assetRef}
-      jobIdHint={viewerRequest.jobIdHint}
-      startInRename={viewerRequest.rename ?? false}
-      startFrameExtraction={viewerRequest.frameExtraction ?? false}
-      onSelectVariation={(assetRef) => {
-        if (viewerRequest) viewerRequest = { ...viewerRequest, assetRef };
-      }}
-      onclose={() => (viewerRequest = null)}
-    />
-  {/key}
+  <AssetDetailsSheet
+    assetRef={viewerRequest.assetRef}
+    jobIdHint={viewerRequest.jobIdHint}
+    startInRename={viewerRequest.rename ?? false}
+    startFrameExtraction={viewerRequest.frameExtraction ?? false}
+    onclose={() => (viewerRequest = null)}
+  />
 {/if}
 
 {#if showTagManager}

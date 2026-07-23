@@ -102,7 +102,6 @@
   "library_meta_prompt": "Prompt",
   "library_meta_negative_prompt": "Negativni prompt",
   "library_meta_lineage": "Poreklo",
-  "library_meta_unknown": "Nepoznato",
   "library_lineage_frame_from_video": "Kadar izdvojen iz videa",
   "library_lineage_extracted": "Izdvojeno iz druge stavke",
   "library_all_outputs": "Svi rezultati",

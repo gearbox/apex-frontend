@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, untrack } from 'svelte';
   import { createQuery, createMutation, useQueryClient } from '@tanstack/svelte-query';
-  import { X, Check, ChevronDown, ChevronRight, Pencil, Download } from 'lucide-svelte';
+  import { X, Check, ChevronDown, ChevronRight, Pencil, Download, Video } from 'lucide-svelte';
   import {
     libraryAssetQueryOptions,
     libraryGroupQueryOptions,
@@ -10,15 +10,16 @@
     deleteAssetMutationOptions,
     projectAssignmentMutationOptions,
     projectsListQueryOptions,
+    favoriteMutationOptions,
   } from '$lib/queries/library';
-  import { favoriteMutationOptions } from '$lib/queries/library';
-  import { resolveLibraryAction, libraryActionLabel, LIBRARY_ACTION_ICONS } from './actions';
+  import { resolveLibraryAction, libraryActionLabel } from './actions';
   import { parseAssetRef } from '$lib/utils/assetRef';
   import { isDesktop } from '$lib/utils/breakpoints';
   import { timeAgo, timeUntil, formatAspectRatio } from '$lib/utils/format';
   import { EXPIRES_SOON_MS } from '$lib/utils/constants';
   import MediaImage from '$lib/media/MediaImage.svelte';
   import MediaVideo from '$lib/media/MediaVideo.svelte';
+  import { posterSrc } from '$lib/media';
   import ConfirmDeleteModal from '$lib/components/shared/ConfirmDeleteModal.svelte';
   import FrameExtractModal from '$lib/components/frames/FrameExtractModal.svelte';
   import TagChipEditor from '$lib/components/library/TagChipEditor.svelte';
@@ -33,18 +34,12 @@
   let {
     assetRef,
     onclose,
-    onNavigate,
-    onSelectVariation,
     startInRename = false,
     startFrameExtraction = false,
     jobIdHint = null,
   }: {
     assetRef: string;
     onclose: () => void;
-    /** Opens another asset from the lazy lineage chain. */
-    onNavigate?: (assetRef: string) => void;
-    /** Re-keys the viewer when a sibling output is selected. */
-    onSelectVariation?: (assetRef: string) => void;
     /** Opens the sheet directly in rename mode once detail data has loaded. */
     startInRename?: boolean;
     /** Opens the selected video's frame extractor once its current detail is available. */
@@ -53,48 +48,40 @@
     jobIdHint?: string | null;
   } = $props();
 
-  // The request effect below resets this whenever the mounted viewer receives a new request.
-  let selectedAssetRef = $state(initialSelection());
+  // This is the canonical selection for the viewer's entire lifetime.
+  let selectedAssetRef = $state(untrack(() => assetRef));
+  let activeGroupJobId = $state<string | null>(untrack(() => jobIdHint));
   let showDeleteConfirm = $state(false);
   let showFrameExtraction = $state(false);
   let frameExtractionTrigger = $state<HTMLButtonElement | null>(null);
   let renaming = $state(false);
   let renameValue = $state('');
-  let renameAppliedFor = $state<string | null>(null);
-  let frameExtractionAppliedFor = $state<string | null>(null);
+  let renameIntentConsumed = $state(untrack(() => !startInRename));
+  let frameExtractionIntentConsumed = $state(untrack(() => !startFrameExtraction));
   let lineageExpanded = $state(false);
-  let previousRequestKey = $state<string | null>(null);
-
-  function initialSelection() {
-    return assetRef;
-  }
 
   function focusOnMount(node: HTMLElement) {
     node.focus();
   }
 
   const queryClient = useQueryClient();
-  // The surrounding page keys this viewer by the selected sibling, so every mounted viewer
-  // owns a stable asset query rather than retaining data from a previous variation.
-  const detailQuery = createQuery(() => libraryAssetQueryOptions(assetRef));
+  const detailQuery = createQuery(() => libraryAssetQueryOptions(selectedAssetRef));
   const currentDetail = $derived(
     detailQuery.data?.asset_ref === selectedAssetRef ? detailQuery.data : undefined,
   );
-  const groupJobId = $derived(
-    currentDetail
-      ? currentDetail.source === 'output' &&
-        currentDetail.output_count &&
-        currentDetail.output_count > 1
-        ? (currentDetail.job_id ?? jobIdHint)
-        : null
-      : jobIdHint,
+  const groupQuery = createQuery(() =>
+    activeGroupJobId
+      ? libraryGroupQueryOptions(activeGroupJobId)
+      : {
+          queryKey: ['library', 'group', 'disabled'] as const,
+          queryFn: async (): Promise<LibraryGroupDetail> => {
+            throw new Error('Group query is disabled');
+          },
+          enabled: false,
+        },
   );
-  const groupQuery = createQuery(() => ({
-    ...libraryGroupQueryOptions(groupJobId ?? ''),
-    enabled: !!groupJobId,
-  }));
   const currentGroup = $derived(
-    groupQuery.data && groupQuery.data.job_id === groupJobId ? groupQuery.data : undefined,
+    groupQuery.data && groupQuery.data.job_id === activeGroupJobId ? groupQuery.data : undefined,
   );
   const selectedOutput = $derived(
     currentGroup?.outputs.find((output) => output.asset_ref === selectedAssetRef),
@@ -115,20 +102,27 @@
     frameExtractionTrigger = null;
   }
 
+  // Once a selected detail is known, it—not the initial hint—defines whether a sibling group
+  // applies. This also lets lineage navigation leave the old group immediately.
   $effect(() => {
-    const requestKey = `${assetRef}\u0000${jobIdHint ?? ''}`;
-    if (previousRequestKey === requestKey) return;
-    previousRequestKey = requestKey;
-    selectedAssetRef = assetRef;
-    renameAppliedFor = null;
-    frameExtractionAppliedFor = null;
-    resetAssetUi();
+    if (!currentDetail) return;
+    activeGroupJobId =
+      currentDetail.source === 'output' &&
+      currentDetail.output_count != null &&
+      currentDetail.output_count > 1
+        ? (currentDetail.job_id ?? null)
+        : null;
   });
 
   // Selection is stable by asset_ref. A refetch only changes it if the selected output no
   // longer exists, in which case the first surviving output is the safe fallback.
   $effect(() => {
-    if (!currentGroup || currentGroup.outputs.length === 0) return;
+    if (
+      !currentGroup ||
+      currentGroup.outputs.length === 0 ||
+      currentDetail?.job_id !== activeGroupJobId
+    )
+      return;
     if (!currentGroup.outputs.some((output) => output.asset_ref === selectedAssetRef)) {
       selectedAssetRef = currentGroup.outputs[0].asset_ref;
       resetAssetUi();
@@ -138,11 +132,14 @@
   $effect(() => {
     if (
       startFrameExtraction &&
-      frameExtractionAppliedFor === null &&
-      currentDetail?.media.media_type === 'video'
+      !frameExtractionIntentConsumed &&
+      selectedAssetRef === assetRef &&
+      currentDetail
     ) {
-      frameExtractionAppliedFor = selectedAssetRef;
-      showFrameExtraction = true;
+      frameExtractionIntentConsumed = true;
+      if (currentDetail.media.media_type === 'video') {
+        showFrameExtraction = true;
+      }
     }
   });
 
@@ -159,8 +156,8 @@
   }
 
   $effect(() => {
-    if (startInRename && renameAppliedFor === null && currentDetail) {
-      renameAppliedFor = selectedAssetRef;
+    if (startInRename && !renameIntentConsumed && selectedAssetRef === assetRef && currentDetail) {
+      renameIntentConsumed = true;
       startRename();
     }
   });
@@ -204,8 +201,7 @@
         );
         selectedAssetRef = nextAssetRef;
         resetAssetUi();
-        queryClient.invalidateQueries({ queryKey: libraryKeys.group(group.job_id) });
-        queryClient.invalidateQueries({ queryKey: libraryKeys.asset(deletingAssetRef) });
+        queryClient.removeQueries({ queryKey: libraryKeys.asset(deletingAssetRef), exact: true });
       }
     } catch {
       addToast({ type: 'error', message: m.library_delete_error() });
@@ -229,22 +225,27 @@
 
   function navigateLineage(nextAssetRef: string) {
     if (nextAssetRef === selectedAssetRef) return;
+    activeGroupJobId = null;
     selectedAssetRef = nextAssetRef;
     resetAssetUi();
-    onNavigate?.(nextAssetRef);
   }
 
   function selectVariation(output: LibraryOutputItem) {
     if (output.asset_ref === selectedAssetRef) return;
     selectedAssetRef = output.asset_ref;
     resetAssetUi();
-    onSelectVariation?.(output.asset_ref);
   }
 
   const menuItems = $derived(
     currentDetail
       ? currentDetail.available_actions
-          .filter((action) => action !== 'delete' && action !== 'favorite' && action !== 'rename')
+          .filter(
+            (action) =>
+              action !== 'delete' &&
+              action !== 'favorite' &&
+              action !== 'rename' &&
+              action !== 'download',
+          )
           .map((action) => {
             const handler = resolveLibraryAction(action, currentDetail, {
               onExtractFrame: () => (showFrameExtraction = true),
@@ -253,7 +254,6 @@
             return {
               action,
               label: libraryActionLabel(action),
-              icon: LIBRARY_ACTION_ICONS[action],
               onclick: handler,
             };
           })
@@ -307,12 +307,31 @@
               : ''}"
           >
             {#if output.media.media_type === 'video'}
-              <MediaVideo
-                media={output.media}
-                muted
-                playsinline
-                class="h-full w-full object-cover"
-              />
+              {@const poster = posterSrc(output.media)}
+              {#if poster}
+                <img
+                  src={poster}
+                  alt={m.library_variation_label({
+                    index: index + 1,
+                    count: currentGroup.outputs.length,
+                  })}
+                  loading="lazy"
+                  decoding="async"
+                  class="h-full w-full object-cover"
+                />
+              {:else}
+                <span
+                  class="flex h-full w-full flex-col items-center justify-center gap-1 bg-surface text-text-muted"
+                >
+                  <Video size={18} aria-hidden="true" />
+                  <span class="sr-only"
+                    >{m.library_variation_label({
+                      index: index + 1,
+                      count: currentGroup.outputs.length,
+                    })}</span
+                  >
+                </span>
+              {/if}
             {:else}
               <MediaImage
                 media={output.media}
@@ -328,7 +347,7 @@
         {/each}
       </div>
     </section>
-  {:else if groupQuery.isError && groupJobId}
+  {:else if groupQuery.isError && activeGroupJobId}
     <p class="px-5 pt-5 text-xs text-text-dim">{m.error_generic()}</p>
   {/if}
 

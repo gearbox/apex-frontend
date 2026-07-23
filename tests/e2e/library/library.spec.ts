@@ -37,6 +37,7 @@ const itemImageSingle = {
   model: 'grok-imagine-image',
   generation_type: 't2i',
   available_actions: ['remix', 'download', 'favorite', 'rename', 'delete'],
+  tags: [],
 };
 
 // Multi-output i2i job — opens the unified rich viewer on click.
@@ -55,6 +56,7 @@ const itemImageGroup = {
   model: 'grok-imagine-image',
   generation_type: 'i2i',
   available_actions: ['remix', 'download', 'favorite', 'delete'],
+  tags: [],
 };
 
 // Single-output t2v video asset.
@@ -73,6 +75,7 @@ const itemVideoSingle = {
   model: 'grok-imagine-video',
   generation_type: 't2v',
   available_actions: ['reproduce', 'download', 'favorite', 'delete'],
+  tags: [],
 };
 
 // Uploaded asset — provenance badge should read "Uploaded".
@@ -91,6 +94,7 @@ const itemUpload = {
   model: null,
   generation_type: null,
   available_actions: ['download', 'favorite', 'delete'],
+  tags: [],
 };
 
 const mockLibraryItems = [itemImageSingle, itemImageGroup, itemVideoSingle, itemUpload];
