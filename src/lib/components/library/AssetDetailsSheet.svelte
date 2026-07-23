@@ -34,7 +34,7 @@
     assetRef: string;
     onclose: () => void;
     /** Called when the asset belongs to a multi-output job the user wants to browse. */
-    onOpenGroup?: (jobId: string) => void;
+    onOpenGroup?: (jobId: string, initialAssetRef: string) => void;
     /** Opens another asset from the lazy lineage chain. */
     onNavigate?: (assetRef: string) => void;
     /** Opens the sheet directly in rename mode once detail data has loaded. */
@@ -258,7 +258,7 @@
 
       {#if detail.output_count && detail.output_count > 1 && detail.job_id && onOpenGroup}
         <button
-          onclick={() => onOpenGroup(detail.job_id!)}
+          onclick={() => onOpenGroup(detail.job_id!, detail.asset_ref)}
           class="text-left text-xs font-medium text-accent hover:underline"
         >
           {m.library_view_group({ count: detail.output_count })}

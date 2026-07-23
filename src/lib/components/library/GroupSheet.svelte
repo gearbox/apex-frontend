@@ -8,7 +8,11 @@
   import { isDesktop } from '$lib/utils/breakpoints';
   import { ROUTES } from '$lib/utils/routes';
   import { X, Download, Repeat2, Trash2, Info } from 'lucide-svelte';
-  import { libraryGroupQueryOptions, deleteAssetMutationOptions } from '$lib/queries/library';
+  import {
+    libraryGroupQueryOptions,
+    deleteAssetMutationOptions,
+    libraryKeys,
+  } from '$lib/queries/library';
   import { downloadLibraryMedia } from './download';
   import { addToast } from '$lib/stores/toasts';
   import MediaImage from '$lib/media/MediaImage.svelte';
@@ -24,10 +28,13 @@
 
   let {
     jobId,
+    initialAssetRef = null,
     onclose,
     onOpenAsset,
   }: {
     jobId: string;
+    /** The output that opened this sheet. This is applied once after group data loads. */
+    initialAssetRef?: string | null;
     onclose: () => void;
     /** Opens the full details sheet (rename/favorite/metadata) for the selected output. */
     onOpenAsset?: (assetRef: string) => void;
@@ -35,6 +42,8 @@
 
   let downloading = $state(false);
   let selectedOutputIndex = $state(0);
+  let previousRequestKey = $state<string | null>(null);
+  let initializedRequestKey = $state<string | null>(null);
   let showDeleteConfirm = $state(false);
   let frameExtractionOutput = $state<LibraryOutputItem | null>(null);
   let frameExtractionTrigger = $state<HTMLButtonElement | null>(null);
@@ -43,6 +52,36 @@
   const deleteMutation = createMutation(() => deleteAssetMutationOptions(queryClient));
 
   const detailQuery = createQuery(() => libraryGroupQueryOptions(jobId));
+  const requestKey = $derived(`${jobId}\u0000${initialAssetRef ?? ''}`);
+
+  /**
+   * Query data arrives after the sheet mounts, so select by its stable asset reference only
+   * when the request first becomes available. Subsequent refetches must not undo a thumbnail
+   * choice the user made while the sheet was open.
+   */
+  $effect(() => {
+    if (previousRequestKey !== requestKey) {
+      previousRequestKey = requestKey;
+      initializedRequestKey = null;
+      selectedOutputIndex = 0;
+    }
+
+    const detail = detailQuery.data;
+    if (!detail || detail.job_id !== jobId || detail.outputs.length === 0) return;
+
+    if (initializedRequestKey !== requestKey) {
+      const initialIndex = initialAssetRef
+        ? detail.outputs.findIndex((output) => output.asset_ref === initialAssetRef)
+        : 0;
+      selectedOutputIndex = initialIndex >= 0 ? initialIndex : 0;
+      initializedRequestKey = requestKey;
+      return;
+    }
+
+    // A refetch can remove outputs. Keep all actions pointed at a current output without
+    // reapplying the initial request after the user has selected another thumbnail.
+    selectedOutputIndex = Math.min(selectedOutputIndex, detail.outputs.length - 1);
+  });
 
   function handleKeydown(e: KeyboardEvent) {
     if (frameExtractionOutput) return;
@@ -97,8 +136,21 @@
 
       if (detail.outputs.length <= 1) {
         onclose();
-      } else if (selectedOutputIndex >= detail.outputs.length - 1) {
-        selectedOutputIndex = Math.max(0, selectedOutputIndex - 1);
+      } else {
+        // The current output is being removed; choose the next output when present, otherwise
+        // the preceding one. The refetch clamp above keeps this valid once data is refreshed.
+        selectedOutputIndex = Math.min(selectedOutputIndex, detail.outputs.length - 2);
+        queryClient.setQueryData<LibraryGroupDetail>(libraryKeys.group(jobId), (current) =>
+          current
+            ? {
+                ...current,
+                outputs: current.outputs.filter(
+                  (currentOutput) => currentOutput.asset_ref !== output.asset_ref,
+                ),
+              }
+            : current,
+        );
+        queryClient.invalidateQueries({ queryKey: libraryKeys.group(jobId) });
       }
     } catch {
       addToast({ type: 'error', message: m.library_delete_error() });
@@ -253,6 +305,8 @@
         {#each detail.outputs as output, i (output.id)}
           <button
             onclick={() => (selectedOutputIndex = i)}
+            aria-label={`Output ${i + 1}`}
+            aria-pressed={selectedOutputIndex === i}
             class="relative aspect-square overflow-hidden rounded-lg transition-opacity hover:opacity-80
               {selectedOutputIndex === i ? 'ring-2 ring-accent' : ''}"
           >
@@ -275,6 +329,8 @@
       {#each detail.outputs as output, i (output.id)}
         <button
           onclick={() => (selectedOutputIndex = i)}
+          aria-label={`Output ${i + 1}`}
+          aria-pressed={selectedOutputIndex === i}
           class="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg transition-opacity hover:opacity-80
             {selectedOutputIndex === i ? 'ring-2 ring-accent' : ''}"
         >

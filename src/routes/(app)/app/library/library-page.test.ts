@@ -410,4 +410,35 @@ describe('/app/library page — GroupSheet "Details" round-trips to AssetDetails
     expect(await screen.findByRole('dialog', { name: m.library_details_title() })).toBeTruthy();
     expect(screen.getByText('Selected output')).toBeTruthy();
   });
+
+  it('forwards the clicked variation asset reference into the group sheet', async () => {
+    const firstVariation = makeLibraryAssetItem({
+      asset_ref: 'output:first',
+      display_title: 'Variation one',
+      job_id: 'job_abc',
+      output_count: 2,
+    });
+    const secondVariation = makeLibraryAssetItem({
+      asset_ref: 'output:second',
+      display_title: 'Variation two',
+      job_id: 'job_abc',
+      output_count: 2,
+    });
+    state.libraryItems = [firstVariation, secondVariation];
+    state.groupDetailData = makeLibraryGroupDetail({
+      job_id: 'job_abc',
+      prompt: 'A pair of variations',
+      outputs: [
+        makeLibraryOutputItem({ id: 'first', asset_ref: firstVariation.asset_ref }),
+        makeLibraryOutputItem({ id: 'second', asset_ref: secondVariation.asset_ref }),
+      ],
+    });
+
+    render(Page);
+    await fireEvent.click(screen.getByRole('button', { name: 'Variation two' }));
+
+    expect(screen.getByRole('button', { name: 'Output 2' }).getAttribute('aria-pressed')).toBe(
+      'true',
+    );
+  });
 });
