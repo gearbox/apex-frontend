@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, beforeAll, afterAll } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import { tick } from 'svelte';
+import { createQuery } from '@tanstack/svelte-query';
 import * as m from '$paraglide/messages';
 import type { components } from '$lib/api/types';
 import {
@@ -448,5 +449,132 @@ describe('/app/library page — unified variation viewer', () => {
       screen.getByRole('button', { name: 'Variation 2 of 2' }).getAttribute('aria-pressed'),
     ).toBe('true');
     expect(screen.getByRole('dialog', { name: m.library_details_title() })).toBe(viewer);
+  });
+});
+
+function makeGridItems(count: number) {
+  return Array.from({ length: count }, (_, i) =>
+    makeLibraryAssetItem({
+      asset_ref: `output:grid-${i + 1}`,
+      display_title: `Asset ${i + 1}`,
+      job_id: null,
+      output_count: 1,
+    }),
+  );
+}
+
+describe('/app/library page — grid prev/next navigation', () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn().mockReturnValue({
+        matches: true,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }),
+    );
+  });
+
+  it('clicking Next asset requests the following grid item’s detail and hides Prev on the first item', async () => {
+    const items = makeGridItems(3);
+    state.libraryItems = items;
+    state.assetDetailData = makeLibraryAssetDetail({ asset_ref: items[0].asset_ref });
+
+    render(Page);
+    await fireEvent.click(screen.getByRole('button', { name: 'Asset 1' }));
+    await screen.findByRole('dialog', { name: m.library_details_title() });
+
+    expect(screen.queryByLabelText('Previous asset')).toBeNull();
+
+    vi.mocked(createQuery).mockClear();
+    await fireEvent.click(screen.getByLabelText('Next asset'));
+
+    const requestedKeys = vi.mocked(createQuery).mock.calls.map((call) => call[0]().queryKey);
+    expect(requestedKeys).toContainEqual(['library', 'asset', items[1].asset_ref]);
+  });
+
+  it('hides Next asset on the last loaded item when there is no further page', async () => {
+    const items = makeGridItems(2);
+    state.libraryItems = items;
+    state.hasNextPage = false;
+    state.assetDetailData = makeLibraryAssetDetail({ asset_ref: items[1].asset_ref });
+
+    render(Page);
+    await fireEvent.click(screen.getByRole('button', { name: 'Asset 2' }));
+    await screen.findByRole('dialog', { name: m.library_details_title() });
+
+    expect(screen.queryByLabelText('Next asset')).toBeNull();
+    expect(screen.getByLabelText('Previous asset')).toBeTruthy();
+  });
+
+  it('prefetches the next page once navigation nears the tail of the loaded items', async () => {
+    const items = makeGridItems(5);
+    state.libraryItems = items;
+    state.hasNextPage = true;
+    state.assetDetailData = makeLibraryAssetDetail({ asset_ref: items[0].asset_ref });
+
+    render(Page);
+    await fireEvent.click(screen.getByRole('button', { name: 'Asset 1' }));
+    await screen.findByRole('dialog', { name: m.library_details_title() });
+
+    // index 0 -> target 1; length(5) - 3 = 2, so 1 >= 2 is false: no prefetch yet.
+    await fireEvent.click(screen.getByLabelText('Next asset'));
+    expect(state.fetchNextPageMock).not.toHaveBeenCalled();
+
+    // index 1 -> target 2; 2 >= 2 is true: prefetch fires.
+    await fireEvent.click(await screen.findByLabelText('Next asset'));
+    expect(state.fetchNextPageMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('loads the next page and opens its first item in one click when Next is tapped on the tail item', async () => {
+    const items = makeGridItems(2);
+    state.libraryItems = items;
+    state.hasNextPage = true;
+    state.assetDetailData = makeLibraryAssetDetail({ asset_ref: items[1].asset_ref });
+
+    const nextItem = makeLibraryAssetItem({
+      asset_ref: 'output:grid-3',
+      display_title: 'Asset 3',
+      job_id: null,
+      output_count: 1,
+    });
+    state.fetchNextPageMock.mockResolvedValue({
+      data: {
+        pages: [{ items: [...items, nextItem], limit: 30, has_more: false, next_cursor: null }],
+      },
+    });
+
+    render(Page);
+    await fireEvent.click(screen.getByRole('button', { name: 'Asset 2' }));
+    await screen.findByRole('dialog', { name: m.library_details_title() });
+
+    // Still on the last loaded item, but Next is shown because another page exists.
+    expect(screen.getByLabelText('Next asset')).toBeTruthy();
+
+    vi.mocked(createQuery).mockClear();
+    await fireEvent.click(screen.getByLabelText('Next asset'));
+
+    expect(state.fetchNextPageMock).toHaveBeenCalledTimes(1);
+    const requestedKeys = vi.mocked(createQuery).mock.calls.map((call) => call[0]().queryKey);
+    expect(requestedKeys).toContainEqual(['library', 'asset', 'output:grid-3']);
+  });
+
+  it('keeps fullscreen open across a Next navigation', async () => {
+    const items = makeGridItems(2);
+    state.libraryItems = items;
+    state.assetDetailData = makeLibraryAssetDetail({ asset_ref: items[0].asset_ref });
+
+    render(Page);
+    await fireEvent.click(screen.getByRole('button', { name: 'Asset 1' }));
+    await screen.findByRole('dialog', { name: m.library_details_title() });
+
+    await fireEvent.click(screen.getByLabelText(m.library_fullscreen_open()));
+    expect(screen.getByLabelText(m.library_fullscreen_close())).toBeTruthy();
+
+    // The {#key} remounts the sheet for the new asset_ref; match the mocked detail so
+    // stageMedia (and thus the fullscreen controls) render for the new selection too.
+    state.assetDetailData = makeLibraryAssetDetail({ asset_ref: items[1].asset_ref });
+    await fireEvent.click(screen.getByLabelText('Next asset'));
+    expect(screen.getByLabelText(m.library_fullscreen_close())).toBeTruthy();
   });
 });

@@ -155,6 +155,25 @@ export const LIBRARY_ACTION_ICONS: Record<LibraryAction, ComponentType<SvelteCom
   delete: Trash2,
 };
 
+/**
+ * Centralizes which actions are actually reachable given the current API surface. Applied
+ * at both render sites (AssetCard menu, AssetDetailsSheet menu) so they never diverge.
+ */
+export function filterVisibleLibraryActions(
+  actions: LibraryAction[],
+  opts: { hasFlf2vModel: boolean },
+): LibraryAction[] {
+  return actions.filter((action) => {
+    // Duplicate of `remix` with the current API surface — deferred until a real
+    // create-variation prefill (denoise/seed) is implemented.
+    if (action === 'create_variation') return false;
+    if (action === 'use_as_first_frame' || action === 'use_as_last_frame') {
+      return opts.hasFlf2vModel;
+    }
+    return true;
+  });
+}
+
 export function libraryActionLabel(action: LibraryAction, isFavorite = false): string {
   switch (action) {
     case 'remix':

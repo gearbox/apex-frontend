@@ -2,6 +2,7 @@ import type { components } from '$lib/api/types';
 
 type ModelInfo = components['schemas']['ModelInfo'];
 type AspectRatio = components['schemas']['AspectRatio'];
+type ProvidersResponse = components['schemas']['ProvidersResponse'];
 
 export const KNOWN_ASPECT_RATIOS: readonly AspectRatio[] = [
   '2:3',
@@ -52,4 +53,14 @@ export function getT2iAspectRatios(modelInfo: ModelInfo | null | undefined): Asp
  */
 export function supportsAishaImageParams(modelInfo: ModelInfo | null | undefined): boolean {
   return modelInfo?.image?.supported_tiers != null;
+}
+
+/**
+ * Whether any enabled model across any provider supports flf2v (first/last-frame video).
+ * A disabled model doesn't count — there is no generation path a user could actually reach.
+ */
+export function hasFlf2vModel(providers: ProvidersResponse | null | undefined): boolean {
+  return (providers?.providers ?? []).some((provider) =>
+    provider.models.some((model) => model.is_enabled && model.capabilities.includes('flf2v')),
+  );
 }
