@@ -37,13 +37,14 @@ const itemImageSingle = {
   model: 'grok-imagine-image',
   generation_type: 't2i',
   available_actions: ['remix', 'download', 'favorite', 'rename', 'delete'],
+  tags: [],
 };
 
-// Multi-output i2i job — opens GroupSheet on click.
+// Multi-output i2i job — opens the unified rich viewer on click.
 const itemImageGroup = {
-  asset_ref: 'output:a0000000-0000-4000-8000-000000000002',
+  asset_ref: 'output:a0000000-0000-4000-8000-00000000002a',
   source: 'output',
-  media: makeMedia('/v1/content/outputs/a0000000-0000-4000-8000-000000000002'),
+  media: makeMedia('/v1/content/outputs/a0000000-0000-4000-8000-00000000002a'),
   created_at: '2025-01-02T00:00:00Z',
   expires_at: '2025-07-02T00:00:00Z',
   display_title: null,
@@ -55,6 +56,7 @@ const itemImageGroup = {
   model: 'grok-imagine-image',
   generation_type: 'i2i',
   available_actions: ['remix', 'download', 'favorite', 'delete'],
+  tags: [],
 };
 
 // Single-output t2v video asset.
@@ -73,6 +75,7 @@ const itemVideoSingle = {
   model: 'grok-imagine-video',
   generation_type: 't2v',
   available_actions: ['reproduce', 'download', 'favorite', 'delete'],
+  tags: [],
 };
 
 // Uploaded asset — provenance badge should read "Uploaded".
@@ -91,6 +94,7 @@ const itemUpload = {
   model: null,
   generation_type: null,
   available_actions: ['download', 'favorite', 'delete'],
+  tags: [],
 };
 
 const mockLibraryItems = [itemImageSingle, itemImageGroup, itemVideoSingle, itemUpload];
@@ -124,6 +128,25 @@ const mockAssetDetailVideo = {
   completed_at: '2025-01-03T00:01:00Z',
   lineage: null,
   descendants: { job_count: 0, frame_count: 0 },
+};
+
+const mockAssetDetailGroup = {
+  ...itemImageGroup,
+  prompt: 'Ocean waves crashing on shore under a stylised sky',
+  negative_prompt: null,
+  provider: 'grok',
+  aspect_ratio: '16:9',
+  token_cost: 15,
+  completed_at: '2025-01-02T00:01:00Z',
+  lineage: null,
+  descendants: { job_count: 0, frame_count: 0 },
+};
+
+const mockAssetDetailGroupVariationB = {
+  ...mockAssetDetailGroup,
+  asset_ref: 'output:a0000000-0000-4000-8000-00000000002b',
+  media: makeMedia('/v1/content/outputs/a0000000-0000-4000-8000-00000000002b'),
+  display_title: 'Ocean variation two',
 };
 
 const mockGroupDetail = {
@@ -481,18 +504,21 @@ test.describe('Library actions — Remix / Reproduce', () => {
     await expect(page.getByText('From generated')).not.toBeVisible();
   });
 
-  test('Remix button in Group Sheet navigates to Create page with I2I mode and source image', async ({
+  test('Remix button in the unified multi-output viewer navigates to Create with I2I mode', async ({
     authenticatedPage: page,
   }) => {
     await page.route((url) => url.pathname === '/v1/library', jsonRoute(mockLibraryPage));
     await page.route('**/v1/library/groups/job_002', jsonRoute(mockGroupDetail));
+    await page.route('**/v1/library/assets/**', jsonRoute(mockAssetDetailGroup));
 
     await page.goto('/app/library');
     await expect(page.getByText(/\d+\s*loaded/i)).toBeVisible({ timeout: 5000 });
 
-    // Second card is the multi-output i2i job — opens Group Sheet
+    // Second card is the multi-output i2i job — opens the rich viewer directly.
     await page.locator('[class*="grid"] button.absolute.inset-0.z-0').nth(1).click();
-    await expect(page.getByText('Source image')).toBeVisible({ timeout: 3000 });
+    await expect(page.getByText('Ocean waves crashing on shore under a stylised sky')).toBeVisible({
+      timeout: 3000,
+    });
 
     await page.getByRole('button', { name: 'Remix' }).click();
 
@@ -575,18 +601,42 @@ test.describe('Library page', () => {
     await expect(page.getByText('1:1')).toBeVisible();
   });
 
-  test('5. Group Sheet shows the source image for multi-output i2i jobs', async ({
+  test('5. Multi-output card opens one rich viewer with selectable variations', async ({
     authenticatedPage: page,
   }) => {
     await page.route((url) => url.pathname === '/v1/library', jsonRoute(mockLibraryPage));
     await page.route('**/v1/library/groups/job_002', jsonRoute(mockGroupDetail));
+    await page.route('**/v1/library/assets/**', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(
+          route.request().url().endsWith('00000000002b')
+            ? mockAssetDetailGroupVariationB
+            : mockAssetDetailGroup,
+        ),
+      }),
+    );
 
     await page.goto('/app/library');
     await expect(page.getByText(/\d+\s*loaded/i)).toBeVisible({ timeout: 5000 });
 
     await page.locator('[class*="grid"] button.absolute.inset-0.z-0').nth(1).click();
 
-    await expect(page.getByText('Source image')).toBeVisible({ timeout: 3000 });
+    await expect(page.getByRole('dialog', { name: 'Asset details' })).toHaveCount(1);
+    await expect(page.getByRole('button', { name: 'Variation 1 of 2' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    // Wait for the first detail request before switching, so the second assertion verifies
+    // the selected variation's fresh detail rather than racing the viewer's initial request.
+    await expect(page.getByText('16:9')).toBeVisible();
+    await page.getByRole('button', { name: 'Variation 2 of 2' }).click();
+    await expect(page.getByRole('button', { name: 'Variation 2 of 2' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await expect(page.getByText('Ocean variation two')).toBeVisible();
     await expect(page.getByText('16:9')).toBeVisible();
   });
 

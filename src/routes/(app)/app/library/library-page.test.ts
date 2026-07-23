@@ -374,7 +374,7 @@ describe('/app/library page — card menu rename opens the details sheet in rena
   });
 });
 
-describe('/app/library page — GroupSheet "Details" round-trips to AssetDetailsSheet', () => {
+describe('/app/library page — unified variation viewer', () => {
   beforeEach(() => {
     vi.stubGlobal(
       'matchMedia',
@@ -386,7 +386,7 @@ describe('/app/library page — GroupSheet "Details" round-trips to AssetDetails
     );
   });
 
-  it('opens the details sheet for the selected output when "Details" is clicked in the group sheet', async () => {
+  it('opens the rich viewer directly for a multi-output card', async () => {
     const groupItem = makeLibraryAssetItem({
       asset_ref: 'output:group-cover',
       job_id: 'job_abc',
@@ -394,24 +394,23 @@ describe('/app/library page — GroupSheet "Details" round-trips to AssetDetails
     });
     state.libraryItems = [groupItem];
 
-    const output = makeLibraryOutputItem({ id: 'out_1', asset_ref: 'output:out_1' });
+    const output = makeLibraryOutputItem({ id: 'out_1', asset_ref: groupItem.asset_ref });
     state.groupDetailData = makeLibraryGroupDetail({ job_id: 'job_abc', outputs: [output] });
     state.assetDetailData = makeLibraryAssetDetail({
-      asset_ref: 'output:out_1',
+      asset_ref: groupItem.asset_ref,
       display_title: 'Selected output',
     });
 
     render(Page);
 
     await fireEvent.click(screen.getByRole('button', { name: m.library_details_title() }));
-    const detailsButton = await screen.findByLabelText(m.library_meta_details());
-    await fireEvent.click(detailsButton);
 
     expect(await screen.findByRole('dialog', { name: m.library_details_title() })).toBeTruthy();
     expect(screen.getByText('Selected output')).toBeTruthy();
+    expect(screen.queryByLabelText('Details')).toBeNull();
   });
 
-  it('forwards the clicked variation asset reference into the group sheet', async () => {
+  it('switches variations inside the mounted viewer rather than opening another grid card', async () => {
     const firstVariation = makeLibraryAssetItem({
       asset_ref: 'output:first',
       display_title: 'Variation one',
@@ -433,12 +432,21 @@ describe('/app/library page — GroupSheet "Details" round-trips to AssetDetails
         makeLibraryOutputItem({ id: 'second', asset_ref: secondVariation.asset_ref }),
       ],
     });
+    state.assetDetailData = makeLibraryAssetDetail({
+      asset_ref: firstVariation.asset_ref,
+      display_title: 'Variation one',
+      output_count: 2,
+      job_id: 'job_abc',
+    });
 
     render(Page);
-    await fireEvent.click(screen.getByRole('button', { name: 'Variation two' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Variation one' }));
+    const viewer = await screen.findByRole('dialog', { name: m.library_details_title() });
+    await fireEvent.click(screen.getByRole('button', { name: 'Variation 2 of 2' }));
 
-    expect(screen.getByRole('button', { name: 'Output 2' }).getAttribute('aria-pressed')).toBe(
-      'true',
-    );
+    expect(
+      screen.getByRole('button', { name: 'Variation 2 of 2' }).getAttribute('aria-pressed'),
+    ).toBe('true');
+    expect(screen.getByRole('dialog', { name: m.library_details_title() })).toBe(viewer);
   });
 });

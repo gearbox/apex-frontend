@@ -2,10 +2,16 @@ import { describe, it, expect, vi, beforeEach, beforeAll, afterAll } from 'vites
 import { tick } from 'svelte';
 import { render, screen, fireEvent, within } from '@testing-library/svelte';
 import type { components } from '$lib/api/types';
-import { makeLibraryAssetDetail, makeLibraryLineage } from '../../../mocks/factories/library';
-import { makeMediaObject } from '../../../mocks/factories/media';
+import {
+  makeLibraryAssetDetail,
+  makeLibraryGroupDetail,
+  makeLibraryLineage,
+  makeLibraryOutputItem,
+} from '../../../mocks/factories/library';
+import { makeMediaObject, makeVideoMediaObject } from '../../../mocks/factories/media';
 
 type LibraryAssetDetail = components['schemas']['LibraryAssetDetail'];
+type LibraryGroupDetail = components['schemas']['LibraryGroupDetail'];
 
 beforeAll(() => {
   vi.stubGlobal(
@@ -23,10 +29,9 @@ afterAll(() => {
 });
 
 let detailData: LibraryAssetDetail | undefined;
+let groupData: LibraryGroupDetail | undefined;
 let lineageQueryCalls = 0;
 const mutateAsyncMock = vi.fn();
-const renameMutateAsyncMock = vi.fn();
-const deleteMutateAsyncMock = vi.fn();
 const oncloseMock = vi.fn();
 
 vi.mock('@tanstack/svelte-query', () => ({
@@ -73,6 +78,15 @@ vi.mock('@tanstack/svelte-query', () => ({
         refetch: vi.fn(),
       };
     }
+    if (kind === 'group') {
+      return {
+        get data() {
+          return groupData;
+        },
+        isLoading: false,
+        isError: false,
+      };
+    }
     return {
       get data() {
         return detailData;
@@ -101,15 +115,72 @@ import AssetDetailsSheet from './AssetDetailsSheet.svelte';
 
 beforeEach(() => {
   mutateAsyncMock.mockClear();
-  renameMutateAsyncMock.mockClear();
-  deleteMutateAsyncMock.mockClear();
   oncloseMock.mockClear();
   lineageQueryCalls = 0;
+  groupData = undefined;
+});
+
+describe('AssetDetailsSheet — unified variation selection', () => {
+  it('keeps the clicked ref selected and removes stale controls while another detail loads', async () => {
+    detailData = makeLibraryAssetDetail({
+      asset_ref: 'output:b',
+      display_title: 'Variation B',
+      job_id: 'job-group',
+      output_count: 3,
+      available_actions: ['delete'],
+    });
+    groupData = makeLibraryGroupDetail({
+      job_id: 'job-group',
+      outputs: [
+        makeLibraryOutputItem({ id: 'a', asset_ref: 'output:a', media: makeMediaObject() }),
+        makeLibraryOutputItem({ id: 'b', asset_ref: 'output:b', media: makeMediaObject() }),
+        makeLibraryOutputItem({ id: 'c', asset_ref: 'output:c', media: makeMediaObject() }),
+      ],
+    });
+
+    render(AssetDetailsSheet, {
+      props: { assetRef: 'output:b', jobIdHint: 'job-group', onclose: oncloseMock },
+    });
+
+    expect(
+      screen.getByRole('button', { name: 'Variation 2 of 3' }).getAttribute('aria-pressed'),
+    ).toBe('true');
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Variation 3 of 3' }));
+    expect(
+      screen.getByRole('button', { name: 'Variation 3 of 3' }).getAttribute('aria-pressed'),
+    ).toBe('true');
+    expect(screen.queryByLabelText('Delete')).toBeNull();
+  });
+
+  it('mounts a video player only for the selected stage, not every variation thumbnail', () => {
+    const video = makeVideoMediaObject();
+    detailData = makeLibraryAssetDetail({
+      asset_ref: 'output:a',
+      job_id: 'job-group',
+      output_count: 2,
+      media: video,
+    });
+    groupData = makeLibraryGroupDetail({
+      job_id: 'job-group',
+      outputs: [
+        makeLibraryOutputItem({ id: 'a', asset_ref: 'output:a', media: video }),
+        makeLibraryOutputItem({ id: 'b', asset_ref: 'output:b', media: video }),
+      ],
+    });
+
+    const { container } = render(AssetDetailsSheet, {
+      props: { assetRef: 'output:a', jobIdHint: 'job-group', onclose: oncloseMock },
+    });
+
+    expect(container.querySelectorAll('video')).toHaveLength(1);
+  });
 });
 
 describe('AssetDetailsSheet — conditional metadata sections', () => {
   it('shows the filename field for an uploaded asset and hides output-only fields', () => {
     detailData = makeLibraryAssetDetail({
+      asset_ref: 'upload:abc',
       source: 'upload',
       original_filename: 'vacation.jpg',
       model: null,
@@ -127,6 +198,7 @@ describe('AssetDetailsSheet — conditional metadata sections', () => {
 
   it('shows model/provider/prompt fields for a generated asset and hides filename', () => {
     detailData = makeLibraryAssetDetail({
+      asset_ref: 'output:abc',
       source: 'output',
       model: 'grok-imagine-image',
       provider: 'grok',
@@ -145,6 +217,7 @@ describe('AssetDetailsSheet — conditional metadata sections', () => {
 describe('AssetDetailsSheet — rename flow', () => {
   it('startInRename opens directly in rename mode once detail data is loaded', async () => {
     detailData = makeLibraryAssetDetail({
+      asset_ref: 'upload:abc',
       display_title: null,
       original_filename: 'old-name.jpg',
       available_actions: ['rename', 'favorite', 'download', 'delete'],
@@ -159,6 +232,7 @@ describe('AssetDetailsSheet — rename flow', () => {
 
   it('submitting the rename form calls the rename mutation with the trimmed title', async () => {
     detailData = makeLibraryAssetDetail({
+      asset_ref: 'upload:abc',
       display_title: null,
       original_filename: 'old-name.jpg',
       available_actions: ['rename', 'favorite', 'download', 'delete'],
@@ -179,7 +253,11 @@ describe('AssetDetailsSheet — rename flow', () => {
 
 describe('AssetDetailsSheet — project assignment', () => {
   it('assigns a project and sends null to unassign it', async () => {
-    detailData = makeLibraryAssetDetail({ project_id: null, project_name: null });
+    detailData = makeLibraryAssetDetail({
+      asset_ref: 'output:abc',
+      project_id: null,
+      project_name: null,
+    });
     render(AssetDetailsSheet, { props: { assetRef: 'output:abc', onclose: oncloseMock } });
 
     await fireEvent.change(screen.getByLabelText('Project'), { target: { value: 'project-one' } });
@@ -195,9 +273,9 @@ describe('AssetDetailsSheet — project assignment', () => {
 
 describe('AssetDetailsSheet — lazy lineage', () => {
   it('does not create the lineage query until the section is expanded', async () => {
-    detailData = makeLibraryAssetDetail({ lineage: makeLibraryLineage() });
+    detailData = makeLibraryAssetDetail({ asset_ref: 'output:abc', lineage: makeLibraryLineage() });
     render(AssetDetailsSheet, {
-      props: { assetRef: 'output:abc', onclose: oncloseMock, onNavigate: vi.fn() },
+      props: { assetRef: 'output:abc', onclose: oncloseMock },
     });
 
     expect(lineageQueryCalls).toBe(0);
@@ -208,7 +286,7 @@ describe('AssetDetailsSheet — lazy lineage', () => {
 
 describe('AssetDetailsSheet — delete confirm', () => {
   it('opens a confirm dialog on delete and closes the sheet after confirming', async () => {
-    detailData = makeLibraryAssetDetail({ available_actions: ['delete'] });
+    detailData = makeLibraryAssetDetail({ asset_ref: 'output:abc', available_actions: ['delete'] });
     render(AssetDetailsSheet, { props: { assetRef: 'output:abc', onclose: oncloseMock } });
 
     await fireEvent.click(screen.getByLabelText('Delete'));
