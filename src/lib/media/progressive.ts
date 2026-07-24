@@ -98,6 +98,13 @@ async function readProgressively(
   const reader = response.body?.getReader();
   if (!reader) return response.blob();
 
+  // An abort listener registered below never fires for a signal that is already aborted at
+  // entry — cancel explicitly on that path instead of leaving the body stream open.
+  if (options.signal?.aborted) {
+    void reader.cancel().catch(() => undefined);
+    throw new DOMException('Aborted', 'AbortError');
+  }
+
   const total = progressTotal(response, fallbackSize);
   const chunks: Uint8Array[] = [];
   let received = 0;
@@ -114,20 +121,25 @@ async function readProgressively(
       if (options.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
       if (done) break;
       if (!value) continue;
-      chunks.push(value);
+
       received += value.byteLength;
+      // A mismatched (or absent) Content-Length must not let the stream grow unbounded.
+      if (received > PROGRESSIVE_ORIGINAL_MAX_BYTES) {
+        await reader.cancel().catch(() => undefined);
+        throw new ProgressiveImageError('request');
+      }
+
+      chunks.push(value);
       options.onprogress?.({ received, total });
     }
   } finally {
     options.signal?.removeEventListener('abort', cancel);
   }
 
-  const parts = chunks.map((chunk) => {
-    const copy = new Uint8Array(chunk.byteLength);
-    copy.set(chunk);
-    return copy.buffer;
-  });
-  return new Blob(parts, { type: contentType });
+  // Blob() copies the bytes referenced by each view — no need to pre-copy them ourselves.
+  // The cast sidesteps a too-strict BlobPart type (it excludes SharedArrayBuffer-backed views,
+  // which a fetch response body stream never produces).
+  return new Blob(chunks as BlobPart[], { type: contentType });
 }
 
 /**
@@ -147,6 +159,8 @@ export async function fetchOriginalBytes(
   } catch {
     throw new ProgressiveImageError('request');
   }
+
+  if (options.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
   let response = await requestOriginal(url, options.signal);
   if (response.status === 401) {

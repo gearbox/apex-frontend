@@ -1,6 +1,5 @@
 <script lang="ts">
   import { toMediaSrc, posterSrc } from '$lib/media/index';
-  import { getCachedBlob } from '$lib/media/save/blobCache';
   import type { components } from '$lib/api/types';
 
   type MediaObject = components['schemas']['MediaObject'];
@@ -50,28 +49,8 @@
     if (videoElement) onvideoelement?.(videoElement);
   });
 
-  let cachedObjectUrl = $state<string | null>(null);
   const resolvedPoster = $derived(poster ?? posterSrc(media));
-  const directSrc = $derived(toMediaSrc(media.original.url));
-  const src = $derived(cachedObjectUrl ?? directSrc);
-
-  // A viewer prewarm can leave a short-lived original in memory. Prefer it on a later open,
-  // but retain direct authenticated streaming when no warm blob exists.
-  $effect(() => {
-    const source = directSrc;
-    const blob = getCachedBlob(source, Date.now());
-    if (!blob) {
-      cachedObjectUrl = null;
-      return;
-    }
-
-    const objectUrl = URL.createObjectURL(blob);
-    cachedObjectUrl = objectUrl;
-    return () => {
-      URL.revokeObjectURL(objectUrl);
-      if (cachedObjectUrl === objectUrl) cachedObjectUrl = null;
-    };
-  });
+  const src = $derived(toMediaSrc(media.original.url));
 </script>
 
 <video

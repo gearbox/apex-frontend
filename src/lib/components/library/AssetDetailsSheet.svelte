@@ -176,12 +176,18 @@
         : null;
   });
 
+  // Keyed on the URL string, not `stageMedia` identity (see fix-review D3): an unrelated
+  // rerender that supplies a structurally-identical media object must not abort and restart an
+  // already-running warm. `stageMediaUrl` is the sole tracked dependency.
+  const stageMediaUrl = $derived(stageMedia?.original.url ?? null);
+
   // Viewer video prewarm is intentionally independent of fullscreen: a preview-stage open is
   // already clear playback intent. The keyed page remount and this effect teardown cancel it
   // before a neighbor begins warming.
   $effect(() => {
-    const media = stageMedia;
-    if (!media || media.media_type !== 'video') return;
+    const url = stageMediaUrl;
+    const media = untrack(() => stageMedia);
+    if (!url || !media || media.media_type !== 'video') return;
 
     const controller = new AbortController();
     void prewarmMediaWithSignal(media, {

@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { imgAttrs } from '$lib/media/mediaHelpers';
+  import { untrack } from 'svelte';
+  import MediaImage from '$lib/media/MediaImage.svelte';
   import {
     fetchOriginalBytes,
     shouldUpgradeToOriginal,
@@ -27,29 +28,53 @@
   let upgradedObjectUrl = $state<string | null>(null);
   let progress = $state<OriginalFetchProgress | null>(null);
   let loadingOriginal = $state(false);
-  const attrs = $derived(imgAttrs(media, sizes));
-  const progressPercent = $derived.by(() => {
-    if (!progress?.total || progress.total <= 0) return 0;
-    return Math.min(100, Math.round((progress.received / progress.total) * 100));
-  });
+
+  function percentOf(value: OriginalFetchProgress | null): number {
+    if (!value?.total || value.total <= 0) return 0;
+    return Math.min(100, Math.round((value.received / value.total) * 100));
+  }
+
+  const progressPercent = $derived(percentOf(progress));
+
+  /** An object URL can never 401 — a failed upgrade drops back to the responsive variant
+   *  instead of running MediaImage's silentRefresh ladder against a source that can't 401. */
+  function handleUpgradedSourceError(): void {
+    if (upgradedObjectUrl) URL.revokeObjectURL(upgradedObjectUrl);
+    upgradedObjectUrl = null;
+  }
+
+  // Keyed on the URL string, not `media` identity (see fix-review D3): a parent rerender that
+  // supplies a structurally-identical `media` object must not restart an in-flight upgrade or
+  // discard a completed one. `originalUrl` is the sole tracked dependency; the rest of `media`
+  // is read via `untrack` so it can't reintroduce an identity dependency.
+  const originalUrl = $derived(media.original.url);
 
   // The parent keys the sheet by asset ref; this effect also owns teardown for same-sheet
   // variation navigation. Never lift the controller out of the component.
   $effect(() => {
-    const originalUrl = media.original.url;
+    const url = originalUrl;
     upgradedObjectUrl = null;
     progress = null;
     loadingOriginal = false;
 
-    if (!originalUrl || !shouldUpgradeToOriginal(media)) return;
+    const currentMedia = untrack(() => media);
+    if (!url || !shouldUpgradeToOriginal(currentMedia)) return;
 
     const controller = new AbortController();
     let ownedObjectUrl: string | null = null;
+    let lastPercent = -1;
     loadingOriginal = true;
 
-    void fetchOriginalBytes(media, {
+    void fetchOriginalBytes(currentMedia, {
       signal: controller.signal,
-      onprogress: (next) => (progress = next),
+      onprogress: (next) => {
+        // The displayed value is an integer percentage — skip the write (and the render it
+        // would trigger) when a chunk doesn't move that percentage on a fast connection.
+        const percent = percentOf(next);
+        if (percent === lastPercent) return;
+        lastPercent = percent;
+        progress = next;
+      },
     })
       .then((blob) => {
         if (!blob || controller.signal.aborted) return;
@@ -71,16 +96,14 @@
   });
 </script>
 
-<img
-  src={upgradedObjectUrl ?? attrs.src}
-  srcset={upgradedObjectUrl ? undefined : attrs.srcset}
-  sizes={upgradedObjectUrl ? undefined : attrs.sizes}
-  width={attrs.width}
-  height={attrs.height}
+<MediaImage
+  {media}
   {alt}
-  {loading}
-  decoding="async"
+  {sizes}
   class={className}
+  {loading}
+  srcOverride={upgradedObjectUrl}
+  onObjectUrlError={handleUpgradedSourceError}
 />
 
 {#if loadingOriginal}

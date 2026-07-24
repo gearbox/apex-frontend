@@ -18,6 +18,7 @@ async function requestBytes(
   url: string,
   authenticated: boolean,
   signal?: AbortSignal,
+  cacheMode: RequestCache = 'no-store',
 ): Promise<Response> {
   const headers: Record<string, string> = {};
   if (authenticated) {
@@ -36,7 +37,7 @@ async function requestBytes(
     return await fetch(url, {
       headers,
       ...(authenticated ? { credentials: 'include' as const } : {}),
-      cache: 'no-store',
+      cache: cacheMode,
       signal,
     });
   } catch {
@@ -44,8 +45,17 @@ async function requestBytes(
   }
 }
 
-/** Fetches the original asset bytes, never a `variants[*]` preview. */
-export async function fetchOriginalBlob(media: MediaObject, signal?: AbortSignal): Promise<Blob> {
+/**
+ * Fetches the original asset bytes, never a `variants[*]` preview. `cacheMode` defaults to
+ * `'no-store'` so save/share semantics are unchanged; a viewer prewarm passes `'default'` so the
+ * streamed bytes populate the browser's HTTP cache instead, which a later `<video>` request can
+ * reuse directly.
+ */
+export async function fetchOriginalBlob(
+  media: MediaObject,
+  signal?: AbortSignal,
+  cacheMode: RequestCache = 'no-store',
+): Promise<Blob> {
   const { size_bytes, content_type } = media.original;
   if (size_bytes != null && size_bytes > MAX_SAVE_BYTES) {
     throw new SaveFailedError('too-large');
@@ -61,12 +71,12 @@ export async function fetchOriginalBlob(media: MediaObject, signal?: AbortSignal
     authenticated = false;
   }
 
-  let response = await requestBytes(absoluteUrl, authenticated, signal);
+  let response = await requestBytes(absoluteUrl, authenticated, signal, cacheMode);
 
   if (authenticated && response.status === 401) {
     const refreshed = await silentRefresh().catch(() => false);
     if (!refreshed) throw new SaveFailedError('auth');
-    response = await requestBytes(absoluteUrl, authenticated, signal);
+    response = await requestBytes(absoluteUrl, authenticated, signal, cacheMode);
   }
 
   if (!response.ok) {

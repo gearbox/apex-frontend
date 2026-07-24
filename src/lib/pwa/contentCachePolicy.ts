@@ -11,8 +11,35 @@ export function shouldCacheContentMedia(response: Response): boolean {
   const contentType = response.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase();
   if (!contentType?.startsWith('image/')) return false;
 
+  // Depends on the content proxy always sending Content-Length on image responses (true today).
+  // The companion backend PR reworks that response path — if it drops the header, reject here
+  // rather than resolving `response.clone().blob()` just to size-check, which would force a full
+  // in-memory read of every candidate response before the route even decides to cache it.
   const contentLength = response.headers.get('content-length');
   if (!contentLength || !/^\d+$/.test(contentLength)) return false;
   const bytes = Number(contentLength);
   return Number.isSafeInteger(bytes) && bytes < CONTENT_MEDIA_MAX_BYTES;
+}
+
+interface ContentImageRouteMatchArgs {
+  request: { destination: string };
+  url: Pick<URL, 'origin' | 'pathname'>;
+}
+
+/**
+ * Workbox route matcher: admits exactly `<img>`/`srcset` traffic against the authenticated
+ * content proxy. `request.destination === 'image'` structurally excludes `<video>` Range
+ * requests and every `fetch()`-based path (progressive original stream, save/share) — those
+ * requests have an empty `destination` — so a `CacheFirst` strategy (which ignores `Range` when
+ * matching) can never be asked to serve a request it was never meant to handle.
+ */
+export function matchesContentImageRoute(
+  { request, url }: ContentImageRouteMatchArgs,
+  apiOrigin: string,
+): boolean {
+  return (
+    request.destination === 'image' &&
+    url.origin === apiOrigin &&
+    url.pathname.startsWith('/v1/content/')
+  );
 }

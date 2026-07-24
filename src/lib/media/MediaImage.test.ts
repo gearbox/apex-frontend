@@ -120,4 +120,59 @@ describe('MediaImage', () => {
       `${ORIGIN}/v1/content/outputs/next`,
     );
   });
+
+  it('does not reset a failed retry state on a rerender carrying an identical URL in a new object', async () => {
+    const first = makeImageMedia();
+    // Same URL, brand-new object — the bug this guards against reset retryState on identity
+    // alone, which would remount the <img> and retrigger silentRefresh needlessly.
+    const second = makeImageMedia();
+    const { container, rerender } = render(MediaImage, {
+      props: { media: first, alt: 'test' },
+    });
+
+    await fireEvent.error(container.querySelector('img')!);
+    await vi.waitFor(() => expect(silentRefreshMock).toHaveBeenCalledTimes(1));
+    await fireEvent.error(container.querySelector('img')!);
+    expect(container.querySelector('img')).toBeNull();
+
+    await rerender({ media: second, alt: 'test' });
+
+    expect(container.querySelector('img')).toBeNull();
+    expect(silentRefreshMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('MediaImage — srcOverride', () => {
+  beforeEach(() => {
+    silentRefreshMock.mockReset().mockResolvedValue(true);
+  });
+
+  it('renders a single src with no srcset/sizes when srcOverride is set', () => {
+    const { container } = render(MediaImage, {
+      props: { media: makeImageMedia(), alt: 'test', srcOverride: 'blob:http://localhost/abc' },
+    });
+    const img = container.querySelector('img')!;
+    expect(img.getAttribute('src')).toBe('blob:http://localhost/abc');
+    expect(img.getAttribute('srcset')).toBeNull();
+    expect(img.getAttribute('sizes')).toBeNull();
+  });
+
+  it('calls onObjectUrlError instead of silentRefresh when the override source fails', async () => {
+    const onObjectUrlError = vi.fn();
+    const { container } = render(MediaImage, {
+      props: {
+        media: makeImageMedia(),
+        alt: 'test',
+        srcOverride: 'blob:http://localhost/abc',
+        onObjectUrlError,
+      },
+    });
+
+    await fireEvent.error(container.querySelector('img')!);
+
+    expect(onObjectUrlError).toHaveBeenCalledTimes(1);
+    expect(silentRefreshMock).not.toHaveBeenCalled();
+    // No placeholder — the owner is expected to drop srcOverride so the variant repaints.
+    expect(container.querySelector('img')).not.toBeNull();
+  });
 });

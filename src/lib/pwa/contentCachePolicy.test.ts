@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { CONTENT_MEDIA_MAX_BYTES, shouldCacheContentMedia } from './contentCachePolicy';
+import {
+  CONTENT_MEDIA_MAX_BYTES,
+  matchesContentImageRoute,
+  shouldCacheContentMedia,
+} from './contentCachePolicy';
 
 function mediaResponse(contentType: string, contentLength: string, status = 200): Response {
   return new Response('bytes', {
@@ -26,5 +30,40 @@ describe('content media cache policy', () => {
     ['invalid lengths', mediaResponse('image/webp', '2mb')],
   ])('rejects %s', (_label, response) => {
     expect(shouldCacheContentMedia(response)).toBe(false);
+  });
+});
+
+describe('matchesContentImageRoute', () => {
+  const apiOrigin = 'https://api.example.com';
+
+  it('matches an <img>/srcset request against the content proxy', () => {
+    expect(
+      matchesContentImageRoute(
+        {
+          request: { destination: 'image' },
+          url: new URL('https://api.example.com/v1/content/outputs/a'),
+        },
+        apiOrigin,
+      ),
+    ).toBe(true);
+  });
+
+  it.each([
+    [
+      'a <video> Range request',
+      { destination: 'video' },
+      'https://api.example.com/v1/content/outputs/a',
+    ],
+    [
+      // fetch()-initiated requests (save/share, the progressive original stream) have an empty
+      // destination — this is exactly what structurally excludes them from CacheFirst.
+      'a fetch()-based request',
+      { destination: '' },
+      'https://api.example.com/v1/content/outputs/a',
+    ],
+    ['a foreign origin', { destination: 'image' }, 'https://cdn.example.com/v1/content/outputs/a'],
+    ['a non-content path', { destination: 'image' }, 'https://api.example.com/v1/billing/pricing'],
+  ])('rejects %s', (_label, request, url) => {
+    expect(matchesContentImageRoute({ request, url: new URL(url) }, apiOrigin)).toBe(false);
   });
 });

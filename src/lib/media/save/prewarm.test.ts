@@ -66,7 +66,9 @@ describe('prewarmMedia', () => {
 
     prewarmMedia(asset);
 
-    await vi.waitFor(() => expect(fetchOriginalBlobMock).toHaveBeenCalledWith(asset, undefined));
+    await vi.waitFor(() =>
+      expect(fetchOriginalBlobMock).toHaveBeenCalledWith(asset, expect.any(AbortSignal), 'default'),
+    );
   });
 
   it('prewarms a known small video', async () => {
@@ -75,7 +77,9 @@ describe('prewarmMedia', () => {
 
     prewarmMedia(asset);
 
-    await vi.waitFor(() => expect(fetchOriginalBlobMock).toHaveBeenCalledWith(asset, undefined));
+    await vi.waitFor(() =>
+      expect(fetchOriginalBlobMock).toHaveBeenCalledWith(asset, expect.any(AbortSignal), 'default'),
+    );
   });
 
   it('never throws or rejects when the fetch fails', async () => {
@@ -88,16 +92,16 @@ describe('prewarmMedia', () => {
     // runner flagging one is the assertion.
   });
 
-  it('starts the fetch without a cancellation signal', () => {
+  it('fetches with the browser HTTP cache enabled, so a later <video> request can reuse it', () => {
     fetchOriginalBlobMock.mockResolvedValue(new Blob(['bytes']));
     const asset = media();
 
     prewarmMedia(asset);
 
-    expect(fetchOriginalBlobMock).toHaveBeenCalledWith(asset, undefined);
+    expect(fetchOriginalBlobMock).toHaveBeenCalledWith(asset, expect.any(AbortSignal), 'default');
   });
 
-  it('passes an abort signal and viewer TTL through the abortable warm variant', async () => {
+  it('passes viewer TTL through the abortable warm variant', async () => {
     vi.spyOn(Date, 'now').mockReturnValue(0);
     const asset = { ...media(), media_type: 'video' as const };
     const controller = new AbortController();
@@ -106,7 +110,36 @@ describe('prewarmMedia', () => {
 
     await prewarmMediaWithSignal(asset, { signal: controller.signal, ttlMs: 5 * 60_000 });
 
-    expect(fetchOriginalBlobMock).toHaveBeenCalledWith(asset, controller.signal);
+    expect(fetchOriginalBlobMock).toHaveBeenCalledWith(asset, expect.any(AbortSignal), 'default');
     expect(getCachedBlob(toMediaSrc(asset.original.url), 5 * 60_000 - 1)).toBe(blob);
+  });
+
+  it('never hands the caller-supplied signal directly to fetchOriginalBlob — a viewer navigating away must not cancel a save/share that joined the same warm', async () => {
+    const asset = { ...media(), media_type: 'video' as const };
+    const controller = new AbortController();
+    fetchOriginalBlobMock.mockResolvedValue(new Blob(['bytes']));
+
+    await prewarmMediaWithSignal(asset, { signal: controller.signal });
+
+    const [, signalPassedToFetcher] = fetchOriginalBlobMock.mock.calls[0] as [unknown, AbortSignal];
+    expect(signalPassedToFetcher).not.toBe(controller.signal);
+  });
+
+  it('rejects when the caller aborts, independent of whether the underlying fetch has settled', async () => {
+    let releaseFetch: (blob: Blob) => void = () => {};
+    fetchOriginalBlobMock.mockImplementation(
+      () =>
+        new Promise<Blob>((resolve) => {
+          releaseFetch = resolve;
+        }),
+    );
+    const asset = { ...media(), media_type: 'video' as const };
+    const controller = new AbortController();
+
+    const pending = prewarmMediaWithSignal(asset, { signal: controller.signal });
+    controller.abort();
+
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+    releaseFetch(new Blob(['bytes']));
   });
 });

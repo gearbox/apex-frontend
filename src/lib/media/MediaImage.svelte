@@ -13,29 +13,37 @@
     sizes = '100vw',
     class: className = '',
     loading = 'lazy' as 'lazy' | 'eager',
+    srcOverride = null,
+    onObjectUrlError,
   }: {
     media: MediaObject;
     alt: string;
     sizes?: string;
     class?: string;
     loading?: 'lazy' | 'eager';
+    /** Overlays a single resolved source (e.g. an upgraded object URL) in place of the
+     *  responsive srcset/sizes pair. The error/retry ladder below still applies to it. */
+    srcOverride?: string | null;
+    /** Called instead of the retry ladder when `srcOverride` fails to load — an object URL
+     *  can never 401, so silentRefresh would be pointless. */
+    onObjectUrlError?: () => void;
   } = $props();
 
   type RetryState = 'idle' | 'refreshing' | 'retried' | 'failed';
 
-  let retryState = $state<RetryState>('idle');
   let imageElement = $state<HTMLImageElement | null>(null);
   const attrs = $derived(imgAttrs(media, sizes));
+  const originalUrl = $derived(media.original.url);
+  const effectiveSrc = $derived(srcOverride ?? attrs.src);
+  const effectiveSrcset = $derived(srcOverride ? undefined : attrs.srcset);
+  const effectiveSizes = $derived(srcOverride ? undefined : attrs.sizes);
 
-  function resetRetryState(_mediaUrl: string): void {
-    retryState = 'idle';
-  }
-
-  // A successful token refresh must make a previously failed thumbnail eligible again.
-  // Key this only to the protected original URL so ordinary parent rerenders never reset it.
-  $effect(() => {
-    resetRetryState(media.original.url);
-  });
+  // A successful token refresh must make a previously failed thumbnail eligible again, but an
+  // ordinary parent rerender that supplies a structurally-identical `media` object must not:
+  // this derived comparison (not an effect) only resets to 'idle' when the URL itself differs,
+  // regardless of how often the surrounding component tree rerenders.
+  let failure = $state<{ url: string; state: RetryState } | null>(null);
+  const retryState = $derived(failure?.url === originalUrl ? failure.state : 'idle');
 
   function reloadSameSource(): void {
     if (!imageElement) return;
@@ -50,26 +58,33 @@
   }
 
   async function handleError(): Promise<void> {
+    if (srcOverride) {
+      // An object URL can never 401 — bypass the refresh/retry ladder entirely and let the
+      // owner (ProgressiveImage) drop back to the responsive variant instead.
+      onObjectUrlError?.();
+      return;
+    }
+
     if (retryState === 'failed' || retryState === 'refreshing') return;
 
     if (retryState === 'retried') {
-      retryState = 'failed';
+      failure = { url: originalUrl, state: 'failed' };
       return;
     }
 
-    const failedUrl = media.original.url;
-    retryState = 'refreshing';
+    const failedUrl = originalUrl;
+    failure = { url: failedUrl, state: 'refreshing' };
     const refreshed = await silentRefresh().catch(() => false);
 
-    // Ignore an old request when a keyed parent has already supplied different media.
-    if (media.original.url !== failedUrl || retryState !== 'refreshing') return;
+    // Ignore a stale response once the parent has already moved on to different media.
+    if (originalUrl !== failedUrl) return;
 
     if (!refreshed) {
-      retryState = 'failed';
+      failure = { url: failedUrl, state: 'failed' };
       return;
     }
 
-    retryState = 'retried';
+    failure = { url: failedUrl, state: 'retried' };
     reloadSameSource();
   }
 </script>
@@ -86,9 +101,9 @@
 {:else}
   <img
     bind:this={imageElement}
-    src={attrs.src}
-    srcset={attrs.srcset}
-    sizes={attrs.sizes}
+    src={effectiveSrc}
+    srcset={effectiveSrcset}
+    sizes={effectiveSizes}
     width={attrs.width}
     height={attrs.height}
     {alt}

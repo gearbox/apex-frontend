@@ -28,7 +28,16 @@ export async function saveMedia(
   const filename = buildSaveFilename(id, media);
   const cacheKey = toMediaSrc(media.original.url);
 
-  const blob = await getOrFetchBlob(cacheKey, () => fetchBlob(media, signal), now);
+  // `signal` only governs this caller's own attachment to the shared request (see
+  // blobCache.getOrFetchBlob) — it can never be cancelled by an unrelated caller detaching.
+  const blob = await getOrFetchBlob(
+    cacheKey,
+    (internalSignal) => fetchBlob(media, internalSignal),
+    now,
+    {
+      signal,
+    },
+  );
 
   if (mode === 'download') {
     return download(blob, filename);

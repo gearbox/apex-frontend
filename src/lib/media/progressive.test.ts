@@ -114,4 +114,41 @@ describe('progressive originals', () => {
       expect.objectContaining<Partial<ProgressiveImageError>>({ reason: 'authentication' }),
     );
   });
+
+  it('rejects immediately without issuing a request when the signal is already aborted', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(
+      fetchOriginalBytes(makeMediaObject(), { signal: controller.signal }),
+    ).rejects.toMatchObject({ name: 'AbortError' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('cancels the reader and rejects once streamed bytes exceed the bound, regardless of a mismatched Content-Length', async () => {
+    const overCap = new Uint8Array(PROGRESSIVE_ORIGINAL_MAX_BYTES + 1);
+    let cancelCalls = 0;
+    const response = new Response(
+      new ReadableStream({
+        start(controller) {
+          // Left open (no controller.close()) — once the read loop cancels, closing it too
+          // would make cancel() a no-op on an already-finished stream and the assertion moot.
+          controller.enqueue(overCap);
+        },
+        cancel() {
+          cancelCalls += 1;
+        },
+      }),
+      // A too-small declared Content-Length must not be trusted as the actual read bound.
+      { status: 200, headers: { 'content-type': 'image/jpeg', 'content-length': '10' } },
+    );
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response));
+
+    await expect(fetchOriginalBytes(makeMediaObject())).rejects.toEqual(
+      expect.objectContaining<Partial<ProgressiveImageError>>({ reason: 'request' }),
+    );
+    expect(cancelCalls).toBe(1);
+  });
 });

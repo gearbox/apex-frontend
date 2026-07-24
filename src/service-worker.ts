@@ -20,6 +20,7 @@ import {
   CONTENT_MEDIA_CACHE_NAME,
   CONTENT_MEDIA_MAX_AGE_SECONDS,
   CONTENT_MEDIA_MAX_ENTRIES,
+  matchesContentImageRoute,
   shouldCacheContentMedia,
 } from './lib/pwa/contentCachePolicy';
 import {
@@ -99,7 +100,7 @@ registerRoute(
 
 /* ─── Runtime cache: small image variants from the authenticated content proxy ─── */
 registerRoute(
-  ({ url }) => url.origin === API_ORIGIN && url.pathname.startsWith('/v1/content/'),
+  (args) => matchesContentImageRoute(args, API_ORIGIN),
   new CacheFirst({
     cacheName: CONTENT_MEDIA_CACHE_NAME,
     plugins: [
