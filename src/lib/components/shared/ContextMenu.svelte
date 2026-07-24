@@ -6,7 +6,9 @@
     label: string;
     icon?: ComponentType<SvelteComponent>;
     variant?: 'default' | 'danger';
-    onclick: () => void;
+    onclick: () => void | Promise<void>;
+    /** Fires before `click` — e.g. prewarming a share's blob cache before activation expires. */
+    onpointerdown?: () => void;
   }
 
   interface Props {
@@ -51,7 +53,8 @@
 
   function handleItemClick(item: ContextMenuItem) {
     close();
-    item.onclick();
+    // Handlers never reject (see resolveLibraryAction) — invoked fire-and-forget.
+    void item.onclick();
   }
 
   function handleDocumentClick(e: MouseEvent) {
@@ -77,6 +80,7 @@
       <button
         class="context-menu-item {item.variant === 'danger' ? 'danger' : ''}"
         onclick={() => handleItemClick(item)}
+        onpointerdown={item.onpointerdown}
         role="menuitem"
       >
         {#if item.icon}

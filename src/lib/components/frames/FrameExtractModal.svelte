@@ -27,6 +27,7 @@
   import { toMediaSrc } from '$lib/media';
   import { isDesktop } from '$lib/utils/breakpoints';
   import { ROUTES } from '$lib/utils/routes';
+  import Spinner from '$lib/components/ui/Spinner.svelte';
   import type { components } from '$lib/api/types';
   import * as m from '$paraglide/messages';
 
@@ -562,9 +563,7 @@
       <div class="min-h-full p-4 pb-[max(1rem,env(safe-area-inset-bottom))] md:min-h-0 md:p-5">
         {#if phase === 'previewing'}
           <div class="flex min-h-48 flex-col items-center justify-center gap-3 text-center">
-            <div
-              class="h-7 w-7 animate-spin rounded-full border-2 border-accent border-t-transparent"
-            ></div>
+            <Spinner size="lg" />
             <p class="text-sm text-text-muted" role="status" aria-live="polite">
               {m.frames_preview_loading()}
             </p>
@@ -634,9 +633,7 @@
                 role="status"
                 aria-live="polite"
               >
-                <div
-                  class="h-4 w-4 animate-spin rounded-full border-2 border-accent border-t-transparent"
-                ></div>
+                <Spinner size="sm" />
                 <span>{m.frames_extract_loading()}</span>
                 {#if retryMessage}<span class="text-text-dim">{retryMessage}</span>{/if}
               </div>

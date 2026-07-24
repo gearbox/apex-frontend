@@ -9,6 +9,7 @@
   import type { JobListFilters } from '$lib/queries/jobs';
   import { isSSEConnected } from '$lib/stores/eventStream';
   import { productInfo } from '$lib/stores/product';
+  import Spinner from '$lib/components/ui/Spinner.svelte';
 
   type UnifiedJobResponse = components['schemas']['UnifiedJobResponse'];
 
@@ -155,9 +156,7 @@
           class="flex items-center gap-2 rounded-lg border border-border bg-surface px-4 py-2 text-sm text-text-muted transition-colors hover:bg-surface-hover disabled:opacity-50"
         >
           {#if loadingMore || query.isFetching}
-            <div
-              class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-accent border-t-transparent"
-            ></div>
+            <Spinner size="xs" />
             {m.jobs_loading()}
           {:else}
             {m.jobs_load_more()}

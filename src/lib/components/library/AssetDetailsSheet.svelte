@@ -25,9 +25,17 @@
     favoriteMutationOptions,
   } from '$lib/queries/library';
   import { providersQueryOptions } from '$lib/queries/providers';
-  import { hasFlf2vModel as computeHasFlf2vModel } from '$lib/utils/modelCapabilities';
-  import { resolveLibraryAction, libraryActionLabel, filterVisibleLibraryActions } from './actions';
+  import { enabledModes } from '$lib/utils/generationModes';
+  import {
+    resolveLibraryAction,
+    libraryActionLabel,
+    filterVisibleLibraryActions,
+    type LibraryActionDeps,
+  } from './actions';
+  import { createActionController } from './actionController.svelte';
   import { resolveSaveCapabilities } from '$lib/media/save';
+  import { prewarmMedia } from '$lib/media/save/prewarm';
+  import Spinner from '$lib/components/ui/Spinner.svelte';
   import { parseAssetRef } from '$lib/utils/assetRef';
   import { isDesktop } from '$lib/utils/breakpoints';
   import { timeAgo, timeUntil, formatAspectRatio } from '$lib/utils/format';
@@ -46,6 +54,7 @@
 
   type LibraryGroupDetail = components['schemas']['LibraryGroupDetail'];
   type LibraryOutputItem = components['schemas']['LibraryOutputItem'];
+  type MediaObject = components['schemas']['MediaObject'];
 
   let {
     assetRef,
@@ -131,9 +140,32 @@
   const projectMutation = createMutation(() => projectAssignmentMutationOptions(queryClient));
   const projectsQuery = createQuery(() => projectsListQueryOptions());
   // Cache-shared with the create page's ['providers'] query. While it's in flight,
-  // hasFlf2vModel stays false — the safe default, since hiding is non-destructive.
+  // availableModes stays empty — the safe default, since hiding actions is non-destructive.
   const providersQuery = createQuery(() => providersQueryOptions());
-  const hasFlf2vModel = $derived(computeHasFlf2vModel(providersQuery.data));
+  const availableModes = $derived(enabledModes(providersQuery.data));
+
+  const actionDeps: LibraryActionDeps = {
+    get providers() {
+      return providersQuery.data;
+    },
+    loadDetail: (assetRef) => queryClient.ensureQueryData(libraryAssetQueryOptions(assetRef)),
+  };
+
+  const controller = createActionController();
+  let prewarmController: AbortController | null = null;
+
+  function abortPrewarm() {
+    prewarmController?.abort();
+    prewarmController = null;
+  }
+
+  /** Fires on `onpointerdown` — before `click` and before the activation window opens — so the
+   *  common path hits a warm cache and never shows the save spinner at all. */
+  function startPrewarm(media: MediaObject) {
+    abortPrewarm();
+    prewarmController = new AbortController();
+    prewarmMedia(media, prewarmController.signal);
+  }
 
   function resetAssetUi() {
     renaming = false;
@@ -143,6 +175,13 @@
     showFrameExtraction = false;
     frameExtractionTrigger = null;
   }
+
+  // Cleanup runs on every selectedAssetRef change and on unmount (sheet close) alike — a
+  // prewarm for an asset the user has since navigated away from must not land in the cache.
+  $effect(() => {
+    void selectedAssetRef;
+    return () => abortPrewarm();
+  });
 
   // Once a selected detail is known, it—not the initial hint—defines whether a sibling group
   // applies. This also lets lineage navigation leave the old group immediately.
@@ -280,7 +319,7 @@
 
   const menuItems = $derived(
     currentDetail
-      ? filterVisibleLibraryActions(currentDetail.available_actions, { hasFlf2vModel })
+      ? filterVisibleLibraryActions(currentDetail.available_actions, { availableModes })
           .filter(
             (action) =>
               action !== 'delete' &&
@@ -290,14 +329,17 @@
               action !== 'share',
           )
           .map((action) => {
-            const handler = resolveLibraryAction(action, currentDetail, {
-              onExtractFrame: () => (showFrameExtraction = true),
-            });
+            const handler = resolveLibraryAction(
+              action,
+              currentDetail,
+              { onExtractFrame: () => (showFrameExtraction = true) },
+              actionDeps,
+            );
             if (!handler) return null;
             return {
               action,
               label: libraryActionLabel(action),
-              onclick: handler,
+              onclick: () => controller.run(action, handler),
             };
           })
           .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
@@ -475,7 +517,8 @@
         {#if detail.available_actions.includes('favorite')}
           <button
             onclick={toggleFavorite}
-            class="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-accent/15 px-3 py-2 text-xs font-semibold text-accent transition-colors hover:bg-accent/25"
+            disabled={controller.pending}
+            class="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-accent/15 px-3 py-2 text-xs font-semibold text-accent transition-colors hover:bg-accent/25 disabled:opacity-50"
           >
             {detail.is_favorite ? m.library_action_unfavorite() : m.library_action_favorite()}
           </button>
@@ -486,21 +529,39 @@
               if (entry.action === 'extract_frame') {
                 frameExtractionTrigger = e.currentTarget as HTMLButtonElement;
               }
-              entry.onclick();
+              void entry.onclick();
             }}
-            class="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-accent/15 px-3 py-2 text-xs font-semibold text-accent transition-colors hover:bg-accent/25"
+            disabled={controller.pending}
+            aria-busy={controller.isPending(entry.action)}
+            class="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-accent/15 px-3 py-2 text-xs font-semibold text-accent transition-colors hover:bg-accent/25 disabled:opacity-50"
           >
+            {#if controller.isPending(entry.action)}
+              <Spinner size="xs" />
+            {/if}
             {entry.label}
           </button>
         {/each}
         {#each saveActions as capability (capability)}
           <button
-            onclick={() => resolveLibraryAction(capability, detail, {})?.()}
-            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border text-text transition-colors hover:bg-surface-hover"
-            aria-label={libraryActionLabel(capability)}
-            title={libraryActionLabel(capability)}
+            onclick={() =>
+              controller.run(
+                capability,
+                resolveLibraryAction(capability, detail, {}, actionDeps) ?? (() => {}),
+              )}
+            onpointerdown={capability === 'share' ? () => startPrewarm(detail.media) : undefined}
+            disabled={controller.pending}
+            aria-busy={controller.isPending(capability)}
+            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border text-text transition-colors hover:bg-surface-hover disabled:opacity-50"
+            aria-label={controller.isPending(capability)
+              ? m.library_share_preparing()
+              : libraryActionLabel(capability)}
+            title={controller.isPending(capability)
+              ? m.library_share_preparing()
+              : libraryActionLabel(capability)}
           >
-            {#if capability === 'share'}
+            {#if controller.isPending(capability)}
+              <Spinner size="xs" label={m.library_share_preparing()} />
+            {:else if capability === 'share'}
               <Share size={13} />
             {:else}
               <Download size={13} />
@@ -510,7 +571,8 @@
         {#if detail.available_actions.includes('delete')}
           <button
             onclick={() => (showDeleteConfirm = true)}
-            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-danger/30 text-danger transition-colors hover:bg-danger/10"
+            disabled={controller.pending}
+            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-danger/30 text-danger transition-colors hover:bg-danger/10 disabled:opacity-50"
             aria-label={m.common_delete()}
           >
             <X size={13} />
@@ -729,9 +791,7 @@
           <Maximize2 size={16} />
         </button>
       {:else if detailQuery.isLoading || groupQuery.isLoading}
-        <div
-          class="h-10 w-10 animate-spin rounded-full border-2 border-accent border-t-transparent"
-        ></div>
+        <Spinner size="lg" class="h-10 w-10" label={m.common_loading()} />
       {:else if detailQuery.isError}
         <p class="text-sm text-danger">{m.error_generic()}</p>
       {/if}

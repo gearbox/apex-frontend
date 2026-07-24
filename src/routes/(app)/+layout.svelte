@@ -19,6 +19,7 @@
   import { pushNudgeLaunch } from '$lib/stores/pushNudgeLaunch';
   import { isStandalone } from '$lib/utils/platform';
   import { startPendingPaymentsStorageListener } from '$lib/stores/pendingPayments';
+  import Spinner from '$lib/components/ui/Spinner.svelte';
 
   let { children }: { children: Snippet } = $props();
   let checking = $state(true);
@@ -100,9 +101,7 @@
   <!-- Auth check skeleton -->
   <div class="flex min-h-dvh items-center justify-center bg-bg">
     <div class="flex flex-col items-center gap-3">
-      <div
-        class="h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent"
-      ></div>
+      <Spinner size="lg" class="h-8 w-8" />
       <p class="text-sm text-text-dim">{m.common_loading()}</p>
     </div>
   </div>

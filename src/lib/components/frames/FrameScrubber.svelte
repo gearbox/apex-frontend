@@ -13,6 +13,7 @@
     type CapturedVideoFrame,
     type RenderedVideoFrame,
   } from '$lib/components/frames/videoFrameCapture';
+  import Spinner from '$lib/components/ui/Spinner.svelte';
   import * as m from '$paraglide/messages';
 
   type MediaObject = components['schemas']['MediaObject'];
@@ -272,8 +273,7 @@
         aria-live="polite"
         aria-label={m.frames_frame_loading()}
       >
-        <span class="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent"
-        ></span>
+        <Spinner size="md" class="border-white" />
         <span class="sr-only">{m.frames_frame_loading()}</span>
       </div>
     {/if}

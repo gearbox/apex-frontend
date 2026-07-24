@@ -3,9 +3,29 @@ import { render, screen, fireEvent } from '@testing-library/svelte';
 import type { components } from '$lib/api/types';
 import { makeLibraryAssetItem } from '../../../mocks/factories/library';
 import { makeMediaObject, makeVideoMediaObject } from '../../../mocks/factories/media';
+import type { GenerationMode } from '$lib/utils/generationModes';
+import type { LibraryActionDeps } from './actions';
 
 type LibraryAssetItem = components['schemas']['LibraryAssetItem'];
 type LibraryAction = components['schemas']['LibraryAction'];
+
+const ALL_MODES: ReadonlySet<GenerationMode> = new Set([
+  't2i',
+  'i2i',
+  't2v',
+  'i2v',
+  'v2v',
+  'flf2v',
+]);
+const NO_MODES: ReadonlySet<GenerationMode> = new Set();
+
+function makeActionDeps(overrides: Partial<LibraryActionDeps> = {}): LibraryActionDeps {
+  return {
+    providers: { providers: [], user_context: null },
+    loadDetail: vi.fn(),
+    ...overrides,
+  };
+}
 
 const mutateMock = vi.fn();
 
@@ -47,7 +67,16 @@ function renderCard(
   const item = makeLibraryAssetItem(overrides);
   const onDelete = vi.fn();
   const onclick = vi.fn();
-  const result = render(AssetCard, { props: { item, onclick, onDelete, ...extraProps } });
+  const result = render(AssetCard, {
+    props: {
+      item,
+      onclick,
+      onDelete,
+      availableModes: ALL_MODES,
+      actionDeps: makeActionDeps(),
+      ...extraProps,
+    },
+  });
   return { ...result, item, onDelete, onclick };
 }
 
@@ -230,7 +259,7 @@ describe('AssetCard', () => {
     it('always hides create_variation, even when available and flf2v is supported', async () => {
       const { container } = renderCard(
         { available_actions: ['remix', 'create_variation', 'download'] },
-        { hasFlf2vModel: true },
+        { availableModes: ALL_MODES },
       );
       const wrapper = container.querySelector('[role="presentation"]');
       await fireEvent.contextMenu(wrapper!, { clientX: 10, clientY: 10 });
@@ -240,9 +269,10 @@ describe('AssetCard', () => {
     });
 
     it('hides first/last-frame actions by default (no flf2v-capable model)', async () => {
-      const { container } = renderCard({
-        available_actions: ['use_as_first_frame', 'use_as_last_frame', 'download'],
-      });
+      const { container } = renderCard(
+        { available_actions: ['use_as_first_frame', 'use_as_last_frame', 'download'] },
+        { availableModes: NO_MODES },
+      );
       const wrapper = container.querySelector('[role="presentation"]');
       await fireEvent.contextMenu(wrapper!, { clientX: 10, clientY: 10 });
 
@@ -251,16 +281,30 @@ describe('AssetCard', () => {
       expect(screen.getByRole('menuitem', { name: /download/i })).toBeTruthy();
     });
 
-    it('shows first/last-frame actions when hasFlf2vModel is true', async () => {
+    it('shows first/last-frame actions when an enabled model supports flf2v', async () => {
       const { container } = renderCard(
         { available_actions: ['use_as_first_frame', 'use_as_last_frame', 'download'] },
-        { hasFlf2vModel: true },
+        { availableModes: ALL_MODES },
       );
       const wrapper = container.querySelector('[role="presentation"]');
       await fireEvent.contextMenu(wrapper!, { clientX: 10, clientY: 10 });
 
       expect(screen.getByRole('menuitem', { name: /first frame/i })).toBeTruthy();
       expect(screen.getByRole('menuitem', { name: /last frame/i })).toBeTruthy();
+    });
+
+    it('hides remix/animate/extend when no enabled model supports their mode', async () => {
+      const { container } = renderCard(
+        { available_actions: ['remix', 'animate', 'extend', 'download'] },
+        { availableModes: NO_MODES },
+      );
+      const wrapper = container.querySelector('[role="presentation"]');
+      await fireEvent.contextMenu(wrapper!, { clientX: 10, clientY: 10 });
+
+      expect(screen.queryByRole('menuitem', { name: /^remix$/i })).toBeNull();
+      expect(screen.queryByRole('menuitem', { name: /animate/i })).toBeNull();
+      expect(screen.queryByRole('menuitem', { name: /extend/i })).toBeNull();
+      expect(screen.getByRole('menuitem', { name: /download/i })).toBeTruthy();
     });
   });
 });

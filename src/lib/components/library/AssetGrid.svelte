@@ -1,6 +1,8 @@
 <script lang="ts">
   import AssetCard from './AssetCard.svelte';
   import InfiniteScrollSentinel from '$lib/components/shared/InfiniteScrollSentinel.svelte';
+  import type { LibraryActionDeps } from './actions';
+  import type { GenerationMode } from '$lib/utils/generationModes';
   import type { components } from '$lib/api/types';
 
   type LibraryAssetItem = components['schemas']['LibraryAssetItem'];
@@ -18,7 +20,8 @@
     selectedRefs = new Set<string>(),
     bulkErrorRefs = new Set<string>(),
     onToggleSelect,
-    hasFlf2vModel = false,
+    availableModes,
+    actionDeps,
   }: {
     items: LibraryAssetItem[];
     onCardClick: (item: LibraryAssetItem) => void;
@@ -32,7 +35,8 @@
     selectedRefs?: ReadonlySet<string>;
     bulkErrorRefs?: ReadonlySet<string>;
     onToggleSelect?: (item: LibraryAssetItem) => void;
-    hasFlf2vModel?: boolean;
+    availableModes: ReadonlySet<GenerationMode>;
+    actionDeps: LibraryActionDeps;
   } = $props();
 </script>
 
@@ -49,7 +53,8 @@
       selected={selectedRefs.has(item.asset_ref)}
       bulkError={bulkErrorRefs.has(item.asset_ref)}
       {onToggleSelect}
-      {hasFlf2vModel}
+      {availableModes}
+      {actionDeps}
     />
   {/each}
 </div>

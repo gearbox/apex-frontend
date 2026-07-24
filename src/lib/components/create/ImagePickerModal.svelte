@@ -15,6 +15,7 @@
   import { mediaFallbackSrc } from '$lib/media/index';
   import InfiniteScrollSentinel from '$lib/components/shared/InfiniteScrollSentinel.svelte';
   import ConfirmDeleteModal from '$lib/components/shared/ConfirmDeleteModal.svelte';
+  import Spinner from '$lib/components/ui/Spinner.svelte';
   import * as m from '$paraglide/messages';
 
   type LibraryAssetItem = components['schemas']['LibraryAssetItem'];
@@ -275,9 +276,7 @@
 
           {#if uploadsQuery.isFetchingNextPage}
             <div class="flex justify-center py-3">
-              <div
-                class="h-4 w-4 animate-spin rounded-full border-2 border-accent border-t-transparent"
-              ></div>
+              <Spinner size="sm" />
             </div>
           {/if}
         {/if}
@@ -331,9 +330,7 @@
 
           {#if generatedQuery.isFetchingNextPage}
             <div class="flex justify-center py-3">
-              <div
-                class="h-4 w-4 animate-spin rounded-full border-2 border-accent border-t-transparent"
-              ></div>
+              <Spinner size="sm" />
             </div>
           {/if}
         {/if}

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { isModelType } from '$lib/utils/generationModes';
   import type { components } from '$lib/api/types';
 
   type ModelType = components['schemas']['ModelType'];
@@ -25,7 +26,7 @@
       ? models
           .filter((m) => m.is_enabled)
           .map((m) => m.model_key)
-          .filter((m): m is ModelType => m in MODEL_META)
+          .filter((m): m is ModelType => isModelType(m))
       : (['grok-imagine-image', 'grok-2-image-1212', 'aisha-image'] as ModelType[]),
   );
 </script>
