@@ -11,7 +11,7 @@ import {
   Heart,
   Pencil,
   Download,
-  Share2,
+  Share,
   Trash2,
 } from 'lucide-svelte';
 import type { ComponentType, SvelteComponent } from 'svelte';
@@ -156,7 +156,7 @@ export const LIBRARY_ACTION_ICONS: Record<LibraryUiAction, ComponentType<SvelteC
   reproduce: RotateCcw,
   favorite: Heart,
   rename: Pencil,
-  share: Share2,
+  share: Share,
   download: Download,
   delete: Trash2,
 };

@@ -9,7 +9,7 @@
     ChevronLeft,
     Pencil,
     Download,
-    Share2,
+    Share,
     Video,
     Maximize2,
     Minimize2,
@@ -33,7 +33,7 @@
   import { timeAgo, timeUntil, formatAspectRatio } from '$lib/utils/format';
   import { EXPIRES_SOON_MS } from '$lib/utils/constants';
   import MediaImage from '$lib/media/MediaImage.svelte';
-  import MediaVideo from '$lib/media/MediaVideo.svelte';
+  import VideoStage from '$lib/media/VideoStage.svelte';
   import { posterSrc } from '$lib/media';
   import ConfirmDeleteModal from '$lib/components/shared/ConfirmDeleteModal.svelte';
   import FrameExtractModal from '$lib/components/frames/FrameExtractModal.svelte';
@@ -58,6 +58,8 @@
     hasNext = false,
     fullscreen = false,
     onfullscreenchange,
+    muted = true,
+    onmutedchange,
   }: {
     assetRef: string;
     onclose: () => void;
@@ -73,7 +75,15 @@
     hasNext?: boolean;
     /** Fullscreen is page-owned so it survives the `{#key}` remount on prev/next. */
     fullscreen?: boolean;
-    onfullscreenchange?: (value: boolean) => void;
+    /** Required (not optional, matching `onclose`) — an omitted wiring here would render a
+     * fullscreen toggle button that silently does nothing instead of failing to compile. */
+    onfullscreenchange: (value: boolean) => void;
+    /** Mute is page-owned for the same reason as fullscreen — see above. */
+    muted?: boolean;
+    /** Required for the same reason as `onfullscreenchange` — see above. An optional default
+     * here would let VideoStage's mute button render as a control that can never change
+     * anything, which is worse than a compile error (see fix-video-stage-review.md §3). */
+    onmutedchange: (value: boolean) => void;
   } = $props();
 
   // This is the canonical selection for the viewer's entire lifetime.
@@ -299,7 +309,7 @@
     if (e.key === 'Escape') {
       e.stopPropagation();
       if (fullscreen) {
-        onfullscreenchange?.(false);
+        onfullscreenchange(false);
       } else {
         onclose();
       }
@@ -308,6 +318,12 @@
     if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
     if (renaming) return;
     const target = e.target;
+    // Deliberate, not incidental (see fix-video-stage-review.md D5): a focused
+    // input[type=range] — notably the VideoStage scrub bar — keeps its native arrow-key
+    // semantics rather than being hijacked for prev/next, since overriding a focused form
+    // control's own keyboard contract breaks standard a11y expectations. This is safe from a
+    // keyboard-trap standpoint because Escape is evaluated above, before this exemption, so
+    // focus landing in the range never blocks the user from leaving via Escape.
     if (target instanceof HTMLElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) {
       return;
     }
@@ -485,7 +501,7 @@
             title={libraryActionLabel(capability)}
           >
             {#if capability === 'share'}
-              <Share2 size={13} />
+              <Share size={13} />
             {:else}
               <Download size={13} />
             {/if}
@@ -688,14 +704,13 @@
 
       {#if stageMedia}
         {#if stageMedia.media_type === 'video'}
-          <MediaVideo
+          <VideoStage
             media={stageMedia}
-            controls
-            autoplay
-            loop
-            muted
-            playsinline
-            class="max-h-[60vh] w-full object-contain md:max-h-full"
+            {muted}
+            {onmutedchange}
+            active={!fullscreen}
+            reserveTrailingSpace
+            class="max-h-[60vh] w-full md:max-h-full"
           />
         {:else}
           <MediaImage
@@ -707,7 +722,7 @@
           />
         {/if}
         <button
-          onclick={() => onfullscreenchange?.(true)}
+          onclick={() => onfullscreenchange(true)}
           class="absolute bottom-3 right-3 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur-sm transition-colors hover:bg-white/20"
           aria-label={m.library_fullscreen_open()}
         >
@@ -749,7 +764,7 @@
     }}
   >
     <button
-      onclick={() => onfullscreenchange?.(false)}
+      onclick={() => onfullscreenchange(false)}
       class="absolute right-4 top-[max(1rem,env(safe-area-inset-top))] z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur-sm transition-colors hover:bg-white/20"
       aria-label={m.library_fullscreen_close()}
     >
@@ -757,14 +772,13 @@
     </button>
 
     {#if stageMedia.media_type === 'video'}
-      <MediaVideo
+      <VideoStage
         media={stageMedia}
-        controls
-        autoplay
-        loop
-        muted
-        playsinline
-        class="h-full w-full object-contain"
+        {muted}
+        {onmutedchange}
+        active={true}
+        reserveTrailingSpace={false}
+        class="h-full w-full"
       />
     {:else}
       <MediaImage

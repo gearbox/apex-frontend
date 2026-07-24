@@ -34,11 +34,10 @@ export const swipeNavigation: Action<HTMLElement, SwipeNavigationOptions> = (nod
       reset();
       return;
     }
-    // The stage/fullscreen video renders native `controls`; a drag on its scrubber must
-    // seek, not be hijacked as a swipe. Hardcoded to `video` — the only interactive media
-    // element this action wraps today.
+    // The action doesn't know what it's wrapping — consumers opt their own drag surfaces
+    // (e.g. a scrub bar) out of the swipe gesture by marking them `data-swipe-passthrough`.
     const target = e.target;
-    if (target instanceof Element && target.closest('video')) {
+    if (target instanceof Element && target.closest('[data-swipe-passthrough]')) {
       reset();
       return;
     }

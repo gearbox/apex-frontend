@@ -115,7 +115,22 @@ describe('swipeNavigation action', () => {
     );
   });
 
-  it('fires neither callback for a horizontal swipe starting on a <video> descendant', () => {
+  it('fires neither callback for a horizontal swipe starting on a [data-swipe-passthrough] descendant', () => {
+    attach();
+    const passthrough = document.createElement('div');
+    passthrough.setAttribute('data-swipe-passthrough', '');
+    const range = document.createElement('input');
+    passthrough.appendChild(range);
+
+    fire('touchstart', makeTouchEvent([makeTouch(200, 100)], undefined, range));
+    fire('touchmove', makeTouchEvent([makeTouch(150, 102)]));
+    fire('touchend', makeTouchEvent([], [makeTouch(150, 102)]));
+
+    expect(onnext).not.toHaveBeenCalled();
+    expect(onprev).not.toHaveBeenCalled();
+  });
+
+  it('fires onnext for a horizontal swipe starting on a <video> element (regression: video no longer blocks swipe)', () => {
     attach();
     const video = document.createElement('video');
     const source = document.createElement('source');
@@ -125,7 +140,7 @@ describe('swipeNavigation action', () => {
     fire('touchmove', makeTouchEvent([makeTouch(150, 102)]));
     fire('touchend', makeTouchEvent([], [makeTouch(150, 102)]));
 
-    expect(onnext).not.toHaveBeenCalled();
+    expect(onnext).toHaveBeenCalledTimes(1);
     expect(onprev).not.toHaveBeenCalled();
   });
 

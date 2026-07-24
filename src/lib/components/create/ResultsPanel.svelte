@@ -1,7 +1,7 @@
 <script lang="ts">
   import { generationStore } from '$lib/stores/generation';
   import { timeAgo } from '$lib/utils/format';
-  import { Download, Share2, RefreshCw, Play, Repeat2 } from 'lucide-svelte';
+  import { Download, Share, RefreshCw, Play, Repeat2 } from 'lucide-svelte';
   import { toMediaSrc } from '$lib/media/index';
   import MediaImage from '$lib/media/MediaImage.svelte';
   import MediaVideo from '$lib/media/MediaVideo.svelte';
@@ -96,7 +96,7 @@
                 class="flex h-7 w-7 items-center justify-center rounded-lg bg-white/20 text-white backdrop-blur-sm hover:bg-white/30 transition-colors"
               >
                 {#if capability === 'share'}
-                  <Share2 size={13} />
+                  <Share size={13} />
                 {:else}
                   <Download size={13} />
                 {/if}

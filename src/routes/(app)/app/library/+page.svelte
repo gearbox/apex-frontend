@@ -255,9 +255,10 @@
   }
 
   let viewerRequest = $state<ViewerRequest | null>(null);
-  // Fullscreen is page-owned (not sheet-local) because `{#key viewerRequest.assetRef}` below
-  // remounts AssetDetailsSheet on every prev/next; sheet-local state would reset each time.
+  // Fullscreen and mute are page-owned (not sheet-local) because `{#key viewerRequest.assetRef}`
+  // below remounts AssetDetailsSheet on every prev/next; sheet-local state would reset each time.
   let viewerFullscreen = $state(false);
+  let viewerMuted = $state(true);
   let deleteTarget = $state<LibraryAssetItem | null>(null);
   let showTagManager = $state(false);
 
@@ -592,12 +593,15 @@
       onclose={() => {
         viewerRequest = null;
         viewerFullscreen = false;
+        viewerMuted = true;
       }}
       onnavigate={handleViewerNavigate}
       hasPrev={hasPrevItem}
       hasNext={hasNextItem}
       fullscreen={viewerFullscreen}
       onfullscreenchange={(value) => (viewerFullscreen = value)}
+      muted={viewerMuted}
+      onmutedchange={(value) => (viewerMuted = value)}
     />
   {/key}
 {/if}
