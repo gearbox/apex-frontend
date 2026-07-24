@@ -21,7 +21,8 @@
   } from '$lib/queries/library';
   import { storageStatsQueryOptions, storageKeys } from '$lib/queries/storage';
   import { providersQueryOptions } from '$lib/queries/providers';
-  import { hasFlf2vModel as computeHasFlf2vModel } from '$lib/utils/modelCapabilities';
+  import { enabledModes } from '$lib/utils/generationModes';
+  import { createLibraryActionDeps } from '$lib/components/library/actionDeps';
   import { uploadMedia } from '$lib/api/upload';
   import { ApiRequestError } from '$lib/api/errors';
   import { addToast } from '$lib/stores/toasts';
@@ -39,6 +40,7 @@
   import TagPickerSheet from '$lib/components/library/TagPickerSheet.svelte';
   import { LibrarySelection } from '$lib/components/library/selection.svelte';
   import { productInfo } from '$lib/stores/product';
+  import Spinner from '$lib/components/ui/Spinner.svelte';
   import type { components } from '$lib/api/types';
   import * as m from '$paraglide/messages';
 
@@ -197,7 +199,8 @@
   const projectsQuery = createQuery(() => projectsListQueryOptions());
   const tagsQuery = createQuery(() => tagsListQueryOptions());
   const providersQuery = createQuery(() => providersQueryOptions());
-  const hasFlf2vModel = $derived(computeHasFlf2vModel(providersQuery.data));
+  const availableModes = $derived(enabledModes(providersQuery.data));
+  const providersReady = $derived(providersQuery.data !== undefined || !providersQuery.isLoading);
 
   const allItems = $derived((libraryQuery.data?.pages ?? []).flatMap((p) => p.items));
   const availableModels = $derived(
@@ -264,6 +267,8 @@
 
   const queryClient = useQueryClient();
   const deleteMutation = createMutation(() => deleteAssetMutationOptions(queryClient));
+
+  const actionDeps = createLibraryActionDeps(() => providersQuery.data, queryClient);
 
   function openViewerForItem(
     item: LibraryAssetItem,
@@ -546,14 +551,14 @@
       selectedRefs={selection.refs}
       {bulkErrorRefs}
       onToggleSelect={toggleSelection}
-      {hasFlf2vModel}
+      {availableModes}
+      {providersReady}
+      {actionDeps}
     />
 
     {#if libraryQuery.isFetchingNextPage}
       <div class="flex justify-center py-4">
-        <div
-          class="h-5 w-5 animate-spin rounded-full border-2 border-accent border-t-transparent"
-        ></div>
+        <Spinner size="md" />
       </div>
     {:else if !libraryQuery.hasNextPage && allItems.length > 0}
       <p class="py-4 text-center text-xs text-text-dim">{m.library_all_caught_up()}</p>

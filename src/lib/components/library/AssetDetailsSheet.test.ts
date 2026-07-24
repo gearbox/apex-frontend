@@ -9,6 +9,8 @@ import {
   makeLibraryOutputItem,
 } from '../../../mocks/factories/library';
 import { makeMediaObject, makeVideoMediaObject } from '../../../mocks/factories/media';
+import { makeGrokImageModelInfo } from '../../../mocks/factories/providers';
+import type { SaveOutcome } from '$lib/media/save';
 
 type LibraryAssetDetail = components['schemas']['LibraryAssetDetail'];
 type LibraryGroupDetail = components['schemas']['LibraryGroupDetail'];
@@ -40,7 +42,29 @@ vi.mock('@tanstack/svelte-query', () => ({
   createQuery: vi.fn((optionsFn: () => { queryKey: readonly unknown[] }) => {
     const [scope, kind] = optionsFn().queryKey;
     if (scope === 'providers') {
-      return { data: { providers: [], user_context: null }, isLoading: false, isError: false };
+      return {
+        data: {
+          providers: [
+            {
+              provider: 'grok',
+              name: 'xAI Grok',
+              available: true,
+              provisioning_mode: 'always_on',
+              models: [
+                makeGrokImageModelInfo({ is_enabled: true, capabilities: ['t2i', 'i2i'] }),
+                makeGrokImageModelInfo({
+                  model_key: 'grok-imagine-video',
+                  is_enabled: true,
+                  capabilities: ['t2v', 'i2v', 'v2v'],
+                }),
+              ],
+            },
+          ],
+          user_context: null,
+        },
+        isLoading: false,
+        isError: false,
+      };
     }
     if (kind === 'projects') {
       return {
@@ -113,11 +137,15 @@ vi.mock('@tanstack/svelte-query', () => ({
       isPending: false,
     };
   }),
-  useQueryClient: vi.fn(() => ({ invalidateQueries: vi.fn() })),
+  useQueryClient: vi.fn(() => ({
+    invalidateQueries: vi.fn(),
+    ensureQueryData: vi.fn(() => Promise.resolve(detailData)),
+  })),
 }));
 
-const { resolveSaveCapabilitiesMock } = vi.hoisted(() => ({
+const { resolveSaveCapabilitiesMock, saveMediaMock } = vi.hoisted(() => ({
   resolveSaveCapabilitiesMock: vi.fn(() => ['download']),
+  saveMediaMock: vi.fn<() => Promise<SaveOutcome>>(),
 }));
 
 vi.mock('$lib/media/save', async (importOriginal) => {
@@ -125,8 +153,17 @@ vi.mock('$lib/media/save', async (importOriginal) => {
   return {
     ...actual,
     resolveSaveCapabilities: resolveSaveCapabilitiesMock,
+    saveMedia: saveMediaMock,
   };
 });
+
+const { prewarmMediaMock } = vi.hoisted(() => ({ prewarmMediaMock: vi.fn() }));
+
+vi.mock('$lib/media/save/prewarm', () => ({ prewarmMedia: prewarmMediaMock }));
+
+const { gotoMock } = vi.hoisted(() => ({ gotoMock: vi.fn() }));
+
+vi.mock('$app/navigation', () => ({ goto: gotoMock }));
 
 import AssetDetailsSheet from './AssetDetailsSheet.svelte';
 
@@ -166,6 +203,9 @@ beforeEach(() => {
   lineageQueryCalls = 0;
   groupData = undefined;
   resolveSaveCapabilitiesMock.mockReturnValue(['download']);
+  saveMediaMock.mockReset().mockResolvedValue('shared');
+  prewarmMediaMock.mockClear();
+  gotoMock.mockReset().mockResolvedValue(undefined);
 });
 
 describe('AssetDetailsSheet — unified variation selection', () => {
@@ -490,5 +530,118 @@ describe('AssetDetailsSheet — save actions (share/download)', () => {
 
     expect(screen.queryByLabelText('Share')).toBeNull();
     expect(screen.queryByLabelText('Download')).toBeNull();
+  });
+});
+
+describe('AssetDetailsSheet — navigation action pending state', () => {
+  it('keeps all navigation actions locked until the route transition settles', async () => {
+    let resolveNavigation: () => void;
+    gotoMock.mockReturnValue(
+      new Promise<void>((resolve) => {
+        resolveNavigation = resolve;
+      }),
+    );
+    detailData = makeLibraryAssetDetail({
+      asset_ref: 'output:323e4567-e89b-12d3-a456-426614174000',
+      available_actions: ['remix', 'animate'],
+    });
+    renderSheet({ assetRef: 'output:323e4567-e89b-12d3-a456-426614174000' });
+
+    const remixButton = screen.getByRole('button', { name: 'Remix' });
+    const animateButton = screen.getByRole('button', { name: 'Animate' });
+    await fireEvent.click(remixButton);
+    await vi.waitFor(() => expect(gotoMock).toHaveBeenCalledTimes(1));
+
+    expect(remixButton.hasAttribute('disabled')).toBe(true);
+    expect(animateButton.hasAttribute('disabled')).toBe(true);
+    await fireEvent.click(animateButton);
+    expect(gotoMock).toHaveBeenCalledTimes(1);
+
+    resolveNavigation!();
+    await vi.waitFor(() => expect(remixButton.hasAttribute('disabled')).toBe(false));
+    expect(animateButton.hasAttribute('disabled')).toBe(false);
+  });
+
+  it('releases the navigation lock when navigation rejects', async () => {
+    gotoMock.mockRejectedValue(new Error('navigation failed'));
+    detailData = makeLibraryAssetDetail({
+      asset_ref: 'output:323e4567-e89b-12d3-a456-426614174000',
+      available_actions: ['remix'],
+    });
+    renderSheet({ assetRef: 'output:323e4567-e89b-12d3-a456-426614174000' });
+
+    const remixButton = screen.getByRole('button', { name: 'Remix' });
+    await fireEvent.click(remixButton);
+
+    await vi.waitFor(() => expect(remixButton.hasAttribute('disabled')).toBe(false));
+  });
+});
+
+describe('AssetDetailsSheet — save action pending state', () => {
+  const SAVE_ASSET_REF = 'output:123e4567-e89b-12d3-a456-426614174000';
+
+  it('disables the Share button and shows a spinner while the save promise is pending', async () => {
+    let resolveSave: (outcome: SaveOutcome) => void;
+    saveMediaMock.mockReturnValue(
+      new Promise<SaveOutcome>((resolve) => {
+        resolveSave = resolve;
+      }),
+    );
+    resolveSaveCapabilitiesMock.mockReturnValue(['share', 'download']);
+    detailData = makeLibraryAssetDetail({ asset_ref: SAVE_ASSET_REF });
+    renderSheet({ assetRef: SAVE_ASSET_REF });
+
+    const shareButton = screen.getByRole('button', { name: 'Share' });
+    await fireEvent.click(shareButton);
+
+    expect(shareButton.hasAttribute('disabled')).toBe(true);
+    expect(shareButton.getAttribute('aria-busy')).toBe('true');
+    expect(screen.getByRole('status')).toBeTruthy();
+
+    resolveSave!('shared');
+    await vi.waitFor(() => expect(shareButton.hasAttribute('disabled')).toBe(false));
+  });
+
+  it('does not call saveMedia twice when the Share button is clicked again while pending', async () => {
+    let resolveSave: (outcome: SaveOutcome) => void;
+    saveMediaMock.mockReturnValue(
+      new Promise<SaveOutcome>((resolve) => {
+        resolveSave = resolve;
+      }),
+    );
+    resolveSaveCapabilitiesMock.mockReturnValue(['share', 'download']);
+    detailData = makeLibraryAssetDetail({ asset_ref: SAVE_ASSET_REF });
+    renderSheet({ assetRef: SAVE_ASSET_REF });
+
+    const shareButton = screen.getByRole('button', { name: 'Share' });
+    await fireEvent.click(shareButton);
+    // The button is disabled, but fire a second click directly regardless — the re-entrancy
+    // guard lives in the controller, not just the `disabled` attribute.
+    await fireEvent.click(shareButton);
+
+    expect(saveMediaMock).toHaveBeenCalledTimes(1);
+    resolveSave!('shared');
+  });
+
+  it('calls prewarmMedia on pointerdown, before the click fires', async () => {
+    resolveSaveCapabilitiesMock.mockReturnValue(['share', 'download']);
+    detailData = makeLibraryAssetDetail({ asset_ref: SAVE_ASSET_REF });
+    renderSheet({ assetRef: SAVE_ASSET_REF });
+
+    const shareButton = screen.getByRole('button', { name: 'Share' });
+    await fireEvent.pointerDown(shareButton);
+
+    expect(prewarmMediaMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not prewarm on pointerdown for the Download button', async () => {
+    resolveSaveCapabilitiesMock.mockReturnValue(['share', 'download']);
+    detailData = makeLibraryAssetDetail({ asset_ref: SAVE_ASSET_REF });
+    renderSheet({ assetRef: SAVE_ASSET_REF });
+
+    const downloadButton = screen.getByRole('button', { name: 'Download' });
+    await fireEvent.pointerDown(downloadButton);
+
+    expect(prewarmMediaMock).not.toHaveBeenCalled();
   });
 });

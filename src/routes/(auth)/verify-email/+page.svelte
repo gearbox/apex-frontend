@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import { verifyEmail, AuthError } from '$lib/api/auth';
+  import Spinner from '$lib/components/ui/Spinner.svelte';
   import * as m from '$paraglide/messages';
 
   let status = $state<'verifying' | 'success' | 'error'>('verifying');
@@ -35,9 +36,7 @@
 
     {#if status === 'verifying'}
       <div class="flex flex-col items-center gap-3">
-        <div
-          class="h-6 w-6 animate-spin rounded-full border-2 border-accent border-t-transparent"
-        ></div>
+        <Spinner size="lg" />
         <p class="text-sm text-text-muted">Verifying your email…</p>
       </div>
     {:else if status === 'success'}

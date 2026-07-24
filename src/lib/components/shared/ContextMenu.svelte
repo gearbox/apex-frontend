@@ -6,7 +6,12 @@
     label: string;
     icon?: ComponentType<SvelteComponent>;
     variant?: 'default' | 'danger';
-    onclick: () => void;
+    onclick: () => void | Promise<void>;
+    /** Fires before `click` — e.g. prewarming a share's blob cache before activation expires. */
+    onpointerdown?: () => void;
+    /** Keeps a reopened menu truthful while an action started from it is still pending. */
+    disabled?: boolean;
+    pending?: boolean;
   }
 
   interface Props {
@@ -50,8 +55,10 @@
   }
 
   function handleItemClick(item: ContextMenuItem) {
+    if (item.disabled) return;
     close();
-    item.onclick();
+    // Handlers never reject (see resolveLibraryAction) — invoked fire-and-forget.
+    void item.onclick();
   }
 
   function handleDocumentClick(e: MouseEvent) {
@@ -77,7 +84,10 @@
       <button
         class="context-menu-item {item.variant === 'danger' ? 'danger' : ''}"
         onclick={() => handleItemClick(item)}
+        onpointerdown={item.onpointerdown}
         role="menuitem"
+        disabled={item.disabled}
+        aria-busy={item.pending}
       >
         {#if item.icon}
           {@const Icon = item.icon}
@@ -126,6 +136,11 @@
 
   .context-menu-item.danger {
     color: var(--apex-danger);
+  }
+
+  .context-menu-item:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
   }
 
   .item-icon {

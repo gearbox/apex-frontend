@@ -1,6 +1,9 @@
 <script lang="ts">
   import AssetCard from './AssetCard.svelte';
   import InfiniteScrollSentinel from '$lib/components/shared/InfiniteScrollSentinel.svelte';
+  import type { LibraryActionDeps } from './actions';
+  import { createActionController } from './actionController.svelte';
+  import type { GenerationMode } from '$lib/utils/generationModes';
   import type { components } from '$lib/api/types';
 
   type LibraryAssetItem = components['schemas']['LibraryAssetItem'];
@@ -18,7 +21,9 @@
     selectedRefs = new Set<string>(),
     bulkErrorRefs = new Set<string>(),
     onToggleSelect,
-    hasFlf2vModel = false,
+    availableModes,
+    providersReady = true,
+    actionDeps,
   }: {
     items: LibraryAssetItem[];
     onCardClick: (item: LibraryAssetItem) => void;
@@ -32,8 +37,14 @@
     selectedRefs?: ReadonlySet<string>;
     bulkErrorRefs?: ReadonlySet<string>;
     onToggleSelect?: (item: LibraryAssetItem) => void;
-    hasFlf2vModel?: boolean;
+    availableModes: ReadonlySet<GenerationMode>;
+    providersReady?: boolean;
+    actionDeps: LibraryActionDeps;
   } = $props();
+
+  // One controller for the complete grid prevents a route transition started from one card
+  // being overwritten by an action opened from another card's context menu.
+  const actionController = createActionController();
 </script>
 
 <div class="grid grid-cols-2 gap-2 md:grid-cols-[repeat(auto-fill,minmax(180px,1fr))]">
@@ -49,7 +60,10 @@
       selected={selectedRefs.has(item.asset_ref)}
       bulkError={bulkErrorRefs.has(item.asset_ref)}
       {onToggleSelect}
-      {hasFlf2vModel}
+      {availableModes}
+      {providersReady}
+      {actionDeps}
+      {actionController}
     />
   {/each}
 </div>

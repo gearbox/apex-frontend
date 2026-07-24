@@ -2,7 +2,7 @@ import { toMediaSrc } from '$lib/media/toMediaSrc';
 import { fetchOriginalBlob } from './fetchOriginal';
 import { buildSaveFilename } from './filename';
 import { resolveSaveCapabilities } from './capabilities';
-import { getCachedBlob, setCachedBlob } from './blobCache';
+import { getOrFetchBlob } from './blobCache';
 import { shareFile, downloadBlob } from './savers';
 import { SaveFailedError } from './types';
 import type { MediaObject, SaveCapability, SaveMediaDeps, SaveOutcome } from './types';
@@ -21,17 +21,14 @@ export async function saveMedia(
   media: MediaObject,
   id: string,
   deps: Partial<SaveMediaDeps> = {},
+  signal?: AbortSignal,
 ): Promise<SaveOutcome> {
   const { fetchBlob, share, download, now, capabilities } = { ...defaultDeps, ...deps };
 
   const filename = buildSaveFilename(id, media);
   const cacheKey = toMediaSrc(media.original.url);
 
-  let blob = getCachedBlob(cacheKey, now());
-  if (!blob) {
-    blob = await fetchBlob(media);
-    setCachedBlob(cacheKey, blob, now());
-  }
+  const blob = await getOrFetchBlob(cacheKey, () => fetchBlob(media, signal), now);
 
   if (mode === 'download') {
     return download(blob, filename);
