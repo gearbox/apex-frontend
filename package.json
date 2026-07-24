@@ -38,7 +38,7 @@
     "@inlang/paraglide-js": "1.11.8",
     "@playwright/test": "^1.58.2",
     "@sveltejs/adapter-static": "^3.0.10",
-    "@sveltejs/kit": "^2.60.1",
+    "@sveltejs/kit": "^2.69.1",
     "@sveltejs/vite-plugin-svelte": "^6.2.4",
     "@tailwindcss/vite": "^4.2.1",
     "@testing-library/svelte": "^5.3.1",
