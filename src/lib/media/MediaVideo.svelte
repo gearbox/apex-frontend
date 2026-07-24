@@ -14,6 +14,7 @@
     duration = $bindable(0),
     loop = false,
     playsinline = false,
+    preload = 'metadata' as 'none' | 'metadata' | 'auto',
     poster,
     onvideoelement,
     class: className = '',
@@ -28,6 +29,8 @@
     duration?: number;
     loop?: boolean;
     playsinline?: boolean;
+    /** Grid cards opt out of loading media bytes until the user intends playback. */
+    preload?: 'none' | 'metadata' | 'auto';
     poster?: string;
     /** Receives the rendered <video> element for controlled seeking clients. */
     onvideoelement?: (element: HTMLVideoElement) => void;
@@ -62,5 +65,6 @@
   bind:duration
   {loop}
   {playsinline}
+  {preload}
   class={className}
 ></video>

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy } from 'svelte';
+  import { onDestroy, untrack } from 'svelte';
   import { SvelteURLSearchParams } from 'svelte/reactivity';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
@@ -12,6 +12,7 @@
   import { CheckSquare, Search, Upload as UploadIcon } from 'lucide-svelte';
   import {
     libraryListInfiniteQueryOptions,
+    libraryAssetQueryOptions,
     deleteAssetMutationOptions,
     libraryKeys,
     projectKeys,
@@ -41,6 +42,7 @@
   import { LibrarySelection } from '$lib/components/library/selection.svelte';
   import { productInfo } from '$lib/stores/product';
   import Spinner from '$lib/components/ui/Spinner.svelte';
+  import { mediaFallbackSrc } from '$lib/media/mediaHelpers';
   import type { components } from '$lib/api/types';
   import * as m from '$paraglide/messages';
 
@@ -297,6 +299,55 @@
   const hasNextItem = $derived(
     viewerIndex >= 0 && (viewerIndex < allItems.length - 1 || libraryQuery.hasNextPage),
   );
+
+  // Keyed on the neighbors' asset_refs (a string), not on `allItems`/`viewerIndex` identity (see
+  // fix-review D3): a refetch that leaves the actual neighbor pair unchanged must not redo this
+  // work every time. `neighborKey` is the sole tracked dependency; the rest is read via
+  // `untrack` so recomputing it can't reintroduce an identity dependency.
+  const neighborKey = $derived.by(() => {
+    if (viewerIndex < 0) return '';
+    return [allItems[viewerIndex - 1], allItems[viewerIndex + 1]]
+      .filter((item): item is LibraryAssetItem => !!item && item.media.media_type !== 'video')
+      .map((item) => item.asset_ref)
+      .join('|');
+  });
+
+  // When the viewer is open, warm immediate image neighbors at the detail and md-preview
+  // layers. Videos deliberately skip this: their poster already covers navigation and their
+  // originals must never become speculative grid traffic.
+  $effect(() => {
+    const key = neighborKey;
+    if (!key) return;
+
+    const neighbors = untrack(() =>
+      [allItems[viewerIndex - 1], allItems[viewerIndex + 1]].filter(
+        (item): item is LibraryAssetItem => !!item && item.media.media_type !== 'video',
+      ),
+    );
+
+    const previews: HTMLImageElement[] = [];
+    for (const neighbor of neighbors) {
+      // The production QueryClient always exposes prefetchQuery. The guard also keeps shallow
+      // test doubles (which only model the mutations used by their scenario) harmless.
+      if (typeof queryClient.prefetchQuery === 'function') {
+        void queryClient
+          .prefetchQuery(libraryAssetQueryOptions(neighbor.asset_ref))
+          .catch(() => undefined);
+      }
+      if (typeof Image !== 'undefined') {
+        const preview = new Image();
+        preview.src = mediaFallbackSrc(neighbor.media, 512);
+        previews.push(preview);
+      }
+    }
+
+    return () => {
+      for (const preview of previews) {
+        preview.onload = null;
+        preview.onerror = null;
+      }
+    };
+  });
 
   let navigating = $state(false);
 

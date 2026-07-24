@@ -76,6 +76,14 @@ describe('MediaVideo', () => {
     expect(video.hasAttribute('controls')).toBe(false);
   });
 
+  it('defaults to metadata preload while allowing grid callers to disable byte loading', () => {
+    const { container, rerender } = render(MediaVideo, { props: { media: makeVideoMedia() } });
+    expect(container.querySelector('video')?.getAttribute('preload')).toBe('metadata');
+
+    rerender({ media: makeVideoMedia(), preload: 'none' });
+    expect(container.querySelector('video')?.getAttribute('preload')).toBe('none');
+  });
+
   it('bindable media props (muted, paused, currentTime) default correctly', () => {
     const { container } = render(MediaVideo, { props: { media: makeVideoMedia() } });
     const video = container.querySelector('video') as HTMLVideoElement;

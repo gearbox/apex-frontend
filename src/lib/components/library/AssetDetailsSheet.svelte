@@ -30,13 +30,14 @@
   import { createLibraryActionDeps } from './actionDeps';
   import { createActionController } from './actionController.svelte';
   import { resolveSaveCapabilities, type SaveCapability } from '$lib/media/save';
-  import { prewarmMedia } from '$lib/media/save/prewarm';
+  import { prewarmMedia, prewarmMediaWithSignal } from '$lib/media/save/prewarm';
   import Spinner from '$lib/components/ui/Spinner.svelte';
   import { parseAssetRef } from '$lib/utils/assetRef';
   import { isDesktop } from '$lib/utils/breakpoints';
   import { timeAgo, timeUntil, formatAspectRatio } from '$lib/utils/format';
   import { EXPIRES_SOON_MS } from '$lib/utils/constants';
   import MediaImage from '$lib/media/MediaImage.svelte';
+  import ProgressiveImage from '$lib/media/ProgressiveImage.svelte';
   import VideoStage from '$lib/media/VideoStage.svelte';
   import { posterSrc } from '$lib/media';
   import ConfirmDeleteModal from '$lib/components/shared/ConfirmDeleteModal.svelte';
@@ -173,6 +174,28 @@
       currentDetail.output_count > 1
         ? (currentDetail.job_id ?? null)
         : null;
+  });
+
+  // Keyed on the URL string, not `stageMedia` identity (see fix-review D3): an unrelated
+  // rerender that supplies a structurally-identical media object must not abort and restart an
+  // already-running warm. `stageMediaUrl` is the sole tracked dependency.
+  const stageMediaUrl = $derived(stageMedia?.original.url ?? null);
+
+  // Viewer video prewarm is intentionally independent of fullscreen: a preview-stage open is
+  // already clear playback intent. The keyed page remount and this effect teardown cancel it
+  // before a neighbor begins warming.
+  $effect(() => {
+    const url = stageMediaUrl;
+    const media = untrack(() => stageMedia);
+    if (!url || !media || media.media_type !== 'video') return;
+
+    const controller = new AbortController();
+    void prewarmMediaWithSignal(media, {
+      signal: controller.signal,
+      ttlMs: 5 * 60_000,
+    }).catch(() => undefined);
+
+    return () => controller.abort();
   });
 
   // Selection is stable by asset_ref. A refetch only changes it if the selected output no
@@ -362,15 +385,15 @@
   }
 
   onMount(() => {
-    window.addEventListener('keydown', handleKeydown);
     document.body.style.overflow = 'hidden';
   });
 
   onDestroy(() => {
-    window.removeEventListener('keydown', handleKeydown);
     document.body.style.overflow = '';
   });
 </script>
+
+<svelte:window onkeydown={handleKeydown} />
 
 {#snippet variationsStrip()}
   {#if currentGroup && currentGroup.outputs.length > 1}
@@ -758,7 +781,7 @@
             class="max-h-[60vh] w-full md:max-h-full"
           />
         {:else}
-          <MediaImage
+          <ProgressiveImage
             media={stageMedia}
             alt={currentDetail?.display_title ?? ''}
             sizes="(max-width: 768px) 100vw, 66vw"
@@ -824,7 +847,7 @@
         class="h-full w-full"
       />
     {:else}
-      <MediaImage
+      <ProgressiveImage
         media={stageMedia}
         alt={currentDetail?.display_title ?? ''}
         sizes="100vw"

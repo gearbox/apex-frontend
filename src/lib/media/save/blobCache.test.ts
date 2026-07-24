@@ -22,6 +22,14 @@ describe('getCachedBlob / setCachedBlob', () => {
     expect(getCachedBlob('https://example.com/a', 60_000)).toBeNull();
   });
 
+  it('honors a longer per-entry TTL without changing the default TTL', () => {
+    const blob = new Blob(['bytes']);
+    setCachedBlob('https://example.com/viewer-video', blob, 0, { ttlMs: 5 * 60_000 });
+
+    expect(getCachedBlob('https://example.com/viewer-video', 5 * 60_000 - 1)).toBe(blob);
+    expect(getCachedBlob('https://example.com/viewer-video', 5 * 60_000)).toBeNull();
+  });
+
   it('evicts the oldest entry once a third URL is stored at capacity 2', () => {
     setCachedBlob('https://example.com/a', new Blob(['a']), 0);
     setCachedBlob('https://example.com/b', new Blob(['b']), 1);
@@ -151,5 +159,106 @@ describe('getOrFetchBlob', () => {
 
     expect(result).toBeInstanceOf(Blob);
     expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it('passes its own internal signal to the fetcher, never a caller-supplied one', async () => {
+    const fetcher = vi.fn().mockResolvedValue(new Blob(['a']));
+    const callerController = new AbortController();
+
+    await getOrFetchBlob('https://example.com/a', fetcher, () => 0, {
+      signal: callerController.signal,
+    });
+
+    const [signalPassedToFetcher] = fetcher.mock.calls[0] as [AbortSignal];
+    expect(signalPassedToFetcher).not.toBe(callerController.signal);
+    expect(signalPassedToFetcher).toBeInstanceOf(AbortSignal);
+  });
+});
+
+describe('getOrFetchBlob — reference-counted cancellation', () => {
+  /** A fetcher whose returned promise only settles when the internal signal it receives
+   *  aborts (rejecting) or `resolve` is called manually (resolving). */
+  function abortableFetcher() {
+    let resolve!: (blob: Blob) => void;
+    const promise = new Promise<Blob>((res) => {
+      resolve = res;
+    });
+    const fetcher = vi.fn((signal: AbortSignal) => {
+      return new Promise<Blob>((res, rej) => {
+        signal.addEventListener('abort', () => rej(new DOMException('Aborted', 'AbortError')), {
+          once: true,
+        });
+        promise.then(res, rej);
+      });
+    });
+    return { fetcher, resolve };
+  }
+
+  it('rejects only the caller whose own signal aborted, leaving a second attached caller pending and eventually resolved', async () => {
+    const { fetcher, resolve } = abortableFetcher();
+    const controllerA = new AbortController();
+
+    const callerA = getOrFetchBlob('https://example.com/a', fetcher, () => 0, {
+      signal: controllerA.signal,
+    });
+    const callerB = getOrFetchBlob('https://example.com/a', fetcher, () => 0);
+
+    controllerA.abort();
+    await expect(callerA).rejects.toMatchObject({ name: 'AbortError' });
+
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    const blob = new Blob(['bytes']);
+    resolve(blob);
+    await expect(callerB).resolves.toBe(blob);
+  });
+
+  it('aborts the underlying fetch once the only attached caller aborts', async () => {
+    const { fetcher } = abortableFetcher();
+    const controller = new AbortController();
+
+    const caller = getOrFetchBlob('https://example.com/solo', fetcher, () => 0, {
+      signal: controller.signal,
+    });
+    const [internalSignal] = fetcher.mock.calls[0] as [AbortSignal];
+
+    controller.abort();
+
+    await expect(caller).rejects.toMatchObject({ name: 'AbortError' });
+    expect(internalSignal.aborted).toBe(true);
+  });
+
+  it('starts a fresh fetch for a late joiner after the in-flight request was aborted', async () => {
+    const { fetcher } = abortableFetcher();
+    const controller = new AbortController();
+
+    const caller = getOrFetchBlob('https://example.com/b', fetcher, () => 0, {
+      signal: controller.signal,
+    });
+    controller.abort();
+    await expect(caller).rejects.toMatchObject({ name: 'AbortError' });
+
+    const blob = new Blob(['fresh']);
+    const secondFetcher = vi.fn().mockResolvedValue(blob);
+    const result = await getOrFetchBlob('https://example.com/b', secondFetcher, () => 0);
+
+    expect(result).toBe(blob);
+    expect(secondFetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it('a caller with no signal is a permanent attachment: it is unaffected by another caller aborting', async () => {
+    const { fetcher, resolve } = abortableFetcher();
+    const controllerA = new AbortController();
+
+    const permanent = getOrFetchBlob('https://example.com/c', fetcher, () => 0);
+    const abortable = getOrFetchBlob('https://example.com/c', fetcher, () => 0, {
+      signal: controllerA.signal,
+    });
+
+    controllerA.abort();
+    await expect(abortable).rejects.toMatchObject({ name: 'AbortError' });
+
+    const blob = new Blob(['bytes']);
+    resolve(blob);
+    await expect(permanent).resolves.toBe(blob);
   });
 });

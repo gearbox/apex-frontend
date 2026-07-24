@@ -3,6 +3,7 @@ import { STORAGE_KEYS } from '$lib/utils/constants';
 import { isBrowser } from '$lib/utils/env';
 import { locale } from '$lib/stores/locale';
 import { clearBlobCache } from '$lib/media/save/blobCache';
+import { CONTENT_MEDIA_CACHE_NAME } from '$lib/pwa/contentCachePolicy';
 
 /* ─── Types ─── */
 export interface AuthTokens {
@@ -95,6 +96,11 @@ export function clearAuth(): void {
   user.set(null);
   authStatus.set('unauthenticated');
   clearBlobCache();
+  // Content-proxy responses are private to the current account. Deliberately do not await
+  // cleanup: logout/dead-session handling must remain synchronous and resilient to cache errors.
+  if (isBrowser() && typeof caches !== 'undefined') {
+    void caches.delete(CONTENT_MEDIA_CACHE_NAME).catch(() => undefined);
+  }
 }
 
 export function setAuthStatus(status: AuthStatus): void {

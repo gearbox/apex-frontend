@@ -105,6 +105,14 @@ describe('AssetCard', () => {
     expect(screen.getByTestId('library-media-icon-video').getAttribute('aria-hidden')).toBe('true');
   });
 
+  it('uses poster-only video markup and isolates offscreen card rendering work', () => {
+    const { container } = renderCard({ media: makeVideoMediaObject() });
+    expect(container.querySelector('video')?.getAttribute('preload')).toBe('none');
+    expect(container.querySelector('.group')?.getAttribute('class')).toContain(
+      '[content-visibility:auto]',
+    );
+  });
+
   it('renders a selection control when onToggleSelect is supplied', () => {
     renderCard({}, { onToggleSelect: vi.fn() });
 

@@ -16,6 +16,7 @@
     muted = false,
     loop = false,
     playsinline = false,
+    preload = 'metadata' as 'none' | 'metadata' | 'auto',
   }: {
     media: MediaObject;
     alt?: string;
@@ -27,11 +28,21 @@
     muted?: boolean;
     loop?: boolean;
     playsinline?: boolean;
+    preload?: 'none' | 'metadata' | 'auto';
   } = $props();
 </script>
 
 {#if media.media_type === 'video'}
-  <MediaVideo {media} {controls} {autoplay} {muted} {loop} {playsinline} class={className} />
+  <MediaVideo
+    {media}
+    {controls}
+    {autoplay}
+    {muted}
+    {loop}
+    {playsinline}
+    {preload}
+    class={className}
+  />
 {:else}
   <MediaImage {media} {alt} {sizes} class={className} {loading} />
 {/if}

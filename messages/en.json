@@ -86,6 +86,8 @@
   "library_all_caught_up": "All caught up",
   "library_untitled": "Untitled",
   "library_details_title": "Asset details",
+  "library_image_unavailable": "Image unavailable",
+  "library_image_loading": "Loading original image",
   "library_delete_title": "Delete Asset",
   "library_delete_confirm_text": "This will be permanently deleted. This action cannot be undone.",
   "library_delete_success": "Deleted",

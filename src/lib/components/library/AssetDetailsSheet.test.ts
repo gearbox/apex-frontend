@@ -157,9 +157,15 @@ vi.mock('$lib/media/save', async (importOriginal) => {
   };
 });
 
-const { prewarmMediaMock } = vi.hoisted(() => ({ prewarmMediaMock: vi.fn() }));
+const { prewarmMediaMock, prewarmMediaWithSignalMock } = vi.hoisted(() => ({
+  prewarmMediaMock: vi.fn(),
+  prewarmMediaWithSignalMock: vi.fn(() => Promise.resolve()),
+}));
 
-vi.mock('$lib/media/save/prewarm', () => ({ prewarmMedia: prewarmMediaMock }));
+vi.mock('$lib/media/save/prewarm', () => ({
+  prewarmMedia: prewarmMediaMock,
+  prewarmMediaWithSignal: prewarmMediaWithSignalMock,
+}));
 
 const { gotoMock } = vi.hoisted(() => ({ gotoMock: vi.fn() }));
 
@@ -205,6 +211,7 @@ beforeEach(() => {
   resolveSaveCapabilitiesMock.mockReturnValue(['download']);
   saveMediaMock.mockReset().mockResolvedValue('shared');
   prewarmMediaMock.mockClear();
+  prewarmMediaWithSignalMock.mockClear();
   gotoMock.mockReset().mockResolvedValue(undefined);
 });
 
@@ -271,6 +278,54 @@ describe('AssetDetailsSheet — video stage', () => {
     expect(videoEl).not.toBeNull();
     expect(videoEl?.hasAttribute('controls')).toBe(false);
     expect(container.querySelector('[data-swipe-passthrough]')).not.toBeNull();
+  });
+
+  it('warms the viewer video once and aborts that warm when variation navigation changes media', async () => {
+    const first = makeVideoMediaObject({
+      original: {
+        url: '/v1/content/outputs/first-video',
+        width: null,
+        height: null,
+        content_type: 'video/mp4',
+        size_bytes: 1024,
+      },
+    });
+    const second = makeVideoMediaObject({
+      original: {
+        url: '/v1/content/outputs/second-video',
+        width: null,
+        height: null,
+        content_type: 'video/mp4',
+        size_bytes: 1024,
+      },
+    });
+    detailData = makeLibraryAssetDetail({
+      asset_ref: 'output:first',
+      job_id: 'video-group',
+      output_count: 2,
+      media: first,
+    });
+    groupData = makeLibraryGroupDetail({
+      job_id: 'video-group',
+      outputs: [
+        makeLibraryOutputItem({ id: 'first', asset_ref: 'output:first', media: first }),
+        makeLibraryOutputItem({ id: 'second', asset_ref: 'output:second', media: second }),
+      ],
+    });
+
+    renderSheet({ assetRef: 'output:first', jobIdHint: 'video-group' });
+    await vi.waitFor(() => expect(prewarmMediaWithSignalMock).toHaveBeenCalledTimes(1));
+    const calls = prewarmMediaWithSignalMock.mock.calls as unknown as Array<
+      [unknown, { signal: AbortSignal; ttlMs: number }]
+    >;
+    const firstOptions = calls[0]![1];
+    const firstSignal = firstOptions.signal;
+    expect(firstOptions).toMatchObject({ ttlMs: 5 * 60_000 });
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Variation 2 of 2' }));
+
+    await vi.waitFor(() => expect(prewarmMediaWithSignalMock).toHaveBeenCalledTimes(2));
+    expect(firstSignal.aborted).toBe(true);
   });
 });
 
