@@ -1,10 +1,13 @@
 <script lang="ts">
   import { generationStore } from '$lib/stores/generation';
   import { timeAgo } from '$lib/utils/format';
-  import { Download, RefreshCw, Play, Repeat2 } from 'lucide-svelte';
+  import { Download, Share2, RefreshCw, Play, Repeat2 } from 'lucide-svelte';
   import { toMediaSrc } from '$lib/media/index';
   import MediaImage from '$lib/media/MediaImage.svelte';
   import MediaVideo from '$lib/media/MediaVideo.svelte';
+  import { saveMedia, resolveSaveCapabilities } from '$lib/media/save';
+  import { toastSaveError } from '$lib/media/save/toastSaveError';
+  import * as m from '$paraglide/messages';
   import type { components } from '$lib/api/types';
 
   type UnifiedJobResponse = components['schemas']['UnifiedJobResponse'];
@@ -40,6 +43,7 @@
     {/each}
   </div>
 {:else if job && outputs.length > 0}
+  {@const saveCapabilities = resolveSaveCapabilities()}
   <div class="flex flex-col gap-4">
     <!-- Job metadata -->
     <div class="flex flex-wrap items-center gap-3 text-[11px] text-text-dim">
@@ -85,14 +89,19 @@
           <div
             class="absolute inset-x-0 bottom-0 flex justify-end gap-1.5 bg-linear-to-t from-black/60 to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
           >
-            <a
-              href={toMediaSrc(output.media.original.url)}
-              download
-              class="flex h-7 w-7 items-center justify-center rounded-lg bg-white/20 text-white backdrop-blur-sm hover:bg-white/30 transition-colors"
-              aria-label="Download"
-            >
-              <Download size={13} />
-            </a>
+            {#each saveCapabilities as capability (capability)}
+              <button
+                onclick={() => saveMedia(capability, output.media, output.id).catch(toastSaveError)}
+                aria-label={capability === 'share' ? m.common_share() : m.common_download()}
+                class="flex h-7 w-7 items-center justify-center rounded-lg bg-white/20 text-white backdrop-blur-sm hover:bg-white/30 transition-colors"
+              >
+                {#if capability === 'share'}
+                  <Share2 size={13} />
+                {:else}
+                  <Download size={13} />
+                {/if}
+              </button>
+            {/each}
             {#if job}
               <button
                 onclick={() => handleRegenerate(job)}

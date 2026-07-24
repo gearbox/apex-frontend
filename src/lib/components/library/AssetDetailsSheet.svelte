@@ -9,6 +9,7 @@
     ChevronLeft,
     Pencil,
     Download,
+    Share2,
     Video,
     Maximize2,
     Minimize2,
@@ -26,6 +27,7 @@
   import { providersQueryOptions } from '$lib/queries/providers';
   import { hasFlf2vModel as computeHasFlf2vModel } from '$lib/utils/modelCapabilities';
   import { resolveLibraryAction, libraryActionLabel, filterVisibleLibraryActions } from './actions';
+  import { resolveSaveCapabilities } from '$lib/media/save';
   import { parseAssetRef } from '$lib/utils/assetRef';
   import { isDesktop } from '$lib/utils/breakpoints';
   import { timeAgo, timeUntil, formatAspectRatio } from '$lib/utils/format';
@@ -274,7 +276,8 @@
               action !== 'delete' &&
               action !== 'favorite' &&
               action !== 'rename' &&
-              action !== 'download',
+              action !== 'download' &&
+              action !== 'share',
           )
           .map((action) => {
             const handler = resolveLibraryAction(action, currentDetail, {
@@ -408,6 +411,9 @@
     <p class="p-4 text-sm text-danger">{m.error_generic()}</p>
   {:else if currentDetail}
     {@const detail = currentDetail}
+    {@const saveActions = detail.available_actions.includes('download')
+      ? resolveSaveCapabilities()
+      : []}
     <div
       class="flex flex-col gap-4 p-5 {currentGroup && currentGroup.outputs.length > 1
         ? 'pt-4'
@@ -471,16 +477,20 @@
             {entry.label}
           </button>
         {/each}
-        {#if detail.available_actions.includes('download')}
+        {#each saveActions as capability (capability)}
           <button
-            onclick={resolveLibraryAction('download', detail, {}) ?? undefined}
+            onclick={() => resolveLibraryAction(capability, detail, {})?.()}
             class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border text-text transition-colors hover:bg-surface-hover"
-            aria-label={m.common_download()}
-            title={m.common_download()}
+            aria-label={libraryActionLabel(capability)}
+            title={libraryActionLabel(capability)}
           >
-            <Download size={13} />
+            {#if capability === 'share'}
+              <Share2 size={13} />
+            {:else}
+              <Download size={13} />
+            {/if}
           </button>
-        {/if}
+        {/each}
         {#if detail.available_actions.includes('delete')}
           <button
             onclick={() => (showDeleteConfirm = true)}

@@ -2,6 +2,7 @@ import { get, writable, derived } from 'svelte/store';
 import { STORAGE_KEYS } from '$lib/utils/constants';
 import { isBrowser } from '$lib/utils/env';
 import { locale } from '$lib/stores/locale';
+import { clearBlobCache } from '$lib/media/save/blobCache';
 
 /* ─── Types ─── */
 export interface AuthTokens {
@@ -93,6 +94,7 @@ export function clearAuth(): void {
   }
   user.set(null);
   authStatus.set('unauthenticated');
+  clearBlobCache();
 }
 
 export function setAuthStatus(status: AuthStatus): void {

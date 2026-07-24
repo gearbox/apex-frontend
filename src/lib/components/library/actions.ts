@@ -11,6 +11,7 @@ import {
   Heart,
   Pencil,
   Download,
+  Share2,
   Trash2,
 } from 'lucide-svelte';
 import type { ComponentType, SvelteComponent } from 'svelte';
@@ -18,12 +19,14 @@ import { generationStore, type GenerationMode } from '$lib/stores/generation';
 import { mediaFallbackSrc } from '$lib/media';
 import { ROUTES } from '$lib/utils/routes';
 import { parseAssetRef } from '$lib/utils/assetRef';
-import { downloadLibraryMedia } from './download';
-import { addToast } from '$lib/stores/toasts';
+import { saveMedia, resolveSaveCapabilities, type SaveCapability } from '$lib/media/save';
+import { toastSaveError } from '$lib/media/save/toastSaveError';
 import type { components } from '$lib/api/types';
 import * as m from '$paraglide/messages';
 
 export type LibraryAction = components['schemas']['LibraryAction'];
+/** Frontend-only pseudo-action layered on top of the backend enum — never sent to the API. */
+export type LibraryUiAction = LibraryAction | 'share';
 type MediaObject = components['schemas']['MediaObject'];
 type ModelType = components['schemas']['ModelType'];
 type GenerationType = components['schemas']['GenerationType'];
@@ -49,12 +52,12 @@ export interface LibraryActionCallbacks {
 
 const DEFAULT_MODEL: ModelType = 'grok-imagine-image';
 
-async function downloadAsset(asset: LibraryActionAsset) {
+async function saveAsset(asset: LibraryActionAsset, mode: SaveCapability) {
   const { id } = parseAssetRef(asset.asset_ref);
   try {
-    await downloadLibraryMedia(asset.media, `apex-${id}`);
-  } catch {
-    addToast({ type: 'error', message: m.library_download_error() });
+    await saveMedia(mode, asset.media, id);
+  } catch (error) {
+    toastSaveError(error);
   }
 }
 
@@ -103,13 +106,15 @@ function reproduce(asset: LibraryActionAsset) {
  * no wiring yet — callers must hide/skip those rather than throw.
  */
 export function resolveLibraryAction(
-  action: LibraryAction,
+  action: LibraryUiAction,
   asset: LibraryActionAsset,
   callbacks: LibraryActionCallbacks,
 ): (() => void | Promise<void>) | null {
   switch (action) {
+    case 'share':
+      return () => saveAsset(asset, 'share');
     case 'download':
-      return () => downloadAsset(asset);
+      return () => saveAsset(asset, 'download');
     case 'delete':
       return callbacks.onDelete ?? null;
     case 'favorite':
@@ -138,7 +143,7 @@ export function resolveLibraryAction(
   }
 }
 
-export const LIBRARY_ACTION_ICONS: Record<LibraryAction, ComponentType<SvelteComponent>> = {
+export const LIBRARY_ACTION_ICONS: Record<LibraryUiAction, ComponentType<SvelteComponent>> = {
   remix: Repeat2,
   create_variation: Shuffle,
   animate: Video,
@@ -151,6 +156,7 @@ export const LIBRARY_ACTION_ICONS: Record<LibraryAction, ComponentType<SvelteCom
   reproduce: RotateCcw,
   favorite: Heart,
   rename: Pencil,
+  share: Share2,
   download: Download,
   delete: Trash2,
 };
@@ -158,12 +164,14 @@ export const LIBRARY_ACTION_ICONS: Record<LibraryAction, ComponentType<SvelteCom
 /**
  * Centralizes which actions are actually reachable given the current API surface. Applied
  * at both render sites (AssetCard menu, AssetDetailsSheet menu) so they never diverge.
+ * A present `download` expands into the platform-resolved save capabilities (share before
+ * download), in place, since `share` has no backend representation of its own.
  */
 export function filterVisibleLibraryActions(
   actions: LibraryAction[],
-  opts: { hasFlf2vModel: boolean },
-): LibraryAction[] {
-  return actions.filter((action) => {
+  opts: { hasFlf2vModel: boolean; saveCapabilities?: SaveCapability[] },
+): LibraryUiAction[] {
+  const filtered = actions.filter((action) => {
     // Duplicate of `remix` with the current API surface — deferred until a real
     // create-variation prefill (denoise/seed) is implemented.
     if (action === 'create_variation') return false;
@@ -172,10 +180,18 @@ export function filterVisibleLibraryActions(
     }
     return true;
   });
+
+  const capabilities = opts.saveCapabilities ?? resolveSaveCapabilities();
+
+  return filtered.flatMap((action): LibraryUiAction[] =>
+    action === 'download' ? capabilities : [action],
+  );
 }
 
-export function libraryActionLabel(action: LibraryAction, isFavorite = false): string {
+export function libraryActionLabel(action: LibraryUiAction, isFavorite = false): string {
   switch (action) {
+    case 'share':
+      return m.common_share();
     case 'remix':
       return m.library_action_remix();
     case 'create_variation':
