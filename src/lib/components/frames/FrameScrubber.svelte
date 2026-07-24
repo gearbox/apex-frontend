@@ -273,7 +273,7 @@
         aria-live="polite"
         aria-label={m.frames_frame_loading()}
       >
-        <Spinner size="md" class="border-white" />
+        <Spinner size="md" tone="inverse" />
         <span class="sr-only">{m.frames_frame_loading()}</span>
       </div>
     {/if}

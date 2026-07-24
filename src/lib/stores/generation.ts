@@ -255,9 +255,16 @@ function createGenerationStore() {
     },
 
     prefill(params: Partial<GenerationState>) {
+      // With exactOptionalPropertyTypes disabled, an explicitly-undefined key would otherwise
+      // overwrite a non-nullable field (for example, negativePrompt). Callers use `x ??
+      // undefined` to mean "omit", so retain the current value in that case.
+      const defined = Object.fromEntries(
+        Object.entries(params).filter(([, value]) => value !== undefined),
+      ) as Partial<GenerationState>;
+
       update((s) => ({
         ...s,
-        ...params,
+        ...defined,
         activeJobId: null,
         jobStatus: null,
         completedJob: null,

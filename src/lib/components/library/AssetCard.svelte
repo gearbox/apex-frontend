@@ -41,6 +41,7 @@
     onToggleSelect,
     bulkError = false,
     availableModes,
+    providersReady = true,
     actionDeps,
   }: {
     item: LibraryAssetItem;
@@ -57,6 +58,8 @@
     bulkError?: boolean;
     /** Gates navigation actions (remix/animate/extend/etc.) to modes an enabled model supports. */
     availableModes: ReadonlySet<GenerationMode>;
+    /** Avoids context-menu actions appearing after the providers query settles. */
+    providersReady?: boolean;
     actionDeps: LibraryActionDeps;
   } = $props();
 
@@ -128,7 +131,7 @@
   }
 
   const menuItems = $derived(
-    filterVisibleLibraryActions(item.available_actions, { availableModes })
+    (providersReady ? filterVisibleLibraryActions(item.available_actions, { availableModes }) : [])
       .map((action) => {
         const handler = resolveLibraryAction(
           action,

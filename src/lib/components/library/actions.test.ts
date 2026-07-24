@@ -3,6 +3,7 @@ import { get } from 'svelte/store';
 import {
   filterVisibleLibraryActions,
   resolveLibraryAction,
+  aspectRatioPrefill,
   ACTION_MODE,
   type LibraryAction,
   type LibraryUiAction,
@@ -257,6 +258,17 @@ describe('resolveLibraryAction — useAsSource (remix/animate/extend/etc.)', () 
     expect(navigate).toHaveBeenCalledWith(ROUTES.create);
   });
 
+  it('keeps negativePrompt a string when remixing a grid item with no negative_prompt', () => {
+    const item = makeLibraryAssetItem({ asset_ref: `output:${OUTPUT_UUID}` });
+    const navigate = vi.fn();
+    generationStore.setNegativePrompt('no blur');
+
+    resolveLibraryAction('remix', item, {}, makeDeps({ navigate }))?.();
+
+    expect(get(generationStore).negativePrompt).toBe('no blur');
+    expect(typeof get(generationStore).negativePrompt).toBe('string');
+  });
+
   it('animate resolves a video-capable model when the source asset model is image-only', () => {
     const asset: LibraryActionAsset = {
       asset_ref: `output:${OUTPUT_UUID}`,
@@ -324,6 +336,39 @@ describe('resolveLibraryAction — useAsSource (remix/animate/extend/etc.)', () 
         saveCapabilities: ['download'],
       }),
     ).toEqual([]);
+  });
+});
+
+describe('aspectRatioPrefill', () => {
+  const editableModel = makeGrokImageModelInfo({
+    model_key: 'grok-imagine-image',
+    image: { edit_aspect_ratios: ['1:1', '16:9'] },
+  });
+  const providers: ProvidersResponse = {
+    providers: [
+      {
+        provider: 'grok',
+        name: 'xAI Grok',
+        available: true,
+        provisioning_mode: 'always_on',
+        models: [editableModel],
+      },
+    ],
+    user_context: null,
+  };
+
+  it('uses a validated editAspectRatio for i2i and aspectRatio for other modes', () => {
+    expect(aspectRatioPrefill('16:9', 'i2i', 'grok-imagine-image', providers)).toEqual({
+      editAspectRatio: '16:9',
+    });
+    expect(aspectRatioPrefill('16:9', 't2i', 'grok-imagine-image', providers)).toEqual({
+      aspectRatio: '16:9',
+    });
+  });
+
+  it('omits unsupported and unknown aspect ratios', () => {
+    expect(aspectRatioPrefill('4:3', 'i2i', 'grok-imagine-image', providers)).toBeUndefined();
+    expect(aspectRatioPrefill('21:9', 't2i', 'grok-imagine-image', providers)).toBeUndefined();
   });
 });
 

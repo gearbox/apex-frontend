@@ -124,6 +124,24 @@ describe('enabledModes', () => {
     expect(enabledModes(providers)).toEqual(new Set(['t2i']));
   });
 
+  it('ignores capabilities advertised by an enabled model with an unrecognized key', () => {
+    const providers: ProvidersResponse = {
+      providers: [
+        makeProviderInfo([
+          makeGrokImageModelInfo({
+            model_key: 'future-video-model',
+            is_enabled: true,
+            capabilities: ['i2v'],
+          }),
+        ]),
+      ],
+      user_context: null,
+    };
+
+    expect(enabledModes(providers)).toEqual(new Set());
+    expect(resolveModelForMode(providers, 'i2v')).toBeNull();
+  });
+
   it('returns an empty set for null/undefined providers', () => {
     expect(enabledModes(null)).toEqual(new Set());
     expect(enabledModes(undefined)).toEqual(new Set());

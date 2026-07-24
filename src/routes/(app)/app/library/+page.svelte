@@ -12,7 +12,6 @@
   import { CheckSquare, Search, Upload as UploadIcon } from 'lucide-svelte';
   import {
     libraryListInfiniteQueryOptions,
-    libraryAssetQueryOptions,
     deleteAssetMutationOptions,
     libraryKeys,
     projectKeys,
@@ -23,7 +22,7 @@
   import { storageStatsQueryOptions, storageKeys } from '$lib/queries/storage';
   import { providersQueryOptions } from '$lib/queries/providers';
   import { enabledModes } from '$lib/utils/generationModes';
-  import type { LibraryActionDeps } from '$lib/components/library/actions';
+  import { createLibraryActionDeps } from '$lib/components/library/actionDeps';
   import { uploadMedia } from '$lib/api/upload';
   import { ApiRequestError } from '$lib/api/errors';
   import { addToast } from '$lib/stores/toasts';
@@ -201,6 +200,7 @@
   const tagsQuery = createQuery(() => tagsListQueryOptions());
   const providersQuery = createQuery(() => providersQueryOptions());
   const availableModes = $derived(enabledModes(providersQuery.data));
+  const providersReady = $derived(providersQuery.data !== undefined || !providersQuery.isLoading);
 
   const allItems = $derived((libraryQuery.data?.pages ?? []).flatMap((p) => p.items));
   const availableModels = $derived(
@@ -268,12 +268,7 @@
   const queryClient = useQueryClient();
   const deleteMutation = createMutation(() => deleteAssetMutationOptions(queryClient));
 
-  const actionDeps: LibraryActionDeps = {
-    get providers() {
-      return providersQuery.data;
-    },
-    loadDetail: (assetRef) => queryClient.ensureQueryData(libraryAssetQueryOptions(assetRef)),
-  };
+  const actionDeps = createLibraryActionDeps(() => providersQuery.data, queryClient);
 
   function openViewerForItem(
     item: LibraryAssetItem,
@@ -557,6 +552,7 @@
       {bulkErrorRefs}
       onToggleSelect={toggleSelection}
       {availableModes}
+      {providersReady}
       {actionDeps}
     />
 

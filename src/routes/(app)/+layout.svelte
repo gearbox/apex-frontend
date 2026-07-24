@@ -101,7 +101,7 @@
   <!-- Auth check skeleton -->
   <div class="flex min-h-dvh items-center justify-center bg-bg">
     <div class="flex flex-col items-center gap-3">
-      <Spinner size="lg" class="h-8 w-8" />
+      <Spinner size="2xl" />
       <p class="text-sm text-text-dim">{m.common_loading()}</p>
     </div>
   </div>

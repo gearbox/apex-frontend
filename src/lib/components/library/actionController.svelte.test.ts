@@ -2,13 +2,14 @@ import { describe, it, expect, vi } from 'vitest';
 import { createActionController } from './actionController.svelte';
 
 describe('createActionController', () => {
-  it('starts with nothing pending', () => {
+  it('starts with no pending action or group', () => {
     const controller = createActionController();
-    expect(controller.pending).toBe(false);
-    expect(controller.isPending('remix')).toBe(false);
+
+    expect(controller.isPending('share')).toBe(false);
+    expect(controller.isGroupPending('navigate')).toBe(false);
   });
 
-  it('marks the given key pending while its handler runs, and clears it after', async () => {
+  it('marks the given key and navigation group pending until its handler settles', async () => {
     const controller = createActionController();
     let resolveFn: () => void;
     const fn = vi.fn(
@@ -18,19 +19,69 @@ describe('createActionController', () => {
         }),
     );
 
-    const runPromise = controller.run('remix', fn);
-    expect(controller.pending).toBe(true);
+    const runPromise = controller.run('remix', 'navigate', fn);
     expect(controller.isPending('remix')).toBe(true);
-    expect(controller.isPending('animate')).toBe(false);
+    expect(controller.isGroupPending('navigate')).toBe(true);
 
     resolveFn!();
     await runPromise;
 
-    expect(controller.pending).toBe(false);
     expect(controller.isPending('remix')).toBe(false);
+    expect(controller.isGroupPending('navigate')).toBe(false);
   });
 
-  it('is a no-op for a second run() call while one is already pending', async () => {
+  it('does not run the same save action twice', async () => {
+    const controller = createActionController();
+    let resolveSave: () => void;
+    const save = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveSave = resolve;
+        }),
+    );
+
+    const first = controller.run('share', 'save', save);
+    const second = controller.run('share', 'save', save);
+    resolveSave!();
+    await Promise.all([first, second]);
+
+    expect(save).toHaveBeenCalledTimes(1);
+  });
+
+  it('allows a navigation action while a save is pending', async () => {
+    const controller = createActionController();
+    let resolveSave: () => void;
+    const save = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveSave = resolve;
+        }),
+    );
+    const navigate = vi.fn();
+
+    const savePromise = controller.run('share', 'save', save);
+    await controller.run('remix', 'navigate', navigate);
+    resolveSave!();
+    await savePromise;
+
+    expect(navigate).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps Share and Download independent', async () => {
+    const controller = createActionController();
+    const share = vi.fn();
+    const download = vi.fn();
+
+    await Promise.all([
+      controller.run('share', 'save', share),
+      controller.run('download', 'save', download),
+    ]);
+
+    expect(share).toHaveBeenCalledTimes(1);
+    expect(download).toHaveBeenCalledTimes(1);
+  });
+
+  it('serializes different navigation actions', async () => {
     const controller = createActionController();
     let resolveFirst: () => void;
     const first = vi.fn(
@@ -41,9 +92,8 @@ describe('createActionController', () => {
     );
     const second = vi.fn();
 
-    const firstRun = controller.run('remix', first);
-    const secondRun = controller.run('animate', second);
-
+    const firstRun = controller.run('remix', 'navigate', first);
+    const secondRun = controller.run('animate', 'navigate', second);
     resolveFirst!();
     await Promise.all([firstRun, secondRun]);
 
@@ -51,35 +101,13 @@ describe('createActionController', () => {
     expect(second).not.toHaveBeenCalled();
   });
 
-  it('clears runningKey even when the handler throws, and propagates the error', async () => {
+  it('clears pending state when a handler throws', async () => {
     const controller = createActionController();
     const failing = vi.fn().mockRejectedValue(new Error('boom'));
 
-    await expect(controller.run('remix', failing)).rejects.toThrow('boom');
+    await expect(controller.run('remix', 'navigate', failing)).rejects.toThrow('boom');
 
-    expect(controller.pending).toBe(false);
     expect(controller.isPending('remix')).toBe(false);
-  });
-
-  it('supports synchronous (non-Promise-returning) handlers', async () => {
-    const controller = createActionController();
-    const fn = vi.fn();
-
-    await controller.run('favorite', fn);
-
-    expect(fn).toHaveBeenCalledTimes(1);
-    expect(controller.pending).toBe(false);
-  });
-
-  it('allows a new run once the previous one has settled', async () => {
-    const controller = createActionController();
-    const first = vi.fn();
-    const second = vi.fn();
-
-    await controller.run('remix', first);
-    await controller.run('animate', second);
-
-    expect(first).toHaveBeenCalledTimes(1);
-    expect(second).toHaveBeenCalledTimes(1);
+    expect(controller.isGroupPending('navigate')).toBe(false);
   });
 });

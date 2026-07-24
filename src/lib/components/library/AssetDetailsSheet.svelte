@@ -26,12 +26,8 @@
   } from '$lib/queries/library';
   import { providersQueryOptions } from '$lib/queries/providers';
   import { enabledModes } from '$lib/utils/generationModes';
-  import {
-    resolveLibraryAction,
-    libraryActionLabel,
-    filterVisibleLibraryActions,
-    type LibraryActionDeps,
-  } from './actions';
+  import { resolveLibraryAction, libraryActionLabel, filterVisibleLibraryActions } from './actions';
+  import { createLibraryActionDeps } from './actionDeps';
   import { createActionController } from './actionController.svelte';
   import { resolveSaveCapabilities } from '$lib/media/save';
   import { prewarmMedia } from '$lib/media/save/prewarm';
@@ -54,7 +50,6 @@
 
   type LibraryGroupDetail = components['schemas']['LibraryGroupDetail'];
   type LibraryOutputItem = components['schemas']['LibraryOutputItem'];
-  type MediaObject = components['schemas']['MediaObject'];
 
   let {
     assetRef,
@@ -139,32 +134,20 @@
   const renameMutation = createMutation(() => renameMutationOptions(queryClient));
   const projectMutation = createMutation(() => projectAssignmentMutationOptions(queryClient));
   const projectsQuery = createQuery(() => projectsListQueryOptions());
-  // Cache-shared with the create page's ['providers'] query. While it's in flight,
-  // availableModes stays empty — the safe default, since hiding actions is non-destructive.
+  // Cache-shared with the create page's ['providers'] query. Keep the whole action row in a
+  // fixed-height placeholder until it resolves so navigation actions never pop into the row.
   const providersQuery = createQuery(() => providersQueryOptions());
   const availableModes = $derived(enabledModes(providersQuery.data));
+  const providersReady = $derived(providersQuery.data !== undefined || !providersQuery.isLoading);
 
-  const actionDeps: LibraryActionDeps = {
-    get providers() {
-      return providersQuery.data;
-    },
-    loadDetail: (assetRef) => queryClient.ensureQueryData(libraryAssetQueryOptions(assetRef)),
-  };
+  const actionDeps = createLibraryActionDeps(() => providersQuery.data, queryClient);
 
   const controller = createActionController();
-  let prewarmController: AbortController | null = null;
-
-  function abortPrewarm() {
-    prewarmController?.abort();
-    prewarmController = null;
-  }
 
   /** Fires on `onpointerdown` — before `click` and before the activation window opens — so the
    *  common path hits a warm cache and never shows the save spinner at all. */
-  function startPrewarm(media: MediaObject) {
-    abortPrewarm();
-    prewarmController = new AbortController();
-    prewarmMedia(media, prewarmController.signal);
+  function startPrewarm(media: components['schemas']['MediaObject']) {
+    prewarmMedia(media);
   }
 
   function resetAssetUi() {
@@ -175,13 +158,6 @@
     showFrameExtraction = false;
     frameExtractionTrigger = null;
   }
-
-  // Cleanup runs on every selectedAssetRef change and on unmount (sheet close) alike — a
-  // prewarm for an asset the user has since navigated away from must not land in the cache.
-  $effect(() => {
-    void selectedAssetRef;
-    return () => abortPrewarm();
-  });
 
   // Once a selected detail is known, it—not the initial hint—defines whether a sibling group
   // applies. This also lets lineage navigation leave the old group immediately.
@@ -339,7 +315,7 @@
             return {
               action,
               label: libraryActionLabel(action),
-              onclick: () => controller.run(action, handler),
+              onclick: () => controller.run(action, 'navigate', handler),
             };
           })
           .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
@@ -513,72 +489,74 @@
       {/if}
 
       <!-- Action buttons -->
-      <div class="flex flex-wrap gap-2">
-        {#if detail.available_actions.includes('favorite')}
-          <button
-            onclick={toggleFavorite}
-            disabled={controller.pending}
-            class="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-accent/15 px-3 py-2 text-xs font-semibold text-accent transition-colors hover:bg-accent/25 disabled:opacity-50"
-          >
-            {detail.is_favorite ? m.library_action_unfavorite() : m.library_action_favorite()}
-          </button>
-        {/if}
-        {#each menuItems as entry (entry.label)}
-          <button
-            onclick={(e) => {
-              if (entry.action === 'extract_frame') {
-                frameExtractionTrigger = e.currentTarget as HTMLButtonElement;
-              }
-              void entry.onclick();
-            }}
-            disabled={controller.pending}
-            aria-busy={controller.isPending(entry.action)}
-            class="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-accent/15 px-3 py-2 text-xs font-semibold text-accent transition-colors hover:bg-accent/25 disabled:opacity-50"
-          >
-            {#if controller.isPending(entry.action)}
-              <Spinner size="xs" />
-            {/if}
-            {entry.label}
-          </button>
-        {/each}
-        {#each saveActions as capability (capability)}
-          <button
-            onclick={() =>
-              controller.run(
-                capability,
-                resolveLibraryAction(capability, detail, {}, actionDeps) ?? (() => {}),
-              )}
-            onpointerdown={capability === 'share' ? () => startPrewarm(detail.media) : undefined}
-            disabled={controller.pending}
-            aria-busy={controller.isPending(capability)}
-            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border text-text transition-colors hover:bg-surface-hover disabled:opacity-50"
-            aria-label={controller.isPending(capability)
-              ? m.library_share_preparing()
-              : libraryActionLabel(capability)}
-            title={controller.isPending(capability)
-              ? m.library_share_preparing()
-              : libraryActionLabel(capability)}
-          >
-            {#if controller.isPending(capability)}
-              <Spinner size="xs" label={m.library_share_preparing()} />
-            {:else if capability === 'share'}
-              <Share size={13} />
-            {:else}
-              <Download size={13} />
-            {/if}
-          </button>
-        {/each}
-        {#if detail.available_actions.includes('delete')}
-          <button
-            onclick={() => (showDeleteConfirm = true)}
-            disabled={controller.pending}
-            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-danger/30 text-danger transition-colors hover:bg-danger/10 disabled:opacity-50"
-            aria-label={m.common_delete()}
-          >
-            <X size={13} />
-          </button>
-        {/if}
-      </div>
+      {#if providersReady}
+        <div class="flex flex-wrap gap-2">
+          {#if detail.available_actions.includes('favorite')}
+            <button
+              onclick={toggleFavorite}
+              disabled={favoriteMutation.isPending}
+              class="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-accent/15 px-3 py-2 text-xs font-semibold text-accent transition-colors hover:bg-accent/25 disabled:opacity-50"
+            >
+              {detail.is_favorite ? m.library_action_unfavorite() : m.library_action_favorite()}
+            </button>
+          {/if}
+          {#each menuItems as entry (entry.label)}
+            <button
+              onclick={(e) => {
+                if (entry.action === 'extract_frame') {
+                  frameExtractionTrigger = e.currentTarget as HTMLButtonElement;
+                }
+                void entry.onclick();
+              }}
+              disabled={controller.isGroupPending('navigate')}
+              aria-busy={controller.isPending(entry.action)}
+              class="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-accent/15 px-3 py-2 text-xs font-semibold text-accent transition-colors hover:bg-accent/25 disabled:opacity-50"
+            >
+              {#if controller.isPending(entry.action)}
+                <Spinner size="xs" />
+              {/if}
+              {entry.label}
+            </button>
+          {/each}
+          {#each saveActions as capability (capability)}
+            <button
+              onclick={() => {
+                const handler = resolveLibraryAction(capability, detail, {}, actionDeps);
+                if (handler) void controller.run(capability, 'save', handler);
+              }}
+              onpointerdown={capability === 'share' ? () => startPrewarm(detail.media) : undefined}
+              disabled={controller.isPending(capability)}
+              aria-busy={controller.isPending(capability)}
+              class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border text-text transition-colors hover:bg-surface-hover disabled:opacity-50"
+              aria-label={controller.isPending(capability)
+                ? m.library_share_preparing()
+                : libraryActionLabel(capability)}
+              title={controller.isPending(capability)
+                ? m.library_share_preparing()
+                : libraryActionLabel(capability)}
+            >
+              {#if controller.isPending(capability)}
+                <Spinner size="xs" label={m.library_share_preparing()} />
+              {:else if capability === 'share'}
+                <Share size={13} />
+              {:else}
+                <Download size={13} />
+              {/if}
+            </button>
+          {/each}
+          {#if detail.available_actions.includes('delete')}
+            <button
+              onclick={() => (showDeleteConfirm = true)}
+              class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-danger/30 text-danger transition-colors hover:bg-danger/10"
+              aria-label={m.common_delete()}
+            >
+              <X size={13} />
+            </button>
+          {/if}
+        </div>
+      {:else}
+        <div class="h-9" aria-hidden="true"></div>
+      {/if}
 
       <!-- Project supports the PATCH tri-state: a concrete project, loading/unknown, or null. -->
       <div class="flex items-center justify-between gap-3 border-y border-border py-3">
@@ -791,7 +769,7 @@
           <Maximize2 size={16} />
         </button>
       {:else if detailQuery.isLoading || groupQuery.isLoading}
-        <Spinner size="lg" class="h-10 w-10" label={m.common_loading()} />
+        <Spinner size="3xl" label={m.common_loading()} />
       {:else if detailQuery.isError}
         <p class="text-sm text-danger">{m.error_generic()}</p>
       {/if}

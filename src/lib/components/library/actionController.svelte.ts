@@ -1,25 +1,31 @@
-/**
- * Tracks which library action is currently running so a slow navigation action or save can't
- * be double-fired by a second tap. A second `run()` call while one is already pending is a
- * no-op — not a second share sheet, not a second navigation.
- */
+import { SvelteSet } from 'svelte/reactivity';
+
+export type ActionGroup = 'save' | 'navigate';
+
+/** Tracks per-action pending state while serializing navigation actions that would otherwise
+ * race each other. Save actions remain independent, but a second tap on the same one is ignored. */
 export function createActionController() {
-  let runningKey = $state<string | null>(null);
+  const running = new SvelteSet<string>();
+  const groups = new SvelteSet<ActionGroup>();
 
   return {
-    get pending(): boolean {
-      return runningKey !== null;
-    },
     isPending(key: string): boolean {
-      return runningKey === key;
+      return running.has(key);
     },
-    async run(key: string, fn: () => void | Promise<void>): Promise<void> {
-      if (runningKey !== null) return;
-      runningKey = key;
+    isGroupPending(group: ActionGroup): boolean {
+      return groups.has(group);
+    },
+    async run(key: string, group: ActionGroup, fn: () => void | Promise<void>): Promise<void> {
+      if (running.has(key) || (group === 'navigate' && groups.has(group))) return;
+
+      running.add(key);
+      if (group === 'navigate') groups.add(group);
+
       try {
         await fn();
       } finally {
-        runningKey = null;
+        running.delete(key);
+        if (group === 'navigate') groups.delete(group);
       }
     },
   };

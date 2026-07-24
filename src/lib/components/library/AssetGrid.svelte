@@ -21,6 +21,7 @@
     bulkErrorRefs = new Set<string>(),
     onToggleSelect,
     availableModes,
+    providersReady = true,
     actionDeps,
   }: {
     items: LibraryAssetItem[];
@@ -36,6 +37,7 @@
     bulkErrorRefs?: ReadonlySet<string>;
     onToggleSelect?: (item: LibraryAssetItem) => void;
     availableModes: ReadonlySet<GenerationMode>;
+    providersReady?: boolean;
     actionDeps: LibraryActionDeps;
   } = $props();
 </script>
@@ -54,6 +56,7 @@
       bulkError={bulkErrorRefs.has(item.asset_ref)}
       {onToggleSelect}
       {availableModes}
+      {providersReady}
       {actionDeps}
     />
   {/each}

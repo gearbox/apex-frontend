@@ -119,6 +119,14 @@ describe('generation draft baseline', () => {
 });
 
 describe('generationStore — prefill', () => {
+  it('does not overwrite a non-nullable field when it is explicitly undefined', () => {
+    generationStore.setNegativePrompt('keep this negative prompt');
+
+    generationStore.prefill({ negativePrompt: undefined });
+
+    expect(get(generationStore).negativePrompt).toBe('keep this negative prompt');
+  });
+
   it('resets image source fields when not provided in params', () => {
     generationStore.setSourceOutputId('output_001', '/v1/content/outputs/output_001');
     generationStore.prefill({ prompt: 'a cat' });

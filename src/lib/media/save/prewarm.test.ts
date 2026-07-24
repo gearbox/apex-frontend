@@ -61,13 +61,12 @@ describe('prewarmMedia', () => {
     // runner flagging one is the assertion.
   });
 
-  it('forwards the abort signal to the fetcher', () => {
+  it('starts the fetch without a cancellation signal', () => {
     fetchOriginalBlobMock.mockResolvedValue(new Blob(['bytes']));
-    const controller = new AbortController();
     const asset = media();
 
-    prewarmMedia(asset, controller.signal);
+    prewarmMedia(asset);
 
-    expect(fetchOriginalBlobMock).toHaveBeenCalledWith(asset, controller.signal);
+    expect(fetchOriginalBlobMock).toHaveBeenCalledWith(asset);
   });
 });

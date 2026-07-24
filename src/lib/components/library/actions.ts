@@ -39,6 +39,7 @@ export type LibraryUiAction = LibraryAction | 'share';
 type MediaObject = components['schemas']['MediaObject'];
 type GenerationType = components['schemas']['GenerationType'];
 type AspectRatio = components['schemas']['AspectRatio'];
+type ModelType = components['schemas']['ModelType'];
 type LibraryAssetDetail = components['schemas']['LibraryAssetDetail'];
 type ProvidersResponse = components['schemas']['ProvidersResponse'];
 
@@ -102,6 +103,28 @@ function prefillAndGo(
   (deps.navigate ?? goto)(ROUTES.create);
 }
 
+/** i2i reshapes via editAspectRatio and must be validated against the resolved model's real
+ * edit capabilities; every other mode uses the t2i/video aspectRatio field. */
+export function aspectRatioPrefill(
+  aspectRatio: string | null | undefined,
+  mode: GenerationMode,
+  model: ModelType,
+  providers: ProvidersResponse | null | undefined,
+): Pick<GenerationState, 'aspectRatio'> | Pick<GenerationState, 'editAspectRatio'> | undefined {
+  if (!aspectRatio) return undefined;
+
+  if (mode === 'i2i') {
+    const editRatios = getEditAspectRatios(findModelInfo(providers, model));
+    return (editRatios as readonly string[]).includes(aspectRatio)
+      ? { editAspectRatio: aspectRatio as AspectRatio }
+      : undefined;
+  }
+
+  return (KNOWN_ASPECT_RATIOS as readonly string[]).includes(aspectRatio)
+    ? { aspectRatio: aspectRatio as AspectRatio }
+    : undefined;
+}
+
 /** Prefills the generation store with this asset as the source image and navigates to Create. */
 function useAsSource(
   asset: LibraryActionAsset,
@@ -121,6 +144,8 @@ function useAsSource(
   prefillAndGo(
     {
       ...(keepPrompt ? { prompt: asset.prompt ?? '' } : {}),
+      // `x ?? undefined` means "omit"; generationStore.prefill filters undefined keys so it
+      // never overwrites its non-nullable negativePrompt field.
       negativePrompt: asset.negative_prompt ?? undefined,
       model,
       mode,
@@ -184,24 +209,12 @@ async function reproduce(asset: LibraryActionAsset, deps: LibraryActionDeps): Pr
 
     const prefillParams: Partial<GenerationState> = {
       prompt: detail.prompt ?? '',
+      // See the undefined-key guard in generationStore.prefill.
       negativePrompt: detail.negative_prompt ?? undefined,
       model,
       mode,
+      ...aspectRatioPrefill(detail.aspect_ratio, mode, model, deps.providers),
     };
-
-    // Validated against the resolved model's real capabilities — never pass a raw backend
-    // string straight through to the store.
-    if (mode === 'i2i') {
-      const editRatios = getEditAspectRatios(findModelInfo(deps.providers, model));
-      if (detail.aspect_ratio && (editRatios as readonly string[]).includes(detail.aspect_ratio)) {
-        prefillParams.editAspectRatio = detail.aspect_ratio as AspectRatio;
-      }
-    } else if (
-      detail.aspect_ratio &&
-      (KNOWN_ASPECT_RATIOS as readonly string[]).includes(detail.aspect_ratio)
-    ) {
-      prefillParams.aspectRatio = detail.aspect_ratio as AspectRatio;
-    }
 
     prefillAndGo(prefillParams, deps, afterPrefill);
   } catch {
@@ -236,15 +249,17 @@ export function resolveLibraryAction(
       return callbacks.onViewSettings ?? null;
     case 'remix':
     case 'create_variation':
-      return () => useAsSource(asset, ACTION_MODE[action] as GenerationMode, true, deps);
     case 'animate':
-      return () => useAsSource(asset, ACTION_MODE[action] as GenerationMode, true, deps);
-    case 'extend':
-      return () => useAsSource(asset, ACTION_MODE[action] as GenerationMode, true, deps);
+    case 'extend': {
+      const mode = ACTION_MODE[action];
+      return mode ? () => useAsSource(asset, mode, true, deps) : null;
+    }
     case 'use_as_reference':
     case 'use_as_first_frame':
-    case 'use_as_last_frame':
-      return () => useAsSource(asset, ACTION_MODE[action] as GenerationMode, false, deps);
+    case 'use_as_last_frame': {
+      const mode = ACTION_MODE[action];
+      return mode ? () => useAsSource(asset, mode, false, deps) : null;
+    }
     case 'reproduce':
       return () => reproduce(asset, deps);
     default:

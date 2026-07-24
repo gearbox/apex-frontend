@@ -106,24 +106,24 @@ describe('getOrFetchBlob', () => {
     expect(fetcher).toHaveBeenCalledTimes(2);
   });
 
-  it('shares one in-flight fetch between concurrent callers for the same URL', async () => {
+  it('lets a save join a prewarm request without starting another fetch', async () => {
     const blob = new Blob(['a']);
     let resolveFetch: (blob: Blob) => void;
-    const fetcher = vi.fn(
+    const prewarmFetcher = vi.fn(
       () =>
         new Promise<Blob>((resolve) => {
           resolveFetch = resolve;
         }),
     );
+    const saveFetcher = vi.fn().mockResolvedValue(new Blob(['unexpected']));
 
-    const p1 = getOrFetchBlob('https://example.com/a', fetcher, () => 0);
-    const p2 = getOrFetchBlob('https://example.com/a', fetcher, () => 0);
+    const prewarm = getOrFetchBlob('https://example.com/a', prewarmFetcher, () => 0);
+    const save = getOrFetchBlob('https://example.com/a', saveFetcher, () => 0);
     resolveFetch!(blob);
 
-    const [b1, b2] = await Promise.all([p1, p2]);
-    expect(fetcher).toHaveBeenCalledTimes(1);
-    expect(b1).toBe(blob);
-    expect(b2).toBe(blob);
+    await expect(Promise.all([prewarm, save])).resolves.toEqual([blob, blob]);
+    expect(prewarmFetcher).toHaveBeenCalledTimes(1);
+    expect(saveFetcher).not.toHaveBeenCalled();
   });
 
   it('fetches independently for different URLs', async () => {

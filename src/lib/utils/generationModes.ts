@@ -45,12 +45,16 @@ export function isModelType(key: string): key is ModelType {
   return (MODEL_TYPES as readonly string[]).includes(key);
 }
 
-/** Every mode advertised by at least one enabled model, across all providers. */
+/**
+ * Every mode `resolveModelForMode` can satisfy with at least one enabled known model, across
+ * all providers. This must remain the exact visibility predicate for the resolver: an action
+ * that is visible for a mode must always have a model it can select.
+ */
 export function enabledModes(providers: ProvidersResponse | null | undefined): Set<GenerationMode> {
   const modes = new Set<GenerationMode>();
   for (const provider of providers?.providers ?? []) {
     for (const model of provider.models) {
-      if (!model.is_enabled) continue;
+      if (!model.is_enabled || !isModelType(model.model_key)) continue;
       for (const capability of model.capabilities) {
         if (isGenerationMode(capability)) modes.add(capability);
       }

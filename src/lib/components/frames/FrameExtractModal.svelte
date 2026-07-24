@@ -563,7 +563,7 @@
       <div class="min-h-full p-4 pb-[max(1rem,env(safe-area-inset-bottom))] md:min-h-0 md:p-5">
         {#if phase === 'previewing'}
           <div class="flex min-h-48 flex-col items-center justify-center gap-3 text-center">
-            <Spinner size="lg" />
+            <Spinner size="xl" />
             <p class="text-sm text-text-muted" role="status" aria-live="polite">
               {m.frames_preview_loading()}
             </p>
