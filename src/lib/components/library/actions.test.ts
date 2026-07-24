@@ -13,6 +13,7 @@ import {
 import { SaveActivationError } from '$lib/media/save';
 import { addToast } from '$lib/stores/toasts';
 import { generationStore } from '$lib/stores/generation';
+import { buildGeneratePayload } from '$lib/utils/generatePayload';
 import type { GenerationMode } from '$lib/utils/generationModes';
 import { ROUTES } from '$lib/utils/routes';
 import {
@@ -21,7 +22,10 @@ import {
   makeLibraryLineage,
 } from '../../../mocks/factories/library';
 import { makeMediaObject } from '../../../mocks/factories/media';
-import { makeGrokImageModelInfo } from '../../../mocks/factories/providers';
+import {
+  makeAishaImageModelInfo,
+  makeGrokImageModelInfo,
+} from '../../../mocks/factories/providers';
 import type { components } from '$lib/api/types';
 
 type ProvidersResponse = components['schemas']['ProvidersResponse'];
@@ -239,54 +243,196 @@ describe('resolveLibraryAction — useAsSource (remix/animate/extend/etc.)', () 
     vi.mocked(addToast).mockClear();
   });
 
-  it('remix resolves to i2i on the source model and sets the source image after prefill', () => {
-    const asset: LibraryActionAsset = {
+  it('loads detail for a grid Remix and restores its original prompt and negative prompt', async () => {
+    const item = makeLibraryAssetItem({
       asset_ref: `output:${OUTPUT_UUID}`,
-      media: makeMediaObject(),
       model: 'grok-imagine-image',
+    });
+    expect('prompt' in item).toBe(false);
+    const detail = makeLibraryAssetDetail({
+      asset_ref: item.asset_ref,
       prompt: 'a cat astronaut',
-    };
+      negative_prompt: 'no blur',
+      model: 'grok-imagine-image',
+    });
     const navigate = vi.fn();
 
-    resolveLibraryAction('remix', asset, {}, makeDeps({ navigate }))?.();
+    await resolveLibraryAction(
+      'remix',
+      item,
+      {},
+      makeDeps({ navigate, loadDetail: vi.fn().mockResolvedValue(detail) }),
+    )?.();
 
     const state = get(generationStore);
     expect(state.mode).toBe('i2i');
     expect(state.model).toBe('grok-imagine-image');
     expect(state.prompt).toBe('a cat astronaut');
+    expect(state.negativePrompt).toBe('no blur');
     expect(state.sourceOutputId).toBe(OUTPUT_UUID);
     expect(navigate).toHaveBeenCalledWith(ROUTES.create);
   });
 
-  it('keeps negativePrompt a string when remixing a grid item with no negative_prompt', () => {
+  it('clears a stale negative prompt when a grid Remix detail has negative_prompt: null', async () => {
     const item = makeLibraryAssetItem({ asset_ref: `output:${OUTPUT_UUID}` });
     const navigate = vi.fn();
     generationStore.setNegativePrompt('no blur');
+    const detail = makeLibraryAssetDetail({
+      asset_ref: item.asset_ref,
+      prompt: 'a cat astronaut',
+      negative_prompt: null,
+    });
 
-    resolveLibraryAction('remix', item, {}, makeDeps({ navigate }))?.();
+    await resolveLibraryAction(
+      'remix',
+      item,
+      {},
+      makeDeps({ navigate, loadDetail: vi.fn().mockResolvedValue(detail) }),
+    )?.();
 
-    expect(get(generationStore).negativePrompt).toBe('no blur');
+    expect(get(generationStore).negativePrompt).toBe('');
     expect(typeof get(generationStore).negativePrompt).toBe('string');
   });
 
-  it('animate resolves a video-capable model when the source asset model is image-only', () => {
-    const asset: LibraryActionAsset = {
+  it('also clears a stale negative prompt when Remix starts from the detail sheet', async () => {
+    const detail = makeLibraryAssetDetail({
       asset_ref: `output:${OUTPUT_UUID}`,
-      media: makeMediaObject(),
-      model: 'grok-imagine-image',
       prompt: 'a cat astronaut',
-    };
+      negative_prompt: null,
+    });
     const navigate = vi.fn();
+    generationStore.setNegativePrompt('stale draft text');
 
-    resolveLibraryAction('animate', asset, {}, makeDeps({ navigate }))?.();
+    await resolveLibraryAction(
+      'remix',
+      detail,
+      {},
+      makeDeps({ navigate, loadDetail: vi.fn().mockResolvedValue(detail) }),
+    )?.();
 
-    const state = get(generationStore);
-    expect(state.mode).toBe('i2v');
-    expect(state.model).toBe('grok-imagine-video');
+    expect(get(generationStore).negativePrompt).toBe('');
+  });
+
+  it.each([
+    ['animate', 'i2v', 'grok-imagine-video'],
+    ['extend', 'v2v', 'grok-imagine-video'],
+  ] as const)(
+    '%s uses detail-backed prompt and resolved video model provenance',
+    async (action, expectedMode, expectedModel) => {
+      const item = makeLibraryAssetItem({
+        asset_ref: `output:${OUTPUT_UUID}`,
+        model: 'grok-imagine-image',
+      });
+      const detail = makeLibraryAssetDetail({
+        asset_ref: item.asset_ref,
+        model: 'grok-imagine-image',
+        prompt: 'a cat astronaut',
+        negative_prompt: 'no blur',
+      });
+      const navigate = vi.fn();
+
+      await resolveLibraryAction(
+        action,
+        item,
+        {},
+        makeDeps({ navigate, loadDetail: vi.fn().mockResolvedValue(detail) }),
+      )?.();
+
+      const state = get(generationStore);
+      expect(state.mode).toBe(expectedMode);
+      expect(state.model).toBe(expectedModel);
+      expect(state.prompt).toBe('a cat astronaut');
+      expect(state.negativePrompt).toBe('no blur');
+      expect(navigate).toHaveBeenCalledWith(ROUTES.create);
+    },
+  );
+
+  it('keeps the current draft text for use-as-reference', async () => {
+    const item = makeLibraryAssetItem({ asset_ref: `output:${OUTPUT_UUID}` });
+    const navigate = vi.fn();
+    const loadDetail = vi.fn();
+    generationStore.setPrompt('keep this prompt');
+    generationStore.setNegativePrompt('keep this negative prompt');
+
+    await resolveLibraryAction(
+      'use_as_reference',
+      item,
+      {},
+      makeDeps({ navigate, loadDetail }),
+    )?.();
+
+    expect(get(generationStore).prompt).toBe('keep this prompt');
+    expect(get(generationStore).negativePrompt).toBe('keep this negative prompt');
+    expect(loadDetail).not.toHaveBeenCalled();
     expect(navigate).toHaveBeenCalledWith(ROUTES.create);
   });
 
-  it('animate toasts and does not navigate when no enabled model supports i2v', () => {
+  it('leaves the complete draft unchanged when detail loading fails', async () => {
+    const item = makeLibraryAssetItem({ asset_ref: `output:${OUTPUT_UUID}` });
+    const navigate = vi.fn();
+    generationStore.setPrompt('preserve me');
+    generationStore.setNegativePrompt('preserve this too');
+    const before = get(generationStore);
+
+    await resolveLibraryAction(
+      'remix',
+      item,
+      {},
+      makeDeps({ navigate, loadDetail: vi.fn().mockRejectedValue(new Error('network')) }),
+    )?.();
+
+    expect(get(generationStore)).toEqual(before);
+    expect(navigate).not.toHaveBeenCalled();
+    expect(addToast).toHaveBeenCalledWith(expect.objectContaining({ type: 'error' }));
+  });
+
+  it('keeps a navigation action pending until the navigation promise settles', async () => {
+    const item = makeLibraryAssetItem({ asset_ref: `output:${OUTPUT_UUID}` });
+    const detail = makeLibraryAssetDetail({ asset_ref: item.asset_ref });
+    let resolveNavigation: () => void;
+    const navigate = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveNavigation = resolve;
+        }),
+    );
+    const handler = resolveLibraryAction(
+      'remix',
+      item,
+      {},
+      makeDeps({ navigate, loadDetail: vi.fn().mockResolvedValue(detail) }),
+    );
+    let settled = false;
+    const actionPromise = Promise.resolve(handler!()).then(() => {
+      settled = true;
+    });
+
+    await vi.waitFor(() => expect(navigate).toHaveBeenCalledWith(ROUTES.create));
+    expect(settled).toBe(false);
+
+    resolveNavigation!();
+    await actionPromise;
+    expect(settled).toBe(true);
+  });
+
+  it('handles a rejected navigation promise without leaking a rejection', async () => {
+    const item = makeLibraryAssetItem({ asset_ref: `output:${OUTPUT_UUID}` });
+    const detail = makeLibraryAssetDetail({ asset_ref: item.asset_ref });
+    const handler = resolveLibraryAction(
+      'remix',
+      item,
+      {},
+      makeDeps({
+        loadDetail: vi.fn().mockResolvedValue(detail),
+        navigate: vi.fn().mockRejectedValue(new Error('navigation failed')),
+      }),
+    );
+
+    await expect(handler!()).resolves.toBeUndefined();
+    expect(addToast).toHaveBeenCalledWith(expect.objectContaining({ type: 'error' }));
+  });
+
+  it('animate toasts and does not navigate when no enabled model supports i2v', async () => {
     const imageOnlyProviders: ProvidersResponse = {
       providers: [
         {
@@ -306,11 +452,15 @@ describe('resolveLibraryAction — useAsSource (remix/animate/extend/etc.)', () 
     };
     const navigate = vi.fn();
 
-    resolveLibraryAction(
+    await resolveLibraryAction(
       'animate',
       asset,
       {},
-      makeDeps({ providers: imageOnlyProviders, navigate }),
+      makeDeps({
+        providers: imageOnlyProviders,
+        navigate,
+        loadDetail: vi.fn().mockResolvedValue(makeLibraryAssetDetail(asset)),
+      }),
     )?.();
 
     expect(addToast).toHaveBeenCalledWith(expect.objectContaining({ type: 'error' }));
@@ -426,6 +576,34 @@ describe('resolveLibraryAction — reproduce', () => {
     expect(state.editAspectRatio).toBe('16:9');
     expect(state.uploadedImageId).toBe(SOURCE_UUID);
     expect(navigate).toHaveBeenCalledWith(ROUTES.create);
+  });
+
+  it('clears a stale negative prompt for null detail metadata and omits it from the payload', async () => {
+    const detail = makeLibraryAssetDetail({
+      asset_ref: `output:${OUTPUT_UUID}`,
+      generation_type: 't2i',
+      model: 'grok-imagine-image',
+      prompt: 'a lighthouse at dusk',
+      negative_prompt: null,
+    });
+    generationStore.setNegativePrompt('stale default negative text');
+
+    await resolveLibraryAction(
+      'reproduce',
+      detail,
+      {},
+      {
+        providers: makeProviders(),
+        loadDetail: vi.fn().mockResolvedValue(detail),
+        navigate: vi.fn(),
+      },
+    )?.();
+
+    const state = get(generationStore);
+    expect(state.negativePrompt).toBe('');
+    expect(buildGeneratePayload(state, makeAishaImageModelInfo())).not.toHaveProperty(
+      'negative_prompt',
+    );
   });
 
   it('leaves editAspectRatio null when the resolved model cannot reshape to the stored aspect ratio', async () => {

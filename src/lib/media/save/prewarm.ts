@@ -15,6 +15,10 @@ export const PREWARM_MAX_BYTES = 64 * 1024 * 1024;
 export function prewarmMedia(media: MediaObject): void {
   const { size_bytes } = media.original;
   if (size_bytes != null && size_bytes > PREWARM_MAX_BYTES) return;
+  // Images with an unknown size remain eligible: image assets are bounded by the API's image
+  // limits and are substantially less likely to create an unbounded speculative download.
+  // Videos are not; require a known size before fetching their complete original blob.
+  if (media.media_type === 'video' && size_bytes == null) return;
 
   const cacheKey = toMediaSrc(media.original.url);
   getOrFetchBlob(

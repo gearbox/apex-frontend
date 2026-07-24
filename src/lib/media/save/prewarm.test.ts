@@ -43,12 +43,39 @@ describe('prewarmMedia', () => {
   });
 
   it('skips media larger than PREWARM_MAX_BYTES', async () => {
-    const asset = media({ size_bytes: PREWARM_MAX_BYTES + 1 });
+    const asset = { ...media({ size_bytes: PREWARM_MAX_BYTES + 1 }), media_type: 'video' as const };
 
     prewarmMedia(asset);
     await Promise.resolve();
 
     expect(fetchOriginalBlobMock).not.toHaveBeenCalled();
+  });
+
+  it('skips an unknown-size video rather than speculatively fetching its complete blob', async () => {
+    const asset = { ...media({ size_bytes: undefined }), media_type: 'video' as const };
+
+    prewarmMedia(asset);
+    await Promise.resolve();
+
+    expect(fetchOriginalBlobMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps unknown-size images eligible for prewarming', async () => {
+    const asset = media({ size_bytes: undefined });
+    fetchOriginalBlobMock.mockResolvedValue(new Blob(['bytes']));
+
+    prewarmMedia(asset);
+
+    await vi.waitFor(() => expect(fetchOriginalBlobMock).toHaveBeenCalledWith(asset));
+  });
+
+  it('prewarms a known small video', async () => {
+    const asset = { ...media({ size_bytes: PREWARM_MAX_BYTES }), media_type: 'video' as const };
+    fetchOriginalBlobMock.mockResolvedValue(new Blob(['bytes']));
+
+    prewarmMedia(asset);
+
+    await vi.waitFor(() => expect(fetchOriginalBlobMock).toHaveBeenCalledWith(asset));
   });
 
   it('never throws or rejects when the fetch fails', async () => {

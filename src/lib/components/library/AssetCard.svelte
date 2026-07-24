@@ -15,11 +15,13 @@
   import { favoriteMutationOptions } from '$lib/queries/library';
   import {
     resolveLibraryAction,
+    libraryActionGroup,
     libraryActionLabel,
     filterVisibleLibraryActions,
     LIBRARY_ACTION_ICONS,
     type LibraryActionDeps,
   } from './actions';
+  import { createActionController, type ActionController } from './actionController.svelte';
   import { prewarmMedia } from '$lib/media/save/prewarm';
   import type { GenerationMode } from '$lib/utils/generationModes';
   import { EXPIRES_SOON_MS } from '$lib/utils/constants';
@@ -43,6 +45,7 @@
     availableModes,
     providersReady = true,
     actionDeps,
+    actionController = createActionController(),
   }: {
     item: LibraryAssetItem;
     onclick: () => void;
@@ -61,6 +64,8 @@
     /** Avoids context-menu actions appearing after the providers query settles. */
     providersReady?: boolean;
     actionDeps: LibraryActionDeps;
+    /** AssetGrid supplies one controller so grid actions serialize across cards. */
+    actionController?: ActionController;
   } = $props();
 
   const isVideo = $derived(item.media.media_type === 'video');
@@ -146,12 +151,21 @@
           actionDeps,
         );
         if (!handler) return null;
+        const group = libraryActionGroup(action);
+        const key = `${item.asset_ref}:${action}`;
         return {
           label: libraryActionLabel(action, item.is_favorite),
           icon: LIBRARY_ACTION_ICONS[action],
           variant: action === 'delete' ? ('danger' as const) : ('default' as const),
-          onclick: handler,
+          onclick: group ? () => actionController.run(key, group, handler) : handler,
           onpointerdown: action === 'share' ? () => prewarmMedia(item.media) : undefined,
+          disabled:
+            group === 'navigate'
+              ? actionController.isGroupPending('navigate')
+              : group === 'save'
+                ? actionController.isPending(key)
+                : false,
+          pending: group ? actionController.isPending(key) : false,
         };
       })
       .filter((entry): entry is NonNullable<typeof entry> => entry !== null),

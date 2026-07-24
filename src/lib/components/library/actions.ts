@@ -36,6 +36,7 @@ import * as m from '$paraglide/messages';
 export type LibraryAction = components['schemas']['LibraryAction'];
 /** Frontend-only pseudo-action layered on top of the backend enum — never sent to the API. */
 export type LibraryUiAction = LibraryAction | 'share';
+export type LibraryActionGroup = 'save' | 'navigate';
 type MediaObject = components['schemas']['MediaObject'];
 type GenerationType = components['schemas']['GenerationType'];
 type AspectRatio = components['schemas']['AspectRatio'];
@@ -68,18 +69,43 @@ export interface LibraryActionDeps {
   /** `queryClient.ensureQueryData(libraryAssetQueryOptions(ref))` at the call site. */
   loadDetail: (assetRef: string) => Promise<LibraryAssetDetail>;
   /** Defaults to `goto` — injected only for tests. */
-  navigate?: (path: string) => void;
+  navigate?: (path: string) => void | Promise<void>;
 }
+
+type SourceAction =
+  | 'remix'
+  | 'create_variation'
+  | 'animate'
+  | 'extend'
+  | 'use_as_reference'
+  | 'use_as_first_frame'
+  | 'use_as_last_frame';
+
+/** The prompt policy is deliberately explicit: source-only actions preserve the user's draft,
+ * while provenance actions replace it with the original generation text from asset detail. */
+const SOURCE_ACTION_POLICY: Record<
+  SourceAction,
+  { mode: GenerationMode; prompt: 'copy-provenance' | 'preserve-draft' }
+> = {
+  remix: { mode: 'i2i', prompt: 'copy-provenance' },
+  create_variation: { mode: 'i2i', prompt: 'copy-provenance' },
+  animate: { mode: 'i2v', prompt: 'copy-provenance' },
+  extend: { mode: 'v2v', prompt: 'copy-provenance' },
+  use_as_reference: { mode: 'i2i', prompt: 'preserve-draft' },
+  use_as_first_frame: { mode: 'flf2v', prompt: 'preserve-draft' },
+  use_as_last_frame: { mode: 'flf2v', prompt: 'preserve-draft' },
+};
 
 /** The generation mode each navigation action prefills toward. Also drives visibility. */
 export const ACTION_MODE: Partial<Record<LibraryAction, GenerationMode>> = {
-  remix: 'i2i',
-  create_variation: 'i2i',
-  use_as_reference: 'i2i',
-  animate: 'i2v',
-  extend: 'v2v',
-  use_as_first_frame: 'flf2v', // deferred — no model exposes it yet; hidden by availableModes
-  use_as_last_frame: 'flf2v', // deferred — no model exposes it yet; hidden by availableModes
+  remix: SOURCE_ACTION_POLICY.remix.mode,
+  create_variation: SOURCE_ACTION_POLICY.create_variation.mode,
+  use_as_reference: SOURCE_ACTION_POLICY.use_as_reference.mode,
+  animate: SOURCE_ACTION_POLICY.animate.mode,
+  extend: SOURCE_ACTION_POLICY.extend.mode,
+  // Deferred — no model exposes flf2v yet, so filterVisibleLibraryActions hides them.
+  use_as_first_frame: SOURCE_ACTION_POLICY.use_as_first_frame.mode,
+  use_as_last_frame: SOURCE_ACTION_POLICY.use_as_last_frame.mode,
 };
 
 async function saveAsset(asset: LibraryActionAsset, mode: SaveCapability) {
@@ -93,14 +119,14 @@ async function saveAsset(asset: LibraryActionAsset, mode: SaveCapability) {
 
 /** Shared prefill+navigate tail. `afterPrefill` runs between the two — the only place an image
  *  source may be set, since `prefill` itself resets image-source fields unless present in params. */
-function prefillAndGo(
+async function prefillAndGo(
   params: Partial<GenerationState>,
   deps: LibraryActionDeps,
   afterPrefill?: () => void,
-): void {
+): Promise<void> {
   generationStore.prefill(params);
   afterPrefill?.();
-  (deps.navigate ?? goto)(ROUTES.create);
+  await Promise.resolve((deps.navigate ?? goto)(ROUTES.create));
 }
 
 /** i2i reshapes via editAspectRatio and must be validated against the resolved model's real
@@ -125,40 +151,53 @@ export function aspectRatioPrefill(
     : undefined;
 }
 
-/** Prefills the generation store with this asset as the source image and navigates to Create. */
-function useAsSource(
+/** Prefills the generation store with this asset as the source image and navigates to Create.
+ * Provenance actions fetch detail first because list summaries intentionally omit prompt fields. */
+async function useAsSource(
+  action: SourceAction,
   asset: LibraryActionAsset,
-  mode: GenerationMode,
-  keepPrompt: boolean,
   deps: LibraryActionDeps,
-): void {
-  const model = resolveModelForMode(deps.providers, mode, asset.model);
-  if (!model) {
-    addToast({ type: 'error', message: m.library_action_no_model() });
-    return;
-  }
+): Promise<void> {
+  const policy = SOURCE_ACTION_POLICY[action];
 
-  const { source, id } = parseAssetRef(asset.asset_ref);
-  const previewUrl = mediaFallbackSrc(asset.media, 512);
+  try {
+    // A summary's missing field is not equivalent to a detail's explicit null. Only provenance
+    // actions need generation metadata; source-only actions intentionally preserve draft text.
+    const sourceAsset =
+      policy.prompt === 'copy-provenance' ? await deps.loadDetail(asset.asset_ref) : asset;
+    const model = resolveModelForMode(deps.providers, policy.mode, sourceAsset.model);
+    if (!model) {
+      addToast({ type: 'error', message: m.library_action_no_model() });
+      return;
+    }
 
-  prefillAndGo(
-    {
-      ...(keepPrompt ? { prompt: asset.prompt ?? '' } : {}),
-      // `x ?? undefined` means "omit"; generationStore.prefill filters undefined keys so it
-      // never overwrites its non-nullable negativePrompt field.
-      negativePrompt: asset.negative_prompt ?? undefined,
+    const { source, id } = parseAssetRef(sourceAsset.asset_ref);
+    const previewUrl = mediaFallbackSrc(sourceAsset.media, 512);
+    const prefillParams: Partial<GenerationState> = {
       model,
-      mode,
-    },
-    deps,
-    () => {
+      mode: policy.mode,
+      ...(policy.prompt === 'copy-provenance'
+        ? {
+            prompt: sourceAsset.prompt ?? '',
+            // An explicit detail null means this generation had no negative prompt, so clear
+            // rather than retain a stale/default non-nullable draft value.
+            negativePrompt: sourceAsset.negative_prompt ?? '',
+          }
+        : {}),
+    };
+
+    await prefillAndGo(prefillParams, deps, () => {
       if (source === 'output') {
         generationStore.setSourceOutputId(id, previewUrl);
       } else {
         generationStore.setUploadedImageId(id, previewUrl);
       }
-    },
-  );
+    });
+  } catch {
+    // This includes detail resolution and navigation. All handlers are safe to invoke
+    // fire-and-forget by ContextMenu, so failures must be surfaced rather than rejected.
+    addToast({ type: 'error', message: m.error_generic() });
+  }
 }
 
 /**
@@ -209,14 +248,14 @@ async function reproduce(asset: LibraryActionAsset, deps: LibraryActionDeps): Pr
 
     const prefillParams: Partial<GenerationState> = {
       prompt: detail.prompt ?? '',
-      // See the undefined-key guard in generationStore.prefill.
-      negativePrompt: detail.negative_prompt ?? undefined,
+      // Explicit detail null means the original generation had no negative prompt.
+      negativePrompt: detail.negative_prompt ?? '',
       model,
       mode,
       ...aspectRatioPrefill(detail.aspect_ratio, mode, model, deps.providers),
     };
 
-    prefillAndGo(prefillParams, deps, afterPrefill);
+    await prefillAndGo(prefillParams, deps, afterPrefill);
   } catch {
     addToast({ type: 'error', message: m.error_generic() });
   }
@@ -250,21 +289,24 @@ export function resolveLibraryAction(
     case 'remix':
     case 'create_variation':
     case 'animate':
-    case 'extend': {
-      const mode = ACTION_MODE[action];
-      return mode ? () => useAsSource(asset, mode, true, deps) : null;
-    }
+    case 'extend':
     case 'use_as_reference':
     case 'use_as_first_frame':
-    case 'use_as_last_frame': {
-      const mode = ACTION_MODE[action];
-      return mode ? () => useAsSource(asset, mode, false, deps) : null;
-    }
+    case 'use_as_last_frame':
+      return () => useAsSource(action, asset, deps);
     case 'reproduce':
       return () => reproduce(asset, deps);
     default:
       return null;
   }
+}
+
+/** The controller policy for Library actions. Navigation is globally serialized per owner;
+ * saves are scoped by the caller-provided action key so different assets remain independent. */
+export function libraryActionGroup(action: LibraryUiAction): LibraryActionGroup | null {
+  if (action === 'share' || action === 'download') return 'save';
+  if (action === 'reproduce' || action in SOURCE_ACTION_POLICY) return 'navigate';
+  return null;
 }
 
 export const LIBRARY_ACTION_ICONS: Record<LibraryUiAction, ComponentType<SvelteComponent>> = {

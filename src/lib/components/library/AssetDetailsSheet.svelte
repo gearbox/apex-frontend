@@ -29,7 +29,7 @@
   import { resolveLibraryAction, libraryActionLabel, filterVisibleLibraryActions } from './actions';
   import { createLibraryActionDeps } from './actionDeps';
   import { createActionController } from './actionController.svelte';
-  import { resolveSaveCapabilities } from '$lib/media/save';
+  import { resolveSaveCapabilities, type SaveCapability } from '$lib/media/save';
   import { prewarmMedia } from '$lib/media/save/prewarm';
   import Spinner from '$lib/components/ui/Spinner.svelte';
   import { parseAssetRef } from '$lib/utils/assetRef';
@@ -148,6 +148,10 @@
    *  common path hits a warm cache and never shows the save spinner at all. */
   function startPrewarm(media: components['schemas']['MediaObject']) {
     prewarmMedia(media);
+  }
+
+  function saveActionKey(assetRef: string, capability: SaveCapability): string {
+    return `${assetRef}:${capability}`;
   }
 
   function resetAssetUi() {
@@ -519,23 +523,24 @@
             </button>
           {/each}
           {#each saveActions as capability (capability)}
+            {@const actionKey = saveActionKey(detail.asset_ref, capability)}
             <button
               onclick={() => {
                 const handler = resolveLibraryAction(capability, detail, {}, actionDeps);
-                if (handler) void controller.run(capability, 'save', handler);
+                if (handler) void controller.run(actionKey, 'save', handler);
               }}
               onpointerdown={capability === 'share' ? () => startPrewarm(detail.media) : undefined}
-              disabled={controller.isPending(capability)}
-              aria-busy={controller.isPending(capability)}
+              disabled={controller.isPending(actionKey)}
+              aria-busy={controller.isPending(actionKey)}
               class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border text-text transition-colors hover:bg-surface-hover disabled:opacity-50"
-              aria-label={controller.isPending(capability)
+              aria-label={controller.isPending(actionKey)
                 ? m.library_share_preparing()
                 : libraryActionLabel(capability)}
-              title={controller.isPending(capability)
+              title={controller.isPending(actionKey)
                 ? m.library_share_preparing()
                 : libraryActionLabel(capability)}
             >
-              {#if controller.isPending(capability)}
+              {#if controller.isPending(actionKey)}
                 <Spinner size="xs" label={m.library_share_preparing()} />
               {:else if capability === 'share'}
                 <Share size={13} />
