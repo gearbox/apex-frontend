@@ -52,6 +52,9 @@ export function posterSrc(m: MediaObject): string | undefined {
 
 /** Frame-precision timestamp (mm:ss.mmm) for millisecond-based callers, e.g. FrameScrubber. */
 export function formatTimestampFromMs(timestampMs: number): string {
+  // Number.isFinite (not Number.isNaN) — a video's `duration` is `Infinity` for
+  // live/streaming sources, which Number.isNaN alone would let through to Math.round.
+  if (!Number.isFinite(timestampMs)) return '--:--.---';
   const value = Math.max(0, Math.round(timestampMs));
   const minutes = Math.floor(value / 60_000);
   const seconds = Math.floor((value % 60_000) / 1_000);
@@ -63,6 +66,7 @@ export function formatTimestampFromMs(timestampMs: number): string {
 
 /** Playback timestamp (mm:ss) for second-based callers, e.g. HTMLVideoElement.currentTime. */
 export function formatTimestampFromSeconds(timestampSeconds: number): string {
+  if (!Number.isFinite(timestampSeconds)) return '--:--';
   const value = Math.max(0, Math.round(timestampSeconds));
   const minutes = Math.floor(value / 60);
   const seconds = value % 60;

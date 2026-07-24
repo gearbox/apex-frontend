@@ -1,17 +1,21 @@
-import { describe, it, expect, vi, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { render } from '@testing-library/svelte';
 import MediaVideo from './MediaVideo.svelte';
+import { installMediaElementStubs } from './testing/mediaElementStubs';
 import type { components } from '$lib/api/types';
 
 type MediaObject = components['schemas']['MediaObject'];
 
 const ORIGIN = 'http://localhost:8000';
 
+let restoreMediaElementStubs: () => void;
+
 beforeAll(() => {
-  // jsdom has no media playback pipeline; bind:paused invokes play()/pause() on the
-  // underlying <video> whenever the bound value changes.
-  vi.spyOn(window.HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
-  vi.spyOn(window.HTMLMediaElement.prototype, 'pause').mockImplementation(() => {});
+  restoreMediaElementStubs = installMediaElementStubs();
+});
+
+afterAll(() => {
+  restoreMediaElementStubs();
 });
 
 function makeVideoMedia(overrides: Partial<MediaObject> = {}): MediaObject {

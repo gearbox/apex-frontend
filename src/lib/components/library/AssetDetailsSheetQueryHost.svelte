@@ -10,7 +10,9 @@
     hasPrev = false,
     hasNext = false,
     fullscreen = false,
-    onfullscreenchange,
+    onfullscreenchange = () => {},
+    muted = true,
+    onmutedchange = () => {},
   }: {
     assetRef: string;
     jobIdHint?: string | null;
@@ -20,6 +22,8 @@
     hasNext?: boolean;
     fullscreen?: boolean;
     onfullscreenchange?: (value: boolean) => void;
+    muted?: boolean;
+    onmutedchange?: (value: boolean) => void;
   } = $props();
 
   const queryClient = new QueryClient({
@@ -37,5 +41,7 @@
     {hasNext}
     {fullscreen}
     {onfullscreenchange}
+    {muted}
+    {onmutedchange}
   />
 </QueryClientProvider>

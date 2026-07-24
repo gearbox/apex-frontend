@@ -153,6 +153,18 @@ describe('formatTimestampFromMs', () => {
   it('clamps negative values to zero', () => {
     expect(formatTimestampFromMs(-500)).toBe('00:00.000');
   });
+
+  it('returns a placeholder for NaN', () => {
+    expect(formatTimestampFromMs(NaN)).toBe('--:--.---');
+  });
+
+  it('returns a placeholder for Infinity', () => {
+    expect(formatTimestampFromMs(Infinity)).toBe('--:--.---');
+  });
+
+  it('returns a placeholder for -Infinity', () => {
+    expect(formatTimestampFromMs(-Infinity)).toBe('--:--.---');
+  });
 });
 
 describe('formatTimestampFromSeconds', () => {
@@ -166,5 +178,17 @@ describe('formatTimestampFromSeconds', () => {
 
   it('clamps negative values to zero', () => {
     expect(formatTimestampFromSeconds(-5)).toBe('00:00');
+  });
+
+  it('returns a placeholder for NaN', () => {
+    expect(formatTimestampFromSeconds(NaN)).toBe('--:--');
+  });
+
+  it('returns a placeholder for Infinity', () => {
+    expect(formatTimestampFromSeconds(Infinity)).toBe('--:--');
+  });
+
+  it('returns a placeholder for -Infinity', () => {
+    expect(formatTimestampFromSeconds(-Infinity)).toBe('--:--');
   });
 });

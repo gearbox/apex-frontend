@@ -33,6 +33,8 @@ let groupData: LibraryGroupDetail | undefined;
 let lineageQueryCalls = 0;
 const mutateAsyncMock = vi.fn();
 const oncloseMock = vi.fn();
+const onmutedchangeMock = vi.fn();
+const onfullscreenchangeMock = vi.fn();
 
 vi.mock('@tanstack/svelte-query', () => ({
   createQuery: vi.fn((optionsFn: () => { queryKey: readonly unknown[] }) => {
@@ -128,9 +130,39 @@ vi.mock('$lib/media/save', async (importOriginal) => {
 
 import AssetDetailsSheet from './AssetDetailsSheet.svelte';
 
+type AssetDetailsSheetTestProps = {
+  assetRef: string;
+  onclose?: () => void;
+  startInRename?: boolean;
+  startFrameExtraction?: boolean;
+  jobIdHint?: string | null;
+  onnavigate?: (direction: 'prev' | 'next') => void;
+  hasPrev?: boolean;
+  hasNext?: boolean;
+  fullscreen?: boolean;
+  onfullscreenchange?: (value: boolean) => void;
+  muted?: boolean;
+  onmutedchange?: (value: boolean) => void;
+};
+
+// `onclose`/`onfullscreenchange`/`onmutedchange` are all required props on AssetDetailsSheet;
+// this centralises the boilerplate mocks so individual tests only spell out what they exercise.
+function renderSheet(props: AssetDetailsSheetTestProps) {
+  return render(AssetDetailsSheet, {
+    props: {
+      onclose: oncloseMock,
+      onfullscreenchange: onfullscreenchangeMock,
+      onmutedchange: onmutedchangeMock,
+      ...props,
+    },
+  });
+}
+
 beforeEach(() => {
   mutateAsyncMock.mockClear();
   oncloseMock.mockClear();
+  onmutedchangeMock.mockClear();
+  onfullscreenchangeMock.mockClear();
   lineageQueryCalls = 0;
   groupData = undefined;
   resolveSaveCapabilitiesMock.mockReturnValue(['download']);
@@ -154,9 +186,7 @@ describe('AssetDetailsSheet — unified variation selection', () => {
       ],
     });
 
-    render(AssetDetailsSheet, {
-      props: { assetRef: 'output:b', jobIdHint: 'job-group', onclose: oncloseMock },
-    });
+    renderSheet({ assetRef: 'output:b', jobIdHint: 'job-group' });
 
     expect(
       screen.getByRole('button', { name: 'Variation 2 of 3' }).getAttribute('aria-pressed'),
@@ -185,9 +215,7 @@ describe('AssetDetailsSheet — unified variation selection', () => {
       ],
     });
 
-    const { container } = render(AssetDetailsSheet, {
-      props: { assetRef: 'output:a', jobIdHint: 'job-group', onclose: oncloseMock },
-    });
+    const { container } = renderSheet({ assetRef: 'output:a', jobIdHint: 'job-group' });
 
     expect(container.querySelectorAll('video')).toHaveLength(1);
   });
@@ -197,14 +225,72 @@ describe('AssetDetailsSheet — video stage', () => {
   it('renders VideoStage (no native controls, app-owned control bar) instead of a bare MediaVideo', () => {
     const video = makeVideoMediaObject();
     detailData = makeLibraryAssetDetail({ asset_ref: 'output:abc', media: video });
-    const { container } = render(AssetDetailsSheet, {
-      props: { assetRef: 'output:abc', onclose: oncloseMock },
-    });
+    const { container } = renderSheet({ assetRef: 'output:abc' });
 
     const videoEl = container.querySelector('video');
     expect(videoEl).not.toBeNull();
     expect(videoEl?.hasAttribute('controls')).toBe(false);
     expect(container.querySelector('[data-swipe-passthrough]')).not.toBeNull();
+  });
+});
+
+describe('AssetDetailsSheet — video stage activity gating', () => {
+  it('marks the inline stage inactive and the fullscreen stage active when fullscreen is open', () => {
+    const video = makeVideoMediaObject();
+    detailData = makeLibraryAssetDetail({ asset_ref: 'output:abc', media: video });
+    const { container } = renderSheet({ assetRef: 'output:abc', fullscreen: true });
+
+    // Both stages stay mounted at once (see fix-video-stage-review.md D1) — one inline, one
+    // in the fullscreen overlay — so exactly two <video> elements and two control bars exist.
+    expect(container.querySelectorAll('video')).toHaveLength(2);
+
+    // jsdom doesn't reflect the `inert` IDL property to an attribute (no getter/setter on
+    // HTMLElement.prototype at all), even though Svelte always assigns it as a property — so
+    // this asserts on the property, not `hasAttribute`, which would never see it here.
+    const bars = container.querySelectorAll<HTMLElement & { inert: boolean }>(
+      '[data-swipe-passthrough]',
+    );
+    expect(bars).toHaveLength(2);
+    // Document order: the inline stage (inactive while fullscreen is open) renders first,
+    // the fullscreen overlay stage (active) renders second.
+    expect(bars[0].inert).toBe(true);
+    expect(bars[1].inert).toBeFalsy();
+  });
+
+  it('marks the single (inline) stage active when fullscreen is closed', () => {
+    const video = makeVideoMediaObject();
+    detailData = makeLibraryAssetDetail({ asset_ref: 'output:abc', media: video });
+    const { container } = renderSheet({ assetRef: 'output:abc', fullscreen: false });
+
+    expect(container.querySelectorAll('video')).toHaveLength(1);
+    const bar = container.querySelector<HTMLElement & { inert: boolean }>(
+      '[data-swipe-passthrough]',
+    );
+    expect(bar?.inert).toBeFalsy();
+  });
+});
+
+describe('AssetDetailsSheet — keyboard: scrub range keeps native arrow semantics', () => {
+  it('does not navigate on arrow keys targeting the scrub range, but Escape still closes', async () => {
+    const video = makeVideoMediaObject();
+    detailData = makeLibraryAssetDetail({ asset_ref: 'output:abc', media: video });
+    const onnavigate = vi.fn();
+    const { container } = renderSheet({
+      assetRef: 'output:abc',
+      onnavigate,
+      hasPrev: true,
+      hasNext: true,
+    });
+
+    const range = container.querySelector('input[type="range"]') as HTMLInputElement;
+    expect(range).not.toBeNull();
+
+    await fireEvent.keyDown(range, { key: 'ArrowRight' });
+    await fireEvent.keyDown(range, { key: 'ArrowLeft' });
+    expect(onnavigate).not.toHaveBeenCalled();
+
+    await fireEvent.keyDown(range, { key: 'Escape' });
+    expect(oncloseMock).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -218,7 +304,7 @@ describe('AssetDetailsSheet — conditional metadata sections', () => {
       provider: null,
       prompt: null,
     });
-    render(AssetDetailsSheet, { props: { assetRef: 'upload:abc', onclose: oncloseMock } });
+    renderSheet({ assetRef: 'upload:abc' });
 
     // "vacation.jpg" appears twice: as the title and as the Filename metadata value.
     expect(screen.getAllByText('vacation.jpg').length).toBe(2);
@@ -235,7 +321,7 @@ describe('AssetDetailsSheet — conditional metadata sections', () => {
       provider: 'grok',
       prompt: 'a cat astronaut',
     });
-    render(AssetDetailsSheet, { props: { assetRef: 'output:abc', onclose: oncloseMock } });
+    renderSheet({ assetRef: 'output:abc' });
 
     expect(screen.getByText('Model')).toBeTruthy();
     expect(screen.getByText('grok-imagine-image')).toBeTruthy();
@@ -253,9 +339,7 @@ describe('AssetDetailsSheet — rename flow', () => {
       original_filename: 'old-name.jpg',
       available_actions: ['rename', 'favorite', 'download', 'delete'],
     });
-    render(AssetDetailsSheet, {
-      props: { assetRef: 'upload:abc', onclose: oncloseMock, startInRename: true },
-    });
+    renderSheet({ assetRef: 'upload:abc', startInRename: true });
     await tick();
 
     expect(screen.getByDisplayValue('old-name.jpg')).toBeTruthy();
@@ -268,7 +352,7 @@ describe('AssetDetailsSheet — rename flow', () => {
       original_filename: 'old-name.jpg',
       available_actions: ['rename', 'favorite', 'download', 'delete'],
     });
-    render(AssetDetailsSheet, { props: { assetRef: 'upload:abc', onclose: oncloseMock } });
+    renderSheet({ assetRef: 'upload:abc' });
 
     await fireEvent.click(screen.getByLabelText('Rename'));
     const input = screen.getByDisplayValue('old-name.jpg');
@@ -289,7 +373,7 @@ describe('AssetDetailsSheet — project assignment', () => {
       project_id: null,
       project_name: null,
     });
-    render(AssetDetailsSheet, { props: { assetRef: 'output:abc', onclose: oncloseMock } });
+    renderSheet({ assetRef: 'output:abc' });
 
     await fireEvent.change(screen.getByLabelText('Project'), { target: { value: 'project-one' } });
     expect(mutateAsyncMock).toHaveBeenCalledWith({
@@ -305,9 +389,7 @@ describe('AssetDetailsSheet — project assignment', () => {
 describe('AssetDetailsSheet — lazy lineage', () => {
   it('does not create the lineage query until the section is expanded', async () => {
     detailData = makeLibraryAssetDetail({ asset_ref: 'output:abc', lineage: makeLibraryLineage() });
-    render(AssetDetailsSheet, {
-      props: { assetRef: 'output:abc', onclose: oncloseMock },
-    });
+    renderSheet({ assetRef: 'output:abc' });
 
     expect(lineageQueryCalls).toBe(0);
     await fireEvent.click(screen.getByRole('button', { name: /Lineage/ }));
@@ -318,7 +400,7 @@ describe('AssetDetailsSheet — lazy lineage', () => {
 describe('AssetDetailsSheet — delete confirm', () => {
   it('opens a confirm dialog on delete and closes the sheet after confirming', async () => {
     detailData = makeLibraryAssetDetail({ asset_ref: 'output:abc', available_actions: ['delete'] });
-    render(AssetDetailsSheet, { props: { assetRef: 'output:abc', onclose: oncloseMock } });
+    renderSheet({ assetRef: 'output:abc' });
 
     await fireEvent.click(screen.getByLabelText('Delete'));
     const dialog = screen.getByRole('dialog', { name: 'Delete Asset' });
@@ -334,9 +416,7 @@ describe('AssetDetailsSheet — delete confirm', () => {
 describe('AssetDetailsSheet — backdrop dismiss', () => {
   it('does not close when clicking inside the panel, only when clicking the backdrop itself', async () => {
     detailData = makeLibraryAssetDetail({ media: makeMediaObject() });
-    const { container } = render(AssetDetailsSheet, {
-      props: { assetRef: 'output:abc', onclose: oncloseMock },
-    });
+    const { container } = renderSheet({ assetRef: 'output:abc' });
 
     const backdrop = container.querySelector('[role="dialog"][aria-label="Asset details"]');
     expect(backdrop).not.toBeNull();
@@ -355,16 +435,14 @@ describe('AssetDetailsSheet — backdrop dismiss', () => {
 describe('AssetDetailsSheet — dismissal controls', () => {
   it('continues to close only through the close button or Escape', async () => {
     detailData = makeLibraryAssetDetail({ media: makeMediaObject() });
-    const first = render(AssetDetailsSheet, {
-      props: { assetRef: 'output:abc', onclose: oncloseMock },
-    });
+    const first = renderSheet({ assetRef: 'output:abc' });
 
     await fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     expect(oncloseMock).toHaveBeenCalledOnce();
     first.unmount();
 
     oncloseMock.mockClear();
-    render(AssetDetailsSheet, { props: { assetRef: 'output:abc', onclose: oncloseMock } });
+    renderSheet({ assetRef: 'output:abc' });
     await fireEvent.keyDown(window, { key: 'Escape' });
 
     expect(oncloseMock).toHaveBeenCalledOnce();
@@ -375,7 +453,7 @@ describe('AssetDetailsSheet — save actions (share/download)', () => {
   it('renders a Share button alongside Download under a mobile capability stub', () => {
     resolveSaveCapabilitiesMock.mockReturnValue(['share', 'download']);
     detailData = makeLibraryAssetDetail({ asset_ref: 'output:abc' });
-    render(AssetDetailsSheet, { props: { assetRef: 'output:abc', onclose: oncloseMock } });
+    renderSheet({ assetRef: 'output:abc' });
 
     expect(screen.getByLabelText('Share')).toBeTruthy();
     expect(screen.getByLabelText('Download')).toBeTruthy();
@@ -384,7 +462,7 @@ describe('AssetDetailsSheet — save actions (share/download)', () => {
   it('renders only Download under a desktop capability stub', () => {
     resolveSaveCapabilitiesMock.mockReturnValue(['download']);
     detailData = makeLibraryAssetDetail({ asset_ref: 'output:abc' });
-    render(AssetDetailsSheet, { props: { assetRef: 'output:abc', onclose: oncloseMock } });
+    renderSheet({ assetRef: 'output:abc' });
 
     expect(screen.getByLabelText('Download')).toBeTruthy();
     expect(screen.queryByLabelText('Share')).toBeNull();
@@ -393,7 +471,7 @@ describe('AssetDetailsSheet — save actions (share/download)', () => {
   it('never renders Share as a quick-action menu pill — only via the dedicated save button', () => {
     resolveSaveCapabilitiesMock.mockReturnValue(['share', 'download']);
     detailData = makeLibraryAssetDetail({ asset_ref: 'output:abc' });
-    render(AssetDetailsSheet, { props: { assetRef: 'output:abc', onclose: oncloseMock } });
+    renderSheet({ assetRef: 'output:abc' });
 
     // Remix still renders as a quick-action pill (plain text, no aria-label). Assert on
     // accessible *name* rather than aria-label alone, so a leak of 'share' into that
@@ -408,7 +486,7 @@ describe('AssetDetailsSheet — save actions (share/download)', () => {
       asset_ref: 'output:abc',
       available_actions: ['remix', 'favorite', 'delete'],
     });
-    render(AssetDetailsSheet, { props: { assetRef: 'output:abc', onclose: oncloseMock } });
+    renderSheet({ assetRef: 'output:abc' });
 
     expect(screen.queryByLabelText('Share')).toBeNull();
     expect(screen.queryByLabelText('Download')).toBeNull();
