@@ -6,6 +6,7 @@
     AuthenticatedMediaLoadError,
     loadAuthenticatedMediaBlob,
   } from '$lib/media/loadAuthenticatedMediaBlob';
+  import { formatTimestampFromMs as formatTimestamp } from '$lib/media/mediaHelpers';
   import {
     VideoFrameCapture,
     VideoFrameCaptureError,
@@ -70,16 +71,6 @@
       ? `${media.original.width} / ${media.original.height}`
       : '16 / 9',
   );
-
-  function formatTimestamp(timestampMs: number): string {
-    const value = Math.max(0, Math.round(timestampMs));
-    const minutes = Math.floor(value / 60_000);
-    const seconds = Math.floor((value % 60_000) / 1_000);
-    const milliseconds = value % 1_000;
-    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(
-      milliseconds,
-    ).padStart(3, '0')}`;
-  }
 
   function localizedCaptureError(error: unknown): string {
     return error instanceof VideoFrameCaptureError && error.code === 'canvas-not-origin-clean'

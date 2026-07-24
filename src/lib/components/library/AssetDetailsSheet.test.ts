@@ -193,6 +193,21 @@ describe('AssetDetailsSheet — unified variation selection', () => {
   });
 });
 
+describe('AssetDetailsSheet — video stage', () => {
+  it('renders VideoStage (no native controls, app-owned control bar) instead of a bare MediaVideo', () => {
+    const video = makeVideoMediaObject();
+    detailData = makeLibraryAssetDetail({ asset_ref: 'output:abc', media: video });
+    const { container } = render(AssetDetailsSheet, {
+      props: { assetRef: 'output:abc', onclose: oncloseMock },
+    });
+
+    const videoEl = container.querySelector('video');
+    expect(videoEl).not.toBeNull();
+    expect(videoEl?.hasAttribute('controls')).toBe(false);
+    expect(container.querySelector('[data-swipe-passthrough]')).not.toBeNull();
+  });
+});
+
 describe('AssetDetailsSheet — conditional metadata sections', () => {
   it('shows the filename field for an uploaded asset and hides output-only fields', () => {
     detailData = makeLibraryAssetDetail({

@@ -9,7 +9,7 @@
     ChevronLeft,
     Pencil,
     Download,
-    Share2,
+    Share,
     Video,
     Maximize2,
     Minimize2,
@@ -33,7 +33,7 @@
   import { timeAgo, timeUntil, formatAspectRatio } from '$lib/utils/format';
   import { EXPIRES_SOON_MS } from '$lib/utils/constants';
   import MediaImage from '$lib/media/MediaImage.svelte';
-  import MediaVideo from '$lib/media/MediaVideo.svelte';
+  import VideoStage from '$lib/media/VideoStage.svelte';
   import { posterSrc } from '$lib/media';
   import ConfirmDeleteModal from '$lib/components/shared/ConfirmDeleteModal.svelte';
   import FrameExtractModal from '$lib/components/frames/FrameExtractModal.svelte';
@@ -58,6 +58,8 @@
     hasNext = false,
     fullscreen = false,
     onfullscreenchange,
+    muted = true,
+    onmutedchange,
   }: {
     assetRef: string;
     onclose: () => void;
@@ -74,6 +76,9 @@
     /** Fullscreen is page-owned so it survives the `{#key}` remount on prev/next. */
     fullscreen?: boolean;
     onfullscreenchange?: (value: boolean) => void;
+    /** Mute is page-owned for the same reason as fullscreen — see above. */
+    muted?: boolean;
+    onmutedchange?: (value: boolean) => void;
   } = $props();
 
   // This is the canonical selection for the viewer's entire lifetime.
@@ -308,6 +313,8 @@
     if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
     if (renaming) return;
     const target = e.target;
+    // Also covers the VideoStage scrub range: when it has focus, the range wins and moves
+    // its thumb instead of navigating prev/next.
     if (target instanceof HTMLElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) {
       return;
     }
@@ -485,7 +492,7 @@
             title={libraryActionLabel(capability)}
           >
             {#if capability === 'share'}
-              <Share2 size={13} />
+              <Share size={13} />
             {:else}
               <Download size={13} />
             {/if}
@@ -688,14 +695,12 @@
 
       {#if stageMedia}
         {#if stageMedia.media_type === 'video'}
-          <MediaVideo
+          <VideoStage
             media={stageMedia}
-            controls
-            autoplay
-            loop
-            muted
-            playsinline
-            class="max-h-[60vh] w-full object-contain md:max-h-full"
+            {muted}
+            onmutedchange={(value) => onmutedchange?.(value)}
+            reserveTrailingSpace
+            class="max-h-[60vh] w-full md:max-h-full"
           />
         {:else}
           <MediaImage
@@ -757,14 +762,12 @@
     </button>
 
     {#if stageMedia.media_type === 'video'}
-      <MediaVideo
+      <VideoStage
         media={stageMedia}
-        controls
-        autoplay
-        loop
-        muted
-        playsinline
-        class="h-full w-full object-contain"
+        {muted}
+        onmutedchange={(value) => onmutedchange?.(value)}
+        reserveTrailingSpace={false}
+        class="h-full w-full"
       />
     {:else}
       <MediaImage
