@@ -5,6 +5,12 @@ const MAX_TOTAL_BYTES = 256 * 1024 * 1024;
 interface CacheEntry {
   blob: Blob;
   storedAt: number;
+  ttlMs: number;
+}
+
+export interface BlobCacheOptions {
+  /** Per-entry lifetime. Save/share behavior keeps the one-minute default. */
+  ttlMs?: number;
 }
 
 /** Map insertion order doubles as LRU order (oldest first) — re-inserting a key on access
@@ -38,7 +44,7 @@ function evictToLimits(): void {
 export function getCachedBlob(url: string, now: number): Blob | null {
   const entry = cache.get(url);
   if (!entry) return null;
-  if (now - entry.storedAt >= TTL_MS) {
+  if (now - entry.storedAt >= entry.ttlMs) {
     cache.delete(url);
     return null;
   }
@@ -48,9 +54,14 @@ export function getCachedBlob(url: string, now: number): Blob | null {
   return entry.blob;
 }
 
-export function setCachedBlob(url: string, blob: Blob, now: number): void {
+export function setCachedBlob(
+  url: string,
+  blob: Blob,
+  now: number,
+  options: BlobCacheOptions = {},
+): void {
   cache.delete(url);
-  cache.set(url, { blob, storedAt: now });
+  cache.set(url, { blob, storedAt: now, ttlMs: options.ttlMs ?? TTL_MS });
   evictToLimits();
 }
 
@@ -68,6 +79,7 @@ export function getOrFetchBlob(
   url: string,
   fetcher: () => Promise<Blob>,
   now: () => number,
+  options: BlobCacheOptions = {},
 ): Promise<Blob> {
   const cached = getCachedBlob(url, now());
   if (cached) return Promise.resolve(cached);
@@ -77,7 +89,7 @@ export function getOrFetchBlob(
 
   const request = fetcher()
     .then((blob) => {
-      setCachedBlob(url, blob, now());
+      setCachedBlob(url, blob, now(), options);
       return blob;
     })
     .finally(() => {

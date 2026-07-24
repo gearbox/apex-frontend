@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { prewarmMedia, PREWARM_MAX_BYTES } from './prewarm';
+import { prewarmMedia, prewarmMediaWithSignal, PREWARM_MAX_BYTES } from './prewarm';
 import { getCachedBlob, clearBlobCache } from './blobCache';
 import { toMediaSrc } from '$lib/media/toMediaSrc';
 import type { MediaObject } from './types';
@@ -66,7 +66,7 @@ describe('prewarmMedia', () => {
 
     prewarmMedia(asset);
 
-    await vi.waitFor(() => expect(fetchOriginalBlobMock).toHaveBeenCalledWith(asset));
+    await vi.waitFor(() => expect(fetchOriginalBlobMock).toHaveBeenCalledWith(asset, undefined));
   });
 
   it('prewarms a known small video', async () => {
@@ -75,7 +75,7 @@ describe('prewarmMedia', () => {
 
     prewarmMedia(asset);
 
-    await vi.waitFor(() => expect(fetchOriginalBlobMock).toHaveBeenCalledWith(asset));
+    await vi.waitFor(() => expect(fetchOriginalBlobMock).toHaveBeenCalledWith(asset, undefined));
   });
 
   it('never throws or rejects when the fetch fails', async () => {
@@ -94,6 +94,19 @@ describe('prewarmMedia', () => {
 
     prewarmMedia(asset);
 
-    expect(fetchOriginalBlobMock).toHaveBeenCalledWith(asset);
+    expect(fetchOriginalBlobMock).toHaveBeenCalledWith(asset, undefined);
+  });
+
+  it('passes an abort signal and viewer TTL through the abortable warm variant', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(0);
+    const asset = { ...media(), media_type: 'video' as const };
+    const controller = new AbortController();
+    const blob = new Blob(['bytes']);
+    fetchOriginalBlobMock.mockResolvedValue(blob);
+
+    await prewarmMediaWithSignal(asset, { signal: controller.signal, ttlMs: 5 * 60_000 });
+
+    expect(fetchOriginalBlobMock).toHaveBeenCalledWith(asset, controller.signal);
+    expect(getCachedBlob(toMediaSrc(asset.original.url), 5 * 60_000 - 1)).toBe(blob);
   });
 });

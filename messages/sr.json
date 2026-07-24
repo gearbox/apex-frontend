@@ -86,6 +86,8 @@
   "library_all_caught_up": "To je sve",
   "library_untitled": "Bez naziva",
   "library_details_title": "Detalji stavke",
+  "library_image_unavailable": "Slika nije dostupna",
+  "library_image_loading": "Učitavanje originalne slike",
   "library_delete_title": "Obriši stavku",
   "library_delete_confirm_text": "Ovo će biti trajno obrisano. Ova radnja se ne može poništiti.",
   "library_delete_success": "Obrisano",

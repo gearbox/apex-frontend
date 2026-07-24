@@ -13,8 +13,15 @@ import {
   type PrecacheEntry,
 } from 'workbox-precaching';
 import { NavigationRoute, registerRoute } from 'workbox-routing';
-import { StaleWhileRevalidate } from 'workbox-strategies';
+import { CacheFirst, StaleWhileRevalidate } from 'workbox-strategies';
 import { ExpirationPlugin } from 'workbox-expiration';
+import { API_BASE_URL } from './lib/utils/constants';
+import {
+  CONTENT_MEDIA_CACHE_NAME,
+  CONTENT_MEDIA_MAX_AGE_SECONDS,
+  CONTENT_MEDIA_MAX_ENTRIES,
+  shouldCacheContentMedia,
+} from './lib/pwa/contentCachePolicy';
 import {
   PWA_BUILD_INFO,
   PWA_GET_BUILD_INFO,
@@ -73,6 +80,7 @@ cleanupOutdatedCaches();
 
 /* ─── SPA navigation fallback — mirrors the previous generateSW config exactly ─── */
 const NAVIGATE_FALLBACK_DENYLIST = [/^\/v1\//, /^\/api\//, /^\/docs\//];
+const API_ORIGIN = new URL(API_BASE_URL).origin;
 
 registerRoute(
   new NavigationRoute(createHandlerBoundToURL('/'), {
@@ -86,6 +94,24 @@ registerRoute(
   new StaleWhileRevalidate({
     cacheName: 'billing-cache',
     plugins: [new ExpirationPlugin({ maxAgeSeconds: 3600 })],
+  }),
+);
+
+/* ─── Runtime cache: small image variants from the authenticated content proxy ─── */
+registerRoute(
+  ({ url }) => url.origin === API_ORIGIN && url.pathname.startsWith('/v1/content/'),
+  new CacheFirst({
+    cacheName: CONTENT_MEDIA_CACHE_NAME,
+    plugins: [
+      {
+        cacheWillUpdate: async ({ response }) =>
+          shouldCacheContentMedia(response) ? response : null,
+      },
+      new ExpirationPlugin({
+        maxEntries: CONTENT_MEDIA_MAX_ENTRIES,
+        maxAgeSeconds: CONTENT_MEDIA_MAX_AGE_SECONDS,
+      }),
+    ],
   }),
 );
 

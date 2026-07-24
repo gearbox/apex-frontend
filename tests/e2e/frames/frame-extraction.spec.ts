@@ -135,6 +135,9 @@ test.describe('Frame extraction (real media regression)', () => {
 
     await page.route((url) => url.pathname === '/v1/library', jsonRoute(libraryPage));
     await page.route('**/v1/library/assets/**', jsonRoute(libraryAssetDetail));
+    // Asset-details actions wait for provider capabilities before they render. Frame
+    // extraction itself has no provider dependency, so an empty ready response is enough.
+    await page.route('**/v1/providers', jsonRoute({ providers: [], user_context: null }));
     await page.route(
       '**/v1/storage/stats',
       jsonRoute({

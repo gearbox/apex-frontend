@@ -86,6 +86,8 @@
   "library_all_caught_up": "Это всё",
   "library_untitled": "Без названия",
   "library_details_title": "Детали объекта",
+  "library_image_unavailable": "Изображение недоступно",
+  "library_image_loading": "Загрузка оригинала изображения",
   "library_delete_title": "Удалить объект",
   "library_delete_confirm_text": "Это будет безвозвратно удалено. Это действие нельзя отменить.",
   "library_delete_success": "Удалено",

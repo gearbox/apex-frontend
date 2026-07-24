@@ -22,6 +22,14 @@ describe('getCachedBlob / setCachedBlob', () => {
     expect(getCachedBlob('https://example.com/a', 60_000)).toBeNull();
   });
 
+  it('honors a longer per-entry TTL without changing the default TTL', () => {
+    const blob = new Blob(['bytes']);
+    setCachedBlob('https://example.com/viewer-video', blob, 0, { ttlMs: 5 * 60_000 });
+
+    expect(getCachedBlob('https://example.com/viewer-video', 5 * 60_000 - 1)).toBe(blob);
+    expect(getCachedBlob('https://example.com/viewer-video', 5 * 60_000)).toBeNull();
+  });
+
   it('evicts the oldest entry once a third URL is stored at capacity 2', () => {
     setCachedBlob('https://example.com/a', new Blob(['a']), 0);
     setCachedBlob('https://example.com/b', new Blob(['b']), 1);

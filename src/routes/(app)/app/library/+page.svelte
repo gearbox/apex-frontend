@@ -12,6 +12,7 @@
   import { CheckSquare, Search, Upload as UploadIcon } from 'lucide-svelte';
   import {
     libraryListInfiniteQueryOptions,
+    libraryAssetQueryOptions,
     deleteAssetMutationOptions,
     libraryKeys,
     projectKeys,
@@ -41,6 +42,7 @@
   import { LibrarySelection } from '$lib/components/library/selection.svelte';
   import { productInfo } from '$lib/stores/product';
   import Spinner from '$lib/components/ui/Spinner.svelte';
+  import { mediaFallbackSrc } from '$lib/media/mediaHelpers';
   import type { components } from '$lib/api/types';
   import * as m from '$paraglide/messages';
 
@@ -297,6 +299,29 @@
   const hasNextItem = $derived(
     viewerIndex >= 0 && (viewerIndex < allItems.length - 1 || libraryQuery.hasNextPage),
   );
+
+  // When the viewer is open, warm immediate image neighbors at the detail and md-preview
+  // layers. Videos deliberately skip this: their poster already covers navigation and their
+  // originals must never become speculative grid traffic.
+  $effect(() => {
+    if (viewerIndex < 0) return;
+
+    for (const neighbor of [allItems[viewerIndex - 1], allItems[viewerIndex + 1]]) {
+      if (!neighbor || neighbor.media.media_type === 'video') continue;
+
+      // The production QueryClient always exposes prefetchQuery. The guard also keeps shallow
+      // test doubles (which only model the mutations used by their scenario) harmless.
+      if (typeof queryClient.prefetchQuery === 'function') {
+        void queryClient
+          .prefetchQuery(libraryAssetQueryOptions(neighbor.asset_ref))
+          .catch(() => undefined);
+      }
+      if (typeof Image !== 'undefined') {
+        const preview = new Image();
+        preview.src = mediaFallbackSrc(neighbor.media, 512);
+      }
+    }
+  });
 
   let navigating = $state(false);
 

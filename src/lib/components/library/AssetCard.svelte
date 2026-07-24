@@ -179,7 +179,7 @@
   >
     <div
       role="presentation"
-      class="group relative aspect-square w-full overflow-hidden rounded-xl border border-border bg-surface transition-all hover:border-border-active hover:shadow-lg {bulkError
+      class="group relative aspect-square w-full overflow-hidden rounded-xl border border-border bg-surface [contain-intrinsic-size:auto_180px] [content-visibility:auto] transition-all hover:border-border-active hover:shadow-lg {bulkError
         ? 'ring-2 ring-danger ring-offset-1 ring-offset-bg'
         : ''}"
       ontouchstart={handleTouchStart}
@@ -236,6 +236,7 @@
         media={item.media}
         alt={item.display_title ?? item.original_filename ?? ''}
         sizes="(max-width: 768px) 50vw, 25vw"
+        preload="none"
         class="pointer-events-none h-full w-full object-cover transition-transform group-hover:scale-105"
       />
 

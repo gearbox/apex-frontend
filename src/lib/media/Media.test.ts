@@ -44,8 +44,9 @@ describe('Media', () => {
   });
 
   it('renders a video for media_type: video', () => {
-    const { container } = render(Media, { props: { media: makeVideoMedia() } });
+    const { container } = render(Media, { props: { media: makeVideoMedia(), preload: 'none' } });
     expect(container.querySelector('video')).not.toBeNull();
     expect(container.querySelector('img')).toBeNull();
+    expect(container.querySelector('video')?.getAttribute('preload')).toBe('none');
   });
 });

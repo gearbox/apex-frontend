@@ -268,6 +268,10 @@ test.describe('Library deletion', () => {
     await page.route('**/v1/content/**', (route) =>
       route.fulfill({ status: 200, contentType: 'image/jpeg', body: Buffer.from('fake') }),
     );
+    // The details and context-menu action rows intentionally wait for provider capabilities
+    // before rendering. These deletion flows do not otherwise exercise providers, but must
+    // still settle that shared query rather than depend on a local API server.
+    await page.route('**/v1/providers', jsonRoute({ providers: [], user_context: null }));
   });
 
   test(

@@ -114,6 +114,7 @@
     autoplay
     loop
     playsinline
+    preload="metadata"
     bind:muted={mutedState}
     bind:paused
     bind:currentTime
