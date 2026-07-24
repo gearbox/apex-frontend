@@ -17,12 +17,19 @@ function fakeResponse(opts: {
   ok: boolean;
   status: number;
   contentType?: string;
+  contentLength?: string;
   blob?: Blob;
 }): Response {
   return {
     ok: opts.ok,
     status: opts.status,
-    headers: { get: (key: string) => (key === 'content-type' ? (opts.contentType ?? null) : null) },
+    headers: {
+      get: (key: string) => {
+        if (key === 'content-type') return opts.contentType ?? null;
+        if (key === 'content-length') return opts.contentLength ?? null;
+        return null;
+      },
+    },
     blob: () => Promise.resolve(opts.blob ?? new Blob(['bytes'])),
   } as unknown as Response;
 }
@@ -95,6 +102,26 @@ describe('fetchOriginalBlob', () => {
     expect((requestInit.headers as Record<string, string>).Authorization).toBeUndefined();
   });
 
+  it('omits credentials: include for a foreign origin that fails validation', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(fakeResponse({ ok: true, status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await fetchOriginalBlob(media({ url: 'https://evil.example.com/file.jpg' }));
+
+    const [, requestInit] = fetchMock.mock.calls[0];
+    expect(requestInit.credentials).toBeUndefined();
+  });
+
+  it('sets credentials: include on the validated, authenticated path', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(fakeResponse({ ok: true, status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await fetchOriginalBlob(media());
+
+    const [, requestInit] = fetchMock.mock.calls[0];
+    expect(requestInit.credentials).toBe('include');
+  });
+
   it('short-circuits without a request when size_bytes exceeds the cap', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
@@ -105,5 +132,23 @@ describe('fetchOriginalBlob', () => {
       reason: 'too-large',
     });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('throws too-large when content-length exceeds the cap, without reading the body', async () => {
+    const blobSpy = vi.fn().mockResolvedValue(new Blob(['bytes']));
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: {
+        get: (key: string) => (key === 'content-length' ? String(MAX_SAVE_BYTES + 1) : null),
+      },
+      blob: blobSpy,
+    } as unknown as Response);
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(fetchOriginalBlob(media())).rejects.toMatchObject({
+      reason: 'too-large',
+    });
+    expect(blobSpy).not.toHaveBeenCalled();
   });
 });

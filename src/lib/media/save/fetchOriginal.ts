@@ -29,7 +29,16 @@ async function requestBytes(
   }
 
   try {
-    return await fetch(url, { headers, credentials: 'include', cache: 'no-store', signal });
+    // Only force cookies onto the validated same-origin path. On the fallback path,
+    // fetch's default ('same-origin') is exactly right: a same-origin URL that merely
+    // failed the strict path-shape check still gets its cookie, while a genuinely
+    // foreign origin gets none. Do not change this to 'omit'.
+    return await fetch(url, {
+      headers,
+      ...(authenticated ? { credentials: 'include' as const } : {}),
+      cache: 'no-store',
+      signal,
+    });
   } catch {
     throw new SaveFailedError('network');
   }
@@ -62,6 +71,11 @@ export async function fetchOriginalBlob(media: MediaObject, signal?: AbortSignal
 
   if (!response.ok) {
     throw new SaveFailedError(reasonForStatus(response.status));
+  }
+
+  const declared = Number(response.headers.get('content-length'));
+  if (Number.isFinite(declared) && declared > MAX_SAVE_BYTES) {
+    throw new SaveFailedError('too-large');
   }
 
   let bytes: Blob;

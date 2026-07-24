@@ -169,7 +169,7 @@ export const LIBRARY_ACTION_ICONS: Record<LibraryUiAction, ComponentType<SvelteC
  */
 export function filterVisibleLibraryActions(
   actions: LibraryAction[],
-  opts: { hasFlf2vModel: boolean },
+  opts: { hasFlf2vModel: boolean; saveCapabilities?: SaveCapability[] },
 ): LibraryUiAction[] {
   const filtered = actions.filter((action) => {
     // Duplicate of `remix` with the current API surface — deferred until a real
@@ -181,8 +181,10 @@ export function filterVisibleLibraryActions(
     return true;
   });
 
+  const capabilities = opts.saveCapabilities ?? resolveSaveCapabilities();
+
   return filtered.flatMap((action): LibraryUiAction[] =>
-    action === 'download' ? resolveSaveCapabilities() : [action],
+    action === 'download' ? capabilities : [action],
   );
 }
 

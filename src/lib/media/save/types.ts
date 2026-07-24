@@ -33,4 +33,6 @@ export interface SaveMediaDeps {
   share: (file: File) => Promise<SaveOutcome>;
   download: (blob: Blob, filename: string) => SaveOutcome;
   now: () => number;
+  /** Injected so the fallback policy is testable without mocking the module. */
+  capabilities: () => SaveCapability[];
 }

@@ -16,6 +16,7 @@ import {
 } from './auth';
 import { makeUserProfile } from '../../mocks/factories/user';
 import { STORAGE_KEYS } from '$lib/utils/constants';
+import { getCachedBlob, setCachedBlob } from '$lib/media/save/blobCache';
 
 const mockTokens = {
   accessToken: 'test-access-token',
@@ -68,6 +69,14 @@ describe('clearAuth()', () => {
     expect(getStoreValue(currentUser)).toBeNull();
     expect(getStoreValue(isAuthenticated)).toBe(false);
     expect(getStoreValue(currentAuthStatus)).toBe('unauthenticated');
+  });
+
+  it('clears the private-asset blob cache so bytes do not outlive the session', () => {
+    setCachedBlob('https://api.example.com/v1/content/outputs/id', new Blob(['secret']), 0);
+
+    clearAuth();
+
+    expect(getCachedBlob('https://api.example.com/v1/content/outputs/id', 0)).toBeNull();
   });
 });
 

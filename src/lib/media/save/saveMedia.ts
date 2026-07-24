@@ -2,7 +2,7 @@ import { toMediaSrc } from '$lib/media/toMediaSrc';
 import { fetchOriginalBlob } from './fetchOriginal';
 import { buildSaveFilename } from './filename';
 import { resolveSaveCapabilities } from './capabilities';
-import { get as getCachedBlob, set as setCachedBlob } from './blobCache';
+import { getCachedBlob, setCachedBlob } from './blobCache';
 import { shareFile, downloadBlob } from './savers';
 import { SaveFailedError } from './types';
 import type { MediaObject, SaveCapability, SaveMediaDeps, SaveOutcome } from './types';
@@ -12,6 +12,7 @@ const defaultDeps: SaveMediaDeps = {
   share: shareFile,
   download: downloadBlob,
   now: () => Date.now(),
+  capabilities: resolveSaveCapabilities,
 };
 
 /** Orchestrates a save: resolves the filename, serves the 60s blob cache on a miss-free retry, then shares or downloads. */
@@ -21,30 +22,30 @@ export async function saveMedia(
   id: string,
   deps: Partial<SaveMediaDeps> = {},
 ): Promise<SaveOutcome> {
-  const { fetchBlob, share, download, now } = { ...defaultDeps, ...deps };
+  const { fetchBlob, share, download, now, capabilities } = { ...defaultDeps, ...deps };
 
   const filename = buildSaveFilename(id, media);
   const cacheKey = toMediaSrc(media.original.url);
-  const timestamp = now();
 
-  let blob = getCachedBlob(cacheKey, timestamp);
+  let blob = getCachedBlob(cacheKey, now());
   if (!blob) {
     blob = await fetchBlob(media);
-    setCachedBlob(cacheKey, blob, timestamp);
+    setCachedBlob(cacheKey, blob, now());
   }
 
   if (mode === 'download') {
     return download(blob, filename);
   }
 
-  const file = new File([blob], filename, { type: blob.type });
+  const type = blob.type || media.original.content_type || 'application/octet-stream';
+  const file = new File([blob], filename, { type });
   try {
     return await share(file);
   } catch (error) {
     if (
       error instanceof SaveFailedError &&
       error.reason === 'unsupported' &&
-      resolveSaveCapabilities().includes('download')
+      capabilities().includes('download')
     ) {
       return download(blob, filename);
     }

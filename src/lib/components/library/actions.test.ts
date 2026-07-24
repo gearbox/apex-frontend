@@ -8,9 +8,8 @@ import {
 import { SaveActivationError } from '$lib/media/save';
 import { addToast } from '$lib/stores/toasts';
 
-const { saveMediaMock, resolveSaveCapabilitiesMock } = vi.hoisted(() => ({
+const { saveMediaMock } = vi.hoisted(() => ({
   saveMediaMock: vi.fn(),
-  resolveSaveCapabilitiesMock: vi.fn(() => ['download']),
 }));
 
 vi.mock('$lib/media/save', async (importOriginal) => {
@@ -18,7 +17,6 @@ vi.mock('$lib/media/save', async (importOriginal) => {
   return {
     ...actual,
     saveMedia: saveMediaMock,
-    resolveSaveCapabilities: resolveSaveCapabilitiesMock,
   };
 });
 
@@ -27,20 +25,17 @@ vi.mock('$lib/stores/toasts', () => ({
 }));
 
 describe('filterVisibleLibraryActions', () => {
-  beforeEach(() => {
-    resolveSaveCapabilitiesMock.mockReturnValue(['download']);
-  });
-
   it('always removes create_variation, regardless of flf2v availability', () => {
     const actions: LibraryAction[] = ['remix', 'create_variation', 'favorite'];
-    expect(filterVisibleLibraryActions(actions, { hasFlf2vModel: true })).toEqual([
-      'remix',
-      'favorite',
-    ]);
-    expect(filterVisibleLibraryActions(actions, { hasFlf2vModel: false })).toEqual([
-      'remix',
-      'favorite',
-    ]);
+    expect(
+      filterVisibleLibraryActions(actions, { hasFlf2vModel: true, saveCapabilities: ['download'] }),
+    ).toEqual(['remix', 'favorite']);
+    expect(
+      filterVisibleLibraryActions(actions, {
+        hasFlf2vModel: false,
+        saveCapabilities: ['download'],
+      }),
+    ).toEqual(['remix', 'favorite']);
   });
 
   it('removes first/last-frame actions when no enabled model supports flf2v', () => {
@@ -50,10 +45,12 @@ describe('filterVisibleLibraryActions', () => {
       'use_as_last_frame',
       'favorite',
     ];
-    expect(filterVisibleLibraryActions(actions, { hasFlf2vModel: false })).toEqual([
-      'remix',
-      'favorite',
-    ]);
+    expect(
+      filterVisibleLibraryActions(actions, {
+        hasFlf2vModel: false,
+        saveCapabilities: ['download'],
+      }),
+    ).toEqual(['remix', 'favorite']);
   });
 
   it('keeps first/last-frame actions when an enabled model supports flf2v', () => {
@@ -63,12 +60,9 @@ describe('filterVisibleLibraryActions', () => {
       'use_as_last_frame',
       'favorite',
     ];
-    expect(filterVisibleLibraryActions(actions, { hasFlf2vModel: true })).toEqual([
-      'remix',
-      'use_as_first_frame',
-      'use_as_last_frame',
-      'favorite',
-    ]);
+    expect(
+      filterVisibleLibraryActions(actions, { hasFlf2vModel: true, saveCapabilities: ['download'] }),
+    ).toEqual(['remix', 'use_as_first_frame', 'use_as_last_frame', 'favorite']);
   });
 
   it('preserves the relative order of the remaining actions', () => {
@@ -80,38 +74,42 @@ describe('filterVisibleLibraryActions', () => {
       'download',
       'delete',
     ];
-    expect(filterVisibleLibraryActions(actions, { hasFlf2vModel: false })).toEqual([
-      'favorite',
-      'remix',
-      'download',
-      'delete',
-    ]);
+    expect(
+      filterVisibleLibraryActions(actions, {
+        hasFlf2vModel: false,
+        saveCapabilities: ['download'],
+      }),
+    ).toEqual(['favorite', 'remix', 'download', 'delete']);
   });
 
   it('is a no-op for an already-clean action list', () => {
     const actions: LibraryAction[] = ['remix', 'favorite', 'download', 'delete'];
-    expect(filterVisibleLibraryActions(actions, { hasFlf2vModel: false })).toEqual(actions);
+    expect(
+      filterVisibleLibraryActions(actions, {
+        hasFlf2vModel: false,
+        saveCapabilities: ['download'],
+      }),
+    ).toEqual(actions);
   });
 
-  it("expands download to ['share', 'download'] under a mobile capability stub", () => {
-    resolveSaveCapabilitiesMock.mockReturnValue(['share', 'download']);
+  it("expands download to ['share', 'download'] under an injected mobile capability set", () => {
     const actions: LibraryAction[] = ['favorite', 'download', 'delete'];
-    expect(filterVisibleLibraryActions(actions, { hasFlf2vModel: false })).toEqual([
-      'favorite',
-      'share',
-      'download',
-      'delete',
-    ]);
+    expect(
+      filterVisibleLibraryActions(actions, {
+        hasFlf2vModel: false,
+        saveCapabilities: ['share', 'download'],
+      }),
+    ).toEqual(['favorite', 'share', 'download', 'delete']);
   });
 
-  it("expands download to ['download'] only under a desktop capability stub", () => {
-    resolveSaveCapabilitiesMock.mockReturnValue(['download']);
+  it("expands download to ['download'] only under an injected desktop capability set", () => {
     const actions: LibraryAction[] = ['favorite', 'download', 'delete'];
-    expect(filterVisibleLibraryActions(actions, { hasFlf2vModel: false })).toEqual([
-      'favorite',
-      'download',
-      'delete',
-    ]);
+    expect(
+      filterVisibleLibraryActions(actions, {
+        hasFlf2vModel: false,
+        saveCapabilities: ['download'],
+      }),
+    ).toEqual(['favorite', 'download', 'delete']);
   });
 });
 
