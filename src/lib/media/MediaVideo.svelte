@@ -8,7 +8,10 @@
     media,
     controls = false,
     autoplay = false,
-    muted = false,
+    muted = $bindable(false),
+    paused = $bindable(true),
+    currentTime = $bindable(0),
+    duration = $bindable(0),
     loop = false,
     playsinline = false,
     poster,
@@ -19,6 +22,10 @@
     controls?: boolean;
     autoplay?: boolean;
     muted?: boolean;
+    paused?: boolean;
+    currentTime?: number;
+    /** Readonly media binding — flows child → parent only. */
+    duration?: number;
     loop?: boolean;
     playsinline?: boolean;
     poster?: string;
@@ -49,7 +56,10 @@
   poster={resolvedPoster}
   {controls}
   {autoplay}
-  {muted}
+  bind:muted
+  bind:paused
+  bind:currentTime
+  bind:duration
   {loop}
   {playsinline}
   class={className}

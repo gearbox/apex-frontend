@@ -49,3 +49,22 @@ export function posterSrc(m: MediaObject): string | undefined {
   const v = pickVariant(m, 512);
   return v ? toMediaSrc(v.url) : undefined;
 }
+
+/** Frame-precision timestamp (mm:ss.mmm) for millisecond-based callers, e.g. FrameScrubber. */
+export function formatTimestampFromMs(timestampMs: number): string {
+  const value = Math.max(0, Math.round(timestampMs));
+  const minutes = Math.floor(value / 60_000);
+  const seconds = Math.floor((value % 60_000) / 1_000);
+  const milliseconds = value % 1_000;
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(
+    milliseconds,
+  ).padStart(3, '0')}`;
+}
+
+/** Playback timestamp (mm:ss) for second-based callers, e.g. HTMLVideoElement.currentTime. */
+export function formatTimestampFromSeconds(timestampSeconds: number): string {
+  const value = Math.max(0, Math.round(timestampSeconds));
+  const minutes = Math.floor(value / 60);
+  const seconds = value % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}

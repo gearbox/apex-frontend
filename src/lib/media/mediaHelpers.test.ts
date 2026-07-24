@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { imgAttrs, pickVariant, mediaFallbackSrc, posterSrc } from './mediaHelpers';
+import {
+  imgAttrs,
+  pickVariant,
+  mediaFallbackSrc,
+  posterSrc,
+  formatTimestampFromMs,
+  formatTimestampFromSeconds,
+} from './mediaHelpers';
 import type { components } from '$lib/api/types';
 
 type MediaObject = components['schemas']['MediaObject'];
@@ -131,5 +138,33 @@ describe('posterSrc', () => {
 
   it('returns undefined when no variants', () => {
     expect(posterSrc(makeMedia({ variants: [] }))).toBeUndefined();
+  });
+});
+
+describe('formatTimestampFromMs', () => {
+  it('formats zero as mm:ss.mmm', () => {
+    expect(formatTimestampFromMs(0)).toBe('00:00.000');
+  });
+
+  it('formats minutes, seconds, and milliseconds', () => {
+    expect(formatTimestampFromMs(65_432)).toBe('01:05.432');
+  });
+
+  it('clamps negative values to zero', () => {
+    expect(formatTimestampFromMs(-500)).toBe('00:00.000');
+  });
+});
+
+describe('formatTimestampFromSeconds', () => {
+  it('formats zero as mm:ss', () => {
+    expect(formatTimestampFromSeconds(0)).toBe('00:00');
+  });
+
+  it('formats minutes and seconds, rounding to the nearest second', () => {
+    expect(formatTimestampFromSeconds(65.6)).toBe('01:06');
+  });
+
+  it('clamps negative values to zero', () => {
+    expect(formatTimestampFromSeconds(-5)).toBe('00:00');
   });
 });
