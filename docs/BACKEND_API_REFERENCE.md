@@ -1,6 +1,101 @@
 # Backend API Reference — Apex REST API
 
-> _Last updated: 2026-07-17 — Added **Currency Suppression**: a superadmin deny-list for provider-side "zombie" tickers (NowPayments confirmed a data bug where `merchant/coins` can report currencies they've effectively delisted and won't fix). New `PATCH /v1/admin/payments/currencies/{provider}/{ticker}` (§14) toggles `is_suppressed` on a catalog row — suppressed tickers are immediately excluded from `GET /v1/billing/currencies` (§11), which now gained `AdminCurrency.is_suppressed` on the admin GET, and pinning a suppressed ticker on `POST /v1/billing/topup/nowpayments` (§11) now returns `400 { "code": "pay_currency_suppressed", "pay_currency": "<TICKER>" }`. Suppression survives every catalog sync (the sync code never reads/writes the flag) and requires an already-seen ticker (404 otherwise — no pre-emptive/pattern suppression). See the "Provider-side zombie currencies" ops note under §14. Frontend should regenerate types (`gen:api`) and handle the new 400 by re-fetching `/currencies` and re-prompting the user._
+> _Last updated: 2026-07-26 — **Token-revocation-failure alerting** (§15c, §17): closes the last
+> outstanding gap in [#142](https://github.com/gearbox/apex/issues/142). A failed bulk
+> access-token revocation (the Redis write behind `logout_all`/`change_password`/
+> `deactivate_account`/`reset_password`/`token_reuse_detected`/`refresh_race_detected` failing
+> while Redis is otherwise configured) now reaches operators instead of only being logged. New
+> `NotificationClass.TOKEN_REVOCATION_FAILED` (`"token_revocation.failed"`) appears in `GET
+> /v1/admin/notifications/classes` (§15c, §17) as **platform-scoped** — delivered to every
+> subscribed admin/superadmin regardless of product, like the two health classes, since a
+> revocation-backend degradation isn't specific to one product. Once subscribed, an admin
+> receives a Telegram message naming the failing `op` and stating that the affected user's
+> existing access tokens and content cookies remain valid until they expire — `op` matters: a
+> failure during `token_reuse_detected` is materially more serious than one during a routine
+> `logout_all`. **Admins must keep this class selected**: migration `029` seeds a subscription
+> for every admin who already has a Telegram link, so existing installs get immediate coverage
+> without anyone touching preferences — but subscription is still row-presence, so the next
+> full-set `PUT /v1/admin/notifications/preferences` from a seeded admin that omits this class
+> un-subscribes them, exactly like any other class. This was a deliberate choice over making the
+> class bypass preferences entirely (which would special-case one class out of the uniform
+> subscription model): `GET /v1/admin/health`'s `TokenRevocationChecker` remains a second,
+> preference-independent channel surfacing the same degradation, so the seed-plus-this-note is
+> judged sufficient rather than mandatory-delivery. Backend-only — no request/response shape
+> changes, no frontend action required.
+>
+> _Prior (2026-07-26): **Access-token revocation, remediation pass** (§2, §3): closes the
+> remaining gaps in [#142](https://github.com/gearbox/apex/issues/142) found in review. Three fixes,
+> no request/response shape changes:
+> (1) `POST /v1/auth/reset-password` now also bulk-revokes live access tokens/content cookies via
+> `TokenRevocationService.revoke_user_sessions`, matching the authenticated change-password path —
+> previously the account-recovery flow a user reaches *because* they suspect compromise left a
+> stolen access token or content cookie live for its full remaining lifetime.
+> (2) Refresh-token reuse detection (`AuthService.refresh_tokens`'s theft-detection branch) now
+> bulk-revokes the same way before raising, so its "All sessions have been invalidated" message is
+> now accurate rather than aspirational.
+> (3) `optional_auth_guard` (used by `GET /v1/providers`) now also consults `TokenRevocationService`
+> — a revoked token previously still authenticated on this route, since only `auth_guard` and
+> `content_auth_guard` checked revocation. It degrades a revoked token to anonymous, exactly like it
+> already does for a product-mismatched token, and — unlike the two guards above — tolerates a
+> missing revocation service (treats as not-revoked) rather than raising, preserving its
+> never-401 contract for an anonymous-capable route. Also documented: single-device
+> `POST /v1/auth/logout` cannot revoke that device's `apex_content` cookie server-side (see the
+> endpoint note below) — a pre-existing limitation, not a regression, now made explicit. No frontend
+> action required for any of this.
+>
+> _Prior (2026-07-25): **Access-token revocation** (§2, §3): closes
+> [#142](https://github.com/gearbox/apex/issues/142). `POST /v1/auth/logout`,
+> `POST /v1/users/me/logout-all`, `POST /v1/users/me/password`, and `DELETE /v1/users/me` now invalidate
+> live access tokens and the `apex_content` cookie **immediately**, not just refresh tokens — previously a
+> stolen access token (or a cookie minted before the 24h TTL raise) survived an explicit "log out
+> everywhere" for its full remaining lifetime. Two mechanisms, both backed by Redis (`TokenRevocationService`,
+> `src/api/services/token_revocation.py`): a per-user "revoke all sessions" epoch (bulk sites — logout-all,
+> password change, deactivation) and a per-token denylist keyed by the token's own `jti` (single-device
+> logout only, from the `Authorization` header presented to that call). Both `auth_guard` and
+> `content_auth_guard` now consult this on every request — one Redis round-trip, after the (free) product
+> check and before setting connection state. **Redis dependency, fail-open**: this is a deliberate security
+> posture, not a gap — with `REDIS_URL` unset, or Redis transiently down, revocation silently degrades to
+> the pre-#142 refresh-token-only behavior (logged once at startup / on each backend error as
+> `authrev.backend_unavailable`) rather than 401ing every authenticated request. No response shapes, request
+> shapes, or status codes changed — this is a behind-the-scenes tightening of what "logged out" means.
+> No frontend action required.
+>
+> _Prior (2026-07-24): **Content Proxy performance & streaming** (§9): `GET /v1/content/outputs/{id}`
+> and `GET /v1/content/uploads/{id}` now support single-range `Range` requests (`206 Partial Content` /
+> `416 Range Not Satisfiable`, `Accept-Ranges: bytes` on every 200/206 — multipart ranges are treated as a
+> full 200) and honor `If-None-Match` for `304 Not Modified` (checked after ownership, before any R2
+> traffic). Every request now makes at most one R2 round-trip — the standalone `head_object` call is gone;
+> `Content-Type`/`Content-Length`/`Content-Range` all come from the single GetObject response, and an
+> out-of-range request is rejected using the DB-recorded size before R2 is ever touched. New endpoint
+> `POST /v1/auth/content-cookie` (§2, Bearer-only, 204, rate-limited 20/minute) re-mints the `apex_content`
+> cookie without a full token refresh — frontend should prefer it over `silentRefresh` for recovering
+> image/video auth. No response body contracts changed; frontend should regenerate types (`gen:api`) to
+> pick up the new endpoint._
+>
+> _Prior (2026-07-22): **Breaking change:** replaced **Gallery** (§10) and the uploads-list
+> endpoint with a unified **Library** API (new §10) — one paginated, cursor-based read model over
+> `user_images` + `generation_outputs`, addressed by a typed `asset_ref` (`"upload:<uuid>"` /
+> `"output:<uuid>"`). `GET /v1/gallery/`, `GET /v1/gallery/{job_id}`, `GET /v1/storage/uploads`, and
+> `DELETE /v1/content/{content_id}` are all **removed** — no redirects, no deprecation window
+> (pre-prod). New surface: `GET /v1/library/` (grid, with `source`/`media_type`/`model`/`favorite`/
+> `project_id`/`tag_id`/`expiring`/`query`/`created_from`/`created_to` filters and
+> `newest`/`oldest`/`expiring_soon` sort), `GET /v1/library/assets/{asset_ref}` (detail),
+> `GET /v1/library/assets/{asset_ref}/lineage` (bounded ancestor/descendant graph),
+> `GET /v1/library/groups/{job_id}` (generation-group detail — the old `GalleryGroupDetail`, ported
+> as-is), `PATCH`/`PUT favorite`/`DELETE favorite`/`DELETE` on a single asset, `POST
+> /v1/library/assets/bulk` (favorite/project/tags/delete up to 100 refs in one call), and full CRUD
+> for `/v1/library/projects` and `/v1/library/tags`. Every grid item carries a server-resolved
+> `available_actions: LibraryAction[]` — no more inferring allowed actions from `source`/media type
+> on the client. Favorites and display titles are per-asset (`library_asset_metadata`, migration
+> `025`); projects (one per asset, migration `026`) and tags (many-to-many, migration `027`) are
+> user-created groupings layered on top. Frontend must regenerate types (`gen:api`), drop all
+> `/app/gallery` and `/app/uploads` routes/references, and switch to `/app/library`. See new §10 for
+> the full contract; `GalleryBadge`/`GallerySourceType` (§17) are replaced by `LibraryBadge`/
+> `LibraryGroupSourceType`/`LibrarySort`/`LibraryAssetSource`/`LibraryAction`._
+>
+> _Prior (2026-07-17 — Added **Admin Ops Notifications (Telegram)** (new §15c): admins/superadmins can subscribe to operational events — `user.registered`, `generation.created`, `gpu_node.started`, `generation.failed` (product-scoped) and `health.degraded`/`health.restored` (platform-scoped) — and receive them as Telegram messages via a one-time `t.me` deep-link flow. New endpoints under `/v1/admin/notifications/*`: `GET /classes` (catalog), `GET`/`PUT /preferences` (per-class subscribe + optional `min_interval_seconds` throttle, full-set replace), `GET /preferences/{user_id}` (superadmin-only read of another admin's set), `GET`/`POST /telegram`/`DELETE /telegram` (link status, create/rotate deep link, unlink). Backend-only — no frontend/consumer-facing surface changes. New `NotificationClass` enum (§17). `AuditLogEntry.action` (§14) gained `notification_prefs.update`, `telegram.link_requested`, `telegram.unlinked`. Requires `TELEGRAM_BOT_TOKEN` + `REDIS_URL` server-side to actually deliver; preference endpoints work regardless._
+>
+> _Prior (2026-07-17): Added **Currency Suppression**: a superadmin deny-list for provider-side "zombie" tickers (NowPayments confirmed a data bug where `merchant/coins` can report currencies they've effectively delisted and won't fix). New `PATCH /v1/admin/payments/currencies/{provider}/{ticker}` (§14) toggles `is_suppressed` on a catalog row — suppressed tickers are immediately excluded from `GET /v1/billing/currencies` (§11), which now gained `AdminCurrency.is_suppressed` on the admin GET, and pinning a suppressed ticker on `POST /v1/billing/topup/nowpayments` (§11) now returns `400 { "code": "pay_currency_suppressed", "pay_currency": "<TICKER>" }`. Suppression survives every catalog sync (the sync code never reads/writes the flag) and requires an already-seen ticker (404 otherwise — no pre-emptive/pattern suppression). See the "Provider-side zombie currencies" ops note under §14. Frontend should regenerate types (`gen:api`) and handle the new 400 by re-fetching `/currencies` and re-prompting the user._
 >
 > _Prior (2026-07-16): Added the DB-cached **Payment Currency Catalog**: public `GET /v1/billing/currencies` (§11) returns available tickers with display name/network/R2-hosted logo, synced from NowPayments `merchant/coins` (availability) + `full-currencies` (metadata) by a periodic worker (default 3h) and on-demand via superadmin `GET/POST /v1/admin/payments/currencies[/refresh]` (§14). Empty list ⇒ hide the picker and omit `pay_currency`; catalog state never gates checkout. No hardcoded ticker list exists anywhere in the contract. Frontend should regenerate types (`gen:api`)._
 >
@@ -95,8 +190,8 @@ The backend serves two distinct products from the same codebase:
 
 | Product | Slug | Domains | Audience | Content |
 |---------|------|---------|----------|---------|
-| **vex.pics** | `vex` | `vex.pics`, `www.vex.pics`, `app.vex.pics` | Consumer / creator | Permissive — NSFW-capable models available |
-| **Synthara** | `synthara` | `synthara.app`, `www.synthara.app`, `app.synthara.app` | Enterprise / business | SFW only, professional |
+| **example.com** | `vex` | `vex-domain.com`, `www.vex-domain.com`, `app.vex-domain.com` | Consumer / creator | Permissive — NSFW-capable models available |
+| **Synthara** | `synthara` | `synthara-domain.com`, `www.synthara-domain.com`, `app.synthara-domain.com` | Enterprise / business | SFW only, professional |
 
 ### Product Resolution
 
@@ -145,7 +240,7 @@ JWT tokens embed a `product_id` claim. Tokens issued for one product are rejecte
 ```
 Response: {
   product: string,              // "vex" | "synthara"
-  display_name: string,         // e.g. "vex.pics"
+  display_name: string,         // e.g. "example.com"
   age_gate: string,             // "none" | "checkbox" | "date_of_birth"
   allowed_auth_methods: string[],  // e.g. ["email_password", "google_oauth"]
   content_rating: string,       // "sfw" | "permissive"
@@ -158,7 +253,8 @@ Note:     Public endpoint — no auth needed. Frontend calls this on load.
 
 ```
 Request:  { email: string, password: string, display_name?: string }
-Response: { access_token, refresh_token, token_type: "bearer", expires_in: int, expires_at: datetime }
+Response: { access_token, refresh_token, token_type: "bearer", expires_in: int, expires_at: datetime,
+            content_cookie_expires_at: datetime }
 Status:   201 Created
 Errors:   400 (validation_error | email_exists)
 Note:     The request body no longer carries age fields — `age_confirmed` / `date_of_birth`
@@ -173,7 +269,8 @@ Note:     The request body no longer carries age fields — `age_confirmed` / `d
 
 ```
 Request:  { email: string, password: string }
-Response: { access_token, refresh_token, token_type: "bearer", expires_in: int, expires_at: datetime }
+Response: { access_token, refresh_token, token_type: "bearer", expires_in: int, expires_at: datetime,
+            content_cookie_expires_at: datetime }
 Errors:   401 (invalid_credentials | account_inactive)
 ```
 
@@ -181,7 +278,8 @@ Errors:   401 (invalid_credentials | account_inactive)
 
 ```
 Request:  { refresh_token: string }
-Response: { access_token, refresh_token, token_type: "bearer", expires_in: int, expires_at: datetime }
+Response: { access_token, refresh_token, token_type: "bearer", expires_in: int, expires_at: datetime,
+            content_cookie_expires_at: datetime }
 Errors:   401 (token revoked/expired/invalid | token_reuse_detected | account_inactive)
 ```
 
@@ -190,7 +288,17 @@ Errors:   401 (token revoked/expired/invalid | token_reuse_detected | account_in
 ```
 Request:  { refresh_token: string }
 Response: { message: string }
-Note:     Revokes the specific refresh token
+Note:     Revokes the specific refresh token. If an Authorization: Bearer header is also present
+          (optional — this route isn't guarded, since the access token may already be expired),
+          its jti is denylisted for its remaining lifetime (issue #142), so that specific access
+          token 401s on its next use while any other device's token is unaffected.
+Limitation: this device's apex_content cookie is cleared client-side only — it is scoped
+          Path=/v1/content (never sent to this endpoint) and carries a different jti than the
+          access token, so it cannot be revoked server-side here. A stolen cookie survives
+          single-device logout until it expires (up to CONTENT_COOKIE_TTL_HOURS) or until a
+          bulk-revocation event (logout-all, password change/reset, deactivation). Users who
+          suspect theft should use logout-all or change/reset their password, not rely on
+          single-device logout.
 ```
 
 #### `POST /v1/auth/verify-email`
@@ -222,6 +330,25 @@ Errors:   400 (invalid_token | expired)
 ```
 Response: { message: string }
 Rate:     3/hour
+```
+
+#### `POST /v1/auth/content-cookie` *(authenticated, Bearer-only)*
+
+```
+Response: { expires_at: datetime }   // ContentCookieResponse — UTC, ISO-8601
+Status:   200 OK
+Errors:   401 (missing/invalid/expired Bearer token)
+Rate:     20/minute
+Note:     Re-mints the apex_content cookie (same attributes login/register/refresh set —
+          see §9) for the caller's user_id + the current request's product, without
+          rotating the refresh token. `expires_at` is the cookie's absolute expiry —
+          derived from the same helper as the Set-Cookie `Max-Age`, so the two can never
+          diverge. With the cookie's TTL now measured in days (§9), this endpoint's role
+          has shifted: it's no longer mainly about dodging a refresh-token rotation, but is
+          the *proactive* keep-alive path — clients should schedule their next re-mint from
+          `expires_at` (or from TokenResponse.content_cookie_expires_at) well before the
+          cookie actually lapses, rather than waiting for a 401. The content cookie itself
+          does NOT authorize this endpoint — only a valid Bearer access token does.
 ```
 
 ---
@@ -279,14 +406,17 @@ Note:     Age capture is policy-driven by the active product's age_gate (see GET
 Request:  { current_password: string, new_password: string }
 Response: { message: string }
 Errors:   400 invalid_password
-Note:     Revokes ALL refresh tokens
+Note:     Revokes ALL refresh tokens, plus all live access tokens and the content cookie
+          (issue #142) — the most security-sensitive of the three bulk-revocation sites,
+          since a password change is often a reaction to suspected compromise.
 ```
 
 #### `DELETE /v1/users/me`
 
 ```
 Response: { message: string, deactivated_at: datetime }
-Note:     Soft delete — account can be recovered
+Note:     Soft delete — account can be recovered. Revokes ALL refresh tokens, plus all live
+          access tokens and the content cookie (issue #142).
 ```
 
 #### `GET /v1/users/me/stats`
@@ -310,6 +440,11 @@ Response: {
 
 ```
 Response: { message: string }
+Note:     Revokes ALL refresh tokens, plus all live access tokens and the content cookie
+          (issue #142) — the access token used to make this very call also stops working
+          from the next request onward. See the module docstring on TokenRevocationService
+          (src/api/services/token_revocation.py) for the Redis-backed epoch mechanism and its
+          fail-open posture when Redis is unset or transiently unavailable.
 ```
 
 ---
@@ -368,7 +503,7 @@ Response: JobCreatedResponse
 Status:   201 Created
 Errors:   400 (model_disabled | validation_error | generation_failed | not_implemented), 402 insufficient_balance, 403 (model_not_allowed | age_verification_required), 409 (idempotency_conflict | no_active_gpu_session), 429 rate_limited, 503 service_unavailable
 Headers:  Idempotency-Key: <string> (required, max 64 chars)
-Note:     source_output_id enables "remix from gallery" — the backend resolves lineage automatically
+Note:     source_output_id enables "remix from Library" — the backend resolves lineage automatically
           (source_job_id + source_output_id) and records it on the new job.
           source_images is storage-reference based (1–4 items); clients send upload/output IDs, not public URLs.
           If source_images contains output references and no top-level source_output_id is set,
@@ -426,7 +561,7 @@ Note:     source_output_id enables "remix from gallery" — the backend resolves
 
 Auth-optional: unauthenticated callers get the full capabilities catalog; authenticated callers additionally receive `user_context` with their subscription tier.
 
-Models are **filtered by the current product** — Synthara only returns SFW-safe models; vex.pics returns all enabled models.
+Models are **filtered by the current product** — Synthara only returns SFW-safe models; Vex returns all enabled models.
 
 ```
 Response: {
@@ -879,13 +1014,19 @@ Errors:   401 unauthorized (missing / empty / invalid Bearer token),
 
 ## 8. Storage *(authenticated)*
 
+> **Library is the primary read surface.** `GET /v1/library/` (§10) supersedes both the removed
+> `GET /v1/storage/uploads` list and, for most UI purposes, `GET /v1/storage/outputs` below —
+> it's the single paginated grid over uploads + outputs with favorites/projects/tags/filters.
+> The endpoints in this section remain for upload creation, single-item presigned access, raw
+> byte download, and storage stats — none of that is replaced by Library.
+
 > **Retention:** every upload and output row carries `expires_at`, set at creation to `now +
 > RETENTION_DAYS` (default 7 days). A periodic background sweeper (`ContentRetentionWorker`)
 > deletes expired rows and their R2 objects on a fixed interval. Once swept: the item drops out
-> of Storage/Gallery list responses, and `GET /v1/content/...` (§9) for that ID returns `404`.
+> of Storage/Library list responses, and `GET /v1/content/...` (§9) for that ID returns `404`.
 > `expires_at` is a plain timestamp (not a countdown) so the frontend can derive and tick a
 > "Delete in N days/hours/minutes" badge client-side — see `ImageListItem`/`OutputListItem`
-> below and `GalleryGridItem`/`GalleryOutputItem` (§10).
+> below and `LibraryAssetItem` (§10).
 
 ### Uploads
 
@@ -922,20 +1063,8 @@ Note:     Returns image id used for I2I/I2V generation requests, or (for
           preview job (§9b) to learn frame timestamps within the clip.
 ```
 
-#### `GET /v1/storage/uploads`
-
-```
-Query:    limit? (1–100, default 50), cursor? (opaque token)
-Response: CursorPage<ImageListItem>
-
-ImageListItem: {
-  id: UUID,
-  filename: string,
-  created_at: datetime,
-  expires_at: datetime,
-  media: MediaObject    // original + sm/md WEBP variants
-}
-```
+> **Removed (2026-07-22):** `GET /v1/storage/uploads` (list, and its `ImageListItem` response
+> schema) — use `GET /v1/library/?source=upload` (§10) instead.
 
 #### `GET /v1/storage/uploads/{image_id}`
 
@@ -1018,25 +1147,44 @@ Response: {
 
 Provides stable, non-expiring authenticated URLs for user content. The server resolves ownership, checks product scoping, then streams bytes directly from R2. **No presigned URLs are exposed** — the client only ever sees `/v1/content/...` paths.
 
-> **Why use this instead of presigned URLs?** Content proxy URLs are permanent (for the lifetime of the resource), cacheable with `Cache-Control: private, max-age=<ttl>, immutable`, and enforce per-request authorization. They are the preferred URL format for Gallery and any UI that persists content references.
+> **Why use this instead of presigned URLs?** Content proxy URLs are permanent (for the lifetime of the resource), cacheable with `Cache-Control: private, max-age=<ttl>, immutable`, and enforce per-request authorization. They are the preferred URL format for Library and any UI that persists content references.
+
+### Auth: the `apex_content` cookie
+
+Requests here accept either a Bearer access token or the `apex_content` cookie (`HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/v1/content`) — see §2 for how it's minted/re-minted. Its lifetime is `content_cookie_ttl_hours` (default **24h**, configurable up to **168h**/7d) — raised from a 1h default specifically so the cookie survives a suspended PWA: with no API traffic there's no `/v1/auth/refresh` to re-attach it, so a short TTL ages out during suspension and the first batch of `<img>` requests on resume all 401 before any JSON call can trigger recovery. This is deliberately asymmetric with the 15-minute access token (§2.1) — the content token is `type: "content"` (structurally rejected by the access-token decoder), product-scoped, and every request here still performs the full ownership check below regardless of which credential was presented; its blast radius is read access to the bearer's own media on one product. As of issue #142, `content_auth_guard` also consults `TokenRevocationService`: `POST /v1/auth/logout` clears the cookie client-side *and* denylists a presenting access token's own jti, while `logout-all`/password-change/deactivation (§3) reject any token — access or content — issued before that event, closing the exposure window the 24h TTL raise opened.
 
 ### Response Headers
 
-All successful responses include:
+All successful (200/206) responses include:
 - `Content-Type` — the stored R2 `ContentType` **only if it's on the inline-safe allowlist** (`image/png`, `image/jpeg`, `image/webp`, `video/mp4`, `video/webm`, `video/quicktime`); otherwise `application/octet-stream`
-- `Content-Length` — from R2 object metadata
+- `Content-Length` — bytes in *this* response body (the full object size on 200, the served range's length on 206)
 - `Cache-Control: private, max-age=10800, immutable` — 3-hour client cache (default; configurable via `CONTENT_URL_TTL`)
 - `ETag: "<content_id>"` — the output/upload UUID, for conditional requests
 - `X-Content-Id: <content_id>` — same UUID, without quotes
 - `X-Content-Type-Options: nosniff` — always present, blocks MIME-sniffing
 - `Content-Disposition: inline` for inline-safe content types, `attachment` otherwise — a stored content-type outside the allowlist (e.g. `text/html`, `image/svg+xml`) is forced to download rather than rendered inline, even though it streams with a coerced `Content-Type`
+- `Accept-Ranges: bytes` — advertised on every 200 and 206, so clients know range requests are supported before issuing one
+
+#### Range requests (single range only)
+
+Both endpoints below honor a `Range: bytes=<start>-<end>` request header — the mechanism `<video>`/`<audio>` elements use for seeking and resumable playback:
+- A satisfiable range → `206 Partial Content`, body is just that byte slice, `Content-Range: bytes <start>-<end>/<size>`, `Content-Length` is the slice length. Open-ended (`bytes=500-`) and suffix (`bytes=-500`) forms are supported; an end beyond the object's size is clamped to the last byte rather than rejected.
+- A range whose start is at or beyond the object's size → `416 Range Not Satisfiable`, `Content-Range: bytes */<size>`, no body.
+- **Multipart ranges are out of scope** — a comma-separated `Range` header (multiple ranges in one request) is treated as if no `Range` header were sent: a normal full `200`.
+- No `Range` header, or a malformed one → full body, `200 OK`.
+
+#### Conditional GET
+
+Both endpoints honor `If-None-Match` against the resource's `ETag`. A match (including the `*` wildcard) short-circuits to `304 Not Modified` with the `ETag` and `Cache-Control` headers and no body — this happens *after* the ownership/product check (a 304 never leaks whether foreign content exists) and *before* any R2 traffic.
 
 #### `GET /v1/content/outputs/{output_id}`
 
 ```
 Path:     output_id (UUID)
-Response: 200 Raw bytes (chunked streaming, appropriate Content-Type)
+Headers:  Range?: bytes=<start>-<end>, If-None-Match?: "<etag>"
+Response: 200 Raw bytes | 206 Partial Content | 304 Not Modified (no body)
 Errors:   404 not_found (ownership check failed or wrong product),
+          416 range_not_satisfiable (Range start at/beyond object size),
           502 upstream_error (R2 fetch failed)
 Note:     Only returns outputs owned by the authenticated user and matching the current product.
 ```
@@ -1045,22 +1193,18 @@ Note:     Only returns outputs owned by the authenticated user and matching the 
 
 ```
 Path:     image_id (UUID)
-Response: 200 Raw bytes (chunked streaming, appropriate Content-Type)
+Headers:  Range?: bytes=<start>-<end>, If-None-Match?: "<etag>"
+Response: 200 Raw bytes | 206 Partial Content | 304 Not Modified (no body)
 Errors:   404 not_found (ownership check failed or wrong product),
+          416 range_not_satisfiable (Range start at/beyond object size),
           502 upstream_error (R2 fetch failed)
 Note:     Only returns uploads owned by the authenticated user and matching the current product.
 ```
 
-#### `DELETE /v1/content/{content_id}`
-
-```
-Path:     content_id (UUID) — can be a generation output ID or upload ID
-Response: 204 No Content
-Errors:   404 not_found (content does not exist, not owned, or wrong product)
-Note:     Permanently deletes the file from R2 and removes the DB record.
-          Checks generation_outputs first, then user_images.
-          Lineage references (source_output_id, input_image_id) are SET NULL automatically.
-```
+> **Removed (2026-07-22):** `DELETE /v1/content/{content_id}` — deletion is now typed via
+> `DELETE /v1/library/assets/{asset_ref}` (§10), which delegates to the same
+> `ContentProxyService.delete_content` logic (R2 removal + DB record removal + lineage
+> `SET NULL`) but resolves the target table from the `asset_ref` prefix instead of trying both.
 
 ---
 
@@ -1135,115 +1279,351 @@ Note:     preview.frames[].url is a presigned R2 URL generated FRESH on every
           (§5b) — its urls are stable /v1/content/uploads/{id} proxy paths,
           cacheable indefinitely, same as any other upload. Once an extract
           job completes its frames are ordinary uploads: same download (§8),
-          same delete (DELETE /v1/content/{id}, §9), same retention/expiry.
-          Deleting the source video does NOT delete frames already extracted
-          from it.
+          same delete (DELETE /v1/library/assets/upload:{id}, §10), same
+          retention/expiry. Deleting the source video does NOT delete
+          frames already extracted from it.
 ```
 
 ---
 
-## 10. Gallery *(authenticated)*
+## 10. Library *(authenticated)*
 
-Gallery presents completed generation jobs as a visual grid. Each **gallery item** is one `GenerationJob` (a "group") with its cover image/video, metadata, and output list.
+Library is the unified, asset-oriented replacement for the old Gallery + My Uploads split: one
+paginated read model over `user_images` + `generation_outputs` (the tables themselves stay
+separate — Library is a query-time UNION, not a new content table). Every asset is addressed by a
+typed **asset reference**: `"upload:<uuid>"` or `"output:<uuid>"` (`LibraryAssetSource` = `upload` |
+`output`). Parsing is strict — malformed refs, unknown sources, or bad UUID segments are rejected,
+never silently truncated.
 
-- Only `completed` jobs are returned.
-- Results are ordered by `created_at DESC` (newest first).
-- Uses the same **cursor pagination** as all other list endpoints.
+- Uses the same **cursor pagination** as all other list endpoints, but with a 3-part cursor
+  (`created_at`/`expires_at`, source rank, id) that gives a strict total order across the
+  upload/output UNION — a cursor encoded under one `sort` is rejected if replayed under another.
+- Every grid item carries a server-resolved `available_actions: LibraryAction[]` — a pure,
+  table-driven function of media type, source, and whether the asset has generation metadata (see
+  `LibraryAction` below). Do not infer allowed actions from `source`/media type client-side.
 - Content URLs in responses are always `/v1/content/...` paths (permanent, auth-gated).
+- Favorites and display titles (`library_asset_metadata`) are lazily created on first mutation —
+  an asset with no favorite/title/project/tags has no metadata row at all until you set one.
+- **Projects**: at most one per asset (nullable FK, `ON DELETE SET NULL` — deleting a project
+  unassigns its assets rather than touching them). **Tags**: many-to-many (join table, `ON DELETE
+  CASCADE` — deleting a tag removes its assignments). Both are user-scoped, name-unique
+  case-insensitively per owner (`409` on conflict), and independently CRUD'd below.
+- Deleting an asset or letting it expire via the retention sweeper also purges its
+  `library_asset_metadata` and `library_asset_tags` rows (both are polymorphic — no FK exists to
+  cascade the delete automatically).
 
-#### `GET /v1/gallery/`
+#### `GET /v1/library/`
 
 ```
-Query:    limit? (1–25, default 20),
+Query:    limit? (1–50, default 30),
           cursor? (opaque token),
+          source? ("upload" | "output"),
           media_type? ("image" | "video"),
-          generation_type? (GenerationType value),
-          model? (string — model key)
-Response: CursorPage<GalleryGridItem>
+          model? (string — model key; implies output-only),
+          favorite? (bool),
+          project_id? (UUID),
+          tag_id? (UUID),
+          expiring? (bool — true: expires_at within 7 days; false: beyond),
+          query? (string, ≤200 chars — case-insensitive substring match over
+                  display_title / original_filename / prompt),
+          created_from? (datetime), created_to? (datetime),
+          sort? ("newest" | "oldest" | "expiring_soon", default "newest")
+Response: CursorPage<LibraryAssetItem>
+Errors:   400 invalid_cursor
 ```
 
-#### `GET /v1/gallery/{job_id}`
+#### `GET /v1/library/assets/{asset_ref}`
+
+```
+Path:     asset_ref (string, e.g. "upload:<uuid>" or "output:<uuid>")
+Response: LibraryAssetDetail
+Errors:   404 not_found (malformed ref, not owned, or wrong product)
+```
+
+#### `GET /v1/library/assets/{asset_ref}/lineage`
+
+```
+Path:     asset_ref (string)
+Response: LibraryLineageGraph
+Errors:   404 not_found
+Note:     Ancestor walk is depth-capped at 10 hops (nearest-first, one parent
+          per step); descendants are immediate only (not recursive), capped
+          at 50 per relation (job outputs / extracted frames, counted
+          separately). `ancestors_truncated` / `descendants_truncated` flag
+          when a cap clipped the real graph. `descendant_totals` gives the
+          full (uncapped) counts regardless of the capped `descendants` list.
+          Bounded total query count — acceptable for this on-demand detail
+          endpoint, not the list hot path.
+```
+
+#### `GET /v1/library/groups/{job_id}`
 
 ```
 Path:     job_id (UUID)
-Response: GalleryGroupDetail
+Response: LibraryGroupDetail
 Errors:   404 not_found (job not completed, wrong user, or wrong product)
+Note:     Generation-group detail — one GenerationJob with its full output
+          list. This is the old GalleryGroupDetail, relocated as-is (D6):
+          the grid is per-asset, but a job's outputs still stack into one
+          detail view reachable from any of its LibraryAssetItem rows via
+          `job_id` + `output_count`.
 ```
 
-### Gallery Schemas
+#### `PATCH /v1/library/assets/{asset_ref}`
+
+```
+Request:  LibraryAssetPatch — every field is tri-state (absent = leave
+          unchanged); see schema below for per-field null/set semantics
+Response: LibraryAssetDetail
+Errors:   400 validation_error, 404 not_found (asset, project, or tag)
+```
+
+#### `PUT /v1/library/assets/{asset_ref}/favorite`
+
+```
+Response: 204 No Content
+Errors:   404 not_found
+Note:     Idempotent — marks favorite=true.
+```
+
+#### `DELETE /v1/library/assets/{asset_ref}/favorite`
+
+```
+Response: 204 No Content
+Errors:   404 not_found
+Note:     Idempotent — clears favorite.
+```
+
+#### `DELETE /v1/library/assets/{asset_ref}`
+
+```
+Response: 204 No Content
+Errors:   404 not_found
+Note:     Permanently deletes the file from R2 and the DB record (via the
+          same ContentProxyService.delete_content used by the old
+          DELETE /v1/content/{id}, §9), purges library_asset_metadata /
+          library_asset_tags rows, and SETs NULL any lineage references.
+```
+
+#### `POST /v1/library/assets/bulk`
+
+```
+Request:  BulkOperation — a tagged union discriminated by "type":
+  { type: "set_favorite", asset_refs: string[1-100], value: bool }
+  { type: "set_project",  asset_refs: string[1-100], project_id: UUID | null }
+  { type: "add_tags",     asset_refs: string[1-100], tag_ids: UUID[1-10] }
+  { type: "remove_tags",  asset_refs: string[1-100], tag_ids: UUID[1-10] }
+  { type: "delete",       asset_refs: string[1-100] }
+Response: BulkOperationResult
+Errors:   400 invalid_asset_refs (detail.invalid_refs lists every offending
+            ref — malformed, missing, not owned, or wrong product),
+          404 not_found (set_project's project_id, or any add/remove_tags
+            tag_id, doesn't exist / isn't owned by the caller),
+          422 tag_cap_exceeded (an add_tags op would push an asset past 20
+            tags; detail.asset_refs lists the offenders, detail.cap = 20)
+Note:     Every ref is validated BEFORE anything executes — a single bad
+          ref fails the whole request, never a silent partial skip.
+          Duplicate refs (including mixed-case UUID duplicates) collapse
+          to one occurrence. All ops except delete are naturally
+          idempotent; delete is idempotent up to "already gone" — a retry
+          on an already-deleted ref surfaces it in invalid_refs rather
+          than silently succeeding twice.
+```
+
+#### `GET /v1/library/projects/`  •  `POST /v1/library/projects/`
+
+```
+GET  Query:    limit? (1–50, default 30), cursor? (opaque token)
+     Response: CursorPage<LibraryProjectListItem>
+POST Request:  LibraryProjectCreate { name: string(1-100), description?: string }
+     Response: LibraryProject
+     Status:   201 Created
+     Errors:   400 validation_error, 409 project_name_conflict
+```
+
+#### `GET /v1/library/projects/{id}`  •  `PATCH /v1/library/projects/{id}`  •  `DELETE /v1/library/projects/{id}`
+
+```
+GET    Response: LibraryProject                          Errors: 404 not_found
+PATCH  Request:  LibraryProjectPatch (tri-state name/description)
+       Response: LibraryProject
+       Errors:   400 validation_error, 404 not_found, 409 project_name_conflict
+DELETE Response: 204 No Content                           Errors: 404 not_found
+       Note:     Assigned assets are unassigned (project_id → null via
+                 ON DELETE SET NULL), never deleted.
+```
+
+#### `GET /v1/library/tags/`  •  `POST /v1/library/tags/`
+
+```
+GET  Query:    limit? (1–50, default 30), cursor? (opaque token)
+     Response: CursorPage<LibraryTagListItem>
+POST Request:  LibraryTagCreate { name: string(1-50) }
+     Response: LibraryTag
+     Status:   201 Created
+     Errors:   400 validation_error, 409 tag_name_conflict
+```
+
+#### `GET /v1/library/tags/{id}`  •  `PATCH /v1/library/tags/{id}`  •  `DELETE /v1/library/tags/{id}`
+
+```
+GET    Response: LibraryTag                               Errors: 404 not_found
+PATCH  Request:  LibraryTagPatch (tri-state name)
+       Response: LibraryTag
+       Errors:   400 validation_error, 404 not_found, 409 tag_name_conflict
+DELETE Response: 204 No Content                           Errors: 404 not_found
+       Note:     Asset tag assignments cascade-delete (ON DELETE CASCADE).
+```
+
+### Library Schemas
 
 ```typescript
-interface GalleryGridItem {
-  job_id: string;           // UUID
-  cover: MediaObject;       // always the job's own primary output + sm/md WEBP variants
-                            // for video: original is the MP4; variants are poster frames
-  badge: GalleryBadge;      // "prompt" (t2i/t2v) or "image" (i2i/i2v/flf2v/v2v)
-  output_count: number;     // non-thumbnail outputs in this group
-  generation_type: GenerationType;
-  model: string | null;
-  aspect_ratio: string | null; // e.g. "16:9"; null ⇒ i2i job that followed the source image's aspect
-  prompt_snippet: string;   // first 100 chars of the prompt
-  created_at: string;       // ISO datetime
-  expires_at: string;       // ISO datetime — sourced from the cover output; all outputs in a
-                            // group share the same retention window. Drive a "Delete in N
-                            // days/hours/minutes" badge from this client-side (server sends a
-                            // timestamp, not a countdown, so it survives caching and ticks live).
+interface LibraryAssetItem {
+  asset_ref: string;              // "upload:<uuid>" | "output:<uuid>"
+  source: LibraryAssetSource;
+  media: MediaObject;             // original + sm/md variants
+  created_at: string;
+  expires_at: string;             // retention-cleanup deletion timestamp
+  display_title: string | null;
+  original_filename: string | null;  // upload-only
+  is_favorite: boolean;
+  duration_ms: number | null;     // upload-only, video
+  job_id: string | null;          // output-only
+  output_count: number | null;    // output-only: non-thumbnail outputs in the same job
+  model: string | null;           // output-only
+  generation_type: GenerationType | null; // output-only
+  available_actions: LibraryAction[];
+  project_id: string | null;
+  project_name: string | null;    // denormalized, batched lookup
+  tags: { id: string; name: string }[];
 }
 
-interface GalleryGroupDetail {
-  job_id: string;           // UUID
-  // Header
-  badge: GalleryBadge;
-  input_media: MediaObject | null; // source input envelope when badge == "image"
-                                   // (remixed output or uploaded input image + variants)
+interface LibraryAssetDetail extends LibraryAssetItem {
+  prompt: string | null;
+  negative_prompt: string | null;
+  provider: string | null;
+  aspect_ratio: string | null;
+  token_cost: number | null;
+  completed_at: string | null;
+  lineage: LibraryLineage | null;      // single-level frame-extraction lineage
+  descendants: { job_count: number; frame_count: number };
+}
+
+interface LibraryLineage {
+  source_asset_ref: string | null;
+  source_job_id: string | null;        // set when the source was a generation output
+  source_timestamp_ms: number | null;  // frame-extraction timestamp within the source video
+}
+
+interface LibraryAssetPatch {
+  display_title?: string | null;  // absent=unchanged, null=clear, string=set (max 255)
+  project_id?: string | null;     // absent=unchanged, null=unassign, UUID=assign (must be owned)
+  tag_ids?: string[];             // absent=unchanged; replace-set semantics — [] clears all
+                                   // tags, a list sets the exact set (max 20, all must be owned)
+}
+
+interface LibraryGroupDetail {
+  job_id: string;
+  badge: LibraryBadge;             // "prompt" (t2i/t2v) or "image" (i2i/i2v/flf2v/v2v)
+  input_media: MediaObject | null; // present when badge == "image"
   prompt: string;
   negative_prompt: string | null;
-  // Outputs
-  outputs: GalleryOutputItem[];    // non-thumbnail outputs, ordered by output_index
-  // Metadata
-  media_type: OutputMediaType;     // "image" or "video"
+  outputs: LibraryOutputItem[];    // non-thumbnail outputs, ordered by output_index
+  media_type: OutputMediaType;
   model: string | null;
   provider: string;
   generation_type: GenerationType;
-  aspect_ratio: string | null;  // null ⇒ i2i job that followed the source image's aspect
+  aspect_ratio: string | null;     // null ⇒ i2i job that followed the source image's aspect
   token_cost: number | null;
   created_at: string;
   completed_at: string | null;
-  // Lineage
-  lineage: GalleryLineage | null;
+  lineage: LibraryGroupLineage | null;
 }
 
-interface GalleryOutputItem {
-  id: string;               // UUID
-  output_index: number;     // 0-based
+interface LibraryOutputItem {
+  id: string;
+  asset_ref: string;               // always "output:<id>"
+  output_index: number;
   created_at: string;
-  expires_at: string;       // ISO datetime — this output's own retention deletion timestamp
-  media: MediaObject;       // original asset + sm/md WEBP variants
+  expires_at: string;
+  media: MediaObject;
 }
 
-interface GalleryLineage {
-  source_type: GallerySourceType;    // "upload" or "generation"
-  source_upload_id: string | null;   // UUID; set when source_type == "upload"
-  source_job_id: string | null;      // UUID; set when source_type == "generation"
-  source_job_name: string | null;    // human-readable name of the source job
-  source_output_id: string | null;   // UUID; specific output used as input
+interface LibraryGroupLineage {
+  source_type: LibraryGroupSourceType;  // "upload" or "output"
+  source_upload_id: string | null;
+  source_job_id: string | null;
+  source_job_name: string | null;
+  source_output_id: string | null;
+}
+
+interface LibraryLineageGraph {
+  focus: LineageNode;
+  ancestors: LineageEdge[];         // nearest-first, depth-capped at 10
+  descendants: LineageEdge[];       // immediate only, capped at 50 per relation
+  descendant_totals: { job_count: number; frame_count: number }; // uncapped
+  ancestors_truncated: boolean;
+  descendants_truncated: boolean;
+}
+
+interface LineageNode {
+  asset_ref: string;
+  source: LibraryAssetSource;
+  media: MediaObject;
+  created_at: string;
+  model: string | null;
+  generation_type: GenerationType | null;
+}
+
+interface LineageEdge {
+  relation: "generated_from_upload" | "generated_from_output"
+          | "frame_of_output" | "frame_of_upload";
+  node: LineageNode;
+  source_timestamp_ms: number | null;  // frame edges only
+}
+
+interface LibraryProject {
+  id: string;
+  name: string;
+  description: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface LibraryProjectListItem extends LibraryProject {
+  asset_count: number;   // batched, not per-row
+}
+
+interface LibraryTag {
+  id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface LibraryTagListItem extends LibraryTag {
+  asset_count: number;   // batched, not per-row
+}
+
+interface BulkOperationResult {
+  op: string;            // "set_favorite" | "set_project" | "add_tags" | "remove_tags" | "delete"
+  results: { asset_ref: string; success: boolean }[];
+  succeeded: number;
+  failed: number;
 }
 ```
 
-> **Breaking change (2026-06-27):** `GalleryGridItem` no longer has `cover_url`, `video_url`,
-> or `media_type` — use `cover: MediaObject` instead. The cover is now always the job's own
-> primary output (stops N near-identical tiles for N generations from one input).
-> `GalleryGroupDetail.input_image_url` → `input_media: MediaObject | null`.
-> `GalleryOutputItem` drops `url`, `thumbnail_url`, `content_type`, `media_type`, `format`,
-> `size_bytes` — all in `media: MediaObject`.
+### Library Action Resolution
 
-> **New field (2026-07-12, additive):** `expires_at` on `GalleryGridItem` and
-> `GalleryOutputItem` — brings the gallery contract to parity with `ImageListItem`/
-> `OutputListItem` (§8), which have exposed `expires_at` all along. `DELETE
-> /v1/content/{content_id}` (§9) already supported uploads before this change — no new
-> delete endpoint was added for the uploads-delete UI; reuse the existing one.
+`available_actions` on every `LibraryAssetItem`/`LibraryAssetDetail` is resolved server-side by a
+pure, table-driven function of media type + whether the asset has generation metadata (i.e. is an
+output) — never inferred from `source` on the client:
 
-### Gallery Badge Logic
+| Always | Image-only | Video-only | Has generation metadata (output) |
+|--------|-----------|------------|-----------------------------------|
+| `favorite`, `rename`, `download`, `delete` | `remix`, `create_variation`, `animate`, `use_as_reference`, `use_as_first_frame`, `use_as_last_frame` | `remix`, `extend`, `extract_frame` | `view_settings`, `reproduce` |
+
+### Library Badge Logic
 
 | Badge value | Generation types |
 |-------------|-----------------|
@@ -1790,7 +2170,8 @@ AuditLogEntry: {
   id: UUID,
   actor_id: UUID,
   target_user_id: UUID | null,
-  action: string,   // role.*, permission.*, or payment_provider.enable/disable/reorder
+  action: string,   // role.*, permission.*, payment_provider.enable/disable/reorder,
+                    // or notification_prefs.update / telegram.link_requested / telegram.unlinked (§15c)
   detail: string,   // human-readable, e.g. "Role changed from 'user' to 'admin'"
   source: string,   // "api" | "cli"
   created_at: datetime
@@ -2266,7 +2647,7 @@ The backend maps a subset of the same real-time events used by SSE (§15) into p
 
 | SSE event | Pushed when | Notes |
 |-----------|-------------|-------|
-| `job.status_changed` | Only terminal states: `completed`, `failed` | `tag: "job-{job_id}"`, `url: "/gallery/{job_id}"` |
+| `job.status_changed` | Only terminal states: `completed`, `failed` | `tag: "job-{job_id}"`, `url: "/app/library/groups/{job_id}"` |
 | `gpu_session.credit_warning` | Every level (`warning`, `critical`) | `tag: "gpu-credit-{session_id}"` — repeated warnings coalesce instead of stacking |
 | `system.notification` | Always — broadcast to **every** subscription | `tag: "system-notification"` |
 | `balance.updated` | Only `delta > 0` **and** `transaction_type` is `credit` or `admin_adjustment` | Per-generation debits and refunds never push (avoids spam) |
@@ -2323,14 +2704,135 @@ self.addEventListener('notificationclick', (event) => {
 
 ---
 
+## 15c. Admin Ops Notifications (Telegram)
+
+Backend-driven **operational alerting for admins/superadmins**, delivered as Telegram messages — separate from the consumer-facing SSE (§15) and Web Push (§15b) channels above. This is an admin-panel-only feature; it has no effect on and no dependency on the end-user-facing API surface.
+
+> **Requires bot token + Redis**: Telegram delivery is only active when `TELEGRAM_BOT_TOKEN` and `REDIS_URL` are both configured on the server. When disabled, `POST /v1/admin/notifications/telegram/link` returns `503 Service Unavailable`. The preference endpoints (`/classes`, `/preferences`) work regardless — an admin can configure subscriptions ahead of Telegram being enabled.
+
+### Notification Classes
+
+| Class | Scope | Fires when |
+|-------|-------|------------|
+| `user.registered` | product | A new user registers on the admin's own product |
+| `generation.created` | product | A new generation job is submitted |
+| `gpu_node.started` | product | A GPU node finishes provisioning — `provisioning → active` only; resuming a paused session does **not** count as "started" |
+| `generation.failed` | product | A generation job transitions to `failed` |
+| `health.degraded` | platform | A platform health subsystem becomes `degraded`, `unhealthy`, or `unknown` |
+| `health.restored` | platform | A platform health subsystem recovers from a bad status back to a healthy one |
+| `token_revocation.failed` | platform | A bulk access-token revocation (Redis write) failed while Redis is otherwise configured — the affected user's existing access tokens/content cookies remain valid until they expire |
+
+- **Product-scoped** classes (the first four) are delivered only to admins whose own account product matches the event's product — a `synthara` admin never sees a `vex` registration.
+- **Platform-scoped** classes (`health.*`, `token_revocation.failed`) are delivered to every subscribed admin/superadmin regardless of product, since these describe the health/safety of the whole platform rather than any single product.
+- `token_revocation.failed` ships with a one-time seed (migration `029`): every admin who already has a Telegram link gets a subscription automatically, so existing installs don't start blind. It's still an ordinary preference row after that — a subsequent full-set `PUT /v1/admin/notifications/preferences` that omits it un-subscribes the admin, same as any other class.
+- Subscription is **row-presence**, not a flag: `PUT /v1/admin/notifications/preferences` is a full-set replace — a class omitted from the request body is unsubscribed.
+- Each subscribed class carries an optional `min_interval_seconds` throttle (default `0` = unthrottled, max `86400`). Messages suppressed during the cooldown are counted; the next delivered message for that class appends `(+N suppressed)` to the text.
+
+### Telegram Linking Flow
+
+```
+1. Admin     POST /v1/admin/notifications/telegram/link        →  { deep_link, expires_at }
+2. Admin     opens deep_link (https://t.me/<bot>?start=<token>) and taps Start in Telegram
+3. Telegram  sends "/start <token>" to the bot
+4. Backend   confirms the token (single-use), stores the chat_id, replies "✅ Telegram linked..."
+5. Backend   delivers every subscribed notification class to that chat_id from then on
+```
+
+- Link tokens expire after `TELEGRAM_LINK_TOKEN_TTL_SECONDS` (default `900`s / 15 min) and are single-use — replaying a `/start <token>` after it's been consumed (or expired) gets "⚠️ Link token is invalid or expired."
+- Re-requesting a link while already linked **rotates the token but does not clear the existing chat_id** — it's a way to re-link (e.g. after losing access to the chat), not an implicit unlink.
+- `DELETE /v1/admin/notifications/telegram` unlinks immediately and stops all further deliveries to that admin.
+
+### Endpoints
+
+All endpoints require **ADMIN or SUPERADMIN** role, except reading another admin's preferences, which is **SUPERADMIN-only**.
+
+#### `GET /v1/admin/notifications/classes`
+
+```
+Response: [ { notification_class: string, scope: "product" | "platform", description: string }, ... ]
+Status:   200 OK
+Note:     Static catalog derived from the NotificationClass enum (§17) — no DB round-trip.
+```
+
+#### `GET /v1/admin/notifications/preferences`
+
+```
+Response: { items: [ { notification_class: string, min_interval_seconds: int }, ... ] }
+Status:   200 OK
+Note:     The caller's own subscribed set. A class absent from `items` means "not subscribed".
+```
+
+#### `PUT /v1/admin/notifications/preferences`
+
+```
+Request:  { items: [ { notification_class: string, min_interval_seconds?: int }, ... ] }
+Response: { items: [ ... ] }   // the updated set, echoed back
+Status:   200 OK
+Errors:   400 validation_error (unknown notification_class, or min_interval_seconds outside [0, 86400])
+Note:     Full-set replace, idempotent. Send the complete desired set every time —
+          omitted classes are unsubscribed, not left untouched.
+```
+
+#### `GET /v1/admin/notifications/preferences/{user_id}` *(SUPERADMIN only)*
+
+```
+Response: { items: [ ... ] }   // read-only view of another admin's preferences
+Status:   200 OK
+Errors:   403 forbidden (caller is ADMIN, not SUPERADMIN)
+```
+
+#### `GET /v1/admin/notifications/telegram`
+
+```
+Response: { linked: boolean, linked_at: string | null, chat_id_last4: string | null }
+Status:   200 OK
+Note:     chat_id_last4 is the last 4 digits of the Telegram chat id, for the admin to
+          confirm which chat is linked without exposing the full id.
+```
+
+#### `POST /v1/admin/notifications/telegram/link`
+
+```
+Response: { deep_link: string, expires_at: string }
+Status:   200 OK
+Errors:   503 (Telegram not configured — no TELEGRAM_BOT_TOKEN/REDIS_URL)
+Note:     Creates a new link token (or rotates an existing one) and returns the
+          ready-to-open t.me deep link.
+```
+
+#### `DELETE /v1/admin/notifications/telegram`
+
+```
+Response: { message: string }
+Status:   200 OK
+Note:     Idempotent — succeeds even if no link exists.
+```
+
+### Message Format
+
+Messages use Telegram's `parse_mode=HTML`, always prefixed with the product tag — `[vex]`, `[synthara]`, or `[platform]` for the platform-scoped health classes. Every interpolated value (ids, statuses) is HTML-escaped. Example:
+
+```
+[vex] ❌ Generation failed
+job <code>3fa85f64-...</code> · grok/t2i
+```
+
+### Delivery Guarantees
+
+- **Best-effort**, same as SSE (§15) and Push (§15b) — if the Telegram dispatcher process is down, or Redis drops, notifications are lost. No replay, no persistence queue.
+- **Role and active-status are checked at delivery time** against the live user row, not cached on the subscription — a demoted or deactivated admin stops receiving immediately, with no preference cleanup required.
+- **Throttling is per-process, in-memory** — `min_interval_seconds` cooldowns reset on a dispatcher restart. Accepted tradeoff for v1 rather than adding another Redis-backed key namespace.
+
+---
+
 ## 16. Product Reference
 
 ### Products
 
 | Slug | Display Name | Domains | Content Rating | Age Gate | Payment Providers | Org Feature |
 |------|-------------|---------|---------------|----------|------------------|-------------|
-| `vex` | vex.pics | vex.pics, www.vex.pics, app.vex.pics | permissive | date_of_birth | Stripe + NowPayments | No |
-| `synthara` | Synthara | synthara.app, www.synthara.app, app.synthara.app | sfw | none | Stripe only | Yes |
+| `vex` | Vex | vex-domain.com, www.vex-domain.com, app.vex-domain.com | permissive | date_of_birth | Stripe + NowPayments | No |
+| `synthara` | Synthara | synthara-domain.com, www.synthara-domain.com, app.synthara-domain.com | sfw | none | Stripe only | Yes |
 
 ### AgeGatePolicy
 
@@ -2480,7 +2982,7 @@ ComfyUI scheduler names accepted on `POST /v1/generate` (`scheduler`, Aisha imag
 
 Values: `"png"`, `"jpeg"`, `"webp"` (images), `"mp4"`, `"webm"`, `"mov"` (video)
 
-> Surfaced as the `format` field on job/gallery outputs. Generated image thumbnails are `webp`. `"webm"`/`"mov"` apply only to user-uploaded videos (§8/§9b) — generated video outputs are always `"mp4"`.
+> Surfaced as the `format` field on job/library outputs. Generated image thumbnails are `webp`. `"webm"`/`"mov"` apply only to user-uploaded videos (§8/§9b) — generated video outputs are always `"mp4"`.
 
 ### AccountType
 
@@ -2514,6 +3016,20 @@ Values: `"billing_adjust"`
 
 > Granular permissions that a superadmin can grant to ADMIN-role users. Currently only `billing_adjust` exists (enables `POST /v1/admin/accounts/{id}/adjust` for that admin).
 
+### NotificationClass
+
+| Value | Scope | Fires when |
+|-------|-------|------------|
+| `user.registered` | product | New user registration |
+| `generation.created` | product | New generation job submitted |
+| `gpu_node.started` | product | GPU node finishes provisioning (`provisioning → active` only) |
+| `generation.failed` | product | Generation job transitions to `failed` |
+| `health.degraded` | platform | A health subsystem becomes `degraded`/`unhealthy`/`unknown` |
+| `health.restored` | platform | A health subsystem recovers |
+| `token_revocation.failed` | platform | A bulk access-token revocation failed to write to Redis |
+
+> Admin ops-notification subscription classes — see [§15c Admin Ops Notifications (Telegram)](#15c-admin-ops-notifications-telegram) for the full subscribe/throttle/delivery model.
+
 ### OrgRole
 
 Values: `"owner"`, `"admin"`, `"member"`
@@ -2530,21 +3046,45 @@ Values: `"en"` (English), `"ru"` (Russian), `"sr"` (Serbian Latin)
 
 Values: `"image"`, `"video"`
 
-Used in Gallery to distinguish image vs. video generation groups and outputs.
+Used in Library to distinguish image vs. video assets and generation groups.
 
-### GalleryBadge
+### LibraryAssetSource
+
+Values: `"upload"`, `"output"`
+
+Which table a Library asset lives in (`user_images` vs. `generation_outputs`). Prefixes every
+`asset_ref` on the wire (`"upload:<uuid>"` / `"output:<uuid>"`) and is the `source=` filter value
+on `GET /v1/library/`.
+
+### LibrarySort
+
+Values: `"newest"` (default), `"oldest"`, `"expiring_soon"`
+
+Sort order for `GET /v1/library/`. `expiring_soon` orders ascending by `expires_at` (soonest first)
+and is also the axis the `expiring` filter checks against (7-day fixed window).
+
+### LibraryAction
+
+Values: `"remix"`, `"create_variation"`, `"animate"`, `"extend"`, `"extract_frame"`,
+`"use_as_reference"`, `"use_as_first_frame"`, `"use_as_last_frame"`, `"view_settings"`,
+`"reproduce"`, `"favorite"`, `"rename"`, `"download"`, `"delete"`
+
+Server-resolved per-asset action set — see the "Library Action Resolution" table in §10.
+
+### LibraryBadge
 
 Values: `"prompt"`, `"image"`
 
-Indicates the primary input type for a gallery item:
+Indicates the primary input type for a library group:
 - `"prompt"` — text-to-image or text-to-video (no image input)
 - `"image"` — image/video input types (i2i, i2v, flf2v, v2v)
 
-### GallerySourceType
+### LibraryGroupSourceType
 
-Values: `"upload"`, `"generation"`
+Values: `"upload"`, `"output"`
 
-Used in `GalleryLineage.source_type` to indicate whether the input came from a direct upload or a previous generation output.
+Used in `LibraryGroupLineage.source_type` (§10) to indicate whether a generation job's input came
+from a direct upload or a previous generation output.
 
 ### FrameExtractionKind
 
@@ -2632,9 +3172,9 @@ async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
 
 ## 19. Content URLs
 
-### Content Proxy URLs (preferred for Gallery / persistent UI)
+### Content Proxy URLs (preferred for Library / persistent UI)
 
-Gallery responses and the `/v1/content/` endpoints return **content proxy URLs** — permanent, auth-gated paths:
+Library responses and the `/v1/content/` endpoints return **content proxy URLs** — permanent, auth-gated paths:
 
 - `GET /v1/content/outputs/{output_id}` — streams a generated output
 - `GET /v1/content/uploads/{image_id}` — streams an uploaded image
