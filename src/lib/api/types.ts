@@ -191,6 +191,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/auth/content-cookie": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** RemintContentCookie */
+        post: operations["V1AuthContentCookieRemintContentCookie"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/auth/resend-verification": {
         parameters: {
             query?: never;
@@ -1968,6 +1985,11 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /** ContentCookieResponse */
+        ContentCookieResponse: {
+            /** Format: date-time */
+            expires_at: string;
+        };
         /** CreateOrganizationRequest */
         CreateOrganizationRequest: {
             name: string;
@@ -2920,6 +2942,8 @@ export interface components {
             expires_in: number;
             /** Format: date-time */
             expires_at: string;
+            /** Format: date-time */
+            content_cookie_expires_at: string;
         };
         /** TopUpNowPaymentsRequest */
         TopUpNowPaymentsRequest: {
@@ -3444,6 +3468,26 @@ export interface operations {
                             [key: string]: unknown;
                         } | unknown[];
                     };
+                };
+            };
+        };
+    };
+    V1AuthContentCookieRemintContentCookie: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentCookieResponse"];
                 };
             };
         };
