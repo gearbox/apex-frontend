@@ -166,7 +166,7 @@ export async function fetchOriginalBytes(
   if (response.status === 401) {
     let refreshed: boolean;
     try {
-      refreshed = await silentRefresh();
+      refreshed = (await silentRefresh()).ok;
     } catch (error) {
       if (isAbort(error, options.signal)) throw error;
       throw new ProgressiveImageError('network');

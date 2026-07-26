@@ -24,6 +24,7 @@ function authTokens(accessToken: string, refreshToken: string) {
     accessToken,
     refreshToken,
     expiresAt: new Date(Date.now() + 900_000).toISOString(),
+    contentCookieExpiresAt: new Date(Date.now() + 86_400_000).toISOString(),
   };
 }
 

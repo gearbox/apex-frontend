@@ -40,10 +40,43 @@ export const authHandlers = [
   ),
 ];
 
-/** Override for simulating a 401 from refresh (token expired/revoked). */
+/** Override for simulating a 401 from refresh — the benign, silent "session ended elsewhere" case. */
 export const failedRefreshHandler = http.post(`${BASE}/v1/auth/refresh`, () =>
   HttpResponse.json(
-    { error: 'token_revoked', message: 'Refresh token has been revoked', status_code: 401 },
+    { error: 'invalid_token', message: 'Refresh token is invalid or expired', status_code: 401 },
+    { status: 401 },
+  ),
+);
+
+/** Override: refresh-token reuse detected — a genuine security event (B2/B3). */
+export const tokenReuseDetectedRefreshHandler = http.post(`${BASE}/v1/auth/refresh`, () =>
+  HttpResponse.json(
+    {
+      error: 'token_reuse_detected',
+      message: 'All sessions have been invalidated',
+      status_code: 401,
+    },
+    { status: 401 },
+  ),
+);
+
+/** Override: the account has been deactivated. */
+export const accountInactiveRefreshHandler = http.post(`${BASE}/v1/auth/refresh`, () =>
+  HttpResponse.json(
+    { error: 'account_inactive', message: 'This account has been deactivated', status_code: 401 },
+    { status: 401 },
+  ),
+);
+
+/** Override: POST /v1/auth/content-cookie succeeds with a fresh expiry. */
+export const contentCookieRemintHandler = http.post(`${BASE}/v1/auth/content-cookie`, () =>
+  HttpResponse.json({ expires_at: new Date(Date.now() + 86_400_000).toISOString() }),
+);
+
+/** Override: POST /v1/auth/content-cookie fails (e.g. a dead Bearer token). */
+export const failedContentCookieRemintHandler = http.post(`${BASE}/v1/auth/content-cookie`, () =>
+  HttpResponse.json(
+    { error: 'invalid_token', message: 'Access token is invalid or expired', status_code: 401 },
     { status: 401 },
   ),
 );

@@ -26,6 +26,7 @@ describe('auth middleware', () => {
       accessToken: 'test-access-token',
       refreshToken: 'test-refresh-token',
       expiresAt: new Date(Date.now() + 900_000).toISOString(),
+      contentCookieExpiresAt: new Date(Date.now() + 86_400_000).toISOString(),
     };
     setAuth(tokens, makeUserProfile());
 
@@ -100,6 +101,36 @@ describe('auth middleware', () => {
 
     expect(hrefSetter).toHaveBeenCalledWith(expect.stringContaining('/login?redirect='));
     expect(getAccessToken()).toBeNull();
+  });
+
+  it('on 401 with token_reuse_detected: persists the reason for the login screen before redirecting (B2)', async () => {
+    const { consumeAuthFailureReason } = await import('$lib/stores/auth');
+    localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, 'stolen-refresh-token');
+
+    Object.defineProperty(window, 'location', {
+      value: { ...window.location, set href(_v: string) {} },
+      writable: true,
+    });
+
+    server.use(
+      http.get(`${BASE}/v1/users/me`, () =>
+        HttpResponse.json({ error: 'Unauthorized' }, { status: 401 }),
+      ),
+      http.post(`${BASE}/v1/auth/refresh`, () =>
+        HttpResponse.json(
+          {
+            error: 'token_reuse_detected',
+            message: 'All sessions have been invalidated',
+            status_code: 401,
+          },
+          { status: 401 },
+        ),
+      ),
+    );
+
+    await apiClient.GET('/v1/users/me');
+
+    expect(consumeAuthFailureReason()).toBe('token_reuse_detected');
   });
 });
 

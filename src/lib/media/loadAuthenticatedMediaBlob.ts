@@ -255,7 +255,7 @@ async function refreshAfterUnauthorized(context: LoadContext): Promise<void> {
 
   let refreshed: boolean;
   try {
-    refreshed = await silentRefresh();
+    refreshed = (await silentRefresh()).ok;
   } catch (error) {
     if (isAbort(error, context.signal)) throwAborted(context, 'refresh');
     throwLoadError(context, 'network', null, 'refresh');

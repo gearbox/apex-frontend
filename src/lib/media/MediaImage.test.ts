@@ -1,20 +1,33 @@
 import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { render, fireEvent } from '@testing-library/svelte';
 import MediaImage from './MediaImage.svelte';
+import { setAuthFailureReason, __resetAuthFailureReasonForTesting } from '$lib/stores/auth';
 import type { components } from '$lib/api/types';
 
-const { silentRefreshMock } = vi.hoisted(() => ({
-  silentRefreshMock: vi.fn<() => Promise<boolean>>(),
+const { silentRefreshMock, remintContentCookieMock } = vi.hoisted(() => ({
+  silentRefreshMock: vi.fn<() => Promise<{ ok: true } | { ok: false; reason: string }>>(),
+  remintContentCookieMock: vi.fn<() => Promise<Date | null>>(),
 }));
 
 vi.mock('$lib/api/auth', async (importOriginal) => ({
   ...(await importOriginal<typeof import('$lib/api/auth')>()),
   silentRefresh: silentRefreshMock,
+  remintContentCookie: remintContentCookieMock,
 }));
 
 type MediaObject = components['schemas']['MediaObject'];
 
 const ORIGIN = 'http://localhost:8000';
+
+/**
+ * `vi.waitFor` only guarantees the mock was *called* — the component's async continuation after
+ * that awaited call (updating `failure` state, calling `reloadSameSource()`) still needs its own
+ * microtask turn. A macrotask flush guarantees every already-queued microtask has drained before
+ * the next assertion (or the next `fireEvent.error`) runs.
+ */
+function flushMicrotasks(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
 
 function makeImageMedia(overrides: Partial<MediaObject> = {}): MediaObject {
   return {
@@ -36,8 +49,13 @@ function makeImageMedia(overrides: Partial<MediaObject> = {}): MediaObject {
 
 describe('MediaImage', () => {
   beforeEach(() => {
-    silentRefreshMock.mockReset().mockResolvedValue(true);
+    __resetAuthFailureReasonForTesting();
+    // Default: rung 1 (content-cookie re-mint) fails so tests exercise rung 2 (full refresh),
+    // mirroring the pre-two-rung test setup unless a test overrides it.
+    remintContentCookieMock.mockReset().mockResolvedValue(null);
+    silentRefreshMock.mockReset().mockResolvedValue({ ok: true });
   });
+
   it('renders an img with srcset containing 150w and 512w from variants', () => {
     const { container } = render(MediaImage, {
       props: { media: makeImageMedia(), alt: 'test' },
@@ -73,7 +91,8 @@ describe('MediaImage', () => {
     expect(img.getAttribute('src')).toBe(`${ORIGIN}/v1/content/outputs/orig`);
   });
 
-  it('refreshes once and reloads the same responsive source set after an error', async () => {
+  it('rung 1 success: a re-minted content cookie reloads the same source without a full refresh (C3)', async () => {
+    remintContentCookieMock.mockResolvedValue(new Date(Date.now() + 86_400_000));
     const { container } = render(MediaImage, {
       props: { media: makeImageMedia(), alt: 'test' },
     });
@@ -82,6 +101,22 @@ describe('MediaImage', () => {
 
     await fireEvent.error(img);
 
+    await vi.waitFor(() => expect(remintContentCookieMock).toHaveBeenCalledTimes(1));
+    expect(silentRefreshMock).not.toHaveBeenCalled();
+    expect(img.getAttribute('src')).toBe(`${ORIGIN}/v1/content/outputs/orig`);
+    expect(img.getAttribute('srcset')).toBe(srcset);
+  });
+
+  it('rung 2: falls back to a full refresh when the re-mint fails, then reloads the same source', async () => {
+    const { container } = render(MediaImage, {
+      props: { media: makeImageMedia(), alt: 'test' },
+    });
+    const img = container.querySelector('img')!;
+    const srcset = img.getAttribute('srcset');
+
+    await fireEvent.error(img);
+
+    await vi.waitFor(() => expect(remintContentCookieMock).toHaveBeenCalledTimes(1));
     await vi.waitFor(() => expect(silentRefreshMock).toHaveBeenCalledTimes(1));
     expect(img.getAttribute('src')).toBe(`${ORIGIN}/v1/content/outputs/orig`);
     expect(img.getAttribute('srcset')).toBe(srcset);
@@ -95,10 +130,62 @@ describe('MediaImage', () => {
 
     await fireEvent.error(img);
     await vi.waitFor(() => expect(silentRefreshMock).toHaveBeenCalledTimes(1));
+    await flushMicrotasks();
     await fireEvent.error(img);
 
     expect(container.querySelector('img')).toBeNull();
     expect(getByRole('img', { name: 'Image unavailable' })).toBeTruthy();
+  });
+
+  it('both rungs failing on the first error goes straight to the placeholder', async () => {
+    silentRefreshMock.mockResolvedValue({ ok: false, reason: 'invalid_token' });
+    const { container, getByRole } = render(MediaImage, {
+      props: { media: makeImageMedia(), alt: 'test' },
+    });
+
+    await fireEvent.error(container.querySelector('img')!);
+
+    await vi.waitFor(() => expect(container.querySelector('img')).toBeNull());
+    expect(getByRole('img', { name: 'Image unavailable' })).toBeTruthy();
+  });
+
+  it('B3: a known-revoked session skips both rungs entirely and goes straight to the placeholder', async () => {
+    setAuthFailureReason('token_reuse_detected');
+    const { container, getByRole } = render(MediaImage, {
+      props: { media: makeImageMedia(), alt: 'test' },
+    });
+
+    await fireEvent.error(container.querySelector('img')!);
+
+    expect(container.querySelector('img')).toBeNull();
+    expect(getByRole('img', { name: 'Image unavailable' })).toBeTruthy();
+    expect(remintContentCookieMock).not.toHaveBeenCalled();
+    expect(silentRefreshMock).not.toHaveBeenCalled();
+  });
+
+  it('B3: account_inactive also skips both rungs', async () => {
+    setAuthFailureReason('account_inactive');
+    const { container } = render(MediaImage, {
+      props: { media: makeImageMedia(), alt: 'test' },
+    });
+
+    await fireEvent.error(container.querySelector('img')!);
+
+    expect(container.querySelector('img')).toBeNull();
+    expect(remintContentCookieMock).not.toHaveBeenCalled();
+    expect(silentRefreshMock).not.toHaveBeenCalled();
+  });
+
+  it('an ordinary invalid_token reason keeps the existing ladder behavior (B3)', async () => {
+    setAuthFailureReason('invalid_token');
+    const { container } = render(MediaImage, {
+      props: { media: makeImageMedia(), alt: 'test' },
+    });
+
+    await fireEvent.error(container.querySelector('img')!);
+
+    await vi.waitFor(() => expect(remintContentCookieMock).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(silentRefreshMock).toHaveBeenCalledTimes(1));
   });
 
   it('resets a failed retry state when a new media prop arrives', async () => {
@@ -112,6 +199,7 @@ describe('MediaImage', () => {
 
     await fireEvent.error(container.querySelector('img')!);
     await vi.waitFor(() => expect(silentRefreshMock).toHaveBeenCalledTimes(1));
+    await flushMicrotasks();
     await fireEvent.error(container.querySelector('img')!);
     expect(container.querySelector('img')).toBeNull();
 
@@ -124,7 +212,7 @@ describe('MediaImage', () => {
   it('does not reset a failed retry state on a rerender carrying an identical URL in a new object', async () => {
     const first = makeImageMedia();
     // Same URL, brand-new object — the bug this guards against reset retryState on identity
-    // alone, which would remount the <img> and retrigger silentRefresh needlessly.
+    // alone, which would remount the <img> and retrigger the recovery ladder needlessly.
     const second = makeImageMedia();
     const { container, rerender } = render(MediaImage, {
       props: { media: first, alt: 'test' },
@@ -132,6 +220,7 @@ describe('MediaImage', () => {
 
     await fireEvent.error(container.querySelector('img')!);
     await vi.waitFor(() => expect(silentRefreshMock).toHaveBeenCalledTimes(1));
+    await flushMicrotasks();
     await fireEvent.error(container.querySelector('img')!);
     expect(container.querySelector('img')).toBeNull();
 
@@ -144,7 +233,9 @@ describe('MediaImage', () => {
 
 describe('MediaImage — srcOverride', () => {
   beforeEach(() => {
-    silentRefreshMock.mockReset().mockResolvedValue(true);
+    __resetAuthFailureReasonForTesting();
+    remintContentCookieMock.mockReset().mockResolvedValue(null);
+    silentRefreshMock.mockReset().mockResolvedValue({ ok: true });
   });
 
   it('renders a single src with no srcset/sizes when srcOverride is set', () => {
@@ -157,7 +248,7 @@ describe('MediaImage — srcOverride', () => {
     expect(img.getAttribute('sizes')).toBeNull();
   });
 
-  it('calls onObjectUrlError instead of silentRefresh when the override source fails', async () => {
+  it('calls onObjectUrlError instead of the recovery ladder when the override source fails', async () => {
     const onObjectUrlError = vi.fn();
     const { container } = render(MediaImage, {
       props: {
@@ -171,6 +262,7 @@ describe('MediaImage — srcOverride', () => {
     await fireEvent.error(container.querySelector('img')!);
 
     expect(onObjectUrlError).toHaveBeenCalledTimes(1);
+    expect(remintContentCookieMock).not.toHaveBeenCalled();
     expect(silentRefreshMock).not.toHaveBeenCalled();
     // No placeholder — the owner is expected to drop srcOverride so the variant repaints.
     expect(container.querySelector('img')).not.toBeNull();

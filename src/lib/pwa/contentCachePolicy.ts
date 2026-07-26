@@ -11,10 +11,11 @@ export function shouldCacheContentMedia(response: Response): boolean {
   const contentType = response.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase();
   if (!contentType?.startsWith('image/')) return false;
 
-  // Depends on the content proxy always sending Content-Length on image responses (true today).
-  // The companion backend PR reworks that response path — if it drops the header, reject here
-  // rather than resolving `response.clone().blob()` just to size-check, which would force a full
-  // in-memory read of every candidate response before the route even decides to cache it.
+  // The content proxy's GetObject-backed route sets Content-Type/Content-Length/Content-Range
+  // together from a single R2 response, so a 200 can never arrive without Content-Length (see
+  // BACKEND_API_REFERENCE.md §9, "Content Proxy performance & streaming"). The `status !== 200`
+  // guard above already rejects 206 Partial Content and 304 Not Modified — this is a size check
+  // on a full body, never a size-check-via-fetch of a response this cache shouldn't hold at all.
   const contentLength = response.headers.get('content-length');
   if (!contentLength || !/^\d+$/.test(contentLength)) return false;
   const bytes = Number(contentLength);

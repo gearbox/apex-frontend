@@ -74,7 +74,9 @@ export async function fetchOriginalBlob(
   let response = await requestBytes(absoluteUrl, authenticated, signal, cacheMode);
 
   if (authenticated && response.status === 401) {
-    const refreshed = await silentRefresh().catch(() => false);
+    const refreshed = await silentRefresh()
+      .then((result) => result.ok)
+      .catch(() => false);
     if (!refreshed) throw new SaveFailedError('auth');
     response = await requestBytes(absoluteUrl, authenticated, signal, cacheMode);
   }

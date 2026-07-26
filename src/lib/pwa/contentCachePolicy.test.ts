@@ -5,8 +5,12 @@ import {
   shouldCacheContentMedia,
 } from './contentCachePolicy';
 
+// The Fetch spec forbids a body on null-body statuses (204/205/304) — the Response
+// constructor throws if one is supplied, so those statuses must pass `null` instead.
+const NULL_BODY_STATUSES = new Set([204, 205, 304]);
+
 function mediaResponse(contentType: string, contentLength: string, status = 200): Response {
-  return new Response('bytes', {
+  return new Response(NULL_BODY_STATUSES.has(status) ? null : 'bytes', {
     status,
     headers: { 'content-type': contentType, 'content-length': contentLength },
   });
@@ -22,6 +26,8 @@ describe('content media cache policy', () => {
   it.each([
     ['videos', mediaResponse('video/mp4', '1024')],
     ['errors', mediaResponse('image/webp', '1024', 401)],
+    ['206 Partial Content (Range requests)', mediaResponse('image/webp', '1024', 206)],
+    ['304 Not Modified (If-None-Match revalidation)', mediaResponse('image/webp', '1024', 304)],
     ['exactly 2 MB', mediaResponse('image/webp', String(CONTENT_MEDIA_MAX_BYTES))],
     [
       'missing lengths',

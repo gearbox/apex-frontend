@@ -41,6 +41,8 @@ export const EXPIRES_SOON_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 /* ─── Session Storage Keys ─── */
 export const SESSION_KEYS = {
   ACTIVE_JOB: 'apex-active-job',
+  /** Set right before the 401 middleware's hard redirect; consumed once by the login screen. */
+  AUTH_FAILURE_REASON: 'apex-auth-failure-reason',
 } as const;
 
 /* ─── SSE / Real-Time Events ─── */

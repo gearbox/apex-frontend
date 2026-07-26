@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { makeMediaObject, makeVideoMediaObject } from '../../mocks/factories/media';
 
 const { silentRefreshMock } = vi.hoisted(() => ({
-  silentRefreshMock: vi.fn<() => Promise<boolean>>(),
+  silentRefreshMock: vi.fn<() => Promise<{ ok: true } | { ok: false; reason: string }>>(),
 }));
 
 vi.mock('$lib/api/auth', async (importOriginal) => ({
@@ -57,7 +57,7 @@ describe('progressive originals', () => {
   });
 
   it('refreshes once after 401 before retrying the protected original', async () => {
-    silentRefreshMock.mockResolvedValue(true);
+    silentRefreshMock.mockResolvedValue({ ok: true });
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(new Response(null, { status: 401 }))
@@ -107,7 +107,7 @@ describe('progressive originals', () => {
   });
 
   it('returns a safe authentication error when refresh cannot recover the original request', async () => {
-    silentRefreshMock.mockResolvedValue(false);
+    silentRefreshMock.mockResolvedValue({ ok: false, reason: 'invalid_token' });
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 401 })));
 
     await expect(fetchOriginalBytes(makeMediaObject())).rejects.toEqual(

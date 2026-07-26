@@ -27,3 +27,8 @@ export function addToast(toast: Omit<Toast, 'id'>): string {
 export function removeToast(id: string): void {
   update((all) => all.filter((t) => t.id !== id));
 }
+
+/** Drops every queued toast — e.g. so a prior account's toasts never bleed into the next session. */
+export function clearToasts(): void {
+  update(() => []);
+}

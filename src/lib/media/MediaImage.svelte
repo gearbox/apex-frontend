@@ -1,6 +1,7 @@
 <script lang="ts">
   import { imgAttrs } from '$lib/media/index';
-  import { silentRefresh } from '$lib/api/auth';
+  import { silentRefresh, remintContentCookie, type SilentRefreshResult } from '$lib/api/auth';
+  import { getAuthFailureReason } from '$lib/stores/auth';
   import { ImageOff } from 'lucide-svelte';
   import * as m from '$paraglide/messages';
   import type { components } from '$lib/api/types';
@@ -57,6 +58,14 @@
     imageElement.src = attrs.src;
   }
 
+  /** A session already known to be revoked cannot be recovered by either rung below — retrying
+   *  it is pure noise against an endpoint that will only 401 again (B3). `invalid_token`/no
+   *  recorded reason keeps the existing ladder behavior. */
+  function isKnownRevoked(): boolean {
+    const reason = getAuthFailureReason();
+    return reason === 'token_reuse_detected' || reason === 'account_inactive';
+  }
+
   async function handleError(): Promise<void> {
     if (srcOverride) {
       // An object URL can never 401 — bypass the refresh/retry ladder entirely and let the
@@ -73,13 +82,35 @@
     }
 
     const failedUrl = originalUrl;
+
+    if (isKnownRevoked()) {
+      failure = { url: failedUrl, state: 'failed' };
+      return;
+    }
+
     failure = { url: failedUrl, state: 'refreshing' };
-    const refreshed = await silentRefresh().catch(() => false);
+
+    // Rung 1: the content cookie may simply have lapsed while the access token is still good —
+    // the common case, and cheaper than a full token refresh (C3).
+    const reminted = await remintContentCookie().catch(() => null);
 
     // Ignore a stale response once the parent has already moved on to different media.
     if (originalUrl !== failedUrl) return;
 
-    if (!refreshed) {
+    if (reminted) {
+      failure = { url: failedUrl, state: 'retried' };
+      reloadSameSource();
+      return;
+    }
+
+    // Rung 2: the access token itself is dead — fall back to a full refresh.
+    const result = await silentRefresh().catch(
+      (): SilentRefreshResult => ({ ok: false, reason: 'network' }),
+    );
+
+    if (originalUrl !== failedUrl) return;
+
+    if (!result.ok) {
       failure = { url: failedUrl, state: 'failed' };
       return;
     }

@@ -54,8 +54,8 @@ export class HealthStreamService {
       if (this.stopped) return;
 
       if (res.status === 401) {
-        const refreshed = await silentRefresh();
-        if (!refreshed || this.stopped) {
+        const result = await silentRefresh();
+        if (!result.ok || this.stopped) {
           callbacks.onStatus('fallback');
           return;
         }

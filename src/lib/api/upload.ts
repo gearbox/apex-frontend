@@ -40,7 +40,7 @@ async function doUpload(file: File): Promise<Response> {
 export async function uploadMedia(file: File): Promise<UploadResponse> {
   let res = await doUpload(file);
 
-  if (res.status === 401 && (await silentRefresh())) {
+  if (res.status === 401 && (await silentRefresh()).ok) {
     res = await doUpload(file);
   }
 

@@ -4,7 +4,7 @@ import ProgressiveImage from './ProgressiveImage.svelte';
 import { makeMediaObject } from '../../mocks/factories/media';
 
 const { silentRefreshMock } = vi.hoisted(() => ({
-  silentRefreshMock: vi.fn<() => Promise<boolean>>(),
+  silentRefreshMock: vi.fn<() => Promise<{ ok: true } | { ok: false; reason: string }>>(),
 }));
 
 vi.mock('$lib/api/auth', async (importOriginal) => ({
@@ -13,6 +13,11 @@ vi.mock('$lib/api/auth', async (importOriginal) => ({
 }));
 
 const ORIGIN = 'http://localhost:8000';
+
+/** See MediaImage.test.ts for why this extra macrotask flush is needed after `vi.waitFor`. */
+function flushMicrotasks(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
 
 /** The upgrade fetch never settles, so the base responsive variant stays painted for the
  *  lifetime of the test — any <img> error must be handled by MediaImage's own ladder. */
@@ -34,7 +39,7 @@ function streamedResponse(chunks: string[], headers: Record<string, string> = {}
 }
 
 beforeEach(() => {
-  silentRefreshMock.mockReset().mockResolvedValue(true);
+  silentRefreshMock.mockReset().mockResolvedValue({ ok: true });
 });
 
 afterEach(() => {
@@ -67,6 +72,7 @@ describe('ProgressiveImage — base variant error ladder (delegated to MediaImag
 
     await fireEvent.error(img);
     await vi.waitFor(() => expect(silentRefreshMock).toHaveBeenCalledTimes(1));
+    await flushMicrotasks();
     await fireEvent.error(img);
 
     expect(container.querySelector('img')).toBeNull();

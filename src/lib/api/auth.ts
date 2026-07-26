@@ -5,15 +5,21 @@ import {
   getCurrentUser,
   setAuthStatus,
   getRefreshToken,
+  getAccessToken,
+  setAuthFailureReason,
+  setContentCookieExpiresAt,
   type AuthTokens,
   type UserProfile,
+  type AuthFailureReason,
 } from '$lib/stores/auth';
+import { resetAppState } from '$lib/stores/resetAppState';
 import { parseApiError, AuthError } from '$lib/api/errors';
 import { parseRateLimitHeaders, endpointKey } from '$lib/api/rateLimit';
 import { updateRateLimit } from '$lib/stores/rateLimit';
 
 // Re-export so existing callers (login/register pages) don't need to change their imports
 export { AuthError };
+export type { AuthFailureReason };
 
 /* ─── Types matching backend responses ─── */
 interface AuthResponse {
@@ -22,10 +28,19 @@ interface AuthResponse {
   token_type: string;
   expires_in: number;
   expires_at: string;
+  content_cookie_expires_at: string;
 }
 
+interface ContentCookieResponse {
+  expires_at: string;
+}
+
+/** Discriminated result — see AuthFailureReason for what each reason means to callers. */
+export type SilentRefreshResult = { ok: true } | { ok: false; reason: AuthFailureReason };
+
 /* ─── State ─── */
-let refreshPromise: Promise<boolean> | null = null;
+let refreshPromise: Promise<SilentRefreshResult> | null = null;
+let contentCookieRemintPromise: Promise<Date | null> | null = null;
 
 /* ─── Helper ─── */
 function toTokens(res: AuthResponse): AuthTokens {
@@ -33,7 +48,15 @@ function toTokens(res: AuthResponse): AuthTokens {
     accessToken: res.access_token,
     refreshToken: res.refresh_token,
     expiresAt: res.expires_at,
+    contentCookieExpiresAt: res.content_cookie_expires_at,
   };
+}
+
+/** Backend refresh error codes we don't recognize yet default to the benign, silent case. */
+function mapRefreshErrorToReason(code: string): AuthFailureReason {
+  if (code === 'token_reuse_detected') return 'token_reuse_detected';
+  if (code === 'account_inactive') return 'account_inactive';
+  return 'invalid_token';
 }
 
 async function fetchJson<T>(path: string, init: RequestInit): Promise<T> {
@@ -71,6 +94,9 @@ export async function login(email: string, password: string): Promise<void> {
   const tokens = toTokens(authRes);
   const profile = await fetchProfile(tokens.accessToken);
   setAuth(tokens, profile);
+  // A fresh login must not inherit a previous account's cached data on this device, regardless
+  // of how (or whether) that previous session was ever logged out (A3).
+  resetAppState();
 }
 
 export async function register(
@@ -87,21 +113,23 @@ export async function register(
   const tokens = toTokens(authRes);
   const profile = await fetchProfile(tokens.accessToken);
   setAuth(tokens, profile);
+  resetAppState();
 }
 
 /**
- * Attempt a silent refresh using the stored refresh token.
- * Returns true if successful, false otherwise.
- * De-duplicates concurrent calls.
+ * Attempt a silent refresh using the stored refresh token. De-duplicates concurrent calls.
+ * Returns a discriminated result rather than a bare boolean so callers can distinguish a benign
+ * session end (`invalid_token`, `network`) from a genuine security event (`token_reuse_detected`,
+ * `account_inactive`) — see AuthFailureReason.
  */
-export async function silentRefresh(): Promise<boolean> {
+export async function silentRefresh(): Promise<SilentRefreshResult> {
   if (refreshPromise) return refreshPromise;
 
-  refreshPromise = (async () => {
+  refreshPromise = (async (): Promise<SilentRefreshResult> => {
     const refreshToken = getRefreshToken();
     if (!refreshToken) {
       clearAuth();
-      return false;
+      return { ok: false, reason: 'invalid_token' };
     }
 
     try {
@@ -114,7 +142,7 @@ export async function silentRefresh(): Promise<boolean> {
       const tokens = toTokens(authRes);
       const profile = await fetchProfile(tokens.accessToken);
       setAuth(tokens, profile);
-      return true;
+      return { ok: true };
     } catch (err) {
       // Definitive rejection from the refresh endpoint → session is dead; clear it.
       if (
@@ -123,13 +151,16 @@ export async function silentRefresh(): Promise<boolean> {
         err.status_code < 500 &&
         err.status_code !== 429
       ) {
+        const reason = mapRefreshErrorToReason(err.error);
+        setAuthFailureReason(reason);
         clearAuth();
-        return false;
+        return { ok: false, reason };
       }
       // Transient (network error, 5xx, 429): keep the refresh token so the next
       // launch/retry can restore the session. Report failure without destroying state.
       setAuthStatus('unauthenticated');
-      return false;
+      setAuthFailureReason('network');
+      return { ok: false, reason: 'network' };
     }
   })();
 
@@ -137,6 +168,52 @@ export async function silentRefresh(): Promise<boolean> {
     return await refreshPromise;
   } finally {
     refreshPromise = null;
+  }
+}
+
+/**
+ * Re-mints the `apex_content` cookie for the caller's Bearer token, without a full token
+ * refresh. Returns the new expiry on success, `null` on any failure. Never calls clearAuth() — a
+ * failed re-mint (e.g. the access token happened to expire moments earlier) is not evidence of a
+ * dead session; callers fall back to silentRefresh() for that (see MediaImage's ladder, C3).
+ * De-duplicates concurrent callers — e.g. a grid of thumbnails failing at once — behind one
+ * shared in-flight request, mirroring silentRefresh's refreshPromise.
+ */
+export async function remintContentCookie(): Promise<Date | null> {
+  if (contentCookieRemintPromise) return contentCookieRemintPromise;
+
+  contentCookieRemintPromise = (async (): Promise<Date | null> => {
+    const token = getAccessToken();
+    if (!token) return null;
+
+    const devHeaders: Record<string, string> = {};
+    if (import.meta.env.DEV) {
+      devHeaders['X-Product-Id'] = import.meta.env.VITE_PRODUCT_ID || 'vex';
+    }
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/v1/auth/content-cookie`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { Authorization: `Bearer ${token}`, ...devHeaders },
+      });
+      if (!res.ok) return null;
+
+      const body = (await res.json()) as ContentCookieResponse;
+      const expiresAt = new Date(body.expires_at);
+      if (Number.isNaN(expiresAt.getTime())) return null;
+
+      setContentCookieExpiresAt(expiresAt);
+      return expiresAt;
+    } catch {
+      return null;
+    }
+  })();
+
+  try {
+    return await contentCookieRemintPromise;
+  } finally {
+    contentCookieRemintPromise = null;
   }
 }
 
@@ -205,8 +282,8 @@ export async function initAuth(): Promise<void> {
     return;
   }
 
-  const success = await silentRefresh();
-  if (!success) {
+  const result = await silentRefresh();
+  if (!result.ok) {
     setAuthStatus('unauthenticated');
   }
 }

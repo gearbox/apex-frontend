@@ -45,8 +45,13 @@ export async function prewarmMediaWithSignal(
   const cacheKey = toMediaSrc(media.original.url);
   await getOrFetchBlob(
     cacheKey,
-    // 'default' lets the streamed bytes populate the browser's HTTP cache — the <video>
-    // element's own range/streaming requests can then reuse it directly on first open.
+    // 'default' (not 'no-store') lets the streamed bytes populate the browser's HTTP disk cache —
+    // the <video> element's own Range requests then reuse that entry instead of re-fetching the
+    // full original on first open. This depends on the content proxy's Range support (206 Partial
+    // Content + `Accept-Ranges: bytes` on every 200/206 — see BACKEND_API_REFERENCE.md §9,
+    // "Content Proxy performance & streaming"): without it the browser couldn't serve a byte-range
+    // straight from this cache entry and would re-request the whole file instead. Do not switch
+    // this back to 'no-store', and do not reintroduce blob-swapping in MediaVideo (D2).
     (signal) => fetchOriginalBlob(media, signal, 'default'),
     () => Date.now(),
     { ttlMs: options.ttlMs, signal: options.signal },

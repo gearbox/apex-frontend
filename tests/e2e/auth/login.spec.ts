@@ -7,6 +7,7 @@ const mockTokenResponse = {
   token_type: 'bearer',
   expires_in: 900,
   expires_at: new Date(Date.now() + 900_000).toISOString(),
+  content_cookie_expires_at: new Date(Date.now() + 86_400_000).toISOString(),
 };
 
 const mockUserProfile = {
@@ -98,5 +99,54 @@ test.describe('Login page', () => {
     await page.getByRole('button', { name: 'Sign In' }).click();
 
     await expect(page).toHaveURL(/\/app\/library/, { timeout: 8000 });
+  });
+
+  test('5. Security notice: a persisted token_reuse_detected reason shows the security banner once', async ({
+    page,
+  }) => {
+    // Simulates the 401 middleware's hard redirect, which persists the reason to sessionStorage
+    // (see stores/auth.ts, setAuthFailureReason) before the login screen ever mounts. Init scripts
+    // also run on reload, so retain a test-only sentinel to plant the marker only once.
+    await page.addInitScript((reason) => {
+      const initializedKey = 'e2e-auth-failure-reason-initialized';
+      if (sessionStorage.getItem(initializedKey) === null) {
+        sessionStorage.setItem('apex-auth-failure-reason', reason);
+        sessionStorage.setItem(initializedKey, 'true');
+      }
+    }, 'token_reuse_detected');
+
+    await page.goto('/login');
+
+    await expect(page.getByText('Security notice')).toBeVisible();
+    await expect(page.getByText(/refresh token was reused/i)).toBeVisible();
+
+    // One-shot: the marker is consumed on mount, so a reload must not re-show it.
+    await page.reload();
+    await expect(page.getByText('Security notice')).not.toBeVisible();
+  });
+
+  test('6. Account deactivated: a persisted account_inactive reason shows the deactivation banner', async ({
+    page,
+  }) => {
+    await page.addInitScript((value) => {
+      sessionStorage.setItem('apex-auth-failure-reason', value);
+    }, 'account_inactive');
+
+    await page.goto('/login');
+
+    await expect(page.getByText('Your account has been deactivated.')).toBeVisible();
+  });
+
+  test('7. Ordinary session end: an invalid_token reason stays silent (no banner)', async ({
+    page,
+  }) => {
+    await page.addInitScript((value) => {
+      sessionStorage.setItem('apex-auth-failure-reason', value);
+    }, 'invalid_token');
+
+    await page.goto('/login');
+
+    await expect(page.getByText('Security notice')).not.toBeVisible();
+    await expect(page.getByText('Your account has been deactivated.')).not.toBeVisible();
   });
 });

@@ -4,7 +4,7 @@ import { silentRefresh } from '$lib/api/auth';
 
 vi.mock('$lib/utils/constants', () => ({ API_BASE_URL: 'http://localhost:8000' }));
 vi.mock('$lib/stores/auth', () => ({ getAccessToken: () => 'test-token' }));
-vi.mock('$lib/api/auth', () => ({ silentRefresh: vi.fn().mockResolvedValue(true) }));
+vi.mock('$lib/api/auth', () => ({ silentRefresh: vi.fn().mockResolvedValue({ ok: true }) }));
 
 // Helper: build a ReadableStream from a list of text chunks
 function makeStream(chunks: string[]): ReadableStream<Uint8Array> {
@@ -37,7 +37,7 @@ describe('HealthStreamService', () => {
     service = new HealthStreamService();
     fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
-    vi.mocked(silentRefresh).mockResolvedValue(true);
+    vi.mocked(silentRefresh).mockResolvedValue({ ok: true });
   });
 
   afterEach(() => {
@@ -85,7 +85,7 @@ describe('HealthStreamService', () => {
   });
 
   it('attempts silentRefresh on 401 and reconnects', async () => {
-    vi.mocked(silentRefresh).mockResolvedValue(true);
+    vi.mocked(silentRefresh).mockResolvedValue({ ok: true });
 
     const snapshot = { status: 'healthy', checked_at: '2026-01-01T00:00:00Z' };
     const frames = `event: health.snapshot\ndata: ${JSON.stringify(snapshot)}\n\n`;
@@ -105,7 +105,7 @@ describe('HealthStreamService', () => {
   });
 
   it('calls onStatus("fallback") when silentRefresh fails', async () => {
-    vi.mocked(silentRefresh).mockResolvedValue(false);
+    vi.mocked(silentRefresh).mockResolvedValue({ ok: false, reason: 'invalid_token' });
 
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 401 }));
 
