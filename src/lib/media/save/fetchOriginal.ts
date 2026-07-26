@@ -46,10 +46,8 @@ async function requestBytes(
 }
 
 /**
- * Fetches the original asset bytes, never a `variants[*]` preview. `cacheMode` defaults to
- * `'no-store'` so save/share semantics are unchanged; a viewer prewarm passes `'default'` so the
- * streamed bytes populate the browser's HTTP cache instead, which a later `<video>` request can
- * reuse directly.
+ * Fetches the original asset bytes, never a `variants[*]` preview. Authenticated originals always
+ * use `no-store`; session isolation takes priority over a persistent browser-cache warm.
  */
 export async function fetchOriginalBlob(
   media: MediaObject,

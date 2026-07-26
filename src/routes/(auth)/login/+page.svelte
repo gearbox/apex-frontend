@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
-  import { login, AuthError } from '$lib/api/auth';
+  import { login, AuthError, AuthOperationCancelledError } from '$lib/api/auth';
   import { consumeAuthFailureReason, type AuthFailureReason } from '$lib/stores/auth';
   import { rateLimitFor } from '$lib/stores/rateLimit';
   import { locale } from '$lib/stores/locale';
@@ -35,6 +35,10 @@
       const redirect = $page.url.searchParams.get('redirect') ?? '/app/create';
       goto(redirect, { replaceState: true });
     } catch (err) {
+      if (err instanceof AuthOperationCancelledError) {
+        // A newer login/register attempt owns the auth boundary. It is not user-visible failure.
+        return;
+      }
       if (err instanceof AuthError) {
         error = err.message;
       } else {

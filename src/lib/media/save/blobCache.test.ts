@@ -262,3 +262,42 @@ describe('getOrFetchBlob — reference-counted cancellation', () => {
     await expect(permanent).resolves.toBe(blob);
   });
 });
+
+describe('getOrFetchBlob — session reset isolation', () => {
+  it('aborts the owned controller and never restores a blob when a late fetch ignores abort', async () => {
+    let resolve!: (blob: Blob) => void;
+    let internalSignal!: AbortSignal;
+    const fetcher = vi.fn((signal: AbortSignal) => {
+      internalSignal = signal;
+      return new Promise<Blob>((done) => (resolve = done));
+    });
+
+    const pending = getOrFetchBlob('https://example.com/private-a', fetcher, () => 0);
+    clearBlobCache();
+    expect(internalSignal.aborted).toBe(true);
+    resolve(new Blob(['A private bytes']));
+
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+    expect(getCachedBlob('https://example.com/private-a', 1)).toBeNull();
+  });
+
+  it('settles every attached caller safely on reset and starts a new same-URL fetch independently', async () => {
+    let resolveOld!: (blob: Blob) => void;
+    const oldFetcher = vi.fn(() => new Promise<Blob>((done) => (resolveOld = done)));
+    const first = getOrFetchBlob('https://example.com/private-a', oldFetcher, () => 0);
+    const second = getOrFetchBlob('https://example.com/private-a', oldFetcher, () => 0);
+
+    clearBlobCache();
+    const freshBlob = new Blob(['B private bytes']);
+    const newFetcher = vi.fn().mockResolvedValue(freshBlob);
+    const fresh = getOrFetchBlob('https://example.com/private-a', newFetcher, () => 1);
+    resolveOld(new Blob(['late A bytes']));
+
+    await expect(first).rejects.toMatchObject({ name: 'AbortError' });
+    await expect(second).rejects.toMatchObject({ name: 'AbortError' });
+    await expect(fresh).resolves.toBe(freshBlob);
+    expect(oldFetcher).toHaveBeenCalledOnce();
+    expect(newFetcher).toHaveBeenCalledOnce();
+    expect(getCachedBlob('https://example.com/private-a', 2)).toBe(freshBlob);
+  });
+});

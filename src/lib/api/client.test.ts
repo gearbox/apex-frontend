@@ -10,6 +10,23 @@ import { ROUTES } from '$lib/utils/routes';
 
 const BASE = 'http://localhost:8000';
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
+function tokens(accessToken: string, refreshToken: string) {
+  return {
+    accessToken,
+    refreshToken,
+    expiresAt: new Date(Date.now() + 900_000).toISOString(),
+    contentCookieExpiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+  };
+}
+
 // Import apiClient after mocks are set up
 let apiClient: (typeof import('./client'))['default'];
 
@@ -240,6 +257,86 @@ describe('rate limit middleware', () => {
     expect(response.status).toBe(429);
     // 1 original + 3 retries = 4 calls
     expect(callCount).toBe(4);
+  });
+});
+
+describe('epoch-bound middleware retries', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('does not send a delayed 429 retry after logout', async () => {
+    vi.useFakeTimers();
+    setAuth(tokens('access-a', 'refresh-a'), makeUserProfile({ id: 'user-a' }));
+    let calls = 0;
+    server.use(
+      http.get(`${BASE}/v1/billing/balance`, () => {
+        calls += 1;
+        return HttpResponse.json(
+          { error: 'rate_limit_exceeded' },
+          { status: 429, headers: { 'Retry-After': '1' } },
+        );
+      }),
+    );
+
+    const request = apiClient.GET('/v1/billing/balance');
+    await vi.waitFor(() => expect(calls).toBe(1));
+    clearAuth();
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    await expect(request).resolves.toMatchObject({ response: { status: 429 } });
+    expect(calls).toBe(1);
+  });
+
+  it('does not replay an A 429 request after B replaces the session', async () => {
+    vi.useFakeTimers();
+    setAuth(tokens('access-a', 'refresh-a'), makeUserProfile({ id: 'user-a' }));
+    let calls = 0;
+    server.use(
+      http.get(`${BASE}/v1/billing/balance`, () => {
+        calls += 1;
+        return HttpResponse.json(
+          { error: 'rate_limit_exceeded' },
+          { status: 429, headers: { 'Retry-After': '1' } },
+        );
+      }),
+    );
+
+    const request = apiClient.GET('/v1/billing/balance');
+    await vi.waitFor(() => expect(calls).toBe(1));
+    setAuth(tokens('access-b', 'refresh-b'), makeUserProfile({ id: 'user-b' }));
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    await expect(request).resolves.toMatchObject({ response: { status: 429 } });
+    expect(calls).toBe(1);
+  });
+
+  it('does not replay an A 401 request when refresh is superseded by B', async () => {
+    setAuth(tokens('access-a', 'refresh-a'), makeUserProfile({ id: 'user-a' }));
+    const refreshResponse = deferred<Response>();
+    const refreshStarted = deferred<void>();
+    let balanceCalls = 0;
+    server.use(
+      http.get(`${BASE}/v1/billing/balance`, () => {
+        balanceCalls += 1;
+        return HttpResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }),
+      http.post(`${BASE}/v1/auth/refresh`, async () => {
+        refreshStarted.resolve();
+        return refreshResponse.promise;
+      }),
+    );
+
+    const request = apiClient.GET('/v1/billing/balance');
+    await refreshStarted.promise;
+    setAuth(tokens('access-b', 'refresh-b'), makeUserProfile({ id: 'user-b' }));
+    refreshResponse.resolve(
+      HttpResponse.json(makeTokenResponse({ access_token: 'late-access-a' })),
+    );
+
+    await expect(request).resolves.toMatchObject({ response: { status: 401 } });
+    expect(balanceCalls).toBe(1);
+    expect(getAccessToken()).toBe('access-b');
   });
 });
 

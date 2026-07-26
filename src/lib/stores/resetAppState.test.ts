@@ -7,6 +7,8 @@ import { activeJobStore } from './jobs';
 import { generationStore } from './generation';
 import { creditWarnings, upsertCreditWarning } from './creditWarnings';
 import { toasts, addToast } from './toasts';
+import { notifications, addNotification } from './notifications';
+import { eventStreamStatus, setEventStreamStatus } from './eventStream';
 import { makeUserProfile } from '../../mocks/factories/user';
 
 function getStoreValue<T>(store: { subscribe: (fn: (v: T) => void) => () => void }): T {
@@ -57,6 +59,13 @@ describe('resetAppState()', () => {
       balance: 10,
     });
     addToast({ type: 'info', message: 'user A finished a job' });
+    addNotification({
+      level: 'warning',
+      title: 'A-only notice',
+      message: 'must not survive logout',
+      expires_at: null,
+    });
+    setEventStreamStatus('connected');
 
     resetAppState();
 
@@ -67,6 +76,8 @@ describe('resetAppState()', () => {
     expect(getStoreValue(generationStore).prompt).toBe('');
     expect(getStoreValue(creditWarnings).size).toBe(0);
     expect(getStoreValue(toasts)).toEqual([]);
+    expect(getStoreValue(notifications)).toEqual([]);
+    expect(getStoreValue(eventStreamStatus)).toBe('disconnected');
   });
 
   it('a throwing step does not prevent the rest of the reset (A5)', () => {

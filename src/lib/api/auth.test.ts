@@ -25,10 +25,12 @@ import {
   clearAuth,
   getAccessToken,
   getRefreshToken,
+  getCurrentUser,
   setAuth,
   getAuthFailureReason,
   consumeAuthFailureReason,
   getContentCookieExpiresAt,
+  __resetAuthFailureReasonForTesting,
 } from '$lib/stores/auth';
 import { getQueryClient } from '$lib/queries/queryClient';
 import { clearRateLimits, getRateLimitState } from '$lib/stores/rateLimit';
@@ -40,8 +42,17 @@ import {
 
 const BASE = 'http://localhost:8000';
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
 beforeEach(() => {
   clearAuth();
+  __resetAuthFailureReasonForTesting();
   clearRateLimits();
   localStorage.clear();
   sessionStorage.clear();
@@ -332,10 +343,12 @@ describe('remintContentCookie()', () => {
     );
     server.use(contentCookieRemintHandler);
 
-    const expiresAt = await remintContentCookie();
+    const result = await remintContentCookie();
 
-    expect(expiresAt).toBeInstanceOf(Date);
-    expect(getContentCookieExpiresAt()?.getTime()).toBe(expiresAt?.getTime());
+    expect(result).toMatchObject({ kind: 'ok' });
+    expect(getContentCookieExpiresAt()?.getTime()).toBe(
+      result.kind === 'ok' ? result.expiresAt.getTime() : undefined,
+    );
   });
 
   it('401: returns null and never calls clearAuth()', async () => {
@@ -350,9 +363,9 @@ describe('remintContentCookie()', () => {
     );
     server.use(failedContentCookieRemintHandler);
 
-    const expiresAt = await remintContentCookie();
+    const result = await remintContentCookie();
 
-    expect(expiresAt).toBeNull();
+    expect(result).toEqual({ kind: 'unauthorized' });
     // A failed re-mint is not evidence of a dead session — the access token must survive.
     expect(getAccessToken()).toBe('dead-access-token');
   });
@@ -366,9 +379,9 @@ describe('remintContentCookie()', () => {
       }),
     );
 
-    const expiresAt = await remintContentCookie();
+    const result = await remintContentCookie();
 
-    expect(expiresAt).toBeNull();
+    expect(result).toEqual({ kind: 'unauthorized' });
     expect(called).toBe(false);
   });
 
@@ -397,7 +410,169 @@ describe('remintContentCookie()', () => {
     ]);
 
     expect(callCount).toBe(1);
-    expect(results.every((r) => r instanceof Date)).toBe(true);
+    expect(results.every((r) => r.kind === 'ok')).toBe(true);
+  });
+});
+
+describe('auth epoch isolation', () => {
+  const userA = makeUserProfile({ id: 'user-a' });
+  const userB = makeUserProfile({ id: 'user-b' });
+
+  function authenticateAs(accessToken: string, refreshToken: string, profile = userA): void {
+    setAuth(
+      {
+        accessToken,
+        refreshToken,
+        expiresAt: new Date(Date.now() + 900_000).toISOString(),
+        contentCookieExpiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+      },
+      profile,
+    );
+  }
+
+  it('does not restore A when a deferred refresh settles after clearAuth()', async () => {
+    authenticateAs('access-a', 'refresh-a');
+    const response = deferred<Response>();
+    const started = deferred<void>();
+    server.use(
+      http.post(`${BASE}/v1/auth/refresh`, async () => {
+        started.resolve();
+        return response.promise;
+      }),
+    );
+
+    const refresh = silentRefresh();
+    await started.promise;
+    clearAuth();
+    response.resolve(HttpResponse.json(makeTokenResponse({ access_token: 'late-access-a' })));
+
+    await expect(refresh).resolves.toMatchObject({ ok: false });
+    expect(getAccessToken()).toBeNull();
+    expect(getCurrentUser()).toBeNull();
+  });
+
+  it('does not let a deferred A refresh overwrite a later B session', async () => {
+    authenticateAs('access-a', 'refresh-a');
+    const response = deferred<Response>();
+    const started = deferred<void>();
+    server.use(
+      http.post(`${BASE}/v1/auth/refresh`, async () => {
+        started.resolve();
+        return response.promise;
+      }),
+    );
+
+    const refresh = silentRefresh();
+    await started.promise;
+    authenticateAs('access-b', 'refresh-b', userB);
+    response.resolve(HttpResponse.json(makeTokenResponse({ access_token: 'late-access-a' })));
+
+    await expect(refresh).resolves.toMatchObject({ ok: false });
+    expect(getAccessToken()).toBe('access-b');
+    expect(getCurrentUser()?.id).toBe('user-b');
+  });
+
+  it('does not restore cookie expiry after a re-mint is invalidated by logout', async () => {
+    authenticateAs('access-a', 'refresh-a');
+    const originalExpiry = getContentCookieExpiresAt()?.getTime();
+    const response = deferred<Response>();
+    const started = deferred<void>();
+    server.use(
+      http.post(`${BASE}/v1/auth/content-cookie`, async () => {
+        started.resolve();
+        return response.promise;
+      }),
+    );
+
+    const remint = remintContentCookie();
+    await started.promise;
+    clearAuth();
+    response.resolve(
+      HttpResponse.json({ expires_at: new Date(Date.now() + 86_400_000).toISOString() }),
+    );
+
+    await expect(remint).resolves.toMatchObject({ kind: expect.stringMatching(/aborted|stale/) });
+    expect(getContentCookieExpiresAt()).toBeNull();
+    expect(originalExpiry).toBeDefined();
+  });
+
+  it('keeps B cookie expiry authoritative when A re-mint settles late', async () => {
+    authenticateAs('access-a', 'refresh-a');
+    const response = deferred<Response>();
+    const started = deferred<void>();
+    server.use(
+      http.post(`${BASE}/v1/auth/content-cookie`, async () => {
+        started.resolve();
+        return response.promise;
+      }),
+    );
+
+    const remint = remintContentCookie();
+    await started.promise;
+    const bExpiry = new Date(Date.now() + 3_600_000).toISOString();
+    setAuth(
+      {
+        accessToken: 'access-b',
+        refreshToken: 'refresh-b',
+        expiresAt: new Date(Date.now() + 900_000).toISOString(),
+        contentCookieExpiresAt: bExpiry,
+      },
+      userB,
+    );
+    response.resolve(
+      HttpResponse.json({ expires_at: new Date(Date.now() + 86_400_000).toISOString() }),
+    );
+
+    await expect(remint).resolves.toMatchObject({ kind: expect.stringMatching(/aborted|stale/) });
+    expect(getContentCookieExpiresAt()?.toISOString()).toBe(bExpiry);
+  });
+
+  it('does not reuse a re-mint single-flight promise across auth epochs', async () => {
+    authenticateAs('access-a', 'refresh-a');
+    const first = deferred<Response>();
+    const second = deferred<Response>();
+    let calls = 0;
+    server.use(
+      http.post(`${BASE}/v1/auth/content-cookie`, () => {
+        calls += 1;
+        return calls === 1 ? first.promise : second.promise;
+      }),
+    );
+
+    const remintA = remintContentCookie();
+    await vi.waitFor(() => expect(calls).toBe(1));
+    authenticateAs('access-b', 'refresh-b', userB);
+    const remintB = remintContentCookie();
+    await vi.waitFor(() => expect(calls).toBe(2));
+    second.resolve(
+      HttpResponse.json({ expires_at: new Date(Date.now() + 7_200_000).toISOString() }),
+    );
+    first.resolve(
+      HttpResponse.json({ expires_at: new Date(Date.now() + 86_400_000).toISOString() }),
+    );
+
+    await expect(remintB).resolves.toMatchObject({ kind: 'ok' });
+    await expect(remintA).resolves.toMatchObject({ kind: expect.stringMatching(/aborted|stale/) });
+  });
+
+  it('treats an auth-transition abort as ignored rather than a security banner', async () => {
+    authenticateAs('access-a', 'refresh-a');
+    const response = deferred<Response>();
+    const started = deferred<void>();
+    server.use(
+      http.post(`${BASE}/v1/auth/refresh`, async () => {
+        started.resolve();
+        return response.promise;
+      }),
+    );
+
+    const refresh = silentRefresh();
+    await started.promise;
+    clearAuth();
+    response.resolve(HttpResponse.json(makeTokenResponse()));
+
+    await expect(refresh).resolves.toMatchObject({ ok: false, reason: 'aborted' });
+    expect(getAuthFailureReason()).toBeNull();
   });
 });
 

@@ -8,11 +8,20 @@ import {
   getAccessToken,
   setAuthFailureReason,
   setContentCookieExpiresAt,
+  beginAuthTransition,
   type AuthTokens,
   type UserProfile,
   type AuthFailureReason,
 } from '$lib/stores/auth';
 import { resetAppState } from '$lib/stores/resetAppState';
+import {
+  beginAuthOperation,
+  finishAuthOperation,
+  getAuthEpoch,
+  isAuthEpochCurrent,
+  isAuthOperationCurrent,
+  type AuthOperation,
+} from '$lib/stores/authLifecycle';
 import { parseApiError, AuthError } from '$lib/api/errors';
 import { parseRateLimitHeaders, endpointKey } from '$lib/api/rateLimit';
 import { updateRateLimit } from '$lib/stores/rateLimit';
@@ -36,11 +45,34 @@ interface ContentCookieResponse {
 }
 
 /** Discriminated result — see AuthFailureReason for what each reason means to callers. */
-export type SilentRefreshResult = { ok: true } | { ok: false; reason: AuthFailureReason };
+export type SilentRefreshResult =
+  | { ok: true }
+  | { ok: false; reason: AuthFailureReason | 'stale' | 'aborted' };
+
+/** A cookie re-mint is intentionally more precise than a nullable expiry. */
+export type ContentCookieRemintResult =
+  | { kind: 'ok'; expiresAt: Date }
+  | { kind: 'unauthorized' }
+  | { kind: 'rate_limited'; retryAfterMs?: number }
+  | { kind: 'transient' }
+  | { kind: 'aborted' }
+  | { kind: 'stale' };
+
+/** Replacing-login work is deliberately ignored by the form that started it. */
+export class AuthOperationCancelledError extends Error {
+  constructor() {
+    super('Authentication operation was superseded');
+    this.name = 'AuthOperationCancelledError';
+  }
+}
 
 /* ─── State ─── */
-let refreshPromise: Promise<SilentRefreshResult> | null = null;
-let contentCookieRemintPromise: Promise<Date | null> | null = null;
+let refreshFlight:
+  | { epoch: number; refreshToken: string; promise: Promise<SilentRefreshResult> }
+  | undefined;
+let contentCookieRemintFlight:
+  | { epoch: number; accessToken: string; promise: Promise<ContentCookieRemintResult> }
+  | undefined;
 
 /* ─── Helper ─── */
 function toTokens(res: AuthResponse): AuthTokens {
@@ -82,21 +114,66 @@ async function fetchJson<T>(path: string, init: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+function wasAborted(error: unknown, operation: AuthOperation): boolean {
+  return (
+    operation.signal.aborted ||
+    (error instanceof DOMException && error.name === 'AbortError') ||
+    (error instanceof Error && error.name === 'AbortError')
+  );
+}
+
+function isRefreshCurrent(operation: AuthOperation, refreshToken: string): boolean {
+  return isAuthOperationCurrent(operation) && getRefreshToken() === refreshToken;
+}
+
+function isAccessTokenCurrent(operation: AuthOperation, accessToken: string): boolean {
+  return isAuthOperationCurrent(operation) && getAccessToken() === accessToken;
+}
+
+function cancelledFreshAuth(operation: AuthOperation): never {
+  if (!isAuthOperationCurrent(operation)) throw new AuthOperationCancelledError();
+  throw new Error('Unreachable auth operation state');
+}
+
+async function completeFreshAuth(
+  path: '/v1/auth/login' | '/v1/auth/register',
+  body: Record<string, unknown>,
+): Promise<void> {
+  // A user may submit a new login/register form while a previous one is still resolving.  The
+  // transition invalidation happens before the request so the older response cannot install A.
+  beginAuthTransition();
+  const operation = beginAuthOperation();
+  try {
+    const authRes = await fetchJson<AuthResponse>(path, {
+      method: 'POST',
+      credentials: 'include',
+      body: JSON.stringify(body),
+      signal: operation.signal,
+    });
+    if (!isAuthOperationCurrent(operation)) cancelledFreshAuth(operation);
+
+    const tokens = toTokens(authRes);
+    const profile = await fetchProfile(tokens.accessToken, operation.signal);
+    if (!isAuthOperationCurrent(operation)) cancelledFreshAuth(operation);
+
+    setAuth(tokens, profile);
+    // A fresh login must not inherit a previous account's cached data on this device, regardless
+    // of how (or whether) that previous session was ever logged out.
+    resetAppState();
+  } catch (error) {
+    if (wasAborted(error, operation) || !isAuthOperationCurrent(operation)) {
+      throw new AuthOperationCancelledError();
+    }
+    throw error;
+  } finally {
+    finishAuthOperation(operation);
+  }
+}
+
 /* ─── Public API ─── */
 
 export async function login(email: string, password: string): Promise<void> {
-  const authRes = await fetchJson<AuthResponse>('/v1/auth/login', {
-    method: 'POST',
-    credentials: 'include',
-    body: JSON.stringify({ email, password }),
-  });
-
-  const tokens = toTokens(authRes);
-  const profile = await fetchProfile(tokens.accessToken);
-  setAuth(tokens, profile);
-  // A fresh login must not inherit a previous account's cached data on this device, regardless
-  // of how (or whether) that previous session was ever logged out (A3).
-  resetAppState();
+  await completeFreshAuth('/v1/auth/login', { email, password });
 }
 
 export async function register(
@@ -104,16 +181,11 @@ export async function register(
   password: string,
   displayName?: string,
 ): Promise<void> {
-  const authRes = await fetchJson<AuthResponse>('/v1/auth/register', {
-    method: 'POST',
-    credentials: 'include',
-    body: JSON.stringify({ email, password, display_name: displayName }),
+  await completeFreshAuth('/v1/auth/register', {
+    email,
+    password,
+    display_name: displayName,
   });
-
-  const tokens = toTokens(authRes);
-  const profile = await fetchProfile(tokens.accessToken);
-  setAuth(tokens, profile);
-  resetAppState();
 }
 
 /**
@@ -123,103 +195,154 @@ export async function register(
  * `account_inactive`) — see AuthFailureReason.
  */
 export async function silentRefresh(): Promise<SilentRefreshResult> {
-  if (refreshPromise) return refreshPromise;
+  const refreshToken = getRefreshToken();
+  const epoch = getAuthEpoch();
+  if (!refreshToken) {
+    // This is only terminal for the session that observed it.  A concurrent fresh login has
+    // moved the epoch and must not be cleared by this caller.
+    if (isAuthEpochCurrent(epoch)) clearAuth();
+    return { ok: false, reason: 'invalid_token' };
+  }
 
-  refreshPromise = (async (): Promise<SilentRefreshResult> => {
-    const refreshToken = getRefreshToken();
-    if (!refreshToken) {
-      clearAuth();
-      return { ok: false, reason: 'invalid_token' };
-    }
+  if (refreshFlight?.epoch === epoch && refreshFlight.refreshToken === refreshToken) {
+    return refreshFlight.promise;
+  }
 
-    try {
-      const authRes = await fetchJson<AuthResponse>('/v1/auth/refresh', {
-        method: 'POST',
-        credentials: 'include',
-        body: JSON.stringify({ refresh_token: refreshToken }),
-      });
+  const operation = beginAuthOperation();
+  const flight = {
+    epoch: operation.epoch,
+    refreshToken,
+    promise: (async (): Promise<SilentRefreshResult> => {
+      try {
+        const authRes = await fetchJson<AuthResponse>('/v1/auth/refresh', {
+          method: 'POST',
+          credentials: 'include',
+          body: JSON.stringify({ refresh_token: refreshToken }),
+          signal: operation.signal,
+        });
+        if (!isRefreshCurrent(operation, refreshToken)) return { ok: false, reason: 'stale' };
 
-      const tokens = toTokens(authRes);
-      const profile = await fetchProfile(tokens.accessToken);
-      setAuth(tokens, profile);
-      return { ok: true };
-    } catch (err) {
-      // Definitive rejection from the refresh endpoint → session is dead; clear it.
-      if (
-        err instanceof AuthError &&
-        err.status_code >= 400 &&
-        err.status_code < 500 &&
-        err.status_code !== 429
-      ) {
-        const reason = mapRefreshErrorToReason(err.error);
-        setAuthFailureReason(reason);
-        clearAuth();
-        return { ok: false, reason };
+        const tokens = toTokens(authRes);
+        const profile = await fetchProfile(tokens.accessToken, operation.signal);
+        if (!isRefreshCurrent(operation, refreshToken)) return { ok: false, reason: 'stale' };
+
+        setAuth(tokens, profile);
+        return { ok: true };
+      } catch (err) {
+        if (!isRefreshCurrent(operation, refreshToken)) {
+          return { ok: false, reason: wasAborted(err, operation) ? 'aborted' : 'stale' };
+        }
+        // Definitive rejection from the refresh endpoint → session is dead; clear it.  The
+        // current-session check above is intentionally before the banner/clear side effects.
+        if (
+          err instanceof AuthError &&
+          err.status_code >= 400 &&
+          err.status_code < 500 &&
+          err.status_code !== 429
+        ) {
+          const reason = mapRefreshErrorToReason(err.error);
+          setAuthFailureReason(reason);
+          clearAuth();
+          return { ok: false, reason };
+        }
+        // A temporary outage must not turn an already authenticated user into an unauthenticated
+        // one.  The content-cookie scheduler retries these failures with bounded backoff.
+        setAuthFailureReason('network');
+        return { ok: false, reason: 'network' };
+      } finally {
+        finishAuthOperation(operation);
       }
-      // Transient (network error, 5xx, 429): keep the refresh token so the next
-      // launch/retry can restore the session. Report failure without destroying state.
-      setAuthStatus('unauthenticated');
-      setAuthFailureReason('network');
-      return { ok: false, reason: 'network' };
-    }
-  })();
-
+    })(),
+  };
+  refreshFlight = flight;
   try {
-    return await refreshPromise;
+    return await flight.promise;
   } finally {
-    refreshPromise = null;
+    if (refreshFlight === flight) refreshFlight = undefined;
   }
 }
 
 /**
  * Re-mints the `apex_content` cookie for the caller's Bearer token, without a full token
- * refresh. Returns the new expiry on success, `null` on any failure. Never calls clearAuth() — a
- * failed re-mint (e.g. the access token happened to expire moments earlier) is not evidence of a
- * dead session; callers fall back to silentRefresh() for that (see MediaImage's ladder, C3).
+ * refresh. It returns a discriminated outcome so callers can distinguish an authorization failure
+ * from a temporary outage. It never calls clearAuth() — a failed re-mint is not evidence of a
+ * dead session; only an explicit `unauthorized` outcome may fall back to silentRefresh().
  * De-duplicates concurrent callers — e.g. a grid of thumbnails failing at once — behind one
- * shared in-flight request, mirroring silentRefresh's refreshPromise.
+ * shared epoch-aware in-flight request, mirroring silentRefresh's refresh flight.
  */
-export async function remintContentCookie(): Promise<Date | null> {
-  if (contentCookieRemintPromise) return contentCookieRemintPromise;
+export async function remintContentCookie(): Promise<ContentCookieRemintResult> {
+  const accessToken = getAccessToken();
+  const epoch = getAuthEpoch();
+  if (!accessToken) return { kind: 'unauthorized' };
 
-  contentCookieRemintPromise = (async (): Promise<Date | null> => {
-    const token = getAccessToken();
-    if (!token) return null;
+  if (
+    contentCookieRemintFlight?.epoch === epoch &&
+    contentCookieRemintFlight.accessToken === accessToken
+  ) {
+    return contentCookieRemintFlight.promise;
+  }
 
-    const devHeaders: Record<string, string> = {};
-    if (import.meta.env.DEV) {
-      devHeaders['X-Product-Id'] = import.meta.env.VITE_PRODUCT_ID || 'vex';
-    }
+  const operation = beginAuthOperation();
+  const flight = {
+    epoch: operation.epoch,
+    accessToken,
+    promise: (async (): Promise<ContentCookieRemintResult> => {
+      const devHeaders: Record<string, string> = {};
+      if (import.meta.env.DEV) {
+        devHeaders['X-Product-Id'] = import.meta.env.VITE_PRODUCT_ID || 'vex';
+      }
 
-    try {
-      const res = await fetch(`${API_BASE_URL}/v1/auth/content-cookie`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { Authorization: `Bearer ${token}`, ...devHeaders },
-      });
-      if (!res.ok) return null;
+      try {
+        const res = await fetch(`${API_BASE_URL}/v1/auth/content-cookie`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { Authorization: `Bearer ${accessToken}`, ...devHeaders },
+          signal: operation.signal,
+        });
+        if (!isAccessTokenCurrent(operation, accessToken)) return { kind: 'stale' };
 
-      const body = (await res.json()) as ContentCookieResponse;
-      const expiresAt = new Date(body.expires_at);
-      if (Number.isNaN(expiresAt.getTime())) return null;
+        if (res.status === 401 || res.status === 403) return { kind: 'unauthorized' };
+        if (res.status === 429) {
+          const retryAfter = parseRateLimitHeaders(res.headers).retryAfter;
+          return {
+            kind: 'rate_limited',
+            ...(retryAfter === undefined ? {} : { retryAfterMs: retryAfter * 1000 }),
+          };
+        }
+        if (!res.ok) return { kind: 'transient' };
 
-      setContentCookieExpiresAt(expiresAt);
-      return expiresAt;
-    } catch {
-      return null;
-    }
-  })();
+        const body = (await res.json()) as ContentCookieResponse;
+        if (!isAccessTokenCurrent(operation, accessToken)) return { kind: 'stale' };
+        const expiresAt = new Date(body.expires_at);
+        if (Number.isNaN(expiresAt.getTime())) return { kind: 'transient' };
 
+        setContentCookieExpiresAt(expiresAt);
+        return { kind: 'ok', expiresAt };
+      } catch (error) {
+        if (!isAccessTokenCurrent(operation, accessToken)) {
+          return { kind: wasAborted(error, operation) ? 'aborted' : 'stale' };
+        }
+        return { kind: 'transient' };
+      } finally {
+        finishAuthOperation(operation);
+      }
+    })(),
+  };
+  contentCookieRemintFlight = flight;
   try {
-    return await contentCookieRemintPromise;
+    return await flight.promise;
   } finally {
-    contentCookieRemintPromise = null;
+    if (contentCookieRemintFlight === flight) contentCookieRemintFlight = undefined;
   }
 }
 
 export async function logout(): Promise<void> {
-  await detachCurrentUserPush();
+  const userId = getCurrentUser()?.id;
   const refreshToken = getRefreshToken();
+  // Local async work dies before the slower push/logout best-effort operations begin.
+  beginAuthTransition();
+  const logoutEpoch = getAuthEpoch();
+  await detachCurrentUserPush(userId);
   if (refreshToken) {
     try {
       await fetchJson('/v1/auth/logout', {
@@ -231,15 +354,15 @@ export async function logout(): Promise<void> {
       // Best-effort; clear local state regardless.
     }
   }
-  clearAuth();
+  // A new login may have completed while best-effort cleanup was in flight.  Never clear it.
+  if (isAuthEpochCurrent(logoutEpoch)) clearAuth();
 }
 
 /**
  * Kept behind a dynamic import to avoid a module-init cycle with apiClient's auth middleware.
  * This is deliberately best effort: an explicit logout must still complete if cleanup cannot.
  */
-export async function detachCurrentUserPush(): Promise<void> {
-  const userId = getCurrentUser()?.id;
+export async function detachCurrentUserPush(userId = getCurrentUser()?.id): Promise<void> {
   if (!userId) return;
 
   try {
@@ -290,9 +413,10 @@ export async function initAuth(): Promise<void> {
 
 /* ─── Internal ─── */
 
-async function fetchProfile(token: string): Promise<UserProfile> {
+async function fetchProfile(token: string, signal?: AbortSignal): Promise<UserProfile> {
   return fetchJson<UserProfile>('/v1/users/me', {
     method: 'GET',
     headers: { Authorization: `Bearer ${token}` },
+    signal,
   });
 }

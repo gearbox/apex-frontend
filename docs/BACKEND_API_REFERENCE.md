@@ -67,7 +67,7 @@
 > traffic). Every request now makes at most one R2 round-trip — the standalone `head_object` call is gone;
 > `Content-Type`/`Content-Length`/`Content-Range` all come from the single GetObject response, and an
 > out-of-range request is rejected using the DB-recorded size before R2 is ever touched. New endpoint
-> `POST /v1/auth/content-cookie` (§2, Bearer-only, 204, rate-limited 20/minute) re-mints the `apex_content`
+> `POST /v1/auth/content-cookie` (§2, Bearer-only, 200 with `{ expires_at }`, rate-limited 20/minute) re-mints the `apex_content`
 > cookie without a full token refresh — frontend should prefer it over `silentRefresh` for recovering
 > image/video auth. No response body contracts changed; frontend should regenerate types (`gen:api`) to
 > pick up the new endpoint._
@@ -1147,7 +1147,17 @@ Response: {
 
 Provides stable, non-expiring authenticated URLs for user content. The server resolves ownership, checks product scoping, then streams bytes directly from R2. **No presigned URLs are exposed** — the client only ever sees `/v1/content/...` paths.
 
-> **Why use this instead of presigned URLs?** Content proxy URLs are permanent (for the lifetime of the resource), cacheable with `Cache-Control: private, max-age=<ttl>, immutable`, and enforce per-request authorization. They are the preferred URL format for Library and any UI that persists content references.
+> **Why use this instead of presigned URLs?** Content proxy URLs are permanent (for the lifetime of the resource) and enforce per-request authorization. They are the preferred URL format for Library and any UI that persists content references.
+
+> **Session-isolation cache policy (frontend security requirement):** these stable URLs are not safe
+> cache keys across account changes. The frontend deliberately does not install a Workbox runtime
+> cache for authenticated content and uses `fetch(..., { cache: 'no-store' })` for authenticated
+> originals/save/prewarm requests; it keeps only a bounded in-memory blob cache which is aborted
+> and cleared synchronously on auth reset. To make normal `<img>`/native-video HTTP caching equally
+> fail closed, the backend must return `Cache-Control: private, no-store` for authenticated
+> `/v1/content/...` responses (or introduce a non-secret session-partitioned URL/cache namespace).
+> The previous persistent `private, max-age, immutable` policy is incompatible with a strict A →
+> logout → B same-tab guarantee.
 
 ### Auth: the `apex_content` cookie
 
@@ -1158,7 +1168,9 @@ Requests here accept either a Bearer access token or the `apex_content` cookie (
 All successful (200/206) responses include:
 - `Content-Type` — the stored R2 `ContentType` **only if it's on the inline-safe allowlist** (`image/png`, `image/jpeg`, `image/webp`, `video/mp4`, `video/webm`, `video/quicktime`); otherwise `application/octet-stream`
 - `Content-Length` — bytes in *this* response body (the full object size on 200, the served range's length on 206)
-- `Cache-Control: private, max-age=10800, immutable` — 3-hour client cache (default; configurable via `CONTENT_URL_TTL`)
+- `Cache-Control: private, no-store` — required while stable authenticated URLs are shared across
+  account sessions; do not make these responses persistently reusable without an explicit
+  non-secret session-partitioned cache namespace.
 - `ETag: "<content_id>"` — the output/upload UUID, for conditional requests
 - `X-Content-Id: <content_id>` — same UUID, without quotes
 - `X-Content-Type-Options: nosniff` — always present, blocks MIME-sniffing
@@ -3181,7 +3193,8 @@ Library responses and the `/v1/content/` endpoints return **content proxy URLs**
 
 These URLs:
 - Are **stable** for the lifetime of the resource (no expiry)
-- Return `Cache-Control: private, max-age=10800, immutable` (3-hour client cache, configurable via `CONTENT_URL_TTL`)
+- Return `Cache-Control: private, no-store` while stable authenticated URLs are used across
+  sessions (or coordinate a non-secret session-partitioned cache namespace with the frontend)
 - Enforce ownership and product scoping on every request
 - Are suitable for `<img src>`, `<video src>`, or background image CSS
 

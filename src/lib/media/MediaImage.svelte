@@ -92,18 +92,26 @@
 
     // Rung 1: the content cookie may simply have lapsed while the access token is still good —
     // the common case, and cheaper than a full token refresh (C3).
-    const reminted = await remintContentCookie().catch(() => null);
+    const remint = await remintContentCookie().catch(() => ({ kind: 'transient' }) as const);
 
     // Ignore a stale response once the parent has already moved on to different media.
     if (originalUrl !== failedUrl) return;
 
-    if (reminted) {
+    if (remint.kind === 'ok') {
       failure = { url: failedUrl, state: 'retried' };
       reloadSameSource();
       return;
     }
 
-    // Rung 2: the access token itself is dead — fall back to a full refresh.
+    // An image error is not proof of an expired credential: offline, 5xx, 429, decoding, and
+    // browser cache failures all land here. Only an explicit auth rejection may take the broader
+    // refresh rung; the normal placeholder UX remains intact for every transient outcome.
+    if (remint.kind !== 'unauthorized') {
+      failure = { url: failedUrl, state: 'failed' };
+      return;
+    }
+
+    // Rung 2: the re-mint endpoint explicitly rejected the access token.
     const result = await silentRefresh().catch(
       (): SilentRefreshResult => ({ ok: false, reason: 'network' }),
     );

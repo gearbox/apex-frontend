@@ -49,7 +49,7 @@ export const storageHandlers = [
         status: 200,
         headers: {
           'Content-Type': 'image/jpeg',
-          'Cache-Control': 'private, max-age=10800, immutable',
+          'Cache-Control': 'private, no-store',
         },
       }),
   ),
@@ -62,7 +62,7 @@ export const storageHandlers = [
         status: 200,
         headers: {
           'Content-Type': 'image/png',
-          'Cache-Control': 'private, max-age=10800, immutable',
+          'Cache-Control': 'private, no-store',
         },
       }),
   ),

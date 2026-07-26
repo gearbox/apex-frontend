@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { http, HttpResponse } from 'msw';
 import { get } from 'svelte/store';
 import { server } from '../../mocks/server';
 import {
@@ -16,6 +17,8 @@ import { sessionKeys } from '$lib/queries/sessions';
 import { creditWarnings, dismissAllCreditWarnings } from '$lib/stores/creditWarnings';
 import { pushNudge } from '$lib/stores/pushNudge.svelte';
 import { fetchPendingPaymentTransactions } from './pendingPaymentReconciliation';
+import { clearAuth, setAuth } from '$lib/stores/auth';
+import { makeUserProfile } from '../../mocks/factories/user';
 
 vi.mock('./pendingPaymentReconciliation', () => ({
   fetchPendingPaymentTransactions: vi.fn().mockResolvedValue([]),
@@ -84,6 +87,7 @@ function makeMockQueryClient() {
 /* ─── Setup ─── */
 
 beforeEach(() => {
+  clearAuth();
   vi.stubGlobal('EventSource', MockEventSource);
   MockEventSource.instances = [];
   setEventStreamStatus('disconnected');
@@ -94,6 +98,26 @@ beforeEach(() => {
   // Drain any lingering toasts from previous tests
   get(toasts).forEach((t) => removeToast(t.id));
 });
+
+function authenticate(userId: string): void {
+  setAuth(
+    {
+      accessToken: `access-${userId}`,
+      refreshToken: `refresh-${userId}`,
+      expiresAt: new Date(Date.now() + 900_000).toISOString(),
+      contentCookieExpiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+    },
+    makeUserProfile({ id: userId }),
+  );
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -118,6 +142,81 @@ describe('EventStreamService — happy path', () => {
     expect(status).toBe('connected');
 
     svc.dispose();
+  });
+});
+
+describe('EventStreamService — auth/session isolation', () => {
+  it('does not open EventSource when disconnect wins a deferred ticket request', async () => {
+    authenticate('user-a');
+    const ticket = deferred<Response>();
+    const started = deferred<void>();
+    server.use(
+      http.post('http://localhost:8000/v1/events/sse-ticket', async () => {
+        started.resolve();
+        return ticket.promise;
+      }),
+    );
+    const svc = new EventStreamService({
+      queryClient: makeMockQueryClient() as never,
+      userId: 'user-a',
+    });
+
+    const connecting = svc.connect();
+    await started.promise;
+    svc.disconnect();
+    ticket.resolve(HttpResponse.json({ ticket: 'late-ticket-a' }));
+    await connecting;
+
+    expect(MockEventSource.instances).toHaveLength(0);
+    svc.dispose();
+  });
+
+  it('ignores a late A event after B becomes the current session', async () => {
+    authenticate('user-a');
+    const queryClient = makeMockQueryClient();
+    const svc = new EventStreamService({ queryClient: queryClient as never, userId: 'user-a' });
+    await svc.connect();
+    const source = MockEventSource.instances[0];
+
+    authenticate('user-b');
+    source._emit('system.notification', {
+      level: 'critical',
+      title: 'A-only notification',
+      message: 'must not reach B',
+      expires_at: null,
+    });
+    source._emit('balance.updated', {
+      balance: 999,
+      delta: 999,
+      transaction_type: 'topup',
+      account_id: 'account-a',
+    });
+
+    expect(get(notifications)).toEqual([]);
+    expect(queryClient.setQueryData).not.toHaveBeenCalled();
+    svc.dispose();
+  });
+
+  it('cannot reconnect from an old reconnect timer after logout', async () => {
+    authenticate('user-a');
+    const svc = new EventStreamService({
+      queryClient: makeMockQueryClient() as never,
+      userId: 'user-a',
+    });
+
+    await svc.connect();
+    expect(MockEventSource.instances).toHaveLength(1);
+    vi.useFakeTimers();
+    try {
+      MockEventSource.instances[0]._error();
+      clearAuth();
+      await vi.advanceTimersByTimeAsync(2_000);
+
+      expect(MockEventSource.instances).toHaveLength(1);
+    } finally {
+      svc.dispose();
+      vi.useRealTimers();
+    }
   });
 });
 

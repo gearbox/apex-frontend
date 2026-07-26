@@ -2,11 +2,12 @@ import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { render, fireEvent } from '@testing-library/svelte';
 import MediaImage from './MediaImage.svelte';
 import { setAuthFailureReason, __resetAuthFailureReasonForTesting } from '$lib/stores/auth';
+import type { ContentCookieRemintResult, SilentRefreshResult } from '$lib/api/auth';
 import type { components } from '$lib/api/types';
 
 const { silentRefreshMock, remintContentCookieMock } = vi.hoisted(() => ({
-  silentRefreshMock: vi.fn<() => Promise<{ ok: true } | { ok: false; reason: string }>>(),
-  remintContentCookieMock: vi.fn<() => Promise<Date | null>>(),
+  silentRefreshMock: vi.fn<() => Promise<SilentRefreshResult>>(),
+  remintContentCookieMock: vi.fn<() => Promise<ContentCookieRemintResult>>(),
 }));
 
 vi.mock('$lib/api/auth', async (importOriginal) => ({
@@ -50,9 +51,8 @@ function makeImageMedia(overrides: Partial<MediaObject> = {}): MediaObject {
 describe('MediaImage', () => {
   beforeEach(() => {
     __resetAuthFailureReasonForTesting();
-    // Default: rung 1 (content-cookie re-mint) fails so tests exercise rung 2 (full refresh),
-    // mirroring the pre-two-rung test setup unless a test overrides it.
-    remintContentCookieMock.mockReset().mockResolvedValue(null);
+    // Default: an explicit re-mint authorization failure exercises rung 2 (full refresh).
+    remintContentCookieMock.mockReset().mockResolvedValue({ kind: 'unauthorized' });
     silentRefreshMock.mockReset().mockResolvedValue({ ok: true });
   });
 
@@ -92,7 +92,10 @@ describe('MediaImage', () => {
   });
 
   it('rung 1 success: a re-minted content cookie reloads the same source without a full refresh (C3)', async () => {
-    remintContentCookieMock.mockResolvedValue(new Date(Date.now() + 86_400_000));
+    remintContentCookieMock.mockResolvedValue({
+      kind: 'ok',
+      expiresAt: new Date(Date.now() + 86_400_000),
+    });
     const { container } = render(MediaImage, {
       props: { media: makeImageMedia(), alt: 'test' },
     });
@@ -107,7 +110,7 @@ describe('MediaImage', () => {
     expect(img.getAttribute('srcset')).toBe(srcset);
   });
 
-  it('rung 2: falls back to a full refresh when the re-mint fails, then reloads the same source', async () => {
+  it('rung 2: falls back to a full refresh only after a re-mint authorization failure', async () => {
     const { container } = render(MediaImage, {
       props: { media: makeImageMedia(), alt: 'test' },
     });
@@ -147,6 +150,19 @@ describe('MediaImage', () => {
 
     await vi.waitFor(() => expect(container.querySelector('img')).toBeNull());
     expect(getByRole('img', { name: 'Image unavailable' })).toBeTruthy();
+  });
+
+  it('does not launch the full-refresh ladder for a transient image/re-mint failure', async () => {
+    remintContentCookieMock.mockResolvedValue({ kind: 'transient' });
+    const { container, getByRole } = render(MediaImage, {
+      props: { media: makeImageMedia(), alt: 'test' },
+    });
+
+    await fireEvent.error(container.querySelector('img')!);
+
+    await vi.waitFor(() => expect(container.querySelector('img')).toBeNull());
+    expect(getByRole('img', { name: 'Image unavailable' })).toBeTruthy();
+    expect(silentRefreshMock).not.toHaveBeenCalled();
   });
 
   it('B3: a known-revoked session skips both rungs entirely and goes straight to the placeholder', async () => {
@@ -234,7 +250,7 @@ describe('MediaImage', () => {
 describe('MediaImage — srcOverride', () => {
   beforeEach(() => {
     __resetAuthFailureReasonForTesting();
-    remintContentCookieMock.mockReset().mockResolvedValue(null);
+    remintContentCookieMock.mockReset().mockResolvedValue({ kind: 'unauthorized' });
     silentRefreshMock.mockReset().mockResolvedValue({ ok: true });
   });
 

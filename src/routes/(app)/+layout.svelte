@@ -27,6 +27,7 @@
 
   const queryClient = useQueryClient();
   let eventStream: EventStreamService | null = null;
+  let eventStreamUserId: string | undefined;
   let pushInitializedForUserId: string | undefined;
   let disposePushSubscription: (() => void) | undefined;
   let stopPendingPaymentStorageListener: (() => void) | undefined;
@@ -43,10 +44,17 @@
 
     const userId = $currentUser?.id;
     if ($currentAuthStatus === 'authenticated' && userId) {
-      if (!eventStream) {
-        eventStream = new EventStreamService({ queryClient });
+      // An EventStreamService captures its user ID and auth epoch. Never carry an A instance
+      // into B, even briefly: dispose it before creating B's independently bound connection.
+      if (eventStream && eventStreamUserId !== userId) {
+        eventStream.dispose();
+        eventStream = null;
       }
-      eventStream.connect();
+      if (!eventStream) {
+        eventStream = new EventStreamService({ queryClient, userId });
+        eventStreamUserId = userId;
+      }
+      void eventStream.connect();
 
       if (pushInitializedForUserId !== userId) {
         disposePushSubscription?.();
@@ -56,7 +64,9 @@
         disposePushSubscription = pushSubscription.init(userId);
       }
     } else {
-      eventStream?.disconnect();
+      eventStream?.dispose();
+      eventStream = null;
+      eventStreamUserId = undefined;
       disposePushSubscription?.();
       disposePushSubscription = undefined;
       pushInitializedForUserId = undefined;
@@ -81,6 +91,7 @@
   onDestroy(() => {
     eventStream?.dispose();
     eventStream = null;
+    eventStreamUserId = undefined;
     disposePushSubscription?.();
     disposePushSubscription = undefined;
     stopPendingPaymentStorageListener?.();

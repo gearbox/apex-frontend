@@ -44,4 +44,11 @@ describe('PWA worker protocol', () => {
     expect(worker).toContain('event.waitUntil(self.skipWaiting())');
     expect(worker).not.toContain('self.skipWaiting();');
   });
+
+  it('does not install a persistent runtime cache for stable authenticated content URLs', () => {
+    const worker = readFileSync('src/service-worker.ts', 'utf8');
+    expect(worker).not.toContain('CacheFirst');
+    expect(worker).not.toContain('content-media-cache');
+    expect(worker).toContain('no Workbox runtime route');
+  });
 });

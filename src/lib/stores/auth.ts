@@ -3,6 +3,7 @@ import { STORAGE_KEYS, SESSION_KEYS } from '$lib/utils/constants';
 import { isBrowser } from '$lib/utils/env';
 import { locale } from '$lib/stores/locale';
 import { resetAppState } from '$lib/stores/resetAppState';
+import { invalidateAuthOperations } from '$lib/stores/authLifecycle';
 
 /* ─── Types ─── */
 export interface AuthTokens {
@@ -141,6 +142,9 @@ export function consumeAuthFailureReason(): AuthFailureReason | null {
 
 /* ─── Actions ─── */
 export function setAuth(tokens: AuthTokens, profile: UserProfile): void {
+  // `login`/`register` explicitly open a new boundary before their network work begins.  This
+  // guard also protects imperative callers from replacing A with B through setAuth directly.
+  if (get(user)?.id && get(user)?.id !== profile.id) invalidateAuthOperations();
   accessToken = tokens.accessToken;
   if (isBrowser()) {
     localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, tokens.refreshToken);
@@ -184,6 +188,9 @@ export function setUser(profile: UserProfile): void {
  * the login screen and media ladder can still read it afterwards.
  */
 export function clearAuth(): void {
+  // This must remain the first side effect: anything that still owns A's credential is aborted
+  // before A's storage/store values are removed or a new session can be installed.
+  invalidateAuthOperations();
   accessToken = null;
   if (isBrowser()) {
     localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
@@ -192,6 +199,14 @@ export function clearAuth(): void {
   authStatus.set('unauthenticated');
   contentCookieExpiresAt.set(null);
   resetAppState();
+}
+
+/**
+ * Opens a replacing-session boundary while credentials are still available for best-effort
+ * logout/push cleanup.  Login/register call this before issuing their first request.
+ */
+export function beginAuthTransition(): void {
+  invalidateAuthOperations();
 }
 
 export function setAuthStatus(status: AuthStatus): void {

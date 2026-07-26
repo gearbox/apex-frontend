@@ -36,7 +36,7 @@ afterEach(() => {
 });
 
 describe('progressive originals', () => {
-  it('streams bytes and reports received/total progress without opting out of HTTP caching', async () => {
+  it('streams bytes and reports received/total progress without persistent HTTP caching', async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValue(streamedResponse(['ab', 'cde'], { 'content-length': '5' }));
@@ -53,7 +53,7 @@ describe('progressive originals', () => {
       { received: 2, total: 5 },
       { received: 5, total: 5 },
     ]);
-    expect(fetchMock.mock.calls[0][1]).not.toHaveProperty('cache');
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ cache: 'no-store' });
   });
 
   it('refreshes once after 401 before retrying the protected original', async () => {

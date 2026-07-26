@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { onlineManager } from '@tanstack/svelte-query';
+import type { ContentCookieRemintResult, SilentRefreshResult } from '$lib/api/auth';
 import {
   start,
   stop,
@@ -8,12 +9,14 @@ import {
   MIN_REMINT_INTERVAL_MS,
   REMINT_LIFETIME_FRACTION,
 } from './contentCookie';
-import { setContentCookieExpiresAt, getContentCookieExpiresAt } from '$lib/stores/auth';
+import { clearAuth, setContentCookieExpiresAt, getContentCookieExpiresAt } from '$lib/stores/auth';
 
 const { remintContentCookieMock, silentRefreshMock } = vi.hoisted(() => ({
-  remintContentCookieMock: vi.fn<() => Promise<Date | null>>(),
-  silentRefreshMock: vi.fn<() => Promise<{ ok: true } | { ok: false; reason: string }>>(),
+  remintContentCookieMock: vi.fn<() => Promise<ContentCookieRemintResult>>(),
+  silentRefreshMock: vi.fn<() => Promise<SilentRefreshResult>>(),
 }));
+
+const reminted = (expiresAt: Date): ContentCookieRemintResult => ({ kind: 'ok', expiresAt });
 
 vi.mock('$lib/api/auth', async (importOriginal) => ({
   ...(await importOriginal<typeof import('$lib/api/auth')>()),
@@ -83,7 +86,7 @@ describe('start()', () => {
     const firstExpiry = new Date(Date.now() + 20_000_000);
     setContentCookieExpiresAt(firstExpiry);
     const secondExpiry = new Date(Date.now() + 40_000_000);
-    remintContentCookieMock.mockResolvedValueOnce(secondExpiry);
+    remintContentCookieMock.mockResolvedValueOnce(reminted(secondExpiry));
 
     start();
     await vi.advanceTimersByTimeAsync(msUntilNextRemint(firstExpiry));
@@ -91,7 +94,7 @@ describe('start()', () => {
     expect(remintContentCookieMock).toHaveBeenCalledTimes(1);
 
     // Advancing to just before the *second* schedule must not fire yet...
-    remintContentCookieMock.mockResolvedValueOnce(new Date(Date.now() + 999_999_999));
+    remintContentCookieMock.mockResolvedValueOnce(reminted(new Date(Date.now() + 999_999_999)));
     await vi.advanceTimersByTimeAsync(msUntilNextRemint(secondExpiry) - 1000);
     expect(remintContentCookieMock).toHaveBeenCalledTimes(1);
 
@@ -100,9 +103,9 @@ describe('start()', () => {
     expect(remintContentCookieMock).toHaveBeenCalledTimes(2);
   });
 
-  it('escalates to silentRefresh when the re-mint fails, and stops scheduling if that fails too', async () => {
+  it('escalates to silentRefresh only when re-mint explicitly rejects authorization', async () => {
     setContentCookieExpiresAt(new Date(Date.now() + 20_000_000));
-    remintContentCookieMock.mockResolvedValue(null);
+    remintContentCookieMock.mockResolvedValue({ kind: 'unauthorized' });
     silentRefreshMock.mockResolvedValue({ ok: false, reason: 'invalid_token' });
 
     start();
@@ -117,9 +120,9 @@ describe('start()', () => {
     expect(remintContentCookieMock).not.toHaveBeenCalled();
   });
 
-  it('escalates to silentRefresh and reschedules from its refreshed expiry on success', async () => {
+  it('reschedules from the refreshed expiry after an unauthorized re-mint', async () => {
     setContentCookieExpiresAt(new Date(Date.now() + 20_000_000));
-    remintContentCookieMock.mockResolvedValue(null);
+    remintContentCookieMock.mockResolvedValue({ kind: 'unauthorized' });
     silentRefreshMock.mockImplementation(async () => {
       setContentCookieExpiresAt(new Date(Date.now() + 86_400_000));
       return { ok: true };
@@ -140,7 +143,7 @@ describe('start()', () => {
 
   it('immediately runs a cycle on start() when the stored expiry is already due', async () => {
     setContentCookieExpiresAt(new Date(Date.now() - 1000));
-    remintContentCookieMock.mockResolvedValue(new Date(Date.now() + 86_400_000));
+    remintContentCookieMock.mockResolvedValue(reminted(new Date(Date.now() + 86_400_000)));
 
     start();
     await vi.advanceTimersByTimeAsync(0);
@@ -150,7 +153,7 @@ describe('start()', () => {
 
   it('visibility -> visible re-mints only when the stored expiry is past/near (resume check, C4)', async () => {
     setContentCookieExpiresAt(new Date(Date.now() + 86_400_000));
-    remintContentCookieMock.mockResolvedValue(new Date(Date.now() + 86_400_000));
+    remintContentCookieMock.mockResolvedValue(reminted(new Date(Date.now() + 86_400_000)));
     start();
     remintContentCookieMock.mockClear();
 
@@ -167,7 +170,7 @@ describe('start()', () => {
 
   it('pageshow re-mints only when the stored expiry is past/near', async () => {
     setContentCookieExpiresAt(new Date(Date.now() + 86_400_000));
-    remintContentCookieMock.mockResolvedValue(new Date(Date.now() + 86_400_000));
+    remintContentCookieMock.mockResolvedValue(reminted(new Date(Date.now() + 86_400_000)));
     start();
     remintContentCookieMock.mockClear();
 
@@ -181,12 +184,12 @@ describe('start()', () => {
     expect(remintContentCookieMock).toHaveBeenCalledTimes(1);
   });
 
-  it('the resume check pauses and restores TanStack Query online state around the network call (C5)', async () => {
+  it('the resume check leaves TanStack Query online state to its network observer', async () => {
     setContentCookieExpiresAt(new Date(Date.now() - 1));
     let onlineDuringCall: boolean | undefined;
     remintContentCookieMock.mockImplementation(async () => {
       onlineDuringCall = onlineManager.isOnline();
-      return new Date(Date.now() + 86_400_000);
+      return reminted(new Date(Date.now() + 86_400_000));
     });
     start();
     remintContentCookieMock.mockClear();
@@ -196,13 +199,13 @@ describe('start()', () => {
     window.dispatchEvent(new Event('pageshow'));
     await vi.advanceTimersByTimeAsync(0);
 
-    expect(onlineDuringCall).toBe(false);
+    expect(onlineDuringCall).toBe(wasOnlineBefore);
     expect(onlineManager.isOnline()).toBe(wasOnlineBefore);
   });
 
   it('stop() clears the timer and every listener — nothing fires afterward', async () => {
     setContentCookieExpiresAt(new Date(Date.now() + 20_000_000));
-    remintContentCookieMock.mockResolvedValue(new Date(Date.now() + 86_400_000));
+    remintContentCookieMock.mockResolvedValue(reminted(new Date(Date.now() + 86_400_000)));
     start();
 
     stop();
@@ -218,12 +221,60 @@ describe('start()', () => {
 
   it('nothing runs while unauthenticated (start() never called)', async () => {
     setContentCookieExpiresAt(new Date(Date.now() - 1));
-    remintContentCookieMock.mockResolvedValue(new Date());
+    remintContentCookieMock.mockResolvedValue(reminted(new Date()));
 
     await vi.advanceTimersByTimeAsync(24 * 60 * 60 * 1000);
     document.dispatchEvent(new Event('visibilitychange'));
     window.dispatchEvent(new Event('pageshow'));
 
     expect(remintContentCookieMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps the session intact and never refreshes after a transient re-mint failure', async () => {
+    setContentCookieExpiresAt(new Date(Date.now() - 1));
+    remintContentCookieMock.mockResolvedValue({ kind: 'transient' });
+
+    start();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(remintContentCookieMock).toHaveBeenCalledOnce();
+    expect(silentRefreshMock).not.toHaveBeenCalled();
+  });
+
+  it('coalesces simultaneous pageshow and visibility resume checks into one cycle', async () => {
+    setContentCookieExpiresAt(new Date(Date.now() + 86_400_000));
+    remintContentCookieMock.mockResolvedValue(reminted(new Date(Date.now() + 86_400_000)));
+    start();
+    remintContentCookieMock.mockClear();
+    setContentCookieExpiresAt(new Date(Date.now() - 1));
+
+    let resolveRemint!: (result: ContentCookieRemintResult) => void;
+    remintContentCookieMock.mockImplementationOnce(
+      () => new Promise<ContentCookieRemintResult>((resolve) => (resolveRemint = resolve)),
+    );
+    document.dispatchEvent(new Event('visibilitychange'));
+    window.dispatchEvent(new Event('pageshow'));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(remintContentCookieMock).toHaveBeenCalledOnce();
+    resolveRemint(reminted(new Date(Date.now() + 86_400_000)));
+    await vi.advanceTimersByTimeAsync(0);
+  });
+
+  it('does not reschedule a pending cycle after auth invalidation', async () => {
+    setContentCookieExpiresAt(new Date(Date.now() - 1));
+    let resolveRemint!: (result: ContentCookieRemintResult) => void;
+    remintContentCookieMock.mockImplementation(
+      () => new Promise<ContentCookieRemintResult>((resolve) => (resolveRemint = resolve)),
+    );
+
+    start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(remintContentCookieMock).toHaveBeenCalledOnce();
+    clearAuth();
+    resolveRemint(reminted(new Date(Date.now() + 86_400_000)));
+    await vi.advanceTimersByTimeAsync(24 * 60 * 60 * 1000);
+
+    expect(remintContentCookieMock).toHaveBeenCalledOnce();
   });
 });
