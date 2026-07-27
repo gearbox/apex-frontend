@@ -5,6 +5,7 @@ import { makeTokenResponse } from '../../mocks/factories/auth';
 import { makeUserProfile } from '../../mocks/factories/user';
 import { setAuth, clearAuth, getAccessToken } from '$lib/stores/auth';
 import { clearRateLimits, getRateLimitState } from '$lib/stores/rateLimit';
+import { __getAuthOperationCountForTesting } from '$lib/stores/authLifecycle';
 import { STORAGE_KEYS } from '$lib/utils/constants';
 import { ROUTES } from '$lib/utils/routes';
 
@@ -29,12 +30,19 @@ function tokens(accessToken: string, refreshToken: string) {
 
 // Import apiClient after mocks are set up
 let apiClient: (typeof import('./client'))['default'];
+let StaleSessionError: (typeof import('./client'))['StaleSessionError'];
 
 beforeEach(async () => {
   clearAuth();
   clearRateLimits();
   localStorage.clear();
-  apiClient = (await import('./client')).default;
+  const client = await import('./client');
+  apiClient = client.default;
+  StaleSessionError = client.StaleSessionError;
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
 describe('auth middleware', () => {
@@ -175,11 +183,14 @@ describe('rate limit middleware', () => {
   });
 
   it('on 429 with Retry-After: 0 — retries immediately and returns the successful response', async () => {
+    setAuth(tokens('original-access-token', 'refresh-token'), makeUserProfile());
     let callCount = 0;
+    const authHeaders: Array<string | null> = [];
 
     server.use(
-      http.get(`${BASE}/v1/billing/balance`, () => {
+      http.get(`${BASE}/v1/billing/balance`, ({ request }) => {
         callCount++;
+        authHeaders.push(request.headers.get('Authorization'));
         if (callCount === 1) {
           return HttpResponse.json(
             { error: 'rate_limit_exceeded', message: 'Too many requests', status_code: 429 },
@@ -211,6 +222,7 @@ describe('rate limit middleware', () => {
 
     expect(response.status).toBe(200);
     expect(callCount).toBe(2);
+    expect(authHeaders).toEqual(['Bearer original-access-token', 'Bearer original-access-token']);
     // After the retry the updated remaining count should be reflected in the store
     expect(getRateLimitState('/v1/billing/balance')).toMatchObject({ remaining: 1 });
   });
@@ -338,6 +350,37 @@ describe('epoch-bound middleware retries', () => {
     expect(balanceCalls).toBe(1);
     expect(getAccessToken()).toBe('access-b');
   });
+
+  it('rejects a response delivered after its auth operation was invalidated', async () => {
+    setAuth(tokens('access-a', 'refresh-a'), makeUserProfile({ id: 'user-a' }));
+    const started = deferred<Request>();
+    const response = deferred<Response>();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((request: Request) => {
+        started.resolve(request);
+        // Intentionally ignore abort to model a response already in flight when logout occurs.
+        return response.promise;
+      }),
+    );
+
+    const pending = apiClient.GET('/v1/users/me');
+    const dispatched = await started.promise;
+    clearAuth();
+
+    expect(dispatched.signal.aborted).toBe(true);
+    response.resolve(HttpResponse.json(makeUserProfile({ id: 'user-a' })));
+
+    await expect(pending).rejects.toBeInstanceOf(StaleSessionError);
+  });
+
+  it('releases an auth operation when fetch rejects before onResponse', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
+
+    await expect(apiClient.GET('/v1/billing/balance')).rejects.toThrow('offline');
+
+    expect(__getAuthOperationCountForTesting()).toBe(0);
+  });
 });
 
 describe('body-safe retries (C1)', () => {
@@ -406,6 +449,28 @@ describe('body-safe retries (C1)', () => {
     expect(callCount).toBe(2);
     expect(capturedBodies).toEqual([{ amount_usd: 100 }, { amount_usd: 100 }]);
     expect(lastAuthHeader).toBe('Bearer new-access-token');
+  });
+
+  it('preserves a FormData upload body while binding the auth-operation signal', async () => {
+    const formData = new FormData();
+    formData.append('data', new Blob(['private upload']), 'private.txt');
+    let received: Request | undefined;
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (request: Request) => {
+        received = request;
+        return HttpResponse.json({ id: 'upload_001' }, { status: 201 });
+      }),
+    );
+
+    await apiClient.POST('/v1/storage/upload', { body: formData as never });
+
+    // jsdom's Request.formData() hangs for File bodies, so assert the reconstructed request has
+    // retained the multipart stream for fetch to transmit rather than trying to parse it here.
+    expect(received?.headers.get('Content-Type')).toContain('multipart/form-data');
+    expect(received?.body).not.toBeNull();
+    expect(received?.bodyUsed).toBe(false);
   });
 
   it('on 429 with Retry-After beyond the 30s cap: does not retry, returns the 429 immediately', async () => {

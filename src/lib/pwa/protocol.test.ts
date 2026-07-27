@@ -45,10 +45,12 @@ describe('PWA worker protocol', () => {
     expect(worker).not.toContain('self.skipWaiting();');
   });
 
-  it('does not install a persistent runtime cache for stable authenticated content URLs', () => {
+  it('does not install a persistent runtime cache for authenticated content URLs and removes the legacy cache on activation', () => {
     const worker = readFileSync('src/service-worker.ts', 'utf8');
     expect(worker).not.toContain('CacheFirst');
-    expect(worker).not.toContain('content-media-cache');
     expect(worker).toContain('no Workbox runtime route');
+    expect(worker).toContain("const LEGACY_CONTENT_MEDIA_CACHE_NAME = 'content-media-cache'");
+    expect(worker).toContain("self.addEventListener('activate'");
+    expect(worker).toContain('caches.delete(LEGACY_CONTENT_MEDIA_CACHE_NAME)');
   });
 });

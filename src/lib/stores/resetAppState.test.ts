@@ -113,6 +113,16 @@ describe('resetAppState()', () => {
     expect(getQueryClient().getQueryData(['probe'])).toBeUndefined();
     vi.unstubAllGlobals();
   });
+
+  it('deletes the legacy content cache without awaiting cache storage', () => {
+    const deleteCache = vi.fn().mockResolvedValue(false);
+    vi.stubGlobal('caches', { delete: deleteCache });
+
+    expect(resetAppState()).toBeUndefined();
+    expect(deleteCache).toHaveBeenCalledWith('content-media-cache');
+
+    vi.unstubAllGlobals();
+  });
 });
 
 describe('device preferences survive logout (A4)', () => {

@@ -46,6 +46,11 @@ export function isAuthOperationCurrent(operation: AuthOperation): boolean {
   return !operation.signal.aborted && isAuthEpochCurrent(operation.epoch);
 }
 
+/** Test-only visibility for asserting every begun operation is eventually released. */
+export function __getAuthOperationCountForTesting(): number {
+  return controllers.size;
+}
+
 /** Test-only reset. No production transition should ever move the epoch backwards. */
 export function __resetAuthLifecycleForTesting(): void {
   for (const controller of controllers) controller.abort();

@@ -7,6 +7,9 @@ import { dismissAllCreditWarnings } from '$lib/stores/creditWarnings';
 import { clearToasts } from '$lib/stores/toasts';
 import { clearNotifications } from '$lib/stores/notifications';
 import { setEventStreamStatus } from '$lib/stores/eventStream';
+import { isBrowser } from '$lib/utils/env';
+
+const LEGACY_CONTENT_MEDIA_CACHE_NAME = 'content-media-cache';
 
 /**
  * Clears every module-level cache/store that could otherwise carry one account's data into the
@@ -30,6 +33,7 @@ export function resetAppState(): void {
     clearToasts,
     clearNotifications,
     () => setEventStreamStatus('disconnected'),
+    deleteLegacyContentMediaCache,
   ];
 
   for (const step of steps) {
@@ -38,5 +42,15 @@ export function resetAppState(): void {
     } catch {
       // A single step's failure must not block the rest of the reset.
     }
+  }
+}
+
+/**
+ * Covers the upgrade window where an old worker can still control the page before the new worker
+ * activates. Keep this fire-and-forget so dead-session cleanup remains synchronous and resilient.
+ */
+function deleteLegacyContentMediaCache(): void {
+  if (isBrowser() && typeof caches !== 'undefined') {
+    void caches.delete(LEGACY_CONTENT_MEDIA_CACHE_NAME).catch(() => undefined);
   }
 }

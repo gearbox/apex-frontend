@@ -71,6 +71,13 @@ self.addEventListener('message', (event) => {
 precacheAndRoute(self.__WB_MANIFEST);
 cleanupOutdatedCaches();
 
+// Retired in feat/session-isolation-and-content-cookie: remove the old script-readable cache
+// from upgrading installs. A fresh install has no such cache, so deleting a missing cache is safe.
+const LEGACY_CONTENT_MEDIA_CACHE_NAME = 'content-media-cache';
+self.addEventListener('activate', (event) => {
+  event.waitUntil(caches.delete(LEGACY_CONTENT_MEDIA_CACHE_NAME));
+});
+
 /* ─── SPA navigation fallback — mirrors the previous generateSW config exactly ─── */
 const NAVIGATE_FALLBACK_DENYLIST = [/^\/v1\//, /^\/api\//, /^\/docs\//];
 
@@ -90,7 +97,10 @@ registerRoute(
 );
 
 // Authenticated `/v1/content/...` responses deliberately have no Workbox runtime route. Their
-// URLs are stable across users, so a global runtime cache would be an account-boundary leak.
+// Cache Storage is enumerable and readable by any script on this origin, unlike the browser HTTP
+// cache. Removing the route eliminates that script-readable private-media residue while the HTTP
+// cache retains the `Cache-Control: private, max-age=…` performance benefit. Session-ending
+// endpoints clear HTTP-cache residue server-side with Clear-Site-Data; the client has no API for it.
 // The app keeps only a small, synchronously invalidated in-memory blob cache for save/share.
 
 /* ─── Web Push ─── */

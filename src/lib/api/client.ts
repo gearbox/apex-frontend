@@ -38,11 +38,25 @@ interface RetryMetadata {
 
 const retryMetadata = new WeakMap<Request, RetryMetadata>();
 
-/** Builds a fresh Request for a retry attempt from the pre-dispatch clone (body-safe). */
+/** A response that belongs to an invalidated session must never reach its caller. */
+export class StaleSessionError extends Error {
+  constructor() {
+    super('The request outlived its authenticated session');
+    this.name = 'StaleSessionError';
+  }
+}
+
+/**
+ * Builds a fresh, abort-bound Request for a retry attempt from the pre-dispatch clone.
+ *
+ * Retry templates intentionally contain no bearer. A retry may use only the original captured
+ * credential, unless a successful same-epoch refresh explicitly replaces it with a new one.
+ */
 function buildRetryRequest(original: Request, metadata: RetryMetadata): Request {
   const template = metadata.template;
   // Clone the template per attempt so multiple retries each get a fresh body.
-  return template ? template.clone() : original.clone();
+  const retry = template ? template.clone() : original.clone();
+  return new Request(retry, { signal: metadata.operation.signal });
 }
 
 function isOriginalCredentialCurrent(metadata: RetryMetadata): boolean {
@@ -85,8 +99,11 @@ const authMiddleware: Middleware = {
     if (token) {
       request.headers.set('Authorization', `Bearer ${token}`);
     }
-    retryMetadata.set(request, metadata);
-    return request;
+    // Request signals are immutable, so bind the auth-operation signal on a reconstructed request.
+    // The metadata must follow that returned instance because it is what onResponse/onError receive.
+    const bound = new Request(request, { signal: operation.signal });
+    retryMetadata.set(bound, metadata);
+    return bound;
   },
 
   async onResponse({ response, request }) {
@@ -96,6 +113,10 @@ const authMiddleware: Middleware = {
     if (!metadata) return response;
 
     try {
+      // Aborting fetch is not sufficient when a response was already in flight. Never hand a
+      // response from an invalidated session to a caller that may write it into current state.
+      if (!isRetrySessionCurrent(metadata)) throw new StaleSessionError();
+
       // Always parse and store rate limit headers
       const key = endpointKey(request.url);
       const rlHeaders = parseRateLimitHeaders(response.headers);
@@ -119,7 +140,12 @@ const authMiddleware: Middleware = {
           const delay = getRetryDelay(currentHeaders.retryAfter, attempt);
           if (!(await waitForRetryDelay(delay, metadata.operation.signal))) break;
           if (!isOriginalCredentialCurrent(metadata)) break;
-          current = await fetch(buildRetryRequest(request, metadata));
+          const retryReq = buildRetryRequest(request, metadata);
+          if (metadata.accessToken) {
+            retryReq.headers.set('Authorization', `Bearer ${metadata.accessToken}`);
+          }
+          current = await fetch(retryReq);
+          if (!isRetrySessionCurrent(metadata)) throw new StaleSessionError();
           const retriedHeaders = parseRateLimitHeaders(current.headers);
           if (Object.keys(retriedHeaders).length > 0) {
             updateRateLimit(key, retriedHeaders);
@@ -180,10 +206,19 @@ const authMiddleware: Middleware = {
       // bearer. Missing credentials mean the response is handed back without a replay.
       if (!newToken) return response;
       retryReq.headers.set('Authorization', `Bearer ${newToken}`);
-      return fetch(retryReq);
+      const retried = await fetch(retryReq);
+      if (!isRetrySessionCurrent(metadata)) throw new StaleSessionError();
+      return retried;
     } finally {
       finishAuthOperation(metadata.operation);
     }
+  },
+
+  onError({ request }) {
+    const metadata = retryMetadata.get(request);
+    if (!metadata) return;
+    // onResponse is skipped for fetch rejections, including offline and abort failures.
+    finishAuthOperation(metadata.operation);
   },
 };
 
