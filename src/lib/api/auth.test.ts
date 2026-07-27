@@ -271,6 +271,73 @@ describe('silentRefresh()', () => {
     expect(getAuthFailureReason()).toBe('account_inactive');
   });
 
+  it('terminal failure posts both captured credentials to purge the origin HTTP cache', async () => {
+    setAuth(
+      {
+        accessToken: 'dead-access-token',
+        refreshToken: 'dead-refresh-token',
+        expiresAt: new Date(Date.now() + 900_000).toISOString(),
+        contentCookieExpiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+      },
+      makeUserProfile(),
+    );
+    const logoutRequests: Array<{ authorization: string | null; refreshToken: string }> = [];
+    server.use(
+      failedRefreshHandler,
+      http.post(`${BASE}/v1/auth/logout`, async ({ request }) => {
+        logoutRequests.push({
+          authorization: request.headers.get('Authorization'),
+          refreshToken: ((await request.json()) as { refresh_token: string }).refresh_token,
+        });
+        return HttpResponse.json({ message: 'Logged out successfully' });
+      }),
+    );
+
+    await expect(silentRefresh()).resolves.toEqual({ ok: false, reason: 'invalid_token' });
+    await vi.waitFor(() => expect(logoutRequests).toHaveLength(1));
+
+    expect(logoutRequests).toEqual([
+      { authorization: 'Bearer dead-access-token', refreshToken: 'dead-refresh-token' },
+    ]);
+    expect(getAccessToken()).toBeNull();
+  });
+
+  it('does not request a cache purge for a network refresh failure', async () => {
+    let logoutRequests = 0;
+    localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, 'existing-refresh-token');
+    server.use(
+      http.post(`${BASE}/v1/auth/refresh`, () => HttpResponse.error()),
+      http.post(`${BASE}/v1/auth/logout`, () => {
+        logoutRequests += 1;
+        return HttpResponse.json({ message: 'Logged out successfully' });
+      }),
+    );
+
+    await expect(silentRefresh()).resolves.toEqual({ ok: false, reason: 'network' });
+    expect(logoutRequests).toBe(0);
+  });
+
+  it('still clears auth when the terminal cache-purge request throws', async () => {
+    setAuth(
+      {
+        accessToken: 'dead-access-token',
+        refreshToken: 'dead-refresh-token',
+        expiresAt: new Date(Date.now() + 900_000).toISOString(),
+        contentCookieExpiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+      },
+      makeUserProfile(),
+    );
+    server.use(
+      failedRefreshHandler,
+      http.post(`${BASE}/v1/auth/logout`, () => HttpResponse.error()),
+    );
+
+    await expect(silentRefresh()).resolves.toEqual({ ok: false, reason: 'invalid_token' });
+
+    expect(getAccessToken()).toBeNull();
+    expect(getRefreshToken()).toBeNull();
+  });
+
   it('no refresh token: clears auth and reports invalid_token', async () => {
     const result = await silentRefresh();
     expect(result).toEqual({ ok: false, reason: 'invalid_token' });
@@ -643,6 +710,125 @@ describe('logout()', () => {
     expect(getAccessToken()).toBeNull();
     resetPushNotificationStateForTesting();
     vi.unstubAllGlobals();
+  });
+
+  it('skips the logout request when a replacement login completes during push cleanup', async () => {
+    const profileA = makeUserProfile({ id: 'user-a' });
+    const profileB = makeUserProfile({ id: 'user-b' });
+    const bCookieExpiry = new Date(Date.now() + 7_200_000).toISOString();
+    const registration = deferred<{ pushManager: { getSubscription: () => Promise<null> } }>();
+    const getRegistration = vi.fn().mockReturnValue(registration.promise);
+    let logoutRequests = 0;
+
+    resetPushNotificationStateForTesting();
+    vi.stubGlobal('navigator', {
+      userAgent: 'test-agent',
+      platform: 'Win32',
+      maxTouchPoints: 0,
+      serviceWorker: { getRegistration },
+    });
+    try {
+      setAuth(
+        {
+          accessToken: 'access-a',
+          refreshToken: 'refresh-a',
+          expiresAt: new Date(Date.now() + 900_000).toISOString(),
+          contentCookieExpiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+        },
+        profileA,
+      );
+      server.use(
+        http.post(`${BASE}/v1/auth/logout`, () => {
+          logoutRequests += 1;
+          return HttpResponse.json({ message: 'Logged out successfully' });
+        }),
+      );
+
+      const pendingLogout = logout();
+      await vi.waitFor(() => expect(getRegistration).toHaveBeenCalledOnce());
+
+      setAuth(
+        {
+          accessToken: 'access-b',
+          refreshToken: 'refresh-b',
+          expiresAt: new Date(Date.now() + 900_000).toISOString(),
+          contentCookieExpiresAt: bCookieExpiry,
+        },
+        profileB,
+      );
+      registration.resolve({ pushManager: { getSubscription: vi.fn().mockResolvedValue(null) } });
+      await pendingLogout;
+
+      expect(logoutRequests).toBe(0);
+      expect(getContentCookieExpiresAt()?.toISOString()).toBe(bCookieExpiry);
+    } finally {
+      resetPushNotificationStateForTesting();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('aborts an in-flight A logout on replacement login and preserves B cookie state', async () => {
+    const profileA = makeUserProfile({ id: 'user-a' });
+    const profileB = makeUserProfile({ id: 'user-b' });
+    const bCookieExpiry = new Date(Date.now() + 7_200_000).toISOString();
+    const response = deferred<Response>();
+    const requestStarted = deferred<void>();
+    let requestSignal: AbortSignal | undefined;
+    let authorization: string | null = null;
+
+    resetPushNotificationStateForTesting();
+    vi.stubGlobal('navigator', {
+      userAgent: 'test-agent',
+      platform: 'Win32',
+      maxTouchPoints: 0,
+      serviceWorker: {
+        getRegistration: vi.fn().mockResolvedValue({
+          pushManager: { getSubscription: vi.fn().mockResolvedValue(null) },
+        }),
+      },
+    });
+    try {
+      setAuth(
+        {
+          accessToken: 'access-a',
+          refreshToken: 'refresh-a',
+          expiresAt: new Date(Date.now() + 900_000).toISOString(),
+          contentCookieExpiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+        },
+        profileA,
+      );
+      server.use(
+        http.post(`${BASE}/v1/auth/logout`, ({ request }) => {
+          authorization = request.headers.get('Authorization');
+          requestSignal = request.signal;
+          requestStarted.resolve();
+          return response.promise;
+        }),
+      );
+
+      const pendingLogout = logout();
+      await requestStarted.promise;
+      expect(authorization).toBe('Bearer access-a');
+
+      setAuth(
+        {
+          accessToken: 'access-b',
+          refreshToken: 'refresh-b',
+          expiresAt: new Date(Date.now() + 900_000).toISOString(),
+          contentCookieExpiresAt: bCookieExpiry,
+        },
+        profileB,
+      );
+      expect(requestSignal?.aborted).toBe(true);
+      response.resolve(HttpResponse.json({ message: 'Logged out successfully' }));
+      await pendingLogout;
+
+      expect(getAccessToken()).toBe('access-b');
+      expect(getContentCookieExpiresAt()?.toISOString()).toBe(bCookieExpiry);
+    } finally {
+      resetPushNotificationStateForTesting();
+      vi.unstubAllGlobals();
+    }
   });
 });
 

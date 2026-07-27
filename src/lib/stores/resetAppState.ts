@@ -8,8 +8,7 @@ import { clearToasts } from '$lib/stores/toasts';
 import { clearNotifications } from '$lib/stores/notifications';
 import { setEventStreamStatus } from '$lib/stores/eventStream';
 import { isBrowser } from '$lib/utils/env';
-
-const LEGACY_CONTENT_MEDIA_CACHE_NAME = 'content-media-cache';
+import { LEGACY_CONTENT_MEDIA_CACHE_NAME } from '$lib/utils/cacheNames';
 
 /**
  * Clears every module-level cache/store that could otherwise carry one account's data into the

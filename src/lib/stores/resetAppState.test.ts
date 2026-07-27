@@ -10,6 +10,7 @@ import { toasts, addToast } from './toasts';
 import { notifications, addNotification } from './notifications';
 import { eventStreamStatus, setEventStreamStatus } from './eventStream';
 import { makeUserProfile } from '../../mocks/factories/user';
+import { LEGACY_CONTENT_MEDIA_CACHE_NAME } from '$lib/utils/cacheNames';
 
 function getStoreValue<T>(store: { subscribe: (fn: (v: T) => void) => () => void }): T {
   let value!: T;
@@ -119,7 +120,7 @@ describe('resetAppState()', () => {
     vi.stubGlobal('caches', { delete: deleteCache });
 
     expect(resetAppState()).toBeUndefined();
-    expect(deleteCache).toHaveBeenCalledWith('content-media-cache');
+    expect(deleteCache).toHaveBeenCalledWith(LEGACY_CONTENT_MEDIA_CACHE_NAME);
 
     vi.unstubAllGlobals();
   });

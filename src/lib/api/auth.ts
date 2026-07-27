@@ -241,8 +241,13 @@ export async function silentRefresh(): Promise<SilentRefreshResult> {
           err.status_code !== 429
         ) {
           const reason = mapRefreshErrorToReason(err.error);
+          // Capture both credentials while they still belong to this dead session. clearAuth()
+          // removes the refresh token synchronously, but the logout endpoint still uses it to
+          // return Clear-Site-Data and can denylist this access token when it is still valid.
+          const accessToken = getAccessToken();
           setAuthFailureReason(reason);
           clearAuth();
+          if (refreshToken) purgeTerminalSessionCache(refreshToken, accessToken);
           return { ok: false, reason };
         }
         // A temporary outage must not turn an already authenticated user into an unauthenticated
@@ -339,23 +344,53 @@ export async function remintContentCookie(): Promise<ContentCookieRemintResult> 
 export async function logout(): Promise<void> {
   const userId = getCurrentUser()?.id;
   const refreshToken = getRefreshToken();
+  // Snapshot before the transition and the awaited push cleanup. A late read could pick up a
+  // replacement account's bearer token and denylist B while this stale A logout is finishing.
+  const accessToken = getAccessToken();
   // Local async work dies before the slower push/logout best-effort operations begin.
   beginAuthTransition();
   const logoutEpoch = getAuthEpoch();
   await detachCurrentUserPush(userId);
-  if (refreshToken) {
+  // This check and the abort-bound request leave only the tiny race between dispatch and response
+  // headers; client-side cancellation cannot make that residual window zero.
+  if (refreshToken && isAuthEpochCurrent(logoutEpoch)) {
+    const operation = beginAuthOperation();
     try {
-      await fetchJson('/v1/auth/logout', {
-        method: 'POST',
-        credentials: 'include',
-        body: JSON.stringify({ refresh_token: refreshToken }),
-      });
+      await postLogoutRequest(refreshToken, accessToken, operation.signal);
     } catch {
       // Best-effort; clear local state regardless.
+    } finally {
+      finishAuthOperation(operation);
     }
   }
   // A new login may have completed while best-effort cleanup was in flight.  Never clear it.
   if (isAuthEpochCurrent(logoutEpoch)) clearAuth();
+}
+
+/** Sends credentials that were snapshotted before their owning session was invalidated. */
+async function postLogoutRequest(
+  refreshToken: string,
+  accessToken: string | null,
+  signal: AbortSignal,
+): Promise<void> {
+  await fetchJson('/v1/auth/logout', {
+    method: 'POST',
+    credentials: 'include',
+    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+    body: JSON.stringify({ refresh_token: refreshToken }),
+    signal,
+  });
+}
+
+/**
+ * Asks the API origin to purge its HTTP cache after a terminal refresh failure. It starts after
+ * clearAuth() so that transition does not abort its own purge; a subsequent login transition does.
+ */
+function purgeTerminalSessionCache(refreshToken: string, accessToken: string | null): void {
+  const operation = beginAuthOperation();
+  void postLogoutRequest(refreshToken, accessToken, operation.signal)
+    .catch(() => undefined)
+    .finally(() => finishAuthOperation(operation));
 }
 
 /**

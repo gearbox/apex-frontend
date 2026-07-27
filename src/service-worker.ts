@@ -22,6 +22,7 @@ import {
   isPwaClientToWorkerMessage,
 } from './lib/pwa/protocol';
 import { isTrustedPwaMessageSender } from './lib/pwa/messageSource';
+import { LEGACY_CONTENT_MEDIA_CACHE_NAME } from './lib/utils/cacheNames';
 
 declare const __BUILD_SHA__: string;
 
@@ -73,7 +74,6 @@ cleanupOutdatedCaches();
 
 // Retired in feat/session-isolation-and-content-cookie: remove the old script-readable cache
 // from upgrading installs. A fresh install has no such cache, so deleting a missing cache is safe.
-const LEGACY_CONTENT_MEDIA_CACHE_NAME = 'content-media-cache';
 self.addEventListener('activate', (event) => {
   event.waitUntil(caches.delete(LEGACY_CONTENT_MEDIA_CACHE_NAME));
 });

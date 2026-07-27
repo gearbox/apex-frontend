@@ -49,7 +49,9 @@ describe('PWA worker protocol', () => {
     const worker = readFileSync('src/service-worker.ts', 'utf8');
     expect(worker).not.toContain('CacheFirst');
     expect(worker).toContain('no Workbox runtime route');
-    expect(worker).toContain("const LEGACY_CONTENT_MEDIA_CACHE_NAME = 'content-media-cache'");
+    expect(worker).toContain(
+      "import { LEGACY_CONTENT_MEDIA_CACHE_NAME } from './lib/utils/cacheNames'",
+    );
     expect(worker).toContain("self.addEventListener('activate'");
     expect(worker).toContain('caches.delete(LEGACY_CONTENT_MEDIA_CACHE_NAME)');
   });
