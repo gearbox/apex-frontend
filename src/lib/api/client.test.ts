@@ -4,6 +4,7 @@ import { server } from '../../mocks/server';
 import { makeTokenResponse } from '../../mocks/factories/auth';
 import { makeUserProfile } from '../../mocks/factories/user';
 import { setAuth, clearAuth, getAccessToken } from '$lib/stores/auth';
+import { silentRefresh } from '$lib/api/auth';
 import { clearRateLimits, getRateLimitState } from '$lib/stores/rateLimit';
 import { __getAuthOperationCountForTesting } from '$lib/stores/authLifecycle';
 import { STORAGE_KEYS } from '$lib/utils/constants';
@@ -349,6 +350,130 @@ describe('epoch-bound middleware retries', () => {
     await expect(request).resolves.toMatchObject({ response: { status: 401 } });
     expect(balanceCalls).toBe(1);
     expect(getAccessToken()).toBe('access-b');
+  });
+
+  it('retries a trailing 401 with a sibling-refreshed token', async () => {
+    setAuth(tokens('expired-access', 'refresh-a'), makeUserProfile({ id: 'user-a' }));
+    const refreshResponse = deferred<Response>();
+    const refreshStarted = deferred<void>();
+    const second401Started = deferred<void>();
+    const second401 = deferred<Response>();
+    const authHeaders: Array<string | null> = [];
+    let initialRequests = 0;
+    let refreshCalls = 0;
+
+    server.use(
+      http.get(`${BASE}/v1/billing/balance`, ({ request }) => {
+        const authorization = request.headers.get('Authorization');
+        authHeaders.push(authorization);
+        if (authorization === 'Bearer expired-access') {
+          initialRequests += 1;
+          if (initialRequests === 2) {
+            second401Started.resolve();
+            return second401.promise;
+          }
+          return HttpResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+        return HttpResponse.json({ account_id: 'acc_001', account_type: 'personal', balance: 500 });
+      }),
+      http.post(`${BASE}/v1/auth/refresh`, () => {
+        refreshCalls += 1;
+        refreshStarted.resolve();
+        return refreshResponse.promise;
+      }),
+      http.get(`${BASE}/v1/users/me`, () => HttpResponse.json(makeUserProfile({ id: 'user-a' }))),
+    );
+
+    const first = apiClient.GET('/v1/billing/balance');
+    await refreshStarted.promise;
+    const second = apiClient.GET('/v1/billing/balance');
+    await second401Started.promise;
+
+    refreshResponse.resolve(
+      HttpResponse.json(makeTokenResponse({ access_token: 'refreshed-access' })),
+    );
+    await vi.waitFor(() => expect(getAccessToken()).toBe('refreshed-access'));
+    second401.resolve(HttpResponse.json({ error: 'Unauthorized' }, { status: 401 }));
+
+    await expect(first).resolves.toMatchObject({ response: { status: 200 } });
+    await expect(second).resolves.toMatchObject({ response: { status: 200 } });
+    expect(refreshCalls).toBe(1);
+    expect(authHeaders).toEqual([
+      'Bearer expired-access',
+      'Bearer expired-access',
+      'Bearer refreshed-access',
+      'Bearer refreshed-access',
+    ]);
+  });
+
+  it('joins an in-flight sibling refresh before retrying a 401', async () => {
+    setAuth(tokens('expired-access', 'refresh-a'), makeUserProfile({ id: 'user-a' }));
+    const refreshResponse = deferred<Response>();
+    const refreshStarted = deferred<void>();
+    let initialRequests = 0;
+    let refreshCalls = 0;
+
+    server.use(
+      http.get(`${BASE}/v1/billing/balance`, ({ request }) => {
+        if (request.headers.get('Authorization') === 'Bearer expired-access') {
+          initialRequests += 1;
+          return HttpResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+        return HttpResponse.json({ account_id: 'acc_001', account_type: 'personal', balance: 500 });
+      }),
+      http.post(`${BASE}/v1/auth/refresh`, () => {
+        refreshCalls += 1;
+        refreshStarted.resolve();
+        return refreshResponse.promise;
+      }),
+      http.get(`${BASE}/v1/users/me`, () => HttpResponse.json(makeUserProfile({ id: 'user-a' }))),
+    );
+
+    const first = apiClient.GET('/v1/billing/balance');
+    await refreshStarted.promise;
+    const second = apiClient.GET('/v1/billing/balance');
+    await vi.waitFor(() => expect(initialRequests).toBe(2));
+
+    refreshResponse.resolve(
+      HttpResponse.json(makeTokenResponse({ access_token: 'refreshed-access' })),
+    );
+
+    await expect(first).resolves.toMatchObject({ response: { status: 200 } });
+    await expect(second).resolves.toMatchObject({ response: { status: 200 } });
+    expect(refreshCalls).toBe(1);
+  });
+
+  it('retries a delayed 429 with a sibling-refreshed token', async () => {
+    vi.useFakeTimers();
+    setAuth(tokens('original-access', 'refresh-a'), makeUserProfile({ id: 'user-a' }));
+    const authHeaders: Array<string | null> = [];
+    let calls = 0;
+
+    server.use(
+      http.get(`${BASE}/v1/billing/balance`, ({ request }) => {
+        calls += 1;
+        authHeaders.push(request.headers.get('Authorization'));
+        if (calls === 1) {
+          return HttpResponse.json(
+            { error: 'rate_limit_exceeded' },
+            { status: 429, headers: { 'Retry-After': '1' } },
+          );
+        }
+        return HttpResponse.json({ account_id: 'acc_001', account_type: 'personal', balance: 500 });
+      }),
+      http.post(`${BASE}/v1/auth/refresh`, () =>
+        HttpResponse.json(makeTokenResponse({ access_token: 'refreshed-access' })),
+      ),
+      http.get(`${BASE}/v1/users/me`, () => HttpResponse.json(makeUserProfile({ id: 'user-a' }))),
+    );
+
+    const request = apiClient.GET('/v1/billing/balance');
+    await vi.waitFor(() => expect(calls).toBe(1));
+    await expect(silentRefresh()).resolves.toEqual({ ok: true });
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    await expect(request).resolves.toMatchObject({ response: { status: 200 } });
+    expect(authHeaders).toEqual(['Bearer original-access', 'Bearer refreshed-access']);
   });
 
   it('rejects a response delivered after its auth operation was invalidated', async () => {

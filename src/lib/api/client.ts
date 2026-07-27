@@ -32,6 +32,7 @@ let lastInsufficientBalanceToastAt = 0;
  */
 interface RetryMetadata {
   template: Request;
+  /** Used only to detect a same-epoch token rotation before handling a 401. */
   accessToken: string | null;
   operation: AuthOperation;
 }
@@ -49,18 +50,14 @@ export class StaleSessionError extends Error {
 /**
  * Builds a fresh, abort-bound Request for a retry attempt from the pre-dispatch clone.
  *
- * Retry templates intentionally contain no bearer. A retry may use only the original captured
- * credential, unless a successful same-epoch refresh explicitly replaces it with a new one.
+ * Retry templates intentionally contain no bearer. A retry may only use a credential from the
+ * original auth epoch; within that epoch, the newest token is always the correct one to send.
  */
 function buildRetryRequest(original: Request, metadata: RetryMetadata): Request {
   const template = metadata.template;
   // Clone the template per attempt so multiple retries each get a fresh body.
   const retry = template ? template.clone() : original.clone();
   return new Request(retry, { signal: metadata.operation.signal });
-}
-
-function isOriginalCredentialCurrent(metadata: RetryMetadata): boolean {
-  return isAuthOperationCurrent(metadata.operation) && getAccessToken() === metadata.accessToken;
 }
 
 function isRetrySessionCurrent(metadata: RetryMetadata): boolean {
@@ -128,7 +125,7 @@ const authMiddleware: Middleware = {
       if (response.status === 429) {
         let current = response;
         for (let attempt = 1; attempt <= MAX_RATE_LIMIT_RETRIES; attempt++) {
-          if (!isOriginalCredentialCurrent(metadata)) break;
+          if (!isRetrySessionCurrent(metadata)) break;
           const currentHeaders = parseRateLimitHeaders(current.headers);
           // Retry-After beyond our cap: don't silently block the UI — hand the 429 back now.
           if (
@@ -139,10 +136,13 @@ const authMiddleware: Middleware = {
           }
           const delay = getRetryDelay(currentHeaders.retryAfter, attempt);
           if (!(await waitForRetryDelay(delay, metadata.operation.signal))) break;
-          if (!isOriginalCredentialCurrent(metadata)) break;
+          if (!isRetrySessionCurrent(metadata)) break;
           const retryReq = buildRetryRequest(request, metadata);
-          if (metadata.accessToken) {
-            retryReq.headers.set('Authorization', `Bearer ${metadata.accessToken}`);
+          // A retry may only ever use a credential from the original auth epoch; within that
+          // epoch the newest token is always the correct one to send.
+          const token = getAccessToken();
+          if (token) {
+            retryReq.headers.set('Authorization', `Bearer ${token}`);
           }
           current = await fetch(retryReq);
           if (!isRetrySessionCurrent(metadata)) throw new StaleSessionError();
@@ -171,40 +171,43 @@ const authMiddleware: Middleware = {
 
       if (response.status !== 401) return response;
 
-      // The request's original credential must still be active before it can trigger a refresh.
-      if (!isOriginalCredentialCurrent(metadata)) return response;
+      // Only the session identity may block a replay. A same-epoch token rotation means a sibling
+      // request already refreshed, so this request must still retry with the current credential.
+      if (!isRetrySessionCurrent(metadata)) return response;
 
-      // Attempt refresh
-      const result = await silentRefresh();
-      if (!result.ok) {
-        // Redirect to login, preserving current path + query string. Skip if
-        // already on /login — the (app) layout's own auth guard races this
-        // handler on protected-route 401s, and re-deriving the redirect target
-        // from window.location after that guard has already navigated produces
-        // a self-referential nested redirect (e.g. /login?redirect=%2Flogin...).
-        // silentRefresh() has already persisted `result.reason` (see auth.ts,
-        // setAuthFailureReason) so the login screen can pick the right message (B2).
-        if (
-          result.reason === 'stale' ||
-          result.reason === 'aborted' ||
-          result.reason === 'network'
-        ) {
+      const alreadyRotated = getAccessToken() !== metadata.accessToken;
+      if (!alreadyRotated) {
+        // The old token can mean a sibling refresh is still in flight; silentRefresh() joins its
+        // single-flight promise. Once it has rotated, the branch is skipped and we retry directly.
+        const result = await silentRefresh();
+        if (!result.ok) {
+          // Redirect to login, preserving current path + query string. Skip if
+          // already on /login — the (app) layout's own auth guard races this
+          // handler on protected-route 401s, and re-deriving the redirect target
+          // from window.location after that guard has already navigated produces
+          // a self-referential nested redirect (e.g. /login?redirect=%2Flogin...).
+          // silentRefresh() has already persisted `result.reason` (see auth.ts,
+          // setAuthFailureReason) so the login screen can pick the right message (B2).
+          if (
+            result.reason === 'stale' ||
+            result.reason === 'aborted' ||
+            result.reason === 'network'
+          ) {
+            return response;
+          }
+          if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+            const redirect = encodeURIComponent(window.location.pathname + window.location.search);
+            window.location.href = `/login?redirect=${redirect}`;
+          }
           return response;
         }
-        if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
-          const redirect = encodeURIComponent(window.location.pathname + window.location.search);
-          window.location.href = `/login?redirect=${redirect}`;
-        }
-        return response;
+        if (!isRetrySessionCurrent(metadata)) throw new StaleSessionError();
       }
 
-      // Retry original request with new token (body-safe clone; does not re-enter middleware)
-      if (!isRetrySessionCurrent(metadata)) return response;
-      const retryReq = buildRetryRequest(request, metadata);
+      // Retry with the current same-epoch token (body-safe clone; does not re-enter middleware).
       const newToken = getAccessToken();
-      // A successful same-epoch refresh is the only permitted way for this request to use a newer
-      // bearer. Missing credentials mean the response is handed back without a replay.
       if (!newToken) return response;
+      const retryReq = buildRetryRequest(request, metadata);
       retryReq.headers.set('Authorization', `Bearer ${newToken}`);
       const retried = await fetch(retryReq);
       if (!isRetrySessionCurrent(metadata)) throw new StaleSessionError();
