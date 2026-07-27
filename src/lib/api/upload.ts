@@ -46,14 +46,20 @@ export async function uploadMedia(file: File): Promise<UploadResponse> {
   const initialToken = getAccessToken();
   try {
     let res = await doUpload(file, initialToken, operation.signal);
-    if (!isAuthOperationCurrent(operation) || getAccessToken() !== initialToken) {
-      throw new DOMException('Aborted', 'AbortError');
-    }
+    // Only a session replacement may discard this response. A same-epoch token rotation means a
+    // sibling refreshed mid-flight; the upload itself is still valid and must be inspected.
+    if (!isAuthOperationCurrent(operation)) throw new DOMException('Aborted', 'AbortError');
 
     if (res.status === 401) {
-      const refreshed = await silentRefresh();
-      if (!refreshed.ok || !isAuthOperationCurrent(operation)) {
+      // A sibling may already have refreshed while this upload was in flight. Reuse that token
+      // rather than making another refresh request, then replay this one non-idempotent request.
+      if (getAccessToken() === initialToken) {
+        const refreshed = await silentRefresh();
         if (!isAuthOperationCurrent(operation)) throw new DOMException('Aborted', 'AbortError');
+        if (refreshed.ok) {
+          res = await doUpload(file, getAccessToken(), operation.signal);
+          if (!isAuthOperationCurrent(operation)) throw new DOMException('Aborted', 'AbortError');
+        }
       } else {
         res = await doUpload(file, getAccessToken(), operation.signal);
         if (!isAuthOperationCurrent(operation)) throw new DOMException('Aborted', 'AbortError');

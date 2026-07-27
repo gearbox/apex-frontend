@@ -46,8 +46,7 @@ interface ContentCookieResponse {
 
 /** Discriminated result — see AuthFailureReason for what each reason means to callers. */
 export type SilentRefreshResult =
-  | { ok: true }
-  | { ok: false; reason: AuthFailureReason | 'stale' | 'aborted' };
+  { ok: true } | { ok: false; reason: AuthFailureReason | 'stale' | 'aborted' };
 
 /** A cookie re-mint is intentionally more precise than a nullable expiry. */
 export type ContentCookieRemintResult =
@@ -68,11 +67,9 @@ export class AuthOperationCancelledError extends Error {
 
 /* ─── State ─── */
 let refreshFlight:
-  | { epoch: number; refreshToken: string; promise: Promise<SilentRefreshResult> }
-  | undefined;
+  { epoch: number; refreshToken: string; promise: Promise<SilentRefreshResult> } | undefined;
 let contentCookieRemintFlight:
-  | { epoch: number; accessToken: string; promise: Promise<ContentCookieRemintResult> }
-  | undefined;
+  { epoch: number; accessToken: string; promise: Promise<ContentCookieRemintResult> } | undefined;
 
 /* ─── Helper ─── */
 function toTokens(res: AuthResponse): AuthTokens {
@@ -123,11 +120,8 @@ function wasAborted(error: unknown, operation: AuthOperation): boolean {
 }
 
 function isRefreshCurrent(operation: AuthOperation, refreshToken: string): boolean {
+  // Refresh is single-flight; a changed refresh token means a same-user re-login superseded it.
   return isAuthOperationCurrent(operation) && getRefreshToken() === refreshToken;
-}
-
-function isAccessTokenCurrent(operation: AuthOperation, accessToken: string): boolean {
-  return isAuthOperationCurrent(operation) && getAccessToken() === accessToken;
 }
 
 function cancelledFreshAuth(operation: AuthOperation): never {
@@ -304,7 +298,7 @@ export async function remintContentCookie(): Promise<ContentCookieRemintResult> 
           headers: { Authorization: `Bearer ${accessToken}`, ...devHeaders },
           signal: operation.signal,
         });
-        if (!isAccessTokenCurrent(operation, accessToken)) return { kind: 'stale' };
+        if (!isAuthOperationCurrent(operation)) return { kind: 'stale' };
 
         if (res.status === 401 || res.status === 403) return { kind: 'unauthorized' };
         if (res.status === 429) {
@@ -317,14 +311,14 @@ export async function remintContentCookie(): Promise<ContentCookieRemintResult> 
         if (!res.ok) return { kind: 'transient' };
 
         const body = (await res.json()) as ContentCookieResponse;
-        if (!isAccessTokenCurrent(operation, accessToken)) return { kind: 'stale' };
+        if (!isAuthOperationCurrent(operation)) return { kind: 'stale' };
         const expiresAt = new Date(body.expires_at);
         if (Number.isNaN(expiresAt.getTime())) return { kind: 'transient' };
 
         setContentCookieExpiresAt(expiresAt);
         return { kind: 'ok', expiresAt };
       } catch (error) {
-        if (!isAccessTokenCurrent(operation, accessToken)) {
+        if (!isAuthOperationCurrent(operation)) {
           return { kind: wasAborted(error, operation) ? 'aborted' : 'stale' };
         }
         return { kind: 'transient' };

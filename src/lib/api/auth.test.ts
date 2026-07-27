@@ -479,6 +479,45 @@ describe('remintContentCookie()', () => {
     expect(callCount).toBe(1);
     expect(results.every((r) => r.kind === 'ok')).toBe(true);
   });
+
+  it('records a valid expiry when a sibling rotates the access token mid-flight', async () => {
+    const profile = makeUserProfile();
+    setAuth(
+      {
+        accessToken: 'initial-access-token',
+        refreshToken: 'initial-refresh-token',
+        expiresAt: new Date(Date.now() + 900_000).toISOString(),
+        contentCookieExpiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+      },
+      profile,
+    );
+    const response = deferred<Response>();
+    const started = deferred<void>();
+    const remintedExpiry = new Date(Date.now() + 86_400_000).toISOString();
+
+    server.use(
+      http.post(`${BASE}/v1/auth/content-cookie`, () => {
+        started.resolve();
+        return response.promise;
+      }),
+    );
+
+    const remint = remintContentCookie();
+    await started.promise;
+    setAuth(
+      {
+        accessToken: 'rotated-access-token',
+        refreshToken: 'rotated-refresh-token',
+        expiresAt: new Date(Date.now() + 900_000).toISOString(),
+        contentCookieExpiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+      },
+      profile,
+    );
+    response.resolve(HttpResponse.json({ expires_at: remintedExpiry }));
+
+    await expect(remint).resolves.toMatchObject({ kind: 'ok' });
+    expect(getContentCookieExpiresAt()?.toISOString()).toBe(remintedExpiry);
+  });
 });
 
 describe('auth epoch isolation', () => {
