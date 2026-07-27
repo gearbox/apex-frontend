@@ -54,5 +54,8 @@ describe('PWA worker protocol', () => {
     );
     expect(worker).toContain("self.addEventListener('activate'");
     expect(worker).toContain('caches.delete(LEGACY_CONTENT_MEDIA_CACHE_NAME)');
+    expect(worker).toContain(
+      'caches.delete(LEGACY_CONTENT_MEDIA_CACHE_NAME).catch(() => undefined)',
+    );
   });
 });

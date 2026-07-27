@@ -21,7 +21,13 @@ export type PwaUpdateState =
   | 'failed';
 
 export type UpdateCheckSource =
-  'startup' | 'visibility' | 'pageshow' | 'online' | 'interval' | 'manual' | 'backend-event';
+  | 'startup'
+  | 'visibility'
+  | 'pageshow'
+  | 'online'
+  | 'interval'
+  | 'manual'
+  | 'backend-event';
 
 export interface AppVersionManifest {
   version: string;

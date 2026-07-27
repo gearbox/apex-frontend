@@ -46,7 +46,8 @@ interface ContentCookieResponse {
 
 /** Discriminated result — see AuthFailureReason for what each reason means to callers. */
 export type SilentRefreshResult =
-  { ok: true } | { ok: false; reason: AuthFailureReason | 'stale' | 'aborted' };
+  | { ok: true }
+  | { ok: false; reason: AuthFailureReason | 'stale' | 'aborted' };
 
 /** A cookie re-mint is intentionally more precise than a nullable expiry. */
 export type ContentCookieRemintResult =
@@ -67,9 +68,11 @@ export class AuthOperationCancelledError extends Error {
 
 /* ─── State ─── */
 let refreshFlight:
-  { epoch: number; refreshToken: string; promise: Promise<SilentRefreshResult> } | undefined;
+  | { epoch: number; refreshToken: string; promise: Promise<SilentRefreshResult> }
+  | undefined;
 let contentCookieRemintFlight:
-  { epoch: number; accessToken: string; promise: Promise<ContentCookieRemintResult> } | undefined;
+  | { epoch: number; accessToken: string; promise: Promise<ContentCookieRemintResult> }
+  | undefined;
 
 /* ─── Helper ─── */
 function toTokens(res: AuthResponse): AuthTokens {
@@ -379,9 +382,16 @@ async function postLogoutRequest(
 /**
  * Asks the API origin to purge its HTTP cache after a terminal refresh failure. It starts after
  * clearAuth() so that transition does not abort its own purge; a subsequent login transition does.
+ * Its abort signal covers the in-flight request. The epoch check is future-proofing for a
+ * pre-dispatch await: none exists today, but such an edit must not let a newer session receive
+ * this terminal session's cache-purge request.
  */
 function purgeTerminalSessionCache(refreshToken: string, accessToken: string | null): void {
   const operation = beginAuthOperation();
+  if (!isAuthEpochCurrent(operation.epoch)) {
+    finishAuthOperation(operation);
+    return;
+  }
   void postLogoutRequest(refreshToken, accessToken, operation.signal)
     .catch(() => undefined)
     .finally(() => finishAuthOperation(operation));

@@ -112,10 +112,12 @@
     }
 
     // Rung 2: the re-mint endpoint explicitly rejected the access token.
-    const result = await silentRefresh().catch((): SilentRefreshResult => ({
-      ok: false,
-      reason: 'network',
-    }));
+    const result = await silentRefresh().catch(
+      (): SilentRefreshResult => ({
+        ok: false,
+        reason: 'network',
+      }),
+    );
 
     if (originalUrl !== failedUrl) return;
 

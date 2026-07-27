@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { onlineManager } from '@tanstack/svelte-query';
+import { get } from 'svelte/store';
 import type { ContentCookieRemintResult, SilentRefreshResult } from '$lib/api/auth';
 import {
   start,
@@ -8,6 +9,8 @@ import {
   isDueForRemint,
   MIN_REMINT_INTERVAL_MS,
   REMINT_LIFETIME_FRACTION,
+  contentCredentialsRevision,
+  __resetContentCookieServiceForTesting,
 } from './contentCookie';
 import { clearAuth, setContentCookieExpiresAt, getContentCookieExpiresAt } from '$lib/stores/auth';
 
@@ -29,6 +32,7 @@ function setVisibility(state: DocumentVisibilityState): void {
 }
 
 beforeEach(() => {
+  __resetContentCookieServiceForTesting();
   vi.useFakeTimers();
   remintContentCookieMock.mockReset();
   silentRefreshMock.mockReset();
@@ -103,6 +107,25 @@ describe('start()', () => {
     expect(remintContentCookieMock).toHaveBeenCalledTimes(2);
   });
 
+  it('advances the content-credentials revision only after a successful recovery', async () => {
+    const initialRevision = get(contentCredentialsRevision);
+    setContentCookieExpiresAt(new Date(Date.now() - 1));
+    remintContentCookieMock.mockResolvedValueOnce(reminted(new Date(Date.now() + 86_400_000)));
+
+    start();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(get(contentCredentialsRevision)).toBe(initialRevision + 1);
+
+    stop();
+    remintContentCookieMock.mockResolvedValueOnce({ kind: 'transient' });
+    setContentCookieExpiresAt(new Date(Date.now() - 1));
+    start();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(get(contentCredentialsRevision)).toBe(initialRevision + 1);
+  });
+
   it('escalates to silentRefresh only when re-mint explicitly rejects authorization', async () => {
     setContentCookieExpiresAt(new Date(Date.now() + 20_000_000));
     remintContentCookieMock.mockResolvedValue({ kind: 'unauthorized' });
@@ -121,6 +144,7 @@ describe('start()', () => {
   });
 
   it('reschedules from the refreshed expiry after an unauthorized re-mint', async () => {
+    const initialRevision = get(contentCredentialsRevision);
     setContentCookieExpiresAt(new Date(Date.now() + 20_000_000));
     remintContentCookieMock.mockResolvedValue({ kind: 'unauthorized' });
     silentRefreshMock.mockImplementation(async () => {
@@ -132,6 +156,7 @@ describe('start()', () => {
     await vi.advanceTimersByTimeAsync(msUntilNextRemint(new Date(Date.now() + 20_000_000)));
 
     expect(silentRefreshMock).toHaveBeenCalledTimes(1);
+    expect(get(contentCredentialsRevision)).toBe(initialRevision + 1);
 
     // The mock set a fresh 24h-out expiry as of "now" at that point — reschedule is computed
     // from *that* value, not from the floor.

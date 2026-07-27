@@ -2,6 +2,7 @@ import { isBrowser } from '$lib/utils/env';
 import { remintContentCookie, silentRefresh } from '$lib/api/auth';
 import { getContentCookieExpiresAt } from '$lib/stores/auth';
 import { getAuthEpoch, isAuthEpochCurrent } from '$lib/stores/authLifecycle';
+import { readonly, writable } from 'svelte/store';
 
 /** Floor so a near-expiry (or clock-skewed) value can never busy-loop the re-mint timer. */
 export const MIN_REMINT_INTERVAL_MS = 5 * 60 * 1000;
@@ -9,6 +10,13 @@ export const MIN_REMINT_INTERVAL_MS = 5 * 60 * 1000;
 export const REMINT_LIFETIME_FRACTION = 0.75;
 export const TRANSIENT_REMINT_RETRY_BASE_MS = 30 * 1000;
 export const TRANSIENT_REMINT_RETRY_MAX_MS = 5 * 60 * 1000;
+
+const contentCredentialsRevisionStore = writable(0);
+/**
+ * Advances only when content access has been recovered. Native media uses it to retry requests
+ * that the browser issued before the asynchronous resume recovery completed.
+ */
+export const contentCredentialsRevision = readonly(contentCredentialsRevisionStore);
 
 let started = false;
 let serviceGeneration = 0;
@@ -84,6 +92,10 @@ function scheduleTransientRetry(identity: CycleIdentity, retryAfterMs?: number):
   schedule(transientDelay(retryAfterMs), identity);
 }
 
+function noteContentCredentialsRecovery(): void {
+  contentCredentialsRevisionStore.update((revision) => revision + 1);
+}
+
 /**
  * One epoch-bound keep-alive cycle.  It is globally single-flight so pageshow and visibilitychange
  * cannot interleave two snapshots or alter TanStack Query's global online state. We deliberately
@@ -104,6 +116,7 @@ function runCycle(identity: CycleIdentity): Promise<void> {
     if (!isCurrent(identity)) return;
 
     if (remint.kind === 'ok') {
+      noteContentCredentialsRecovery();
       scheduleNext(remint.expiresAt, identity);
       return;
     }
@@ -112,6 +125,7 @@ function runCycle(identity: CycleIdentity): Promise<void> {
       const refreshed = await silentRefresh();
       if (!isCurrent(identity)) return;
       if (refreshed.ok) {
+        noteContentCredentialsRecovery();
         const refreshedExpiry = getContentCookieExpiresAt();
         if (refreshedExpiry) scheduleNext(refreshedExpiry, identity);
         else scheduleTransientRetry(identity);
@@ -187,4 +201,10 @@ export function stop(): void {
 export function __resetContentCookieServiceForTesting(): void {
   stop();
   cycleFlight = undefined;
+  contentCredentialsRevisionStore.set(0);
+}
+
+/** Test-only hook for consumers that need to exercise their response to a completed recovery. */
+export function __noteContentCredentialsRecoveryForTesting(): void {
+  noteContentCredentialsRecovery();
 }

@@ -22,7 +22,10 @@ export interface AuthTokens {
  * `window.location.href` redirect the 401 middleware uses.
  */
 export type AuthFailureReason =
-  'invalid_token' | 'token_reuse_detected' | 'account_inactive' | 'network';
+  | 'invalid_token'
+  | 'token_reuse_detected'
+  | 'account_inactive'
+  | 'network';
 
 const AUTH_FAILURE_REASONS: readonly AuthFailureReason[] = [
   'invalid_token',
