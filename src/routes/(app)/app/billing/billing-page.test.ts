@@ -78,6 +78,14 @@ describe('/app/billing payment-method labels', () => {
     expect(screen.queryByText('Top-up through the legacy provider label')).toBeNull();
   });
 
+  it('uses the localized card label instead of the raw description', () => {
+    state.transactions = [makeTransaction({ payment_method: 'card' })];
+    render(Page);
+
+    expect(screen.getByText('Card payment')).toBeTruthy();
+    expect(screen.queryByText('Top-up through the legacy provider label')).toBeNull();
+  });
+
   it('uses the description when payment_method is absent', () => {
     state.transactions = [makeTransaction({ payment_method: null })];
     render(Page);

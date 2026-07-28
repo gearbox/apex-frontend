@@ -264,13 +264,14 @@
   {:else}
     <div class="flex flex-col divide-y divide-border">
       {#each transactionsQuery.data?.items ?? [] as tx (tx.id)}
+        {@const methodLabel = paymentMethodLabel(tx.payment_method)}
         <div class="flex items-center justify-between py-3">
           <div>
             <p class="text-xs font-medium capitalize text-text">
               {tx.transaction_type.replace('_', ' ')}
             </p>
-            {#if paymentMethodLabel(tx.payment_method)}
-              <p class="text-[11px] text-text-dim">{paymentMethodLabel(tx.payment_method)}</p>
+            {#if methodLabel}
+              <p class="text-[11px] text-text-dim">{methodLabel}</p>
             {:else if tx.description}
               <p class="text-[11px] text-text-dim">{tx.description}</p>
             {/if}

@@ -88,6 +88,8 @@
   "library_start_creating": "Počni da kreiraš",
   "library_all_caught_up": "To je sve",
   "library_untitled": "Bez naziva",
+  "imagepicker_upload_label": "Otpremljeno: {name}",
+  "imagepicker_upload_unnamed": "Bez imena",
   "library_details_title": "Detalji stavke",
   "library_image_unavailable": "Slika nije dostupna",
   "library_image_loading": "Učitavanje originalne slike",
