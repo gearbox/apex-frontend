@@ -47,6 +47,9 @@ function assertCurrent(context: AuthRequestContext, staleError: StaleAuthErrorFa
 /**
  * Keep terminal session handling identical for every request path. silentRefresh() records the
  * terminal reason before it clears credentials; this module owns the corresponding login redirect.
+ * The app layout's auth guard can race this handler on a protected-route 401. Re-deriving the
+ * redirect target after that guard has navigated would create a self-referential nested redirect
+ * such as `/login?redirect=%2Flogin...`, so never redirect again from the login route.
  */
 function redirectAfterTerminalRefreshFailure(): void {
   if (typeof window === 'undefined' || window.location.pathname.startsWith('/login')) return;
@@ -82,6 +85,11 @@ export async function retryUnauthorized(
       ) {
         redirectAfterTerminalRefreshFailure();
       }
+      // A superseded operation must never hand its response back: `stale`/`aborted` are
+      // superseded by definition, and a terminal reason means silentRefresh() already ran
+      // clearAuth(), which invalidates this operation. Only `network` leaves it current, and
+      // that response is the caller's to handle.
+      assertCurrent(context, staleError);
       return response;
     }
 
@@ -111,6 +119,9 @@ export async function withAuthOperation<T>(
     assertCurrent(context, abortError);
 
     const response = await retryUnauthorized(context, initialResponse, run);
+    // A superseded operation must not run caller code at all — `handle` throws for any failing
+    // status, which would pre-empt the assertion below and surface in the replacement session.
+    assertCurrent(context, abortError);
     const result = await handle(response);
     assertCurrent(context, abortError);
     return result;

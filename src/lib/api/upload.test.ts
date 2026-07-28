@@ -290,6 +290,32 @@ describe('uploadMedia() — 401 refresh-and-retry (H2)', () => {
     expect(consumeAuthFailureReason()).toBe('token_reuse_detected');
   });
 
+  it('aborts a 401 upload when its refresh is superseded by a replacement session', async () => {
+    setAuth(authTokens('access-a', 'refresh-a'), makeUserProfile({ id: 'user-a' }));
+    const refreshResponse = deferred<Response>();
+    const refreshStarted = deferred<void>();
+    let uploadCallCount = 0;
+
+    server.use(
+      http.post(UPLOAD_URL, () => {
+        uploadCallCount += 1;
+        return HttpResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }),
+      http.post(`${BASE}/v1/auth/refresh`, () => {
+        refreshStarted.resolve();
+        return refreshResponse.promise;
+      }),
+    );
+
+    const upload = uploadMedia(new File(['test'], 'test.jpg', { type: 'image/jpeg' }));
+    await refreshStarted.promise;
+    setAuth(authTokens('access-b', 'refresh-b'), makeUserProfile({ id: 'user-b' }));
+    refreshResponse.resolve(HttpResponse.json(makeTokenResponse({ access_token: 'late-access-a' })));
+
+    await expect(upload).rejects.toMatchObject({ name: 'AbortError' });
+    expect(uploadCallCount).toBe(1);
+  });
+
   it('aborts an in-flight upload when its auth session is invalidated', async () => {
     setAuth(authTokens('access-token', 'refresh-token'), makeUserProfile());
     const response = deferred<Response>();
