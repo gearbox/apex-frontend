@@ -2312,6 +2312,7 @@ export interface components {
             expires_at: string;
             display_title?: string | null;
             original_filename?: string | null;
+            display_filename?: string | null;
             is_favorite: boolean;
             duration_ms?: number | null;
             job_id?: string | null;
@@ -2343,6 +2344,7 @@ export interface components {
             expires_at: string;
             display_title?: string | null;
             original_filename?: string | null;
+            display_filename?: string | null;
             is_favorite: boolean;
             duration_ms?: number | null;
             job_id?: string | null;
@@ -2982,6 +2984,7 @@ export interface components {
             /** Format: date-time */
             created_at: string;
             created_by: string | null;
+            payment_method?: string | null;
         };
         /** UnifiedGenerationRequest */
         UnifiedGenerationRequest: {

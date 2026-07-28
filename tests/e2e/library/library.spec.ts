@@ -87,6 +87,7 @@ const itemUpload = {
   expires_at: '2025-07-04T00:00:00Z',
   display_title: null,
   original_filename: 'photo.jpg',
+  display_filename: null,
   is_favorite: false,
   duration_ms: null,
   job_id: null,

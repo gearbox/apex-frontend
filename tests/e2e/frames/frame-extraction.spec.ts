@@ -33,6 +33,7 @@ const libraryUploadItem = {
   expires_at: '2026-08-17T10:00:00Z',
   display_title: null,
   original_filename: 'portrait-frame-source.mp4',
+  display_filename: 'portrait-frame-source.mp4',
   is_favorite: false,
   duration_ms: DURATION_MS,
   job_id: null,

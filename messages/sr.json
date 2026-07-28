@@ -233,6 +233,8 @@
   "billing_transaction_credit": "Dopuna",
   "billing_transaction_refund": "Povraćaj",
   "billing_transaction_admin_adjustment": "Korekcija",
+  "billing_payment_method_crypto": "Plaćanje kriptovalutom",
+  "billing_payment_method_card": "Plaćanje karticom",
   "profile_title": "Profil i podešavanja",
   "profile_display_name": "Ime za prikaz",
   "profile_email": "Email",

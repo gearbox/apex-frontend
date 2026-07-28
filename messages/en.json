@@ -233,6 +233,8 @@
   "billing_transaction_credit": "Top-up",
   "billing_transaction_refund": "Refund",
   "billing_transaction_admin_adjustment": "Adjustment",
+  "billing_payment_method_crypto": "Crypto payment",
+  "billing_payment_method_card": "Card payment",
   "profile_title": "Profile & Settings",
   "profile_display_name": "Display Name",
   "profile_email": "Email",

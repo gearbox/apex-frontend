@@ -408,6 +408,22 @@ describe('AssetDetailsSheet — conditional metadata sections', () => {
     expect(screen.queryByText('Provider')).toBeNull();
   });
 
+  it('hides the filename field for a canonical upload filename without a display filename', () => {
+    detailData = makeLibraryAssetDetail({
+      asset_ref: 'upload:abc',
+      source: 'upload',
+      display_filename: null,
+      original_filename: '550e8400-e29b-41d4-a716-446655440000.png',
+      model: null,
+      provider: null,
+      prompt: null,
+    });
+    renderSheet({ assetRef: 'upload:abc' });
+
+    expect(screen.queryByText('Filename')).toBeNull();
+    expect(screen.queryByText('550e8400-e29b-41d4-a716-446655440000.png')).toBeNull();
+  });
+
   it('shows model/provider/prompt fields for a generated asset and hides filename', () => {
     detailData = makeLibraryAssetDetail({
       asset_ref: 'output:abc',
@@ -438,6 +454,20 @@ describe('AssetDetailsSheet — rename flow', () => {
     await tick();
 
     expect(screen.getByDisplayValue('old-name.jpg')).toBeTruthy();
+  });
+
+  it('prefills rename with display_filename when original_filename is canonical', async () => {
+    detailData = makeLibraryAssetDetail({
+      asset_ref: 'upload:abc',
+      display_title: null,
+      display_filename: 'holiday.png',
+      original_filename: '550e8400-e29b-41d4-a716-446655440000.png',
+      available_actions: ['rename', 'favorite', 'download', 'delete'],
+    });
+    renderSheet({ assetRef: 'upload:abc', startInRename: true });
+    await tick();
+
+    expect(screen.getByDisplayValue('holiday.png')).toBeTruthy();
   });
 
   it('submitting the rename form calls the rename mutation with the trimmed title', async () => {

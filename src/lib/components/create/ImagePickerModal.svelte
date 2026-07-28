@@ -10,6 +10,7 @@
   import { addToast } from '$lib/stores/toasts';
   import { isDesktop } from '$lib/utils/breakpoints';
   import { parseAssetRef } from '$lib/utils/assetRef';
+  import { assetLabel } from '$lib/utils/assetName';
   import type { components } from '$lib/api/types';
   import MediaImage from '$lib/media/MediaImage.svelte';
   import { mediaFallbackSrc } from '$lib/media/index';
@@ -233,11 +234,11 @@
                   ontouchcancel={cancelLongPress}
                   class="h-full w-full"
                   aria-pressed={isSelected}
-                  aria-label="Upload: {item.original_filename ?? ''}"
+                  aria-label="Upload: {assetLabel(item, '')}"
                 >
                   <MediaImage
                     media={item.media}
-                    alt={item.original_filename ?? ''}
+                    alt={assetLabel(item, '')}
                     sizes="(max-width: 768px) 33vw, 25vw"
                     class="h-full w-full object-cover"
                   />

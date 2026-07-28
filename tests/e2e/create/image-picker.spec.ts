@@ -25,6 +25,7 @@ function makeUploadItem(overrides: Record<string, unknown> = {}) {
     expires_at: '2025-07-01T00:00:00Z',
     display_title: null,
     original_filename: 'photo.jpg',
+    display_filename: 'photo.jpg',
     is_favorite: false,
     duration_ms: null,
     job_id: null,
@@ -60,11 +61,13 @@ const mockUploadItems = [
   makeUploadItem({
     asset_ref: 'upload:b0000000-0000-4000-8000-000000000001',
     original_filename: 'photo.jpg',
+    display_filename: 'photo.jpg',
     media: makeMedia('/v1/content/uploads/b0000000-0000-4000-8000-000000000001'),
   }),
   makeUploadItem({
     asset_ref: 'upload:b0000000-0000-4000-8000-000000000002',
     original_filename: 'sketch.png',
+    display_filename: 'sketch.png',
     media: makeMedia('/v1/content/uploads/b0000000-0000-4000-8000-000000000002'),
   }),
 ];
@@ -74,6 +77,7 @@ const mockUploadItems = [
 const mockUploadVideoItem = makeUploadItem({
   asset_ref: 'upload:b0000000-0000-4000-8000-000000000003',
   original_filename: 'clip.mp4',
+  display_filename: 'clip.mp4',
   media: makeMedia('/v1/content/uploads/b0000000-0000-4000-8000-000000000003', 'video'),
   duration_ms: 4000,
 });

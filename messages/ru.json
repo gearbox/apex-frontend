@@ -233,6 +233,8 @@
   "billing_transaction_credit": "Пополнение",
   "billing_transaction_refund": "Возврат",
   "billing_transaction_admin_adjustment": "Корректировка",
+  "billing_payment_method_crypto": "Оплата криптовалютой",
+  "billing_payment_method_card": "Оплата картой",
   "profile_title": "Профиль и настройки",
   "profile_display_name": "Отображаемое имя",
   "profile_email": "Email",

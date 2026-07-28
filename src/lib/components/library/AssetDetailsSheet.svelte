@@ -33,6 +33,7 @@
   import { prewarmMedia, prewarmMediaWithSignal } from '$lib/media/save/prewarm';
   import Spinner from '$lib/components/ui/Spinner.svelte';
   import { parseAssetRef } from '$lib/utils/assetRef';
+  import { assetFilename, assetLabel } from '$lib/utils/assetName';
   import { isDesktop } from '$lib/utils/breakpoints';
   import { timeAgo, timeUntil, formatAspectRatio } from '$lib/utils/format';
   import { EXPIRES_SOON_MS } from '$lib/utils/constants';
@@ -235,7 +236,7 @@
 
   function startRename() {
     if (!currentDetail) return;
-    renameValue = currentDetail.display_title ?? currentDetail.original_filename ?? '';
+    renameValue = assetLabel(currentDetail, '');
     renaming = true;
   }
 
@@ -501,7 +502,7 @@
       {:else}
         <div class="flex items-center justify-between gap-2">
           <p class="truncate text-sm font-semibold text-text">
-            {detail.display_title ?? detail.original_filename ?? m.library_untitled()}
+            {assetLabel(detail, m.library_untitled())}
           </p>
           {#if detail.available_actions.includes('rename')}
             <button
@@ -626,12 +627,11 @@
         {/if}
 
         {#if detail.source === 'upload'}
-          {#if detail.original_filename}
+          {@const filename = assetFilename(detail)}
+          {#if filename}
             <div class="flex justify-between gap-3">
               <span class="shrink-0 text-text-dim">{m.library_meta_filename()}</span>
-              <span class="truncate text-right font-medium text-text"
-                >{detail.original_filename}</span
-              >
+              <span class="truncate text-right font-medium text-text">{filename}</span>
             </div>
           {/if}
         {:else}

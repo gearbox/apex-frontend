@@ -33,6 +33,7 @@ export function makeLibraryAssetItem(overrides: Partial<LibraryAssetItem> = {}):
     expires_at: '2025-07-01T12:00:00Z',
     display_title: null,
     original_filename: null,
+    display_filename: null,
     is_favorite: false,
     duration_ms: null,
     job_id: 'job_mock_001',

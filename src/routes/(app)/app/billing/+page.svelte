@@ -118,6 +118,12 @@
   function truncatePaymentId(paymentId: string): string {
     return `${paymentId.slice(0, 8)}…`;
   }
+
+  function paymentMethodLabel(method: string | null | undefined): string | null {
+    if (method === 'crypto') return m.billing_payment_method_crypto();
+    if (method === 'card') return m.billing_payment_method_card();
+    return null;
+  }
 </script>
 
 <svelte:head>
@@ -263,7 +269,9 @@
             <p class="text-xs font-medium capitalize text-text">
               {tx.transaction_type.replace('_', ' ')}
             </p>
-            {#if tx.description}
+            {#if paymentMethodLabel(tx.payment_method)}
+              <p class="text-[11px] text-text-dim">{paymentMethodLabel(tx.payment_method)}</p>
+            {:else if tx.description}
               <p class="text-[11px] text-text-dim">{tx.description}</p>
             {/if}
             {#if tx.payment_id}

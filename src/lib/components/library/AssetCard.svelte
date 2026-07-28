@@ -26,6 +26,7 @@
   import type { GenerationMode } from '$lib/utils/generationModes';
   import { EXPIRES_SOON_MS } from '$lib/utils/constants';
   import { timeAgo, formatCountdown } from '$lib/utils/format';
+  import { assetLabel } from '$lib/utils/assetName';
   import type { components } from '$lib/api/types';
   import * as m from '$paraglide/messages';
 
@@ -192,7 +193,7 @@
       <button
         onclick={handleCardClick}
         class="absolute inset-0 z-0"
-        aria-label={item.display_title ?? item.original_filename ?? m.library_details_title()}
+        aria-label={assetLabel(item, m.library_details_title())}
       ></button>
 
       {#if onToggleSelect}
@@ -234,7 +235,7 @@
 
       <Media
         media={item.media}
-        alt={item.display_title ?? item.original_filename ?? ''}
+        alt={assetLabel(item, '')}
         sizes="(max-width: 768px) 50vw, 25vw"
         preload="none"
         class="pointer-events-none h-full w-full object-cover transition-transform group-hover:scale-105"

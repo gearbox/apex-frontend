@@ -167,6 +167,28 @@ describe('AssetCard', () => {
     expect(onclick).toHaveBeenCalledTimes(1);
   });
 
+  it('uses display_filename for a canonical upload filename', () => {
+    renderCard({
+      source: 'upload',
+      display_filename: 'holiday.png',
+      original_filename: '550e8400-e29b-41d4-a716-446655440000.png',
+    });
+
+    expect(screen.getByRole('button', { name: 'holiday.png' })).toBeTruthy();
+  });
+
+  it('uses the fallback label rather than exposing a canonical upload filename', () => {
+    const canonicalFilename = '550e8400-e29b-41d4-a716-446655440000.png';
+    renderCard({
+      source: 'upload',
+      display_filename: null,
+      original_filename: canonicalFilename,
+    });
+
+    expect(screen.getByRole('button', { name: 'Asset details' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: canonicalFilename })).toBeNull();
+  });
+
   it('hides the stack indicator when output_count is 1', () => {
     renderCard({ output_count: 1 });
     expect(screen.queryByText(/×\d/)).toBeNull();
