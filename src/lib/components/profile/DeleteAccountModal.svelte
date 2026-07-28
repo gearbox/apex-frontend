@@ -4,7 +4,6 @@
   import { goto } from '$app/navigation';
   import { deleteAccountMutationOptions } from '$lib/queries/user';
   import { clearAuth } from '$lib/stores/auth';
-  import { detachCurrentUserPush } from '$lib/api/auth';
   import { ApiRequestError } from '$lib/api/errors';
   import * as m from '$paraglide/messages';
 
@@ -25,7 +24,7 @@
   async function handleSubmit() {
     errorMsg = '';
     try {
-      await detachCurrentUserPush();
+      // Bulk-revoking endpoints delete push subscriptions server-side, so the client does not sequence this.
       await mutation.mutateAsync();
       clearAuth();
       goto('/login', { replaceState: true });

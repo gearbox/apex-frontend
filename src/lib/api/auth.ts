@@ -340,31 +340,33 @@ export async function remintContentCookie(): Promise<ContentCookieRemintResult> 
 
 export async function logout(): Promise<void> {
   const userId = getCurrentUser()?.id;
-  const refreshToken = getRefreshToken();
-  // Snapshot before the transition and the awaited push cleanup. A late read could pick up a
-  // replacement account's bearer token and denylist B while this stale A logout is finishing.
-  const accessToken = getAccessToken();
   // Local async work dies before the slower push/logout best-effort operations begin.
   beginAuthTransition();
   const logoutEpoch = getAuthEpoch();
   await detachCurrentUserPush(userId);
   // This check and the abort-bound request leave only the tiny race between dispatch and response
   // headers; client-side cancellation cannot make that residual window zero.
-  if (refreshToken && isAuthEpochCurrent(logoutEpoch)) {
-    const operation = beginAuthOperation();
-    try {
-      await postLogoutRequest(refreshToken, accessToken, operation.signal);
-    } catch {
-      // Best-effort; clear local state regardless.
-    } finally {
-      finishAuthOperation(operation);
+  if (isAuthEpochCurrent(logoutEpoch)) {
+    // Push detachment can 401 and silently rotate both credentials. A same-epoch rotation still
+    // belongs to this session, while the epoch guard prevents revoking a replacement account.
+    const refreshToken = getRefreshToken();
+    const accessToken = getAccessToken();
+    if (refreshToken) {
+      const operation = beginAuthOperation();
+      try {
+        await postLogoutRequest(refreshToken, accessToken, operation.signal);
+      } catch {
+        // Best-effort; clear local state regardless.
+      } finally {
+        finishAuthOperation(operation);
+      }
     }
   }
   // A new login may have completed while best-effort cleanup was in flight.  Never clear it.
   if (isAuthEpochCurrent(logoutEpoch)) clearAuth();
 }
 
-/** Sends credentials that were snapshotted before their owning session was invalidated. */
+/** Sends the supplied credentials to end their server-side session. */
 async function postLogoutRequest(
   refreshToken: string,
   accessToken: string | null,

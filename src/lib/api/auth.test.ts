@@ -751,6 +751,79 @@ describe('logout()', () => {
     vi.unstubAllGlobals();
   });
 
+  it('uses credentials rotated while push detachment refreshes the session', async () => {
+    const profile = makeUserProfile({ id: 'logout-user' });
+    const rotatedTokens = makeTokenResponse({
+      access_token: 'rotated-access',
+      refresh_token: 'rotated-refresh',
+    });
+    setAuth(
+      {
+        accessToken: 'expired-access',
+        refreshToken: 'original-refresh',
+        expiresAt: 'later',
+        contentCookieExpiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+      },
+      profile,
+    );
+    const subscription = {
+      endpoint: 'https://push.example.com/logout-refresh',
+      unsubscribe: vi.fn().mockResolvedValue(true),
+    };
+    resetPushNotificationStateForTesting();
+    vi.stubGlobal('navigator', {
+      userAgent: 'test-agent',
+      platform: 'Win32',
+      maxTouchPoints: 0,
+      serviceWorker: {
+        getRegistration: vi.fn().mockResolvedValue({
+          pushManager: { getSubscription: vi.fn().mockResolvedValue(subscription) },
+        }),
+      },
+    });
+    vi.stubGlobal('PushManager', class {});
+    vi.stubGlobal('Notification', { permission: 'granted' });
+    storePushRegistration({ version: 1, endpoint: subscription.endpoint, userId: profile.id });
+
+    const detachAuthorizations: Array<string | null> = [];
+    let refreshBody: { refresh_token: string } | undefined;
+    let logoutRequest: { authorization: string | null; refreshToken: string } | undefined;
+    server.use(
+      http.delete(`${BASE}/v1/push/subscriptions`, ({ request }) => {
+        detachAuthorizations.push(request.headers.get('Authorization'));
+        return detachAuthorizations.length === 1
+          ? HttpResponse.json({ error: 'expired' }, { status: 401 })
+          : new HttpResponse(null, { status: 204 });
+      }),
+      http.post(`${BASE}/v1/auth/refresh`, async ({ request }) => {
+        refreshBody = (await request.json()) as { refresh_token: string };
+        return HttpResponse.json(rotatedTokens);
+      }),
+      http.get(`${BASE}/v1/users/me`, () => HttpResponse.json(profile)),
+      http.post(`${BASE}/v1/auth/logout`, async ({ request }) => {
+        logoutRequest = {
+          authorization: request.headers.get('Authorization'),
+          refreshToken: ((await request.json()) as { refresh_token: string }).refresh_token,
+        };
+        return HttpResponse.json({ message: 'Logged out successfully' });
+      }),
+    );
+
+    try {
+      await logout();
+
+      expect(detachAuthorizations).toEqual(['Bearer expired-access', 'Bearer rotated-access']);
+      expect(refreshBody).toEqual({ refresh_token: 'original-refresh' });
+      expect(logoutRequest).toEqual({
+        authorization: 'Bearer rotated-access',
+        refreshToken: 'rotated-refresh',
+      });
+    } finally {
+      resetPushNotificationStateForTesting();
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('skips the logout request when a replacement login completes during push cleanup', async () => {
     const profileA = makeUserProfile({ id: 'user-a' });
     const profileB = makeUserProfile({ id: 'user-b' });

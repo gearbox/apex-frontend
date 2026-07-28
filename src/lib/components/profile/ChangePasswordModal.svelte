@@ -4,7 +4,6 @@
   import { goto } from '$app/navigation';
   import { changePasswordMutationOptions } from '$lib/queries/user';
   import { clearAuth } from '$lib/stores/auth';
-  import { detachCurrentUserPush } from '$lib/api/auth';
   import { ApiRequestError } from '$lib/api/errors';
   import * as m from '$paraglide/messages';
 
@@ -34,9 +33,7 @@
     e.preventDefault();
     errorMsg = '';
     try {
-      // Changing a password revokes this credential, so the push subscription must be removed
-      // while this device can still authenticate that deletion. The helper is best effort.
-      await detachCurrentUserPush();
+      // Bulk-revoking endpoints delete push subscriptions server-side, so the client does not sequence this.
       await mutation.mutateAsync({ current_password: currentPassword, new_password: newPassword });
       // The backend revokes this access/content credential together with every other session.
       // Invalidate local async owners before routing so none of the old session can reconnect.

@@ -7,6 +7,7 @@ import { dismissAllCreditWarnings } from '$lib/stores/creditWarnings';
 import { clearToasts } from '$lib/stores/toasts';
 import { clearNotifications } from '$lib/stores/notifications';
 import { setEventStreamStatus } from '$lib/stores/eventStream';
+import { clearPersistedPushState } from '$lib/services/pushNotifications';
 import { isBrowser } from '$lib/utils/env';
 import { LEGACY_CONTENT_MEDIA_CACHE_NAME } from '$lib/utils/cacheNames';
 
@@ -32,6 +33,9 @@ export function resetAppState(): void {
     clearToasts,
     clearNotifications,
     () => setEventStreamStatus('disconnected'),
+    // Logout also clears these after its server detach. Keep this idempotent reset so every
+    // session-ending path clears the previous account's markers, not just explicit logout.
+    clearPersistedPushState,
     deleteLegacyContentMediaCache,
   ];
 

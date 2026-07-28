@@ -11,6 +11,7 @@ import { notifications, addNotification } from './notifications';
 import { eventStreamStatus, setEventStreamStatus } from './eventStream';
 import { makeUserProfile } from '../../mocks/factories/user';
 import { LEGACY_CONTENT_MEDIA_CACHE_NAME } from '$lib/utils/cacheNames';
+import { STORAGE_KEYS } from '$lib/utils/constants';
 
 function getStoreValue<T>(store: { subscribe: (fn: (v: T) => void) => () => void }): T {
   let value!: T;
@@ -94,6 +95,35 @@ describe('resetAppState()', () => {
     expect(getStoreValue(generationStore).prompt).toBe('');
 
     resetSpy.mockRestore();
+  });
+
+  it('clears persisted push markers from the previous account', () => {
+    localStorage.setItem(
+      STORAGE_KEYS.PUSH_REGISTRATION,
+      JSON.stringify({
+        version: 1,
+        endpoint: 'https://push.example.com/previous',
+        userId: 'user-a',
+      }),
+    );
+    localStorage.setItem(STORAGE_KEYS.PUSH_ENDPOINT, 'https://push.example.com/previous');
+
+    resetAppState();
+
+    expect(localStorage.getItem(STORAGE_KEYS.PUSH_REGISTRATION)).toBeNull();
+    expect(localStorage.getItem(STORAGE_KEYS.PUSH_ENDPOINT)).toBeNull();
+  });
+
+  it('continues resetting when push storage access throws', () => {
+    getQueryClient().setQueryData(['probe'], 42);
+    const removeItem = vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => {
+      throw new Error('Storage unavailable');
+    });
+
+    expect(() => resetAppState()).not.toThrow();
+
+    expect(getQueryClient().getQueryData(['probe'])).toBeUndefined();
+    removeItem.mockRestore();
   });
 
   it('is safe to call when nothing was ever set (idempotent, no throw)', () => {
