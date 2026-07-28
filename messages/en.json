@@ -88,6 +88,8 @@
   "library_start_creating": "Start creating",
   "library_all_caught_up": "All caught up",
   "library_untitled": "Untitled",
+  "imagepicker_upload_label": "Upload: {name}",
+  "imagepicker_upload_unnamed": "Unnamed upload",
   "library_details_title": "Asset details",
   "library_image_unavailable": "Image unavailable",
   "library_image_loading": "Loading original image",

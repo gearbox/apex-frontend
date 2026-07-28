@@ -70,6 +70,12 @@ const mockUploadItems = [
     display_filename: 'sketch.png',
     media: makeMedia('/v1/content/uploads/b0000000-0000-4000-8000-000000000002'),
   }),
+  makeUploadItem({
+    asset_ref: 'upload:b0000000-0000-4000-8000-000000000004',
+    original_filename: 'b0000000-0000-4000-8000-000000000004.png',
+    display_filename: null,
+    media: makeMedia('/v1/content/uploads/b0000000-0000-4000-8000-000000000004'),
+  }),
 ];
 
 // Only returned when the caller does not filter by media_type=image — used to prove
@@ -257,6 +263,17 @@ test.describe('Image Picker', () => {
 
     await expect(page.getByRole('button', { name: 'Upload: photo.jpg' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Upload: clip.mp4' })).not.toBeVisible();
+  });
+
+  test('an upload with no human filename still gets a meaningful accessible name', async ({
+    authenticatedPage: page,
+  }) => {
+    await page.goto('/app/create');
+    await page.getByRole('button', { name: 'Image → Image' }).click();
+    await page.getByRole('button', { name: /Choose from library/i }).click();
+
+    await expect(page.getByRole('button', { name: 'Upload: Unnamed upload' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Upload:', exact: true })).toHaveCount(0);
   });
 
   test('6. Selecting a generated output auto-fills prompt', async ({ authenticatedPage: page }) => {

@@ -88,6 +88,8 @@
   "library_start_creating": "Начать создавать",
   "library_all_caught_up": "Это всё",
   "library_untitled": "Без названия",
+  "imagepicker_upload_label": "Загрузка: {name}",
+  "imagepicker_upload_unnamed": "Без имени",
   "library_details_title": "Детали объекта",
   "library_image_unavailable": "Изображение недоступно",
   "library_image_loading": "Загрузка оригинала изображения",

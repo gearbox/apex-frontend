@@ -234,7 +234,9 @@
                   ontouchcancel={cancelLongPress}
                   class="h-full w-full"
                   aria-pressed={isSelected}
-                  aria-label="Upload: {assetLabel(item, '')}"
+                  aria-label={m.imagepicker_upload_label({
+                    name: assetLabel(item, m.imagepicker_upload_unnamed()),
+                  })}
                 >
                   <MediaImage
                     media={item.media}
