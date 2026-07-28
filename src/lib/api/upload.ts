@@ -1,11 +1,5 @@
 import { API_BASE_URL } from '$lib/utils/constants';
-import { getAccessToken } from '$lib/stores/auth';
-import { silentRefresh } from '$lib/api/auth';
-import {
-  beginAuthOperation,
-  finishAuthOperation,
-  isAuthOperationCurrent,
-} from '$lib/stores/authLifecycle';
+import { withAuthOperation } from '$lib/api/authedFetch';
 import { parseApiError, ApiRequestError } from '$lib/api/errors';
 import type { components } from '$lib/api/types';
 
@@ -42,39 +36,15 @@ async function doUpload(file: File, token: string | null, signal: AbortSignal): 
  * @returns The upload response with the new media ID
  */
 export async function uploadMedia(file: File): Promise<UploadResponse> {
-  const operation = beginAuthOperation();
-  const initialToken = getAccessToken();
-  try {
-    let res = await doUpload(file, initialToken, operation.signal);
-    // Only a session replacement may discard this response. A same-epoch token rotation means a
-    // sibling refreshed mid-flight; the upload itself is still valid and must be inspected.
-    if (!isAuthOperationCurrent(operation)) throw new DOMException('Aborted', 'AbortError');
-
-    if (res.status === 401) {
-      // A sibling may already have refreshed while this upload was in flight. Reuse that token
-      // rather than making another refresh request, then replay this one non-idempotent request.
-      if (getAccessToken() === initialToken) {
-        const refreshed = await silentRefresh();
-        if (!isAuthOperationCurrent(operation)) throw new DOMException('Aborted', 'AbortError');
-        if (refreshed.ok) {
-          res = await doUpload(file, getAccessToken(), operation.signal);
-          if (!isAuthOperationCurrent(operation)) throw new DOMException('Aborted', 'AbortError');
-        }
-      } else {
-        res = await doUpload(file, getAccessToken(), operation.signal);
-        if (!isAuthOperationCurrent(operation)) throw new DOMException('Aborted', 'AbortError');
+  return withAuthOperation(
+    (token, signal) => doUpload(file, token, signal),
+    async (res) => {
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new ApiRequestError(parseApiError(body, res.status));
       }
-    }
 
-    if (!res.ok) {
-      const body = await res.json().catch(() => null);
-      throw new ApiRequestError(parseApiError(body, res.status));
-    }
-
-    const data = (await res.json()) as UploadResponse;
-    if (!isAuthOperationCurrent(operation)) throw new DOMException('Aborted', 'AbortError');
-    return data;
-  } finally {
-    finishAuthOperation(operation);
-  }
+      return (await res.json()) as UploadResponse;
+    },
+  );
 }

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { server } from '../../mocks/server';
 import { makeTokenResponse } from '../../mocks/factories/auth';
@@ -18,6 +18,10 @@ beforeEach(() => {
   clearAuth();
   clearRateLimits();
   localStorage.clear();
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
 function authTokens(accessToken: string, refreshToken: string) {
@@ -255,6 +259,35 @@ describe('uploadMedia() — 401 refresh-and-retry (H2)', () => {
     const file = new File(['test'], 'test.jpg', { type: 'image/jpeg' });
     await expect(uploadMedia(file)).rejects.toThrow();
     expect(uploadCallCount).toBe(1);
+  });
+
+  it('uses the shared terminal-refresh redirect and preserves its failure reason', async () => {
+    const { consumeAuthFailureReason } = await import('$lib/stores/auth');
+    localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, 'revoked-refresh-token');
+    const hrefSetter = vi.fn();
+    Object.defineProperty(window, 'location', {
+      value: {
+        ...window.location,
+        set href(value: string) {
+          hrefSetter(value);
+        },
+      },
+      writable: true,
+    });
+
+    server.use(
+      http.post(UPLOAD_URL, () => HttpResponse.json({ error: 'Unauthorized' }, { status: 401 })),
+      http.post(`${BASE}/v1/auth/refresh`, () =>
+        HttpResponse.json({ error: 'token_reuse_detected' }, { status: 401 }),
+      ),
+    );
+
+    await expect(
+      uploadMedia(new File(['test'], 'test.jpg', { type: 'image/jpeg' })),
+    ).rejects.toThrow();
+
+    expect(hrefSetter).toHaveBeenCalledWith(expect.stringContaining('/login?redirect='));
+    expect(consumeAuthFailureReason()).toBe('token_reuse_detected');
   });
 
   it('aborts an in-flight upload when its auth session is invalidated', async () => {
