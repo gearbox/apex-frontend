@@ -3,7 +3,7 @@ import { http, HttpResponse } from 'msw';
 import { server } from '../../mocks/server';
 
 const { silentRefreshMock } = vi.hoisted(() => ({
-  silentRefreshMock: vi.fn<() => Promise<boolean>>(),
+  silentRefreshMock: vi.fn<() => Promise<{ ok: true } | { ok: false; reason: string }>>(),
 }));
 
 vi.mock('$lib/api/auth', async (importOriginal) => ({
@@ -43,6 +43,7 @@ function setSession(accessToken = 'frame-access-token', refreshToken = 'frame-re
       accessToken,
       refreshToken,
       expiresAt: '2026-12-31T00:00:00Z',
+      contentCookieExpiresAt: '2026-12-31T00:00:00Z',
     },
     profile,
   );
@@ -59,7 +60,7 @@ beforeEach(() => {
   clearAuth();
   localStorage.clear();
   silentRefreshMock.mockReset();
-  silentRefreshMock.mockResolvedValue(false);
+  silentRefreshMock.mockResolvedValue({ ok: false, reason: 'invalid_token' });
   createObjectUrl = vi.fn(() => 'blob:authenticated-video');
   revokeObjectUrl = vi.fn();
   previousCreateObjectUrl = Object.getOwnPropertyDescriptor(URL, 'createObjectURL');
@@ -117,7 +118,7 @@ describe('loadAuthenticatedMediaBlob', () => {
     setSession('expired-token');
     silentRefreshMock.mockImplementation(async () => {
       setSession('refreshed-token');
-      return true;
+      return { ok: true };
     });
     const authorizations: string[] = [];
     let contentRequests = 0;
@@ -163,7 +164,7 @@ describe('loadAuthenticatedMediaBlob', () => {
 
   it('never retries a second 401', async () => {
     setSession();
-    silentRefreshMock.mockResolvedValue(true);
+    silentRefreshMock.mockResolvedValue({ ok: true });
     let contentRequests = 0;
     server.use(
       http.get(`${BASE}/v1/content/outputs/output-1`, () => {
@@ -311,9 +312,9 @@ describe('loadAuthenticatedMediaBlob', () => {
 
   it('normalizes an abort while refresh is pending and does not issue a second request', async () => {
     setSession();
-    let resolveRefresh!: (value: boolean) => void;
+    let resolveRefresh!: (value: { ok: true }) => void;
     silentRefreshMock.mockReturnValue(
-      new Promise<boolean>((resolve) => {
+      new Promise<{ ok: true }>((resolve) => {
         resolveRefresh = resolve;
       }),
     );
@@ -331,7 +332,7 @@ describe('loadAuthenticatedMediaBlob', () => {
 
     await vi.waitFor(() => expect(silentRefreshMock).toHaveBeenCalledOnce());
     abortController.abort();
-    resolveRefresh(true);
+    resolveRefresh({ ok: true });
 
     await expect(request).rejects.toMatchObject({ category: 'aborted', retryAttempted: true });
     expect(contentRequests).toBe(1);
@@ -342,7 +343,7 @@ describe('loadAuthenticatedMediaBlob', () => {
     const abortController = new AbortController();
     silentRefreshMock.mockImplementation(async () => {
       abortController.abort();
-      return true;
+      return { ok: true };
     });
     let contentRequests = 0;
     server.use(

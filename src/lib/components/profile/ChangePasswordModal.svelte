@@ -1,8 +1,9 @@
 <script lang="ts">
   import { createMutation } from '@tanstack/svelte-query';
   import { X } from 'lucide-svelte';
+  import { goto } from '$app/navigation';
   import { changePasswordMutationOptions } from '$lib/queries/user';
-  import { addToast } from '$lib/stores/toasts';
+  import { clearAuth } from '$lib/stores/auth';
   import { ApiRequestError } from '$lib/api/errors';
   import * as m from '$paraglide/messages';
 
@@ -32,9 +33,12 @@
     e.preventDefault();
     errorMsg = '';
     try {
+      // Bulk-revoking endpoints delete push subscriptions server-side, so the client does not sequence this.
       await mutation.mutateAsync({ current_password: currentPassword, new_password: newPassword });
-      addToast({ type: 'success', message: m.profile_change_password_success() });
-      onclose();
+      // The backend revokes this access/content credential together with every other session.
+      // Invalidate local async owners before routing so none of the old session can reconnect.
+      clearAuth();
+      goto('/login', { replaceState: true });
     } catch (e) {
       errorMsg = e instanceof ApiRequestError ? e.message : 'Unexpected error. Please try again.';
     }

@@ -6,6 +6,7 @@ import { makeUserProfile } from '../../mocks/factories/user';
 import { uploadMedia } from './upload';
 import { setAuth, clearAuth, getAccessToken } from '$lib/stores/auth';
 import { clearRateLimits } from '$lib/stores/rateLimit';
+import { invalidateAuthOperations } from '$lib/stores/authLifecycle';
 import { STORAGE_KEYS } from '$lib/utils/constants';
 
 // The MSW server is started/reset/stopped via src/tests/setup.ts
@@ -24,7 +25,16 @@ function authTokens(accessToken: string, refreshToken: string) {
     accessToken,
     refreshToken,
     expiresAt: new Date(Date.now() + 900_000).toISOString(),
+    contentCookieExpiresAt: new Date(Date.now() + 86_400_000).toISOString(),
   };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
 }
 
 const mockUploadResponse = {
@@ -131,6 +141,7 @@ describe('uploadMedia() — 401 refresh-and-retry (H2)', () => {
     const profile = makeUserProfile();
 
     let uploadCallCount = 0;
+    let refreshCallCount = 0;
     const capturedAuthHeaders: (string | null)[] = [];
 
     server.use(
@@ -142,7 +153,10 @@ describe('uploadMedia() — 401 refresh-and-retry (H2)', () => {
         }
         return HttpResponse.json(mockUploadResponse, { status: 201 });
       }),
-      http.post(`${BASE}/v1/auth/refresh`, () => HttpResponse.json(newTokens)),
+      http.post(`${BASE}/v1/auth/refresh`, () => {
+        refreshCallCount++;
+        return HttpResponse.json(newTokens);
+      }),
       http.get(`${BASE}/v1/users/me`, () => HttpResponse.json(profile)),
     );
 
@@ -150,9 +164,73 @@ describe('uploadMedia() — 401 refresh-and-retry (H2)', () => {
     const result = await uploadMedia(file);
 
     expect(uploadCallCount).toBe(2);
+    expect(refreshCallCount).toBe(1);
     expect(capturedAuthHeaders).toEqual(['Bearer stale-access-token', 'Bearer fresh-access-token']);
     expect(result.id).toBe('upload_001');
     expect(getAccessToken()).toBe('fresh-access-token');
+  });
+
+  it('returns a completed upload when a sibling rotates the token mid-flight without retrying', async () => {
+    const profile = makeUserProfile();
+    setAuth(authTokens('initial-access-token', 'initial-refresh-token'), profile);
+    const response = deferred<Response>();
+    const started = deferred<void>();
+    let uploadCallCount = 0;
+
+    server.use(
+      http.post(UPLOAD_URL, () => {
+        uploadCallCount++;
+        started.resolve();
+        return response.promise;
+      }),
+    );
+
+    const upload = uploadMedia(new File(['test'], 'test.jpg', { type: 'image/jpeg' }));
+    await started.promise;
+    setAuth(authTokens('rotated-access-token', 'rotated-refresh-token'), profile);
+    response.resolve(HttpResponse.json(mockUploadResponse, { status: 201 }));
+
+    await expect(upload).resolves.toMatchObject({ id: 'upload_001' });
+    expect(uploadCallCount).toBe(1);
+  });
+
+  it('retries a 401 with a sibling-rotated token without refreshing again', async () => {
+    const profile = makeUserProfile();
+    setAuth(authTokens('stale-access-token', 'initial-refresh-token'), profile);
+    const firstResponse = deferred<Response>();
+    const firstStarted = deferred<void>();
+    let uploadCallCount = 0;
+    let refreshCallCount = 0;
+    const capturedAuthHeaders: (string | null)[] = [];
+
+    server.use(
+      http.post(UPLOAD_URL, ({ request }) => {
+        uploadCallCount++;
+        capturedAuthHeaders.push(request.headers.get('Authorization'));
+        if (uploadCallCount === 1) {
+          firstStarted.resolve();
+          return firstResponse.promise;
+        }
+        return HttpResponse.json(mockUploadResponse, { status: 201 });
+      }),
+      http.post(`${BASE}/v1/auth/refresh`, () => {
+        refreshCallCount++;
+        return HttpResponse.json(makeTokenResponse());
+      }),
+    );
+
+    const upload = uploadMedia(new File(['test'], 'test.jpg', { type: 'image/jpeg' }));
+    await firstStarted.promise;
+    setAuth(authTokens('sibling-fresh-access-token', 'sibling-fresh-refresh-token'), profile);
+    firstResponse.resolve(HttpResponse.json({ error: 'Unauthorized' }, { status: 401 }));
+
+    await expect(upload).resolves.toMatchObject({ id: 'upload_001' });
+    expect(uploadCallCount).toBe(2);
+    expect(refreshCallCount).toBe(0);
+    expect(capturedAuthHeaders).toEqual([
+      'Bearer stale-access-token',
+      'Bearer sibling-fresh-access-token',
+    ]);
   });
 
   it('401 followed by failed refresh: throws without a second upload attempt', async () => {
@@ -176,6 +254,29 @@ describe('uploadMedia() — 401 refresh-and-retry (H2)', () => {
 
     const file = new File(['test'], 'test.jpg', { type: 'image/jpeg' });
     await expect(uploadMedia(file)).rejects.toThrow();
+    expect(uploadCallCount).toBe(1);
+  });
+
+  it('aborts an in-flight upload when its auth session is invalidated', async () => {
+    setAuth(authTokens('access-token', 'refresh-token'), makeUserProfile());
+    const response = deferred<Response>();
+    const started = deferred<void>();
+    let uploadCallCount = 0;
+
+    server.use(
+      http.post(UPLOAD_URL, () => {
+        uploadCallCount++;
+        started.resolve();
+        return response.promise;
+      }),
+    );
+
+    const upload = uploadMedia(new File(['test'], 'test.jpg', { type: 'image/jpeg' }));
+    await started.promise;
+    invalidateAuthOperations();
+    response.resolve(HttpResponse.json(mockUploadResponse, { status: 201 }));
+
+    await expect(upload).rejects.toMatchObject({ name: 'AbortError' });
     expect(uploadCallCount).toBe(1);
   });
 });

@@ -71,9 +71,14 @@ function requestHeaders(): Record<string, string> {
 
 async function requestOriginal(url: string, signal?: AbortSignal): Promise<Response> {
   try {
-    // Intentionally omit cache: 'no-store': a completed original should populate the browser
-    // HTTP cache, unlike save/share which may need fresh attachment semantics.
-    return await fetch(url, { headers: requestHeaders(), credentials: 'include', signal });
+    // This original is private to the current session. Keep the progressive decoded blob only in
+    // memory and never deliberately seed the browser's persistent HTTP cache.
+    return await fetch(url, {
+      headers: requestHeaders(),
+      credentials: 'include',
+      cache: 'no-store',
+      signal,
+    });
   } catch (error) {
     if (isAbort(error, signal)) throw error;
     throw new ProgressiveImageError('network');
@@ -166,7 +171,7 @@ export async function fetchOriginalBytes(
   if (response.status === 401) {
     let refreshed: boolean;
     try {
-      refreshed = await silentRefresh();
+      refreshed = (await silentRefresh()).ok;
     } catch (error) {
       if (isAbort(error, options.signal)) throw error;
       throw new ProgressiveImageError('network');

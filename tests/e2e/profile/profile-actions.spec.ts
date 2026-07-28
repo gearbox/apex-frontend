@@ -32,9 +32,7 @@ test.describe('Profile actions', () => {
 
     await page.getByRole('button', { name: 'Update Password' }).click();
 
-    await expect(page.getByRole('dialog')).not.toBeVisible({ timeout: 5000 });
-    // Toast should appear
-    await expect(page.getByText('Password changed successfully')).toBeVisible({ timeout: 5000 });
+    await expect(page).toHaveURL(/\/login/, { timeout: 8000 });
   });
 
   test('2. Change Password — validation prevents submit with mismatched passwords', async ({

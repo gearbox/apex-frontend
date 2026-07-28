@@ -1,7 +1,12 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { render } from '@testing-library/svelte';
+import { tick } from 'svelte';
 import MediaVideo from './MediaVideo.svelte';
 import { installMediaElementStubs } from './testing/mediaElementStubs';
+import {
+  __noteContentCredentialsRecoveryForTesting,
+  __resetContentCookieServiceForTesting,
+} from '$lib/services/contentCookie';
 import type { components } from '$lib/api/types';
 
 type MediaObject = components['schemas']['MediaObject'];
@@ -16,6 +21,10 @@ beforeAll(() => {
 
 afterAll(() => {
   restoreMediaElementStubs();
+});
+
+beforeEach(() => {
+  __resetContentCookieServiceForTesting();
 });
 
 function makeVideoMedia(overrides: Partial<MediaObject> = {}): MediaObject {
@@ -109,5 +118,56 @@ describe('MediaVideo', () => {
     expect(video.muted).toBe(true);
     expect(video.loop).toBe(true);
     expect(video.playsInline).toBe(true);
+  });
+
+  it('does not reload during its initial media mount', async () => {
+    const load = vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => undefined);
+    render(MediaVideo, { props: { media: makeVideoMedia() } });
+
+    await tick();
+
+    expect(load).not.toHaveBeenCalled();
+    load.mockRestore();
+  });
+
+  it('reloads an errored element after content credentials recover', async () => {
+    const { container } = render(MediaVideo, { props: { media: makeVideoMedia() } });
+    const video = container.querySelector('video')!;
+    Object.defineProperty(video, 'error', { configurable: true, value: {} as MediaError });
+    Object.defineProperty(video, 'readyState', { configurable: true, value: 4 });
+    const load = vi.spyOn(video, 'load').mockImplementation(() => undefined);
+
+    __noteContentCredentialsRecoveryForTesting();
+    await tick();
+
+    expect(load).toHaveBeenCalledOnce();
+  });
+
+  it('reloads a preload-none element after content credentials recover', async () => {
+    const { container } = render(MediaVideo, {
+      props: { media: makeVideoMedia(), preload: 'none' },
+    });
+    const video = container.querySelector('video')!;
+    Object.defineProperty(video, 'error', { configurable: true, value: null });
+    Object.defineProperty(video, 'readyState', { configurable: true, value: 0 });
+    const load = vi.spyOn(video, 'load').mockImplementation(() => undefined);
+
+    __noteContentCredentialsRecoveryForTesting();
+    await tick();
+
+    expect(load).toHaveBeenCalledOnce();
+  });
+
+  it('does not interrupt healthy playback after content credentials recover', async () => {
+    const { container } = render(MediaVideo, { props: { media: makeVideoMedia() } });
+    const video = container.querySelector('video')!;
+    Object.defineProperty(video, 'error', { configurable: true, value: null });
+    Object.defineProperty(video, 'readyState', { configurable: true, value: 4 });
+    const load = vi.spyOn(video, 'load').mockImplementation(() => undefined);
+
+    __noteContentCredentialsRecoveryForTesting();
+    await tick();
+
+    expect(load).not.toHaveBeenCalled();
   });
 });

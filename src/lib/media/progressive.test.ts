@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { makeMediaObject, makeVideoMediaObject } from '../../mocks/factories/media';
 
 const { silentRefreshMock } = vi.hoisted(() => ({
-  silentRefreshMock: vi.fn<() => Promise<boolean>>(),
+  silentRefreshMock: vi.fn<() => Promise<{ ok: true } | { ok: false; reason: string }>>(),
 }));
 
 vi.mock('$lib/api/auth', async (importOriginal) => ({
@@ -36,7 +36,7 @@ afterEach(() => {
 });
 
 describe('progressive originals', () => {
-  it('streams bytes and reports received/total progress without opting out of HTTP caching', async () => {
+  it('streams bytes and reports received/total progress without persistent HTTP caching', async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValue(streamedResponse(['ab', 'cde'], { 'content-length': '5' }));
@@ -53,11 +53,11 @@ describe('progressive originals', () => {
       { received: 2, total: 5 },
       { received: 5, total: 5 },
     ]);
-    expect(fetchMock.mock.calls[0][1]).not.toHaveProperty('cache');
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ cache: 'no-store' });
   });
 
   it('refreshes once after 401 before retrying the protected original', async () => {
-    silentRefreshMock.mockResolvedValue(true);
+    silentRefreshMock.mockResolvedValue({ ok: true });
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(new Response(null, { status: 401 }))
@@ -107,7 +107,7 @@ describe('progressive originals', () => {
   });
 
   it('returns a safe authentication error when refresh cannot recover the original request', async () => {
-    silentRefreshMock.mockResolvedValue(false);
+    silentRefreshMock.mockResolvedValue({ ok: false, reason: 'invalid_token' });
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 401 })));
 
     await expect(fetchOriginalBytes(makeMediaObject())).rejects.toEqual(

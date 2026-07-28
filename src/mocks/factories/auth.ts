@@ -5,6 +5,7 @@ export function makeTokenResponse(overrides: Record<string, unknown> = {}) {
     token_type: 'bearer',
     expires_in: 900,
     expires_at: new Date(Date.now() + 900_000).toISOString(),
+    content_cookie_expires_at: new Date(Date.now() + 86_400_000).toISOString(),
     ...overrides,
   };
 }

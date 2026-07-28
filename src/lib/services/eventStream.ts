@@ -43,9 +43,19 @@ import {
 } from '$lib/stores/creditWarnings';
 import { sessionKeys } from '$lib/queries/sessions';
 import { get } from 'svelte/store';
+import { getCurrentUser } from '$lib/stores/auth';
+import { getAuthEpoch, isAuthEpochCurrent } from '$lib/stores/authLifecycle';
 
 export interface EventStreamServiceOptions {
   queryClient: QueryClient;
+  /** Required by the app layout. Optional only for existing isolated service tests. */
+  userId?: string;
+}
+
+interface ConnectionIdentity {
+  generation: number;
+  authEpoch: number;
+  userId: string | null;
 }
 
 export class EventStreamService {
@@ -57,30 +67,37 @@ export class EventStreamService {
   private reconciliationRun: Promise<void> | null = null;
   private reconciliationQueued = false;
   private disposed = false;
+  private connectionGeneration = 0;
+  private readonly userId: string | null;
 
   constructor(options: EventStreamServiceOptions) {
     this.queryClient = options.queryClient;
+    this.userId = options.userId ?? getCurrentUser()?.id ?? null;
   }
 
   /* ─── Public API ─── */
 
   async connect(): Promise<void> {
-    if (this.disposed) return;
+    const connection = this.beginConnection();
+    if (!this.isCurrent(connection)) return;
     this.clearTimers();
+    this.closeEventSource();
     setEventStreamStatus('connecting');
 
     try {
       const ticket = await this.obtainTicket();
-      if (this.disposed) return;
+      if (!this.isCurrent(connection)) return;
 
-      this.openEventSource(ticket);
+      this.openEventSource(ticket, connection);
     } catch (error) {
-      if (this.disposed) return;
-      this.handleConnectionFailure(error);
+      if (!this.isCurrent(connection)) return;
+      this.handleConnectionFailure(error, connection);
     }
   }
 
   disconnect(): void {
+    this.connectionGeneration += 1;
+    this.reconciliationQueued = false;
     this.clearTimers();
     this.closeEventSource();
     setEventStreamStatus('disconnected');
@@ -89,6 +106,26 @@ export class EventStreamService {
   dispose(): void {
     this.disposed = true;
     this.disconnect();
+  }
+
+  private beginConnection(): ConnectionIdentity {
+    this.connectionGeneration += 1;
+    return {
+      generation: this.connectionGeneration,
+      authEpoch: getAuthEpoch(),
+      userId: this.userId,
+    };
+  }
+
+  private isCurrent(connection: ConnectionIdentity): boolean {
+    return (
+      !this.disposed &&
+      connection.generation === this.connectionGeneration &&
+      isAuthEpochCurrent(connection.authEpoch) &&
+      // The null branch preserves direct unit-test construction. Application construction always
+      // supplies userId from the authenticated layout, which is the enforced production path.
+      (connection.userId === null || getCurrentUser()?.id === connection.userId)
+    );
   }
 
   /* ─── Ticket Acquisition ─── */
@@ -118,14 +155,15 @@ export class EventStreamService {
 
   /* ─── EventSource Management ─── */
 
-  private openEventSource(ticket: string): void {
+  private openEventSource(ticket: string, connection: ConnectionIdentity): void {
+    if (!this.isCurrent(connection)) return;
     this.closeEventSource();
 
     const url = `${API_BASE_URL}/v1/events/stream?ticket=${encodeURIComponent(ticket)}`;
     const es = new EventSource(url);
 
     es.onopen = () => {
-      if (this.disposed) {
+      if (!this.isCurrent(connection)) {
         es.close();
         return;
       }
@@ -134,38 +172,38 @@ export class EventStreamService {
     };
 
     es.onerror = () => {
-      if (this.disposed) {
+      if (!this.isCurrent(connection)) {
         es.close();
         return;
       }
       // EventSource auto-reconnect won't work because ticket is single-use.
       // Close and reconnect with a fresh ticket.
       this.closeEventSource();
-      this.handleConnectionFailure(new Error('EventSource error'));
+      this.handleConnectionFailure(new Error('EventSource error'), connection);
     };
 
     es.addEventListener(SSE_EVENTS.JOB_STATUS, (e: MessageEvent) => {
-      this.handleJobStatus(e);
+      if (this.isCurrent(connection)) this.handleJobStatus(e, connection);
     });
 
     es.addEventListener(SSE_EVENTS.JOB_PROGRESS, (e: MessageEvent) => {
-      this.handleJobProgress(e);
+      if (this.isCurrent(connection)) this.handleJobProgress(e, connection);
     });
 
     es.addEventListener(SSE_EVENTS.BALANCE_UPDATED, (e: MessageEvent) => {
-      this.handleBalanceUpdated(e);
+      if (this.isCurrent(connection)) this.handleBalanceUpdated(e, connection);
     });
 
     es.addEventListener(SSE_EVENTS.SYSTEM_NOTIFICATION, (e: MessageEvent) => {
-      this.handleSystemNotification(e);
+      if (this.isCurrent(connection)) this.handleSystemNotification(e, connection);
     });
 
     es.addEventListener(SSE_EVENTS.GPU_SESSION_STATUS, (e: MessageEvent) => {
-      this.handleGpuSessionStatus(e);
+      if (this.isCurrent(connection)) this.handleGpuSessionStatus(e, connection);
     });
 
     es.addEventListener(SSE_EVENTS.GPU_SESSION_CREDIT_WARNING, (e: MessageEvent) => {
-      this.handleCreditWarning(e);
+      if (this.isCurrent(connection)) this.handleCreditWarning(e, connection);
     });
 
     this.eventSource = es;
@@ -180,17 +218,17 @@ export class EventStreamService {
 
   /* ─── Event Handlers ─── */
 
-  private handleJobStatus(e: MessageEvent): void {
+  private handleJobStatus(e: MessageEvent, connection: ConnectionIdentity): void {
     try {
       const data = JSON.parse(e.data);
       if (!isJobStatusPayload(data)) return;
-      this.processJobStatus(data);
+      this.processJobStatus(data, connection);
     } catch {
       // Malformed event — ignore
     }
   }
 
-  private processJobStatus(payload: JobStatusPayload): void {
+  private processJobStatus(payload: JobStatusPayload, connection: ConnectionIdentity): void {
     const { job_id, status } = payload;
     const terminal = (TERMINAL_JOB_STATUSES as readonly string[]).includes(status);
 
@@ -239,6 +277,7 @@ export class EventStreamService {
         // This is deliberately best effort: project metadata must never block job completion.
         void inheritProjectForCompletedJobId(job_id)
           .then(() => {
+            if (!this.isCurrent(connection)) return;
             this.queryClient.invalidateQueries({ queryKey: libraryKeys.all });
             this.queryClient.invalidateQueries({ queryKey: projectKeys.all });
           })
@@ -246,39 +285,45 @@ export class EventStreamService {
       }
       // Safety invalidation with small delay in case balance.updated event is lost
       setTimeout(() => {
+        if (!this.isCurrent(connection)) return;
         this.queryClient.invalidateQueries({ queryKey: billingKeys.balance() });
       }, 2000);
     }
   }
 
-  private handleJobProgress(e: MessageEvent): void {
+  private handleJobProgress(e: MessageEvent, connection: ConnectionIdentity): void {
     try {
       const data = JSON.parse(e.data);
       if (!isJobProgressPayload(data)) return;
-      this.processJobProgress(data);
+      this.processJobProgress(data, connection);
     } catch {
       // Malformed event — ignore
     }
   }
 
-  private processJobProgress(payload: JobProgressPayload): void {
+  private processJobProgress(payload: JobProgressPayload, connection: ConnectionIdentity): void {
+    if (!this.isCurrent(connection)) return;
     const activeJob = get(activeJobStore);
     if (activeJob?.jobId === payload.job_id) {
       generationStore.setProgress(payload.progress_pct);
     }
   }
 
-  private handleBalanceUpdated(e: MessageEvent): void {
+  private handleBalanceUpdated(e: MessageEvent, connection: ConnectionIdentity): void {
     try {
       const data = JSON.parse(e.data);
       if (!isBalanceUpdatedPayload(data)) return;
-      this.processBalanceUpdated(data);
+      this.processBalanceUpdated(data, connection);
     } catch {
       // Malformed event — ignore
     }
   }
 
-  private processBalanceUpdated(payload: BalanceUpdatedPayload): void {
+  private processBalanceUpdated(
+    payload: BalanceUpdatedPayload,
+    connection: ConnectionIdentity,
+  ): void {
+    if (!this.isCurrent(connection)) return;
     // Optimistically update the balance cache
     this.queryClient.setQueryData(billingKeys.balance(), (old: unknown) => {
       if (old && typeof old === 'object' && 'balance' in old) {
@@ -314,59 +359,63 @@ export class EventStreamService {
     }
 
     if (payload.transaction_type === KNOWN_TRANSACTION_TYPES.TOPUP) {
-      this.requestPendingPaymentReconciliation();
+      this.requestPendingPaymentReconciliation(connection);
     }
   }
 
-  private requestPendingPaymentReconciliation(): void {
-    if (this.disposed) return;
+  private requestPendingPaymentReconciliation(connection: ConnectionIdentity): void {
+    if (!this.isCurrent(connection)) return;
     if (this.reconciliationRun) {
       this.reconciliationQueued = true;
       return;
     }
 
-    this.reconciliationRun = this.reconcilePendingPayments().finally(() => {
+    this.reconciliationRun = this.reconcilePendingPayments(connection).finally(() => {
       this.reconciliationRun = null;
-      if (!this.disposed && this.reconciliationQueued) {
+      if (this.isCurrent(connection) && this.reconciliationQueued) {
         this.reconciliationQueued = false;
-        this.requestPendingPaymentReconciliation();
+        this.requestPendingPaymentReconciliation(connection);
       }
     });
   }
 
-  private async reconcilePendingPayments(): Promise<void> {
+  private async reconcilePendingPayments(connection: ConnectionIdentity): Promise<void> {
     const scope = getPendingPaymentScope();
-    if (this.disposed || !scope) return;
+    if (!this.isCurrent(connection) || !scope) return;
 
     try {
       const transactions = await fetchPendingPaymentTransactions(scope);
-      if (!this.disposed) reconcilePendingPayments(scope, transactions);
+      if (this.isCurrent(connection)) reconcilePendingPayments(scope, transactions);
     } catch {
       // The balance event is still authoritative. A later poll/focus refresh retries matching.
     }
   }
 
-  private handleSystemNotification(e: MessageEvent): void {
+  private handleSystemNotification(e: MessageEvent, connection: ConnectionIdentity): void {
     try {
       const data = JSON.parse(e.data);
       if (!isSystemNotificationPayload(data)) return;
-      addNotification(data);
+      if (this.isCurrent(connection)) addNotification(data);
     } catch {
       // Malformed event — ignore
     }
   }
 
-  private handleGpuSessionStatus(e: MessageEvent): void {
+  private handleGpuSessionStatus(e: MessageEvent, connection: ConnectionIdentity): void {
     try {
       const data = JSON.parse(e.data);
       if (!isGpuSessionStatusPayload(data)) return;
-      this.processGpuSessionStatus(data);
+      this.processGpuSessionStatus(data, connection);
     } catch {
       // Malformed event — ignore
     }
   }
 
-  private processGpuSessionStatus(payload: GpuSessionStatusPayload): void {
+  private processGpuSessionStatus(
+    payload: GpuSessionStatusPayload,
+    connection: ConnectionIdentity,
+  ): void {
+    if (!this.isCurrent(connection)) return;
     const { session_id, status, previous_status } = payload;
 
     // Patch cached session detail optimistically
@@ -424,23 +473,28 @@ export class EventStreamService {
     }
   }
 
-  private handleCreditWarning(e: MessageEvent): void {
+  private handleCreditWarning(e: MessageEvent, connection: ConnectionIdentity): void {
     try {
       const data = JSON.parse(e.data);
       if (!isGpuSessionCreditWarningPayload(data)) return;
-      this.processCreditWarning(data);
+      this.processCreditWarning(data, connection);
     } catch {
       // Malformed event — ignore
     }
   }
 
-  private processCreditWarning(payload: GpuSessionCreditWarningPayload): void {
+  private processCreditWarning(
+    payload: GpuSessionCreditWarningPayload,
+    connection: ConnectionIdentity,
+  ): void {
+    if (!this.isCurrent(connection)) return;
     upsertCreditWarning(payload);
   }
 
   /* ─── Reconnection Logic ─── */
 
-  private handleConnectionFailure(error: unknown): void {
+  private handleConnectionFailure(error: unknown, connection: ConnectionIdentity): void {
+    if (!this.isCurrent(connection)) return;
     this.closeEventSource();
     this.consecutiveFailures++;
 
@@ -453,14 +507,14 @@ export class EventStreamService {
     // Rate limited — wait and retry
     if (error instanceof SSERateLimitedError) {
       const delay = 10_000; // conservative 10s wait
-      this.scheduleReconnect(delay);
+      this.scheduleReconnect(delay, connection);
       return;
     }
 
     // Too many failures — switch to fallback with periodic SSE retry
     if (this.consecutiveFailures >= SSE_MAX_CONSECUTIVE_FAILURES) {
       setEventStreamStatus('fallback');
-      this.scheduleFallbackRetry();
+      this.scheduleFallbackRetry(connection);
       return;
     }
 
@@ -470,21 +524,21 @@ export class EventStreamService {
       SSE_RECONNECT_MAX_MS,
     );
     setEventStreamStatus('connecting');
-    this.scheduleReconnect(delay);
+    this.scheduleReconnect(delay, connection);
   }
 
-  private scheduleReconnect(delayMs: number): void {
+  private scheduleReconnect(delayMs: number, connection: ConnectionIdentity): void {
     this.clearTimers();
     this.reconnectTimer = setTimeout(() => {
-      if (!this.disposed) this.connect();
+      if (this.isCurrent(connection)) void this.connect();
     }, delayMs);
   }
 
-  private scheduleFallbackRetry(): void {
+  private scheduleFallbackRetry(connection: ConnectionIdentity): void {
     this.fallbackRetryTimer = setTimeout(() => {
-      if (!this.disposed) {
+      if (this.isCurrent(connection)) {
         this.consecutiveFailures = 0;
-        this.connect();
+        void this.connect();
       }
     }, SSE_FALLBACK_RETRY_MS);
   }

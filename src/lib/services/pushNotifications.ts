@@ -183,6 +183,12 @@ export function clearStoredPushRegistration(): void {
   removeStorage(STORAGE_KEYS.PUSH_REGISTRATION);
 }
 
+/** Clear account-scoped push markers without touching the device-level PushSubscription. */
+export function clearPersistedPushState(): void {
+  clearStoredPushRegistration();
+  removeStorage(STORAGE_KEYS.PUSH_ENDPOINT);
+}
+
 export function getPushPromptPreference(userId: string): PushPromptPreference {
   const raw = readStorage(STORAGE_KEYS.PUSH_PROMPT_STATE);
   const state = parseStoredPushPromptState(raw);
@@ -557,7 +563,10 @@ export async function detachPushOnLogout(userId: string): Promise<void> {
       ),
     ),
   ];
-  if (endpoints.length === 0) return;
+  if (endpoints.length === 0) {
+    clearPersistedPushState();
+    return;
+  }
 
   let liveEndpointDeleteFailed = false;
   for (const endpoint of endpoints) {
@@ -571,21 +580,20 @@ export async function detachPushOnLogout(userId: string): Promise<void> {
 
   // A successful live-endpoint delete detaches browser delivery even if an old marker was stale.
   if (!liveEndpointDeleteFailed) {
-    if (ownedRegistration) clearStoredPushRegistration();
+    clearPersistedPushState();
     return;
   }
 
   if (!subscription) {
     // There is no live browser delivery left to detach locally.
-    if (ownedRegistration) clearStoredPushRegistration();
+    clearPersistedPushState();
     return;
   }
 
   try {
     const removed = await subscription.unsubscribe();
     if (removed) {
-      clearStoredPushRegistration();
-      removeStorage(STORAGE_KEYS.PUSH_ENDPOINT);
+      clearPersistedPushState();
     } else {
       reportPushFailure('logout-browser-unsubscribe-failed');
     }

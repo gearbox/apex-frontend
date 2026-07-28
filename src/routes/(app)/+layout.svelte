@@ -6,6 +6,7 @@
   import { currentAuthStatus, currentUser } from '$lib/stores/auth';
   import { initAuth } from '$lib/api/auth';
   import { EventStreamService } from '$lib/services/eventStream';
+  import * as contentCookieService from '$lib/services/contentCookie';
   import * as m from '$paraglide/messages';
   import AppShell from '$lib/components/layout/AppShell.svelte';
   import SessionCreditBanner from '$lib/components/layout/SessionCreditBanner.svelte';
@@ -26,6 +27,7 @@
 
   const queryClient = useQueryClient();
   let eventStream: EventStreamService | null = null;
+  let eventStreamUserId: string | undefined;
   let pushInitializedForUserId: string | undefined;
   let disposePushSubscription: (() => void) | undefined;
   let stopPendingPaymentStorageListener: (() => void) | undefined;
@@ -42,10 +44,17 @@
 
     const userId = $currentUser?.id;
     if ($currentAuthStatus === 'authenticated' && userId) {
-      if (!eventStream) {
-        eventStream = new EventStreamService({ queryClient });
+      // An EventStreamService captures its user ID and auth epoch. Never carry an A instance
+      // into B, even briefly: dispose it before creating B's independently bound connection.
+      if (eventStream && eventStreamUserId !== userId) {
+        eventStream.dispose();
+        eventStream = null;
       }
-      eventStream.connect();
+      if (!eventStream) {
+        eventStream = new EventStreamService({ queryClient, userId });
+        eventStreamUserId = userId;
+      }
+      void eventStream.connect();
 
       if (pushInitializedForUserId !== userId) {
         disposePushSubscription?.();
@@ -55,7 +64,9 @@
         disposePushSubscription = pushSubscription.init(userId);
       }
     } else {
-      eventStream?.disconnect();
+      eventStream?.dispose();
+      eventStream = null;
+      eventStreamUserId = undefined;
       disposePushSubscription?.();
       disposePushSubscription = undefined;
       pushInitializedForUserId = undefined;
@@ -80,12 +91,29 @@
   onDestroy(() => {
     eventStream?.dispose();
     eventStream = null;
+    eventStreamUserId = undefined;
     disposePushSubscription?.();
     disposePushSubscription = undefined;
     stopPendingPaymentStorageListener?.();
     stopPendingPaymentStorageListener = undefined;
     pushSubscription.reset();
     pushNudgeLaunch.reset();
+    contentCookieService.stop();
+  });
+
+  // Content-cookie keep-alive (C4) — intentionally a separate effect from the SSE/push one
+  // above, which must not be touched. Its internal visibilitychange/pageshow resume-check (see
+  // contentCookie.ts) briefly pauses TanStack Query's reconnect-triggered refetching while it
+  // runs, so a revoked session's clearAuth() → resetAppState() purges the query cache and the
+  // SW's content-media cache before a suspended Library grid could repaint from either (C5).
+  $effect(() => {
+    if (checking) return;
+
+    if ($currentAuthStatus === 'authenticated') {
+      contentCookieService.start();
+    } else {
+      contentCookieService.stop();
+    }
   });
 
   // Redirect when auth resolves to unauthenticated

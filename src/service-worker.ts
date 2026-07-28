@@ -13,16 +13,8 @@ import {
   type PrecacheEntry,
 } from 'workbox-precaching';
 import { NavigationRoute, registerRoute } from 'workbox-routing';
-import { CacheFirst, StaleWhileRevalidate } from 'workbox-strategies';
+import { StaleWhileRevalidate } from 'workbox-strategies';
 import { ExpirationPlugin } from 'workbox-expiration';
-import { API_BASE_URL } from './lib/utils/constants';
-import {
-  CONTENT_MEDIA_CACHE_NAME,
-  CONTENT_MEDIA_MAX_AGE_SECONDS,
-  CONTENT_MEDIA_MAX_ENTRIES,
-  matchesContentImageRoute,
-  shouldCacheContentMedia,
-} from './lib/pwa/contentCachePolicy';
 import {
   PWA_BUILD_INFO,
   PWA_GET_BUILD_INFO,
@@ -30,6 +22,7 @@ import {
   isPwaClientToWorkerMessage,
 } from './lib/pwa/protocol';
 import { isTrustedPwaMessageSender } from './lib/pwa/messageSource';
+import { LEGACY_CONTENT_MEDIA_CACHE_NAME } from './lib/utils/cacheNames';
 
 declare const __BUILD_SHA__: string;
 
@@ -79,9 +72,14 @@ self.addEventListener('message', (event) => {
 precacheAndRoute(self.__WB_MANIFEST);
 cleanupOutdatedCaches();
 
+// Retired in feat/session-isolation-and-content-cookie: remove the old script-readable cache
+// from upgrading installs. A fresh install has no such cache, so deleting a missing cache is safe.
+self.addEventListener('activate', (event) => {
+  event.waitUntil(caches.delete(LEGACY_CONTENT_MEDIA_CACHE_NAME).catch(() => undefined));
+});
+
 /* ─── SPA navigation fallback — mirrors the previous generateSW config exactly ─── */
 const NAVIGATE_FALLBACK_DENYLIST = [/^\/v1\//, /^\/api\//, /^\/docs\//];
-const API_ORIGIN = new URL(API_BASE_URL).origin;
 
 registerRoute(
   new NavigationRoute(createHandlerBoundToURL('/'), {
@@ -98,23 +96,12 @@ registerRoute(
   }),
 );
 
-/* ─── Runtime cache: small image variants from the authenticated content proxy ─── */
-registerRoute(
-  (args) => matchesContentImageRoute(args, API_ORIGIN),
-  new CacheFirst({
-    cacheName: CONTENT_MEDIA_CACHE_NAME,
-    plugins: [
-      {
-        cacheWillUpdate: async ({ response }) =>
-          shouldCacheContentMedia(response) ? response : null,
-      },
-      new ExpirationPlugin({
-        maxEntries: CONTENT_MEDIA_MAX_ENTRIES,
-        maxAgeSeconds: CONTENT_MEDIA_MAX_AGE_SECONDS,
-      }),
-    ],
-  }),
-);
+// Authenticated `/v1/content/...` responses deliberately have no Workbox runtime route. Their
+// Cache Storage is enumerable and readable by any script on this origin, unlike the browser HTTP
+// cache. Removing the route eliminates that script-readable private-media residue while the HTTP
+// cache retains the `Cache-Control: private, max-age=…` performance benefit. Session-ending
+// endpoints clear HTTP-cache residue server-side with Clear-Site-Data; the client has no API for it.
+// The app keeps only a small, synchronously invalidated in-memory blob cache for save/share.
 
 /* ─── Web Push ─── */
 

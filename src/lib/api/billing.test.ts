@@ -23,6 +23,7 @@ beforeEach(() => {
     accessToken: 'test-access',
     refreshToken: 'test-refresh',
     expiresAt: new Date(Date.now() + 900_000).toISOString(),
+    contentCookieExpiresAt: new Date(Date.now() + 86_400_000).toISOString(),
   };
   setAuth(tokens, makeUserProfile());
 });

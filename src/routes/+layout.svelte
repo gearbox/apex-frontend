@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount, type Snippet } from 'svelte';
   import { afterNavigate } from '$app/navigation';
-  import { QueryClient, QueryClientProvider } from '@tanstack/svelte-query';
+  import { QueryClientProvider } from '@tanstack/svelte-query';
+  import { getQueryClient } from '$lib/queries/queryClient';
   import { pwaInfo } from 'virtual:pwa-info';
   import { initTheme, setTheme } from '$lib/stores/theme';
   import { productInfo } from '$lib/stores/product';
@@ -20,15 +21,7 @@
 
   let { children }: { children: Snippet } = $props();
 
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: {
-        staleTime: 1000 * 60 * 5, // 5 minutes
-        retry: 1,
-        refetchOnWindowFocus: false,
-      },
-    },
-  });
+  const queryClient = getQueryClient();
 
   // Derive app title from productInfo for <title> tag
   let appTitle = $derived($productInfo?.display_name ?? 'Apex');

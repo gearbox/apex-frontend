@@ -67,7 +67,11 @@ describe('prewarmMedia', () => {
     prewarmMedia(asset);
 
     await vi.waitFor(() =>
-      expect(fetchOriginalBlobMock).toHaveBeenCalledWith(asset, expect.any(AbortSignal), 'default'),
+      expect(fetchOriginalBlobMock).toHaveBeenCalledWith(
+        asset,
+        expect.any(AbortSignal),
+        'no-store',
+      ),
     );
   });
 
@@ -78,7 +82,11 @@ describe('prewarmMedia', () => {
     prewarmMedia(asset);
 
     await vi.waitFor(() =>
-      expect(fetchOriginalBlobMock).toHaveBeenCalledWith(asset, expect.any(AbortSignal), 'default'),
+      expect(fetchOriginalBlobMock).toHaveBeenCalledWith(
+        asset,
+        expect.any(AbortSignal),
+        'no-store',
+      ),
     );
   });
 
@@ -92,13 +100,13 @@ describe('prewarmMedia', () => {
     // runner flagging one is the assertion.
   });
 
-  it('fetches with the browser HTTP cache enabled, so a later <video> request can reuse it', () => {
+  it('keeps authenticated originals out of the persistent browser HTTP cache', () => {
     fetchOriginalBlobMock.mockResolvedValue(new Blob(['bytes']));
     const asset = media();
 
     prewarmMedia(asset);
 
-    expect(fetchOriginalBlobMock).toHaveBeenCalledWith(asset, expect.any(AbortSignal), 'default');
+    expect(fetchOriginalBlobMock).toHaveBeenCalledWith(asset, expect.any(AbortSignal), 'no-store');
   });
 
   it('passes viewer TTL through the abortable warm variant', async () => {
@@ -110,7 +118,7 @@ describe('prewarmMedia', () => {
 
     await prewarmMediaWithSignal(asset, { signal: controller.signal, ttlMs: 5 * 60_000 });
 
-    expect(fetchOriginalBlobMock).toHaveBeenCalledWith(asset, expect.any(AbortSignal), 'default');
+    expect(fetchOriginalBlobMock).toHaveBeenCalledWith(asset, expect.any(AbortSignal), 'no-store');
     expect(getCachedBlob(toMediaSrc(asset.original.url), 5 * 60_000 - 1)).toBe(blob);
   });
 

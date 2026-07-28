@@ -22,6 +22,7 @@ const mockTokens = {
   accessToken: 'test-access-token',
   refreshToken: 'test-refresh-token',
   expiresAt: new Date(Date.now() + 900_000).toISOString(),
+  contentCookieExpiresAt: new Date(Date.now() + 86_400_000).toISOString(),
 };
 
 function getStoreValue<T>(store: { subscribe: (fn: (v: T) => void) => () => void }): T {
@@ -89,6 +90,7 @@ describe('updateTokens()', () => {
       accessToken: 'updated-access-token',
       refreshToken: 'updated-refresh-token',
       expiresAt: new Date(Date.now() + 1800_000).toISOString(),
+      contentCookieExpiresAt: new Date(Date.now() + 86_400_000).toISOString(),
     });
 
     expect(getAccessToken()).toBe('updated-access-token');

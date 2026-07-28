@@ -1,5 +1,6 @@
 <script lang="ts">
   import { toMediaSrc, posterSrc } from '$lib/media/index';
+  import { contentCredentialsRevision } from '$lib/services/contentCookie';
   import type { components } from '$lib/api/types';
 
   type MediaObject = components['schemas']['MediaObject'];
@@ -38,6 +39,7 @@
   } = $props();
 
   let videoElement = $state<HTMLVideoElement | null>(null);
+  let lastContentCredentialsRevision: number | undefined;
 
   $effect(() => {
     if (import.meta.env.DEV && media.media_type !== 'video') {
@@ -47,6 +49,23 @@
 
   $effect(() => {
     if (videoElement) onvideoelement?.(videoElement);
+  });
+
+  $effect(() => {
+    const revision = $contentCredentialsRevision;
+    if (lastContentCredentialsRevision === undefined) {
+      // A fresh native-media element already starts its own initial fetch.
+      lastContentCredentialsRevision = revision;
+      return;
+    }
+    if (revision === lastContentCredentialsRevision) return;
+    lastContentCredentialsRevision = revision;
+
+    // A recovery can only fix a failed request or a preload="none" poster fetch. Do not restart
+    // healthy playback merely because credentials were renewed in the background.
+    if (videoElement && (videoElement.error !== null || videoElement.readyState === 0)) {
+      videoElement.load();
+    }
   });
 
   const resolvedPoster = $derived(poster ?? posterSrc(media));

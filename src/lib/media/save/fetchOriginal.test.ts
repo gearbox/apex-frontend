@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fetchOriginalBlob, MAX_SAVE_BYTES } from './fetchOriginal';
 import type { MediaObject } from './types';
 
-const silentRefreshMock = vi.fn<() => Promise<boolean>>();
+const silentRefreshMock = vi.fn<() => Promise<{ ok: true } | { ok: false; reason: string }>>();
 const getAccessTokenMock = vi.fn<() => string | null>();
 
 vi.mock('$lib/api/auth', () => ({
@@ -82,7 +82,7 @@ describe('fetchOriginalBlob', () => {
       .mockResolvedValueOnce(fakeResponse({ ok: false, status: 401 }))
       .mockResolvedValueOnce(fakeResponse({ ok: true, status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
-    silentRefreshMock.mockResolvedValue(true);
+    silentRefreshMock.mockResolvedValue({ ok: true });
 
     const blob = await fetchOriginalBlob(media());
 

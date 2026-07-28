@@ -45,9 +45,10 @@ export async function prewarmMediaWithSignal(
   const cacheKey = toMediaSrc(media.original.url);
   await getOrFetchBlob(
     cacheKey,
-    // 'default' lets the streamed bytes populate the browser's HTTP cache — the <video>
-    // element's own range/streaming requests can then reuse it directly on first open.
-    (signal) => fetchOriginalBlob(media, signal, 'default'),
+    // Authenticated originals must not be deliberately written into the browser's persistent HTTP
+    // cache. The bounded in-memory blob cache above still shares the warm with a save/share click;
+    // native video retains its Range requests instead of blob-swapping large files.
+    (signal) => fetchOriginalBlob(media, signal, 'no-store'),
     () => Date.now(),
     { ttlMs: options.ttlMs, signal: options.signal },
   );

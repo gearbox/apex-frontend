@@ -1,6 +1,6 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { register, AuthError } from '$lib/api/auth';
+  import { register, AuthError, AuthOperationCancelledError } from '$lib/api/auth';
   import { productInfo } from '$lib/stores/product';
   import { locale } from '$lib/stores/locale';
   import { updateUserLocale } from '$lib/api/user';
@@ -28,6 +28,10 @@
       void updateUserLocale($locale);
       goto('/app/create', { replaceState: true });
     } catch (err) {
+      if (err instanceof AuthOperationCancelledError) {
+        // A newer login/register attempt owns the auth boundary. It is not user-visible failure.
+        return;
+      }
       if (err instanceof AuthError) {
         if (err.error === 'email_exists') {
           error = 'An account with this email already exists.';

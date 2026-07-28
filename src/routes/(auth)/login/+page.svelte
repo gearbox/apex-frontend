@@ -1,7 +1,9 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
-  import { login, AuthError } from '$lib/api/auth';
+  import { login, AuthError, AuthOperationCancelledError } from '$lib/api/auth';
+  import { consumeAuthFailureReason, type AuthFailureReason } from '$lib/stores/auth';
   import { rateLimitFor } from '$lib/stores/rateLimit';
   import { locale } from '$lib/stores/locale';
   import { updateUserLocale } from '$lib/api/user';
@@ -11,6 +13,13 @@
   let password = $state('');
   let error = $state('');
   let loading = $state(false);
+  // `invalid_token` / `network` stay silent (the ordinary "session ended elsewhere" case) —
+  // only a genuine security event gets a banner here (B2).
+  let sessionEndReason = $state<AuthFailureReason | null>(null);
+
+  onMount(() => {
+    sessionEndReason = consumeAuthFailureReason();
+  });
 
   const loginRateLimit = rateLimitFor('/v1/auth/login');
 
@@ -26,6 +35,10 @@
       const redirect = $page.url.searchParams.get('redirect') ?? '/app/create';
       goto(redirect, { replaceState: true });
     } catch (err) {
+      if (err instanceof AuthOperationCancelledError) {
+        // A newer login/register attempt owns the auth boundary. It is not user-visible failure.
+        return;
+      }
       if (err instanceof AuthError) {
         error = err.message;
       } else {
@@ -49,6 +62,19 @@
     </div>
 
     <form onsubmit={handleSubmit} class="flex flex-col gap-4">
+      {#if sessionEndReason === 'token_reuse_detected'}
+        <div class="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+          <p class="font-semibold">{m.auth_security_notice_title()}</p>
+          <p>{m.auth_security_notice_message()}</p>
+        </div>
+      {:else if sessionEndReason === 'account_inactive'}
+        <div
+          class="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning"
+        >
+          {m.auth_account_deactivated_message()}
+        </div>
+      {/if}
+
       {#if error}
         <div class="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
           {error}

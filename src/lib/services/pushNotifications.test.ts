@@ -22,6 +22,7 @@ import {
   updatePushPromptPreference,
   urlBase64ToUint8Array,
 } from './pushNotifications';
+import { resetAppState } from '$lib/stores/resetAppState';
 import { STORAGE_KEYS } from '$lib/utils/constants';
 
 const BASE = 'http://localhost:8000';
@@ -387,6 +388,29 @@ describe('reconcileOnLaunch', () => {
         return HttpResponse.json({}, { status: 201 });
       }),
     );
+
+    await reconcileOnLaunch(USER_B);
+
+    expect(posts).toBe(1);
+    expectRegistration(USER_B, fakeSub.endpoint);
+  });
+
+  it('re-registers a reusable browser subscription after session reset clears User A markers', async () => {
+    const fakeSub = makeFakeSubscription('https://push.example.com/shared-after-reset');
+    stubPushSupported({ pushManager: { getSubscription: vi.fn().mockResolvedValue(fakeSub) } });
+    storePushRegistration({ version: 1, endpoint: fakeSub.endpoint, userId: USER_A });
+    localStorage.setItem(STORAGE_KEYS.PUSH_ENDPOINT, fakeSub.endpoint);
+    let posts = 0;
+    server.use(
+      http.post(`${BASE}/v1/push/subscriptions`, () => {
+        posts += 1;
+        return HttpResponse.json({}, { status: 201 });
+      }),
+    );
+
+    resetAppState();
+    expect(readStoredPushRegistration()).toBeNull();
+    expect(localStorage.getItem(STORAGE_KEYS.PUSH_ENDPOINT)).toBeNull();
 
     await reconcileOnLaunch(USER_B);
 

@@ -21,6 +21,7 @@ interface InflightEntry {
   promise: Promise<Blob>;
   controller: AbortController;
   liveCount: number;
+  generation: number;
 }
 
 /** Map insertion order doubles as LRU order (oldest first) — re-inserting a key on access
@@ -32,6 +33,8 @@ const cache = new Map<string, CacheEntry>();
  *  underlying fetch only aborts once every attached caller has detached, so one caller's abort
  *  (e.g. a viewer navigating away mid-warm) can never cancel another caller's save/share. */
 const inflight = new Map<string, InflightEntry>();
+/** Invalidating this synchronously makes even fetch mocks that ignore AbortSignal harmless. */
+let cacheGeneration = 0;
 
 function totalBytes(): number {
   let total = 0;
@@ -78,6 +81,10 @@ export function setCachedBlob(
 }
 
 export function clearBlobCache(): void {
+  cacheGeneration += 1;
+  // Abort before dropping map ownership. Attached callers either observe the AbortError from a
+  // compliant fetch or the generation check below when a mock/browser settles late.
+  for (const entry of inflight.values()) entry.controller.abort();
   cache.clear();
   inflight.clear();
 }
@@ -150,10 +157,17 @@ export function getOrFetchBlob(
   let entry = inflight.get(url);
   if (!entry) {
     const controller = new AbortController();
+    const generation = cacheGeneration;
     const created: InflightEntry = {
       controller,
       liveCount: 0,
+      generation,
       promise: fetcher(controller.signal).then((blob) => {
+        // A fetch implementation is permitted to settle after abort. Never allow that late value
+        // to repopulate a cache that was reset for logout/account replacement.
+        if (generation !== cacheGeneration || controller.signal.aborted) {
+          throw new DOMException('Aborted', 'AbortError');
+        }
         setCachedBlob(url, blob, now(), options);
         return blob;
       }),
