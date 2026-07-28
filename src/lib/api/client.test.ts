@@ -123,7 +123,7 @@ describe('auth middleware', () => {
       ),
     );
 
-    await apiClient.GET('/v1/users/me');
+    await expect(apiClient.GET('/v1/users/me')).rejects.toBeInstanceOf(StaleSessionError);
 
     expect(hrefSetter).toHaveBeenCalledWith(expect.stringContaining('/login?redirect='));
     expect(getAccessToken()).toBeNull();
@@ -154,7 +154,7 @@ describe('auth middleware', () => {
       ),
     );
 
-    await apiClient.GET('/v1/users/me');
+    await expect(apiClient.GET('/v1/users/me')).rejects.toBeInstanceOf(StaleSessionError);
 
     expect(consumeAuthFailureReason()).toBe('token_reuse_detected');
   });
@@ -347,7 +347,7 @@ describe('epoch-bound middleware retries', () => {
       HttpResponse.json(makeTokenResponse({ access_token: 'late-access-a' })),
     );
 
-    await expect(request).resolves.toMatchObject({ response: { status: 401 } });
+    await expect(request).rejects.toBeInstanceOf(StaleSessionError);
     expect(balanceCalls).toBe(1);
     expect(getAccessToken()).toBe('access-b');
   });
