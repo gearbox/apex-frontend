@@ -2,7 +2,7 @@
   import { onDestroy, onMount, tick } from 'svelte';
   import { goto } from '$app/navigation';
   import { createMutation, useQueryClient } from '@tanstack/svelte-query';
-  import { X } from 'lucide-svelte';
+  import { X } from '@lucide/svelte';
   import FrameScrubber from '$lib/components/frames/FrameScrubber.svelte';
   import FrameStrip from '$lib/components/frames/FrameStrip.svelte';
   import ManualFrameStrip, {

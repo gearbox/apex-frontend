@@ -6,7 +6,7 @@
   } from '@tanstack/svelte-query';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
-  import { ChevronDown, ChevronRight, Folder, FolderPlus, Pencil, Trash2 } from 'lucide-svelte';
+  import { ChevronDown, ChevronRight, Folder, FolderPlus, Pencil, Trash2 } from '@lucide/svelte';
   import {
     createProjectMutationOptions,
     deleteProjectMutationOptions,

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { Square } from 'lucide-svelte';
+  import { Square } from '@lucide/svelte';
   import StatusBadge from '$lib/components/shared/StatusBadge.svelte';
   import SessionProgressBar from './SessionProgressBar.svelte';
   import type { GpuSessionResponse } from '$lib/api/sessions';

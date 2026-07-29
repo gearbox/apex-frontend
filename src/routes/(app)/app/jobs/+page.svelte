@@ -1,7 +1,7 @@
 <script lang="ts">
   import { createQuery, createMutation, useQueryClient } from '@tanstack/svelte-query';
   import * as m from '$paraglide/messages';
-  import { Inbox, RefreshCw } from 'lucide-svelte';
+  import { Inbox, RefreshCw } from '@lucide/svelte';
   import { jobsListQueryOptions, deleteJobMutationOptions, jobKeys } from '$lib/queries/jobs';
   import JobCard from '$lib/components/jobs/JobCard.svelte';
   import JobFilters from '$lib/components/jobs/JobFilters.svelte';

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { AlertTriangle } from 'lucide-svelte';
+  import { AlertTriangle } from '@lucide/svelte';
   import { previewStop, stopSession } from '$lib/api/sessions';
   import type { StopConfirmationResponse } from '$lib/api/sessions';
   import { ApiRequestError } from '$lib/api/errors';

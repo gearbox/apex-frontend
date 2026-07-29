@@ -1,7 +1,7 @@
 <script lang="ts">
   import { themePrefs, setMode } from '$lib/stores/theme';
   import type { ThemeMode } from '$lib/themes';
-  import { Sun, Moon, Monitor } from 'lucide-svelte';
+  import { Sun, Moon, Monitor } from '@lucide/svelte';
 
   const modes: { value: ThemeMode; label: string; icon: typeof Sun }[] = [
     { value: 'light', label: 'Light', icon: Sun },

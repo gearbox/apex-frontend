@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createQuery } from '@tanstack/svelte-query';
-  import { CreditCard, AlertCircle } from 'lucide-svelte';
+  import { CreditCard, AlertCircle } from '@lucide/svelte';
   import * as m from '$paraglide/messages';
   import { adminPaymentProvidersQueryOptions, adminPaymentsQueryOptions } from '$lib/queries/admin';
   import { currentUser } from '$lib/stores/auth';

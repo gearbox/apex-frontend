@@ -1,6 +1,6 @@
 <script lang="ts">
   import { untrack } from 'svelte';
-  import { Volume2, VolumeX, Play, Pause } from 'lucide-svelte';
+  import { Volume2, VolumeX, Play, Pause } from '@lucide/svelte';
   import MediaVideo from './MediaVideo.svelte';
   import { formatTimestampFromSeconds } from './mediaHelpers';
   import * as m from '$paraglide/messages';

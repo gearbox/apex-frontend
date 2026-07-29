@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createQuery, useQueryClient } from '@tanstack/svelte-query';
-  import { Building2, Wallet, AlertCircle } from 'lucide-svelte';
+  import { Building2, Wallet, AlertCircle } from '@lucide/svelte';
   import { adminOrgsQueryOptions } from '$lib/queries/admin';
   import { fetchOrgAccount } from '$lib/api/admin';
   import type { AdminOrgResponse } from '$lib/api/admin';

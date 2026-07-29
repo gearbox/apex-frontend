@@ -310,7 +310,9 @@ describe('uploadMedia() — 401 refresh-and-retry (H2)', () => {
     const upload = uploadMedia(new File(['test'], 'test.jpg', { type: 'image/jpeg' }));
     await refreshStarted.promise;
     setAuth(authTokens('access-b', 'refresh-b'), makeUserProfile({ id: 'user-b' }));
-    refreshResponse.resolve(HttpResponse.json(makeTokenResponse({ access_token: 'late-access-a' })));
+    refreshResponse.resolve(
+      HttpResponse.json(makeTokenResponse({ access_token: 'late-access-a' })),
+    );
 
     await expect(upload).rejects.toMatchObject({ name: 'AbortError' });
     expect(uploadCallCount).toBe(1);

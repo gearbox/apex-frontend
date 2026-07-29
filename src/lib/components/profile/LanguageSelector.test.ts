@@ -14,7 +14,7 @@ vi.mock('$paraglide/messages', () => ({
 
 // Mock $paraglide/runtime
 vi.mock('$paraglide/runtime', () => ({
-  setLanguageTag: vi.fn(),
+  setLocale: vi.fn(),
   languageTag: vi.fn(() => 'en'),
 }));
 

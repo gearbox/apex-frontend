@@ -1,4 +1,4 @@
-import { paraglide } from '@inlang/paraglide-sveltekit/vite';
+import { paraglideVitePlugin } from '@inlang/paraglide-js';
 import { sveltekit } from '@sveltejs/kit/vite';
 import tailwindcss from '@tailwindcss/vite';
 import { SvelteKitPWA } from '@vite-pwa/sveltekit';
@@ -53,7 +53,11 @@ export default defineConfig({
     },
   },
   plugins: [
-    paraglide({ project: './project.inlang', outdir: './src/paraglide' }),
+    paraglideVitePlugin({
+      project: './project.inlang',
+      outdir: './src/paraglide',
+      emitTsDeclarations: true,
+    }),
     tailwindcss(),
     sveltekit(),
     // This is deliberately emitted at build time rather than checked in under
@@ -72,6 +76,7 @@ export default defineConfig({
       // the already-built output in place. It reproduces the previous generateSW
       // behavior exactly — see comments in src/service-worker.ts.
       strategies: 'injectManifest',
+      filename: 'service-worker.ts',
       // Absolute base + scope: this is an SPA (ssr=false) whose root route
       // client-redirects to /app/create. The plugin's default relative './'
       // scope resolves against whatever URL is current when registerSW() runs

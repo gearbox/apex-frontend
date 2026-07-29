@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { get } from 'svelte/store';
-  import { ChevronDown } from 'lucide-svelte';
+  import { ChevronDown } from '@lucide/svelte';
   import { locale, SUPPORTED_LOCALES, type Locale } from '$lib/stores/locale';
   import * as m from '$paraglide/messages';
 

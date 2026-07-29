@@ -1,7 +1,7 @@
 <script lang="ts">
   import { generationStore } from '$lib/stores/generation';
   import { timeAgo } from '$lib/utils/format';
-  import { Download, Share, RefreshCw, Play, Repeat2 } from 'lucide-svelte';
+  import { Download, Share, RefreshCw, Play, Repeat2 } from '@lucide/svelte';
   import { toMediaSrc } from '$lib/media/index';
   import MediaImage from '$lib/media/MediaImage.svelte';
   import MediaVideo from '$lib/media/MediaVideo.svelte';

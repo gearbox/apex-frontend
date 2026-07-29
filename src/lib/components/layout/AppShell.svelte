@@ -2,7 +2,7 @@
   import { type Snippet } from 'svelte';
   import { isDesktop } from '$lib/utils/breakpoints';
   import { locale } from '$lib/stores/locale';
-  import { ArrowDown, LoaderCircle } from 'lucide-svelte';
+  import { ArrowDown, LoaderCircle } from '@lucide/svelte';
   import TopBar from './TopBar.svelte';
   import DesktopSidebar from './DesktopSidebar.svelte';
   import MobileBottomTabs from './MobileBottomTabs.svelte';

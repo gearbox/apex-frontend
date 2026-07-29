@@ -8,7 +8,7 @@
   } from '$lib/stores/ui';
   import { TAB_ITEMS } from '$lib/utils/constants';
   import * as m from '$paraglide/messages';
-  import { Folder, Plus, Images, MoreVertical } from 'lucide-svelte';
+  import { Folder, Plus, Images, MoreVertical } from '@lucide/svelte';
 
   const iconMap: Record<string, typeof Plus> = {
     plus: Plus,

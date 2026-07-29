@@ -25,13 +25,10 @@ describe('withAuthOperation', () => {
     const requestStarted = deferred<void>();
     const handle = vi.fn(async (_response: Response) => 'handled');
 
-    const operation = withAuthOperation(
-      async () => {
-        requestStarted.resolve();
-        return response.promise;
-      },
-      handle,
-    );
+    const operation = withAuthOperation(async () => {
+      requestStarted.resolve();
+      return response.promise;
+    }, handle);
 
     await requestStarted.promise;
     invalidateAuthOperations();

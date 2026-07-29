@@ -18,7 +18,7 @@ The app lets users generate AI images/videos, browse their gallery, manage token
 | State           | Svelte stores + `@tanstack/svelte-query`   | Server-state cache with auto revalidation        |
 | API Client      | `openapi-fetch`                            | Type-safe, generated from backend OpenAPI schema |
 | PWA             | `@vite-pwa/sveltekit`                      | Service worker, manifest, offline caching        |
-| Icons           | `lucide-svelte`                            | Tree-shakeable SVG icons                         |
+| Icons           | `@lucide/svelte`                           | Tree-shakeable SVG icons                         |
 | Package Manager | pnpm                                       | Lockfile committed                               |
 | Linting         | ESLint + Prettier + `eslint-plugin-svelte` | Enforced in CI                                   |
 | Hosting         | Cloudflare Pages                           | Pure static, no server functions needed          |

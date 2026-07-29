@@ -7,7 +7,7 @@
     Clapperboard,
     GalleryHorizontal,
     Cpu,
-  } from 'lucide-svelte';
+  } from '@lucide/svelte';
 
   let {
     generationType,

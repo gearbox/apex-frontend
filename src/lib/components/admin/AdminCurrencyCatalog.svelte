@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
-  import { AlertCircle, RefreshCw } from 'lucide-svelte';
+  import { AlertCircle, RefreshCw } from '@lucide/svelte';
   import { SvelteSet } from 'svelte/reactivity';
   import * as m from '$paraglide/messages';
   import { ApiRequestError } from '$lib/api/errors';

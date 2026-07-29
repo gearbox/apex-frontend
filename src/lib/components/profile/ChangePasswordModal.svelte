@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createMutation } from '@tanstack/svelte-query';
-  import { X } from 'lucide-svelte';
+  import { X } from '@lucide/svelte';
   import { goto } from '$app/navigation';
   import { changePasswordMutationOptions } from '$lib/queries/user';
   import { clearAuth } from '$lib/stores/auth';

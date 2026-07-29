@@ -1,5 +1,5 @@
 import { writable } from 'svelte/store';
-import { setLanguageTag } from '$paraglide/runtime';
+import { setLocale } from '$paraglide/runtime';
 import { browser } from '$app/environment';
 
 const SUPPORTED_LOCALES = ['en', 'ru', 'sr'] as const;
@@ -24,7 +24,7 @@ function createLocaleStore() {
       localStorage.setItem(STORAGE_KEY, locale);
       document.documentElement.lang = locale;
     }
-    setLanguageTag(locale);
+    setLocale(locale, { reload: false });
     set(locale);
   }
 

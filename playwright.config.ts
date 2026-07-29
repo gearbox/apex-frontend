@@ -27,8 +27,8 @@ export default defineConfig({
       use: { ...devices['Pixel 5'] },
       grepInvert: /@desktop/,
     },
-    // WebKit (Safari/iOS) — requires macOS 14+ or Linux.
-    // Skipped locally on macOS 13; runs in CI via `playwright install webkit`.
+    // WebKit (Safari/iOS) is enabled on demand. Playwright 1.57.0 is pinned
+    // because 1.58+ dropped macOS 13 WebKit support for local development.
     ...(process.env.PLAYWRIGHT_WEBKIT === '1'
       ? [
           {

@@ -3,7 +3,7 @@ import { get } from 'svelte/store';
 
 // Mock $paraglide/runtime before importing locale store
 vi.mock('$paraglide/runtime', () => ({
-  setLanguageTag: vi.fn(),
+  setLocale: vi.fn(),
   languageTag: vi.fn(() => 'en'),
 }));
 
@@ -11,14 +11,14 @@ vi.mock('$paraglide/runtime', () => ({
 vi.mock('$app/environment', () => ({ browser: true }));
 
 import { locale, SUPPORTED_LOCALES, type Locale } from './locale';
-import { setLanguageTag } from '$paraglide/runtime';
+import { setLocale } from '$paraglide/runtime';
 
 const STORAGE_KEY = 'apex-locale';
 
 beforeEach(() => {
   localStorage.clear();
   document.documentElement.lang = '';
-  vi.mocked(setLanguageTag).mockClear();
+  vi.mocked(setLocale).mockClear();
 });
 
 afterEach(() => {
@@ -52,9 +52,9 @@ describe('locale.set()', () => {
     expect(document.documentElement.lang).toBe('sr');
   });
 
-  it('calls setLanguageTag with the new locale', () => {
+  it('calls setLocale with the new locale without reloading', () => {
     locale.set('ru');
-    expect(setLanguageTag).toHaveBeenCalledWith('ru');
+    expect(setLocale).toHaveBeenCalledWith('ru', { reload: false });
   });
 
   it('updates the store value', () => {
