@@ -1,90 +1,124 @@
-import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { get } from 'svelte/store';
 
-// Mock $paraglide/runtime before importing locale store
-vi.mock('$paraglide/runtime', () => ({
-  setLocale: vi.fn(),
-  languageTag: vi.fn(() => 'en'),
-}));
+const PARAGLIDE_STORAGE_KEY = 'PARAGLIDE_LOCALE';
+const LEGACY_STORAGE_KEY = 'apex-locale';
 
-// Mock $app/environment — start with browser = true
-vi.mock('$app/environment', () => ({ browser: true }));
-
-import { locale, SUPPORTED_LOCALES, type Locale } from './locale';
-import { setLocale } from '$paraglide/runtime';
-
-const STORAGE_KEY = 'apex-locale';
-
-beforeEach(() => {
+async function coldLoad(options: { persisted?: string; legacy?: string } = {}) {
   localStorage.clear();
   document.documentElement.lang = '';
-  vi.mocked(setLocale).mockClear();
+  if (options.persisted !== undefined) {
+    localStorage.setItem(PARAGLIDE_STORAGE_KEY, options.persisted);
+  }
+  if (options.legacy !== undefined) {
+    localStorage.setItem(LEGACY_STORAGE_KEY, options.legacy);
+  }
+
+  vi.resetModules();
+  const localeStore = await import('./locale');
+  const messages = await import('$paraglide/messages');
+  const runtime = await import('$paraglide/runtime');
+  return { ...localeStore, messages, runtime };
+}
+
+beforeEach(() => {
+  vi.resetModules();
+  localStorage.clear();
+  document.documentElement.lang = '';
 });
 
 afterEach(() => {
-  vi.restoreAllMocks();
+  localStorage.clear();
 });
 
-describe('SUPPORTED_LOCALES', () => {
-  it('contains en, ru, sr', () => {
-    expect(SUPPORTED_LOCALES).toEqual(['en', 'ru', 'sr']);
-  });
-});
+describe('locale store', () => {
+  it('uses Paraglide persistence to render Russian translated content on a cold load', async () => {
+    const { locale, messages, runtime } = await coldLoad({ persisted: 'ru' });
 
-describe('locale store — default', () => {
-  it('returns "en" when no stored locale and no matching browser language', () => {
-    Object.defineProperty(navigator, 'language', { value: 'ja', configurable: true });
-    // Re-create store to pick up fresh detection (simulate by checking fallback path)
-    // Since store is module-level singleton, we verify the hydrate fallback instead
-    locale.hydrate('xx'); // unsupported → should coerce to en
-    expect(get(locale)).toBe('en');
-  });
-});
-
-describe('locale.set()', () => {
-  it('stores locale in localStorage', () => {
-    locale.set('ru');
-    expect(localStorage.getItem(STORAGE_KEY)).toBe('ru');
+    expect(get(locale)).toBe('ru');
+    expect(runtime.getLocale()).toBe('ru');
+    expect(messages.language_selector_label()).toBe('Язык');
+    expect(document.documentElement.lang).toBe('ru');
   });
 
-  it('updates document.documentElement.lang', () => {
-    locale.set('sr');
+  it('uses Paraglide persistence to render Serbian translated content on a cold load', async () => {
+    const { locale, messages, runtime } = await coldLoad({ persisted: 'sr' });
+
+    expect(get(locale)).toBe('sr');
+    expect(runtime.getLocale()).toBe('sr');
+    expect(messages.language_selector_label()).toBe('Jezik');
     expect(document.documentElement.lang).toBe('sr');
   });
 
-  it('calls setLocale with the new locale without reloading', () => {
-    locale.set('ru');
-    expect(setLocale).toHaveBeenCalledWith('ru', { reload: false });
+  it('falls back to English for unsupported persisted values', async () => {
+    const { locale, messages, runtime } = await coldLoad({ persisted: 'unsupported' });
+
+    expect(get(locale)).toBe('en');
+    expect(runtime.getLocale()).toBe('en');
+    expect(messages.language_selector_label()).toBe('Language');
+    expect(document.documentElement.lang).toBe('en');
   });
 
-  it('updates the store value', () => {
-    locale.set('sr');
-    expect(get(locale)).toBe('sr');
-  });
-});
+  it('migrates a valid apex-locale value to Paraglide persistence once', async () => {
+    const { locale, messages } = await coldLoad({ legacy: 'ru' });
 
-describe('locale.hydrate()', () => {
-  it('accepts a valid locale and applies it', () => {
-    locale.hydrate('ru');
     expect(get(locale)).toBe('ru');
+    expect(messages.language_selector_label()).toBe('Язык');
+    expect(localStorage.getItem(PARAGLIDE_STORAGE_KEY)).toBe('ru');
+    expect(localStorage.getItem(LEGACY_STORAGE_KEY)).toBeNull();
   });
 
-  it('coerces an unsupported locale to "en"', () => {
-    locale.hydrate('xx');
-    expect(get(locale)).toBe('en');
+  it('updates translated content without a full reload when the user selects another locale', async () => {
+    const { locale, messages, runtime } = await coldLoad();
+
+    locale.set('ru');
+
+    expect(get(locale)).toBe('ru');
+    expect(runtime.getLocale()).toBe('ru');
+    expect(messages.language_selector_label()).toBe('Язык');
+    expect(localStorage.getItem(PARAGLIDE_STORAGE_KEY)).toBe('ru');
+    expect(document.documentElement.lang).toBe('ru');
   });
 
-  it('coerces empty string to "en"', () => {
-    locale.hydrate('');
-    expect(get(locale)).toBe('en');
-  });
-});
+  it('preserves a selected locale across a reload/re-import', async () => {
+    const firstLoad = await coldLoad();
+    firstLoad.locale.set('sr');
 
-describe('localStorage persistence', () => {
-  it('reads back a previously stored locale', () => {
-    localStorage.setItem(STORAGE_KEY, 'sr');
-    // Hydrate simulates what would happen on next load
-    locale.hydrate(localStorage.getItem(STORAGE_KEY) as Locale);
+    vi.resetModules();
+    const reloadedStore = await import('./locale');
+    const reloadedMessages = await import('$paraglide/messages');
+
+    expect(get(reloadedStore.locale)).toBe('sr');
+    expect(reloadedMessages.language_selector_label()).toBe('Jezik');
+  });
+
+  it('does not reset the locale when client-side route modules load', async () => {
+    const { locale, messages } = await coldLoad({ persisted: 'ru' });
+
+    // SPA navigation changes history without re-running module initialization.
+    history.pushState({}, '', '/app/library');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+
+    expect(get(locale)).toBe('ru');
+    expect(messages.language_selector_label()).toBe('Язык');
+  });
+
+  it('lets account hydration override the anonymous browser preference', async () => {
+    const { locale, messages } = await coldLoad({ persisted: 'ru' });
+
+    locale.hydrate('sr');
+
     expect(get(locale)).toBe('sr');
+    expect(messages.language_selector_label()).toBe('Jezik');
+    expect(localStorage.getItem(PARAGLIDE_STORAGE_KEY)).toBe('sr');
+  });
+
+  it('validates account locales before applying them', async () => {
+    const { locale, messages } = await coldLoad({ persisted: 'ru' });
+
+    locale.hydrate('xx');
+
+    expect(get(locale)).toBe('en');
+    expect(messages.language_selector_label()).toBe('Language');
   });
 });

@@ -33,7 +33,7 @@ test.describe('PWA update lifecycle fixture', () => {
   });
 });
 
-test('production output keeps version and worker lifecycle resources revalidatable', () => {
+test('production output keeps lifecycle resources revalidatable and the precache public', () => {
   const headers = readFileSync('build/_headers', 'utf8');
   const worker = readFileSync('build/service-worker.js', 'utf8');
   const version = JSON.parse(readFileSync('build/app-version.json', 'utf8')) as {
@@ -55,5 +55,7 @@ test('production output keeps version and worker lifecycle resources revalidatab
   expect(worker).toContain('APEX_GET_BUILD_INFO');
   expect(worker).not.toContain('SKIP_WAITING');
   expect(worker).not.toContain('app-version.json');
+  expect(worker).not.toContain('server/');
   expect(worker).not.toContain('pwa-lifecycle-fixture');
+  expect(worker).not.toContain('/v1/content/');
 });

@@ -507,9 +507,12 @@ VITE_API_BASE_URL=https://api.apex.example.com
 
 ### Cloudflare Pages
 
-- Build command: `pnpm install && pnpm build`
+- Build command: `pnpm install --frozen-lockfile && pnpm build`
 - Output directory: `build`
-- Node.js version: 20+
+- Node.js: `24.18.0` LTS (minimum compatible patch: `24.15.0`); `.node-version` is the source of truth
+- pnpm: `10.32.0`
+- Configure both Production and Preview environments with `NODE_VERSION=24.18.0` and
+  `PNPM_VERSION=10.32.0`. Cloudflare Pages does not infer either value from `package.json`.
 - No server-side functions — pure static SPA
 - CORS handled by backend (`allow_origins` in Litestar config)
 
@@ -564,6 +567,8 @@ it('redirects to /login when refresh is revoked', async () => {
 pnpm test:unit          # Vitest (fast, no browser)
 pnpm test:unit:watch    # Watch mode for TDD
 pnpm test:e2e           # Playwright (requires build)
+pnpm test:e2e:mobile    # Chromium Android + WebKit iPhone projects
+pnpm test:pwa           # Chromium PWA lifecycle and precache checks
 pnpm test:e2e:ui        # Playwright interactive UI
 pnpm test:all           # Unit + E2E (use before pushing)
 ```

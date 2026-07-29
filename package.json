@@ -1,12 +1,12 @@
 {
   "name": "apex-frontend",
-  "version": "0.22.3",
+  "version": "0.22.4",
   "private": true,
   "type": "module",
   "description": "Apex AI Content Studio — Progressive Web App",
   "scripts": {
     "dev": "vite dev",
-    "paraglide:compile": "paraglide-js compile --project ./project.inlang --outdir ./src/paraglide",
+    "paraglide:compile": "paraglide-js compile --project ./project.inlang --outdir ./src/paraglide --strategy localStorage preferredLanguage baseLocale --emit-ts-declarations",
     "build": "vite build",
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
@@ -18,11 +18,18 @@
     "test:unit": "vitest run",
     "test:unit:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:e2e:mobile": "playwright test --project=mobile-chrome --project=mobile-safari",
+    "test:e2e:chromium": "playwright test --project=desktop-chrome --project=mobile-chrome",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:debug": "playwright test --debug",
     "test:all": "pnpm test:unit && pnpm test:e2e",
     "test:report": "playwright show-report",
-    "test:e2e:webkit": "PLAYWRIGHT_WEBKIT=1 playwright test --project=mobile-safari"
+    "test:e2e:webkit": "playwright test --project=mobile-safari",
+    "test:pwa": "playwright test tests/e2e/pwa --project=mobile-chrome",
+    "format:check": "prettier --check .",
+    "verify": "pnpm check && pnpm lint && pnpm format:check && pnpm test:unit && pnpm build",
+    "verify:mobile": "pnpm verify && pnpm test:e2e:mobile && pnpm test:pwa",
+    "verify:all": "pnpm verify && pnpm test:e2e && pnpm test:pwa"
   },
   "keywords": [
     "apex",
@@ -32,10 +39,13 @@
   ],
   "license": "UNLICENSED",
   "packageManager": "pnpm@10.32.0",
+  "engines": {
+    "node": ">=24.15.0 <25",
+    "pnpm": ">=10.32.0 <11"
+  },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@inlang/cli": "^3.2.0",
-    "@inlang/paraglide-js": "^2.23.0",
+    "@inlang/paraglide-js": "2.23.0",
     "@playwright/test": "1.57.0",
     "@sveltejs/adapter-static": "^3.0.10",
     "@sveltejs/kit": "^2.70.1",

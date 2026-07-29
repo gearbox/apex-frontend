@@ -3,16 +3,10 @@ import { paraglideVitePlugin } from '@inlang/paraglide-js';
 import { defineConfig } from 'vitest/config';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { APP_VERSION, BUILD_SHA } from './build-meta.js';
+import { paraglideConfig } from './paraglide.config.js';
 
 export default defineConfig({
-  plugins: [
-    paraglideVitePlugin({
-      project: './project.inlang',
-      outdir: './src/paraglide',
-      emitTsDeclarations: true,
-    }),
-    sveltekit(),
-  ],
+  plugins: [paraglideVitePlugin(paraglideConfig), sveltekit()],
   define: {
     __APP_VERSION__: JSON.stringify(APP_VERSION),
     __BUILD_SHA__: JSON.stringify(BUILD_SHA),

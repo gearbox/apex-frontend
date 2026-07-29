@@ -5,6 +5,7 @@ import { SvelteKitPWA } from '@vite-pwa/sveltekit';
 import { defineConfig } from 'vite';
 import { APP_VERSION, BUILD_SHA } from './build-meta.js';
 import { appVersionManifestPlugin } from './build-version-manifest.js';
+import { paraglideConfig } from './paraglide.config.js';
 
 const productId = process.env.VITE_PRODUCT_ID || 'vex';
 
@@ -53,11 +54,7 @@ export default defineConfig({
     },
   },
   plugins: [
-    paraglideVitePlugin({
-      project: './project.inlang',
-      outdir: './src/paraglide',
-      emitTsDeclarations: true,
-    }),
+    paraglideVitePlugin(paraglideConfig),
     tailwindcss(),
     sveltekit(),
     // This is deliberately emitted at build time rather than checked in under
@@ -104,10 +101,13 @@ export default defineConfig({
         ],
       },
       injectManifest: {
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        // The SvelteKit PWA integration reads `.svelte-kit/output`, where client,
+        // prerendered, and server files live beside each other. Keep the precache
+        // limited to the public client assets and the static HTML shell.
+        globPatterns: ['client/**/*.{js,css,svg,png,woff2}', 'prerendered/pages/**/*.html'],
         // Browser-test workers are served as static fixtures, never as part of
         // the production shell's precache or update lifecycle.
-        globIgnores: ['client/pwa-lifecycle-fixture/**'],
+        globIgnores: ['server/**', 'client/pwa-lifecycle-fixture/**'],
       },
     }),
   ],

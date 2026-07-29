@@ -27,17 +27,19 @@ export default defineConfig({
       use: { ...devices['Pixel 5'] },
       grepInvert: /@desktop/,
     },
-    // WebKit (Safari/iOS) is enabled on demand. Playwright 1.57.0 is pinned
-    // because 1.58+ dropped macOS 13 WebKit support for local development.
-    ...(process.env.PLAYWRIGHT_WEBKIT === '1'
-      ? [
-          {
-            name: 'mobile-safari',
-            use: { ...devices['iPhone 15 Pro'] },
-            grepInvert: /@desktop/,
-          },
-        ]
-      : []),
+    // Keep iOS/Safari in the normal matrix. Playwright 1.57.0 is pinned because
+    // 1.58+ drops macOS 13 WebKit support for local pre-commit testing.
+    {
+      name: 'mobile-safari',
+      use: {
+        ...devices['iPhone 15 Pro'],
+        // The iOS install instructions are tested separately. Dismiss them for
+        // regular app flows so the onboarding sheet cannot mask the interaction
+        // the spec is exercising.
+        storageState: 'tests/e2e/fixtures/mobile-safari-storage-state.json',
+      },
+      grepInvert: /@desktop/,
+    },
   ],
 
   webServer: {

@@ -7,4 +7,13 @@ describe('PWA registration configuration', () => {
     expect(config).toContain("registerType: 'prompt'");
     expect(config).not.toContain("registerType: 'autoUpdate'");
   });
+
+  it('restricts the precache source to public SvelteKit output', () => {
+    const config = readFileSync('vite.config.ts', 'utf8');
+    expect(config).toContain("'client/**/*.{js,css,svg,png,woff2}'");
+    expect(config).toContain("'prerendered/pages/**/*.html'");
+    expect(config).toContain("'server/**'");
+    expect(config).toContain("'client/pwa-lifecycle-fixture/**'");
+    expect(config).not.toContain("globPatterns: ['**/*");
+  });
 });

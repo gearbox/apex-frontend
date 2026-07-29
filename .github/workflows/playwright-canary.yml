@@ -1,0 +1,54 @@
+name: Playwright latest canary
+
+on:
+  schedule:
+    - cron: '23 5 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: playwright-canary-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  latest:
+    # A passing canary is evaluation input; it never changes the local 1.57 baseline automatically.
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.32.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: corepack enable
+      - name: Prepare an ephemeral latest-Playwright workspace
+        id: candidate
+        shell: bash
+        run: |
+          candidate_dir="$(mktemp -d)"
+          git archive --format=tar HEAD | tar -x -C "$candidate_dir"
+          candidate_version="$(pnpm view @playwright/test version)"
+          printf 'path=%s\nversion=%s\n' "$candidate_dir" "$candidate_version" >> "$GITHUB_OUTPUT"
+      - name: Install and test the candidate
+        working-directory: ${{ steps.candidate.outputs.path }}
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm add --save-dev --save-exact --config.lockfile=false @playwright/test@${{ steps.candidate.outputs.version }}
+          pnpm exec playwright install --with-deps chromium webkit
+          printf 'Playwright candidate: %s\n' "$(pnpm exec playwright --version)" | tee playwright-canary.txt
+          pnpm test:e2e
+          pnpm test:pwa
+      - name: Upload latest-Playwright diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-canary-${{ steps.candidate.outputs.version }}
+          path: |
+            ${{ steps.candidate.outputs.path }}/playwright-canary.txt
+            ${{ steps.candidate.outputs.path }}/playwright-report
+            ${{ steps.candidate.outputs.path }}/test-results
+          if-no-files-found: ignore

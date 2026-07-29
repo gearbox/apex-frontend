@@ -5,3 +5,4 @@ pnpm-lock.yaml
 src/lib/api/types.ts
 src/lib/api/schema.json
 docs/*
+agent_prompts/

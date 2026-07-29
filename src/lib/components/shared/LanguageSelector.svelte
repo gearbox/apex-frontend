@@ -1,6 +1,4 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { get } from 'svelte/store';
   import { ChevronDown } from '@lucide/svelte';
   import { locale, SUPPORTED_LOCALES, type Locale } from '$lib/stores/locale';
   import * as m from '$paraglide/messages';
@@ -15,11 +13,6 @@
     ru: m.profile_language_ru,
     sr: m.profile_language_sr,
   };
-
-  // Ensure Paraglide is synced with the detected locale on mount
-  onMount(() => {
-    locale.set(get(locale));
-  });
 
   function select(tag: Locale) {
     locale.set(tag);
