@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+test.use({ serviceWorkers: 'allow' });
+
 test.describe('production PWA shell', () => {
   // Offline navigation and Cache Storage inspection are verified against Chromium's
   // production service-worker implementation. Installed-PWA behavior on iOS remains

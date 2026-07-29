@@ -1,6 +1,8 @@
 import { expect, test } from '@playwright/test';
 import { emulateStandaloneMode } from '../fixtures/standalone';
 
+test.use({ serviceWorkers: 'allow' });
+
 test.describe('standalone-mode emulation', () => {
   test('exercises Apex standalone layout branches without claiming an installed-PWA test', async ({
     page,

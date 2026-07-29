@@ -1,6 +1,7 @@
 .svelte-kit
 build
 node_modules
+src/paraglide/
 pnpm-lock.yaml
 src/lib/api/types.ts
 src/lib/api/schema.json

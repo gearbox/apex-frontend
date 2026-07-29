@@ -2,6 +2,10 @@ import { Buffer } from 'node:buffer';
 import { test, expect } from '../fixtures/auth.fixture';
 import { jsonRoute } from '../helpers/api';
 
+// This suite intercepts image URLs with page.route(); keep a prior PWA worker
+// from satisfying those requests outside Playwright's route handlers in WebKit.
+test.use({ serviceWorkers: 'block' });
+
 function makeMedia(url: string, mediaType: 'image' | 'video' = 'image') {
   return {
     media_type: mediaType,

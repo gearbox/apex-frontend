@@ -39,7 +39,15 @@ self.addEventListener('message', (event) => {
     replyPort.postMessage({ type: 'APEX_BUILD_INFO', buildSha: BUILD_SHA });
   }
   // The fixture deliberately mirrors the production rule: generic legacy
-  // SKIP_WAITING is ignored, and the target SHA must match this worker.
+  // SKIP_WAITING is ignored, and the target SHA must match this worker. The
+  // acknowledgement is fixture-only so the test can synchronize on processing.
+  if (event.data?.type === 'SKIP_WAITING') {
+    event.ports[0]?.postMessage({
+      type: 'FIXTURE_LEGACY_ACTIVATION_IGNORED',
+      buildSha: BUILD_SHA,
+    });
+    return;
+  }
   if (event.data?.type === 'APEX_ACTIVATE_UPDATE' && event.data.targetBuildSha === BUILD_SHA) {
     event.waitUntil(self.skipWaiting());
   }

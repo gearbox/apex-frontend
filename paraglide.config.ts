@@ -1,7 +1,8 @@
 import type { ParaglideVitePluginOptions } from '@inlang/paraglide-js';
+import { PARAGLIDE_LOCAL_STORAGE_KEY } from './src/lib/i18n/constants';
 
 /** The single Paraglide configuration shared by development, test, and production builds. */
-export const PARAGLIDE_LOCAL_STORAGE_KEY = 'PARAGLIDE_LOCALE';
+export { PARAGLIDE_LOCAL_STORAGE_KEY } from './src/lib/i18n/constants';
 
 export const paraglideConfig = {
   project: './project.inlang',

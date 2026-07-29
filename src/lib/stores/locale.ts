@@ -1,7 +1,7 @@
 import { writable } from 'svelte/store';
 import { getLocale, setLocale } from '$paraglide/runtime';
 import { browser } from '$app/environment';
-import { PARAGLIDE_LOCAL_STORAGE_KEY } from '../../../paraglide.config.js';
+import { PARAGLIDE_LOCAL_STORAGE_KEY } from '$lib/i18n/constants';
 
 const SUPPORTED_LOCALES = ['en', 'ru', 'sr'] as const;
 export type Locale = (typeof SUPPORTED_LOCALES)[number];
