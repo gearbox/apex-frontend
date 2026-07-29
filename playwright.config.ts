@@ -11,6 +11,9 @@ export default defineConfig({
 
   use: {
     baseURL: 'http://localhost:4173',
+    // Application specs mock API calls with page.route(). A controlling worker
+    // can bypass those handlers in WebKit, so PWA coverage opts in per suite.
+    serviceWorkers: 'block',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'on-first-retry',
