@@ -9,3 +9,10 @@ updates:
     directory: '/'
     schedule:
       interval: 'weekly'
+    ignore:
+      - dependency-name: '@playwright/test'
+        # Playwright 1.57.0 is pinned because 1.58+ drops macOS 13 WebKit support
+        # for local pre-commit testing.
+        update-types:
+          - 'version-update:semver-major'
+          - 'version-update:semver-minor'
