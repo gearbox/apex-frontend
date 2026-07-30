@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Download, Share } from 'lucide-svelte';
+  import { Download, Share } from '@lucide/svelte';
   import { shouldShowInstallButton, installPlatform, triggerInstall } from '$lib/stores/pwaInstall';
   import { addToast } from '$lib/stores/toasts';
   import * as m from '$paraglide/messages';

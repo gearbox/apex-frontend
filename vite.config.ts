@@ -1,10 +1,11 @@
-import { paraglide } from '@inlang/paraglide-sveltekit/vite';
+import { paraglideVitePlugin } from '@inlang/paraglide-js';
 import { sveltekit } from '@sveltejs/kit/vite';
 import tailwindcss from '@tailwindcss/vite';
 import { SvelteKitPWA } from '@vite-pwa/sveltekit';
 import { defineConfig } from 'vite';
 import { APP_VERSION, BUILD_SHA } from './build-meta.js';
 import { appVersionManifestPlugin } from './build-version-manifest.js';
+import { paraglideConfig } from './paraglide.config.js';
 
 const productId = process.env.VITE_PRODUCT_ID || 'vex';
 
@@ -53,7 +54,7 @@ export default defineConfig({
     },
   },
   plugins: [
-    paraglide({ project: './project.inlang', outdir: './src/paraglide' }),
+    paraglideVitePlugin(paraglideConfig),
     tailwindcss(),
     sveltekit(),
     // This is deliberately emitted at build time rather than checked in under
@@ -72,6 +73,7 @@ export default defineConfig({
       // the already-built output in place. It reproduces the previous generateSW
       // behavior exactly — see comments in src/service-worker.ts.
       strategies: 'injectManifest',
+      filename: 'service-worker.ts',
       // Absolute base + scope: this is an SPA (ssr=false) whose root route
       // client-redirects to /app/create. The plugin's default relative './'
       // scope resolves against whatever URL is current when registerSW() runs
@@ -99,10 +101,13 @@ export default defineConfig({
         ],
       },
       injectManifest: {
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        // The SvelteKit PWA integration reads `.svelte-kit/output`, where client,
+        // prerendered, and server files live beside each other. Keep the precache
+        // limited to the public client assets and the static HTML shell.
+        globPatterns: ['client/**/*.{js,css,svg,png,woff2}', 'prerendered/pages/**/*.html'],
         // Browser-test workers are served as static fixtures, never as part of
         // the production shell's precache or update lifecycle.
-        globIgnores: ['client/pwa-lifecycle-fixture/**'],
+        globIgnores: ['server/**', 'client/pwa-lifecycle-fixture/**'],
       },
     }),
   ],

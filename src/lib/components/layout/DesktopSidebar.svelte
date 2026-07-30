@@ -17,7 +17,7 @@
     Server,
     ChevronLeft,
     ChevronRight,
-  } from 'lucide-svelte';
+  } from '@lucide/svelte';
 
   const iconMap: Record<string, typeof Plus> = {
     plus: Plus,

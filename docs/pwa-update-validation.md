@@ -10,10 +10,10 @@ update manager. Future releases use only `APEX_ACTIVATE_UPDATE` with the waiting
 worker's exact build SHA. Do not unregister the worker or clear caches/storage during
 this transition.
 
-## iOS standalone checklist (manual)
+## Installed-PWA device checklist (manual)
 
-This must be completed on a physical iOS device before release; WebKit automation is
-not treated as a substitute for standalone-mode lifecycle behavior.
+Complete this for PWA lifecycle releases on physical iOS and Android devices. Browser emulation,
+including Playwright's Mobile Safari project, is not a substitute for an installed PWA.
 
 1. Install build A, open it from the Home Screen, and deploy build B.
 2. Enter a Create draft, navigate to Profile, verify the update remains deferred, and
@@ -26,3 +26,10 @@ not treated as a substitute for standalone-mode lifecycle behavior.
    build B and remains installed.
 6. Verify an existing push subscription still receives a notification and its tap opens
    the expected route.
+7. On iOS, add the app to the Home Screen; on Android, install it through the browser prompt.
+8. Verify the first standalone launch, safe areas, orientation changes, keyboard behavior, touch
+   gestures, modal scrolling, media playback, and file selection.
+9. Background and resume the app, then verify update checks, push delivery, and notification
+   clicks both while open and while closed.
+10. Launch offline, then verify app-shell availability. Confirm locale, login/session state, and
+    other stored preferences survive restarts and expected storage eviction behavior.

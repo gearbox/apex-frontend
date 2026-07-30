@@ -3,7 +3,7 @@
   import { moreSheetOpen, closeMoreSheet } from '$lib/stores/ui';
   import { isAdmin } from '$lib/stores/auth';
   import * as m from '$paraglide/messages';
-  import { Coins, Activity, User, Shield, Server, ChevronRight } from 'lucide-svelte';
+  import { Coins, Activity, User, Shield, Server, ChevronRight } from '@lucide/svelte';
   import AppVersionBadge from '$lib/components/shared/AppVersionBadge.svelte';
   import MobileNavSheet from './MobileNavSheet.svelte';
   import { viewportDebug } from '$lib/stores/debug.svelte';

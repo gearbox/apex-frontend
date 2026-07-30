@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { WifiOff } from 'lucide-svelte';
+  import { WifiOff } from '@lucide/svelte';
   import { isOffline } from '$lib/stores/network';
   import * as m from '$paraglide/messages';
 </script>

@@ -2,6 +2,10 @@ import type { Page } from '@playwright/test';
 import { test, expect } from '../fixtures/auth.fixture';
 import { jsonRoute } from '../helpers/api';
 
+// These assertions rely on page.route() for the library API. WebKit lets a
+// controlling worker bypass those handlers, so isolate this non-PWA suite.
+test.use({ serviceWorkers: 'block' });
+
 const projects = Array.from({ length: 8 }, (_, index) => ({
   id: `project-${index + 1}`,
   name: `Project ${index + 1}`,

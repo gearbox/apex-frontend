@@ -2,7 +2,7 @@
   import { imgAttrs } from '$lib/media/index';
   import { silentRefresh, remintContentCookie, type SilentRefreshResult } from '$lib/api/auth';
   import { getAuthFailureReason } from '$lib/stores/auth';
-  import { ImageOff } from 'lucide-svelte';
+  import { ImageOff } from '@lucide/svelte';
   import * as m from '$paraglide/messages';
   import type { components } from '$lib/api/types';
 
@@ -112,12 +112,10 @@
     }
 
     // Rung 2: the re-mint endpoint explicitly rejected the access token.
-    const result = await silentRefresh().catch(
-      (): SilentRefreshResult => ({
-        ok: false,
-        reason: 'network',
-      }),
-    );
+    const result = await silentRefresh().catch((): SilentRefreshResult => ({
+      ok: false,
+      reason: 'network',
+    }));
 
     if (originalUrl !== failedUrl) return;
 

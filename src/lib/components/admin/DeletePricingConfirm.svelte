@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { QueryClient } from '@tanstack/svelte-query';
   import { createMutation } from '@tanstack/svelte-query';
-  import { AlertTriangle, X } from 'lucide-svelte';
+  import { AlertTriangle, X } from '@lucide/svelte';
   import { deletePricingRuleMutationOptions } from '$lib/queries/admin';
   import { addToast } from '$lib/stores/toasts';
   import type { PricingRuleResponse } from '$lib/api/admin';

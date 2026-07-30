@@ -13,7 +13,7 @@
     Video,
     Maximize2,
     Minimize2,
-  } from 'lucide-svelte';
+  } from '@lucide/svelte';
   import {
     libraryAssetQueryOptions,
     libraryGroupQueryOptions,

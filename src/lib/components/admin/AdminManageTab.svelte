@@ -5,7 +5,7 @@
     createInfiniteQuery,
     createMutation,
   } from '@tanstack/svelte-query';
-  import { ShieldCheck, Trash2, AlertCircle, Plus, ChevronDown, ChevronUp } from 'lucide-svelte';
+  import { ShieldCheck, Trash2, AlertCircle, Plus, ChevronDown, ChevronUp } from '@lucide/svelte';
   import {
     adminListQueryOptions,
     auditLogQueryOptions,

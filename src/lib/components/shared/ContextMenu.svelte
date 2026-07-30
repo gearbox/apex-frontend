@@ -1,10 +1,11 @@
 <script lang="ts">
   import { isDesktop } from '$lib/utils/breakpoints';
-  import type { ComponentType, SvelteComponent, Snippet } from 'svelte';
+  import type { LucideIcon } from '@lucide/svelte';
+  import type { Snippet } from 'svelte';
 
   interface ContextMenuItem {
     label: string;
-    icon?: ComponentType<SvelteComponent>;
+    icon?: LucideIcon;
     variant?: 'default' | 'danger';
     onclick: () => void | Promise<void>;
     /** Fires before `click` — e.g. prewarming a share's blob cache before activation expires. */

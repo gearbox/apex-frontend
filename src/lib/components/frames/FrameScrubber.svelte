@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Plus, RotateCcw } from 'lucide-svelte';
+  import { Plus, RotateCcw } from '@lucide/svelte';
   import type { components } from '$lib/api/types';
   import {
     AuthenticatedMediaLoadError,

@@ -5,7 +5,7 @@
 
 <script lang="ts">
   import { isDesktop } from '$lib/utils/breakpoints';
-  import { Trash2 } from 'lucide-svelte';
+  import { Trash2 } from '@lucide/svelte';
   import * as m from '$paraglide/messages';
   import type { Snippet } from 'svelte';
 

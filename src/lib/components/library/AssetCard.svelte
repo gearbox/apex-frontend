@@ -8,7 +8,7 @@
     Layers,
     EllipsisVertical,
     Video,
-  } from 'lucide-svelte';
+  } from '@lucide/svelte';
   import Media from '$lib/media/Media.svelte';
   import ContextMenu from '$lib/components/shared/ContextMenu.svelte';
   import SwipeToDelete from '$lib/components/shared/SwipeToDelete.svelte';

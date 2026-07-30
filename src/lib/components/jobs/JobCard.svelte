@@ -1,6 +1,6 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { MoreHorizontal } from 'lucide-svelte';
+  import { MoreHorizontal } from '@lucide/svelte';
   import { timeAgo } from '$lib/utils/format';
   import { mediaFallbackSrc } from '$lib/media/index';
   import JobStatusBadge from './JobStatusBadge.svelte';

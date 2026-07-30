@@ -2,7 +2,7 @@
   import type { QueryClient } from '@tanstack/svelte-query';
   import { createMutation } from '@tanstack/svelte-query';
   import { untrack } from 'svelte';
-  import { X } from 'lucide-svelte';
+  import { X } from '@lucide/svelte';
   import { patchAdminUserMutationOptions } from '$lib/queries/admin';
   import { addToast } from '$lib/stores/toasts';
   import type { AdminUserResponse } from '$lib/api/admin';

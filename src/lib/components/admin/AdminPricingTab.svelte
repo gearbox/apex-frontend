@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createQuery, createMutation, useQueryClient } from '@tanstack/svelte-query';
-  import { Coins, AlertCircle, Plus, Pencil, Trash2 } from 'lucide-svelte';
+  import { Coins, AlertCircle, Plus, Pencil, Trash2 } from '@lucide/svelte';
   import { adminPricingQueryOptions, patchPricingRuleMutationOptions } from '$lib/queries/admin';
   import ToggleSwitch from '$lib/components/shared/ToggleSwitch.svelte';
   import PricingRuleModal from '$lib/components/admin/PricingRuleModal.svelte';

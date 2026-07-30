@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createQuery, useQueryClient } from '@tanstack/svelte-query';
-  import { Users, Pencil, Wallet, AlertCircle } from 'lucide-svelte';
+  import { Users, Pencil, Wallet, AlertCircle } from '@lucide/svelte';
   import { adminUsersQueryOptions } from '$lib/queries/admin';
   import { fetchUserAccount } from '$lib/api/admin';
   import type { AdminUserResponse } from '$lib/api/admin';

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
-  import { Play, Square, X, LogIn } from 'lucide-svelte';
+  import { Play, Square, X, LogIn } from '@lucide/svelte';
   import { createQuery } from '@tanstack/svelte-query';
   import StatusBadge from '$lib/components/shared/StatusBadge.svelte';
   import type { GpuSessionResponse } from '$lib/api/sessions';

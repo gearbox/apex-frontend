@@ -13,8 +13,8 @@ import {
   Download,
   Share,
   Trash2,
-} from 'lucide-svelte';
-import type { ComponentType, SvelteComponent } from 'svelte';
+} from '@lucide/svelte';
+import type { LucideIcon } from '@lucide/svelte';
 import { generationStore, type GenerationState } from '$lib/stores/generation';
 import { mediaFallbackSrc } from '$lib/media';
 import { ROUTES } from '$lib/utils/routes';
@@ -309,7 +309,7 @@ export function libraryActionGroup(action: LibraryUiAction): LibraryActionGroup 
   return null;
 }
 
-export const LIBRARY_ACTION_ICONS: Record<LibraryUiAction, ComponentType<SvelteComponent>> = {
+export const LIBRARY_ACTION_ICONS: Record<LibraryUiAction, LucideIcon> = {
   remix: Repeat2,
   create_variation: Shuffle,
   animate: Video,

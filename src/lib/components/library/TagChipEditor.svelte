@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
-  import { X } from 'lucide-svelte';
+  import { X } from '@lucide/svelte';
   import type { components } from '$lib/api/types';
   import {
     assetTagsMutationOptions,
