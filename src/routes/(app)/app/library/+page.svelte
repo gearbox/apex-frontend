@@ -9,7 +9,7 @@
     createQuery,
     useQueryClient,
   } from '@tanstack/svelte-query';
-  import { CheckSquare, Search, Upload as UploadIcon } from 'lucide-svelte';
+  import { CheckSquare, Search, Upload as UploadIcon } from '@lucide/svelte';
   import {
     libraryListInfiniteQueryOptions,
     libraryAssetQueryOptions,

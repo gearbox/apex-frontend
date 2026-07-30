@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Check } from 'lucide-svelte';
+  import { Check } from '@lucide/svelte';
   import type { components } from '$lib/api/types';
 
   type PreviewFrame = components['schemas']['PreviewFrame'];

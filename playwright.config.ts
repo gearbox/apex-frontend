@@ -11,6 +11,9 @@ export default defineConfig({
 
   use: {
     baseURL: 'http://localhost:4173',
+    // Application specs mock API calls with page.route(). A controlling worker
+    // can bypass those handlers in WebKit, so PWA coverage opts in per suite.
+    serviceWorkers: 'block',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'on-first-retry',
@@ -27,21 +30,23 @@ export default defineConfig({
       use: { ...devices['Pixel 5'] },
       grepInvert: /@desktop/,
     },
-    // WebKit (Safari/iOS) — requires macOS 14+ or Linux.
-    // Skipped locally on macOS 13; runs in CI via `playwright install webkit`.
-    ...(process.env.PLAYWRIGHT_WEBKIT === '1'
-      ? [
-          {
-            name: 'mobile-safari',
-            use: { ...devices['iPhone 15 Pro'] },
-            grepInvert: /@desktop/,
-          },
-        ]
-      : []),
+    // Keep iOS/Safari in the normal matrix. Playwright 1.57.0 is pinned because
+    // 1.58+ drops macOS 13 WebKit support for local pre-commit testing.
+    {
+      name: 'mobile-safari',
+      use: {
+        ...devices['iPhone 15 Pro'],
+        // The iOS install instructions are tested separately. Dismiss them for
+        // regular app flows so the onboarding sheet cannot mask the interaction
+        // the spec is exercising.
+        storageState: 'tests/e2e/fixtures/mobile-safari-storage-state.json',
+      },
+      grepInvert: /@desktop/,
+    },
   ],
 
   webServer: {
-    command: 'pnpm build && pnpm preview',
+    command: process.env.CI ? 'pnpm preview' : 'pnpm build && pnpm preview',
     port: 4173,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

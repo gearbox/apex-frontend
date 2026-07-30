@@ -22,7 +22,7 @@ Apex is an AI media generation platform. The PWA is a mobile-first, installable 
 | State           | Svelte stores + TanStack Query          | latest  |
 | API Client      | `openapi-fetch`                         | latest  |
 | PWA             | `@vite-pwa/sveltekit`                   | latest  |
-| Icons           | `lucide-svelte`                         | latest  |
+| Icons           | `@lucide/svelte`                        | latest  |
 | Fonts           | DM Sans + JetBrains Mono (Google Fonts) | —       |
 | Package Manager | pnpm                                    | latest  |
 | Hosting         | Cloudflare Pages                        | —       |

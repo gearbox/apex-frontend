@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
-  import { Check, Pencil, Plus, Settings2, Tag, Trash2, X } from 'lucide-svelte';
+  import { Check, Pencil, Plus, Settings2, Tag, Trash2, X } from '@lucide/svelte';
   import type { components } from '$lib/api/types';
   import {
     createTagMutationOptions,

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createQuery, createMutation, useQueryClient } from '@tanstack/svelte-query';
-  import { Landmark, AlertCircle, ChevronUp, ChevronDown } from 'lucide-svelte';
+  import { Landmark, AlertCircle, ChevronUp, ChevronDown } from '@lucide/svelte';
   import {
     adminPaymentProvidersQueryOptions,
     updatePaymentProviderMutationOptions,

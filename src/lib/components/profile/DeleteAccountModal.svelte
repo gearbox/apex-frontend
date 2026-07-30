@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createMutation } from '@tanstack/svelte-query';
-  import { AlertTriangle, X } from 'lucide-svelte';
+  import { AlertTriangle, X } from '@lucide/svelte';
   import { goto } from '$app/navigation';
   import { deleteAccountMutationOptions } from '$lib/queries/user';
   import { clearAuth } from '$lib/stores/auth';

@@ -2,7 +2,7 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { createQuery, createMutation, useQueryClient } from '@tanstack/svelte-query';
-  import { ChevronLeft, Coins, AlertCircle } from 'lucide-svelte';
+  import { ChevronLeft, Coins, AlertCircle } from '@lucide/svelte';
   import { jobDetailQueryOptions, deleteJobMutationOptions } from '$lib/queries/jobs';
   import JobStatusBadge from '$lib/components/jobs/JobStatusBadge.svelte';
   import JobOutputGrid from '$lib/components/jobs/JobOutputGrid.svelte';

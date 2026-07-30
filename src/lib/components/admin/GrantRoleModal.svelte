@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { QueryClient } from '@tanstack/svelte-query';
   import { createQuery, createMutation } from '@tanstack/svelte-query';
-  import { X } from 'lucide-svelte';
+  import { X } from '@lucide/svelte';
   import { adminUsersQueryOptions, grantRoleMutationOptions } from '$lib/queries/admin';
   import { addToast } from '$lib/stores/toasts';
   import { ApiRequestError } from '$lib/api/errors';

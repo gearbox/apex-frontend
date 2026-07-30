@@ -1,6 +1,6 @@
 <script lang="ts">
   import { generationStore } from '$lib/stores/generation';
-  import { ChevronDown } from 'lucide-svelte';
+  import { ChevronDown } from '@lucide/svelte';
   import type { components } from '$lib/api/types';
 
   type ModelInfo = components['schemas']['ModelInfo'];

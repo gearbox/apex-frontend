@@ -22,21 +22,14 @@ export interface PushEnableResult {
 }
 
 export type PushDisableStatus =
-  | 'disabled'
-  | 'service-worker-unavailable'
-  | 'browser-unsubscribe-failed'
-  | 'unsupported';
+  'disabled' | 'service-worker-unavailable' | 'browser-unsubscribe-failed' | 'unsupported';
 
 export interface PushDisableResult {
   status: PushDisableStatus;
 }
 
 export type PushPreparationStatus =
-  | 'prepared'
-  | 'needs-install'
-  | 'service-worker-unavailable'
-  | 'vapid-unavailable'
-  | 'unsupported';
+  'prepared' | 'needs-install' | 'service-worker-unavailable' | 'vapid-unavailable' | 'unsupported';
 
 export interface PushPreparationResult {
   status: PushPreparationStatus;

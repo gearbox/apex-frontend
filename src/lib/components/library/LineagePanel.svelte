@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createQuery } from '@tanstack/svelte-query';
-  import { ChevronRight, History, Image as ImageIcon } from 'lucide-svelte';
+  import { ChevronRight, History, Image as ImageIcon } from '@lucide/svelte';
   import type { components } from '$lib/api/types';
   import { lineageQueryOptions } from '$lib/queries/library';
   import { timeAgo } from '$lib/utils/format';

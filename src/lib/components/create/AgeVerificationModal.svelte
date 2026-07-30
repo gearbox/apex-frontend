@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { X } from 'lucide-svelte';
+  import { X } from '@lucide/svelte';
   import { verifyAge } from '$lib/api/user';
   import { isAtLeast18 } from '$lib/utils/age';
   import { ApiRequestError } from '$lib/api/errors';

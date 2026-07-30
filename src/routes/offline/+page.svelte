@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { WifiOff, RefreshCw } from 'lucide-svelte';
+  import { WifiOff, RefreshCw } from '@lucide/svelte';
 </script>
 
 <svelte:head>

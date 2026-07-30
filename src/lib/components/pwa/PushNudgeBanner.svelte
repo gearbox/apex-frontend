@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Bell, X } from 'lucide-svelte';
+  import { Bell, X } from '@lucide/svelte';
   import { pushNudge } from '$lib/stores/pushNudge.svelte';
   import * as m from '$paraglide/messages';
 </script>

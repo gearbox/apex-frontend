@@ -1,6 +1,6 @@
 <script lang="ts">
   import { generationStore } from '$lib/stores/generation';
-  import { ChevronDown } from 'lucide-svelte';
+  import { ChevronDown } from '@lucide/svelte';
 
   let open = $state(false);
 </script>

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { removeToast, type Toast } from '$lib/stores/toasts';
-  import { X } from 'lucide-svelte';
+  import { X } from '@lucide/svelte';
 
   let { toast }: { toast: Toast } = $props();
 

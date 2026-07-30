@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { CircleDollarSign } from 'lucide-svelte';
+  import { CircleDollarSign } from '@lucide/svelte';
   import * as m from '$paraglide/messages';
   import type { PublicCurrency } from '$lib/api/billing';
   import { fitCurrencyName } from './currencyNameFit';

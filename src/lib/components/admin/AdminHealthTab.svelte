@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
   import { createQuery } from '@tanstack/svelte-query';
-  import { Activity } from 'lucide-svelte';
+  import { Activity } from '@lucide/svelte';
   import { HealthStreamService, type HealthStreamStatus } from '$lib/services/healthStream';
   import { adminHealthQueryOptions, adminHealthHistoryQueryOptions } from '$lib/queries/admin';
   import StatusBadge from '$lib/components/shared/StatusBadge.svelte';

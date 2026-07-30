@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createQuery, createMutation, useQueryClient } from '@tanstack/svelte-query';
-  import { Cpu, AlertCircle } from 'lucide-svelte';
+  import { Cpu, AlertCircle } from '@lucide/svelte';
   import { adminModelsQueryOptions, toggleAdminModelMutationOptions } from '$lib/queries/admin';
   import ToggleSwitch from '$lib/components/shared/ToggleSwitch.svelte';
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Download, Share, Plus } from 'lucide-svelte';
+  import { Download, Share, Plus } from '@lucide/svelte';
   import {
     shouldShowInstallSheet,
     installPlatform,

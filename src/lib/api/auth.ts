@@ -46,8 +46,7 @@ interface ContentCookieResponse {
 
 /** Discriminated result — see AuthFailureReason for what each reason means to callers. */
 export type SilentRefreshResult =
-  | { ok: true }
-  | { ok: false; reason: AuthFailureReason | 'stale' | 'aborted' };
+  { ok: true } | { ok: false; reason: AuthFailureReason | 'stale' | 'aborted' };
 
 /** A cookie re-mint is intentionally more precise than a nullable expiry. */
 export type ContentCookieRemintResult =
@@ -68,11 +67,9 @@ export class AuthOperationCancelledError extends Error {
 
 /* ─── State ─── */
 let refreshFlight:
-  | { epoch: number; refreshToken: string; promise: Promise<SilentRefreshResult> }
-  | undefined;
+  { epoch: number; refreshToken: string; promise: Promise<SilentRefreshResult> } | undefined;
 let contentCookieRemintFlight:
-  | { epoch: number; accessToken: string; promise: Promise<ContentCookieRemintResult> }
-  | undefined;
+  { epoch: number; accessToken: string; promise: Promise<ContentCookieRemintResult> } | undefined;
 
 /* ─── Helper ─── */
 function toTokens(res: AuthResponse): AuthTokens {

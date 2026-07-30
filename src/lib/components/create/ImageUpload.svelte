@@ -2,7 +2,7 @@
   import { generationStore } from '$lib/stores/generation';
   import { addToast } from '$lib/stores/toasts';
   import { formatFileSize } from '$lib/utils/format';
-  import { X, ImageIcon, GalleryHorizontalEnd } from 'lucide-svelte';
+  import { X, ImageIcon, GalleryHorizontalEnd } from '@lucide/svelte';
   import ImagePickerModal from './ImagePickerModal.svelte';
   import type { ImagePickerSelection } from './ImagePickerModal.svelte';
   import { mediaFallbackSrc } from '$lib/media/index';

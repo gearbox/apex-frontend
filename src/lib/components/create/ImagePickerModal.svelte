@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { createInfiniteQuery, createMutation, useQueryClient } from '@tanstack/svelte-query';
-  import { X, Check, Trash2 } from 'lucide-svelte';
+  import { X, Check, Trash2 } from '@lucide/svelte';
   import {
     libraryListInfiniteQueryOptions,
     libraryAssetQueryOptions,

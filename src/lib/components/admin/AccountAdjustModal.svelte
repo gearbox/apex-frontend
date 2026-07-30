@@ -2,7 +2,7 @@
   import type { QueryClient } from '@tanstack/svelte-query';
   import { createQuery, createMutation } from '@tanstack/svelte-query';
   import { untrack } from 'svelte';
-  import { X } from 'lucide-svelte';
+  import { X } from '@lucide/svelte';
   import {
     accountBalanceQueryOptions,
     accountTransactionsQueryOptions,

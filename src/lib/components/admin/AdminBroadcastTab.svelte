@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createMutation, useQueryClient } from '@tanstack/svelte-query';
-  import { Megaphone } from 'lucide-svelte';
+  import { Megaphone } from '@lucide/svelte';
   import { sendBroadcastMutationOptions } from '$lib/queries/admin';
   import { addToast } from '$lib/stores/toasts';
   import { ApiRequestError } from '$lib/api/errors';
@@ -101,8 +101,7 @@
         bind:value={message}
         rows={4}
         maxlength={1000}
-        placeholder="Body of the notification…"
-      ></textarea>
+        placeholder="Body of the notification…"></textarea>
     </div>
 
     <!-- Expires at -->

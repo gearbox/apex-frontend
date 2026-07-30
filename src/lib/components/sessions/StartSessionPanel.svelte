@@ -1,7 +1,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { createQuery } from '@tanstack/svelte-query';
-  import { Zap } from 'lucide-svelte';
+  import { Zap } from '@lucide/svelte';
   import { balanceQueryOptions, canStartNewWork } from '$lib/stores/balanceGate';
   import { ROUTES } from '$lib/utils/routes';
   import * as m from '$paraglide/messages';

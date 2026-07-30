@@ -1,5 +1,8 @@
 import { test, expect } from '@playwright/test';
 
+// Logout exercises push-subscription cleanup through the registered worker.
+test.use({ serviceWorkers: 'allow' });
+
 const expiresAt = () => new Date(Date.now() + 900_000).toISOString();
 const cookieExpiresAt = () => new Date(Date.now() + 86_400_000).toISOString();
 

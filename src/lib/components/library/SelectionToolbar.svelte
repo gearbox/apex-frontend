@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createMutation, useQueryClient } from '@tanstack/svelte-query';
-  import { FolderPlus, Heart, HeartOff, Tag, Trash2, X } from 'lucide-svelte';
+  import { FolderPlus, Heart, HeartOff, Tag, Trash2, X } from '@lucide/svelte';
   import type { components } from '$lib/api/types';
   import {
     bulkMutationOptions,

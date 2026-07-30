@@ -2,7 +2,7 @@
   import type { QueryClient } from '@tanstack/svelte-query';
   import { createQuery, createMutation } from '@tanstack/svelte-query';
   import { untrack } from 'svelte';
-  import { X } from 'lucide-svelte';
+  import { X } from '@lucide/svelte';
   import {
     adminModelsQueryOptions,
     createPricingRuleMutationOptions,
@@ -194,8 +194,7 @@
           bind:value={notes}
           rows={3}
           maxlength={500}
-          placeholder="Optional notes…"
-        ></textarea>
+          placeholder="Optional notes…"></textarea>
       </div>
     </div>
 

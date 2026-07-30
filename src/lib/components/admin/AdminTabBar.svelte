@@ -9,7 +9,7 @@
     ShieldCheck,
     Activity,
     Landmark,
-  } from 'lucide-svelte';
+  } from '@lucide/svelte';
 
   interface TabDef {
     id: string;

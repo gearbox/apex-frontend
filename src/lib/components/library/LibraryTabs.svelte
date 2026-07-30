@@ -4,7 +4,7 @@
 
 <script lang="ts">
   import * as m from '$paraglide/messages';
-  import { Square, SquareCheckBig } from 'lucide-svelte';
+  import { Square, SquareCheckBig } from '@lucide/svelte';
 
   let {
     active,

@@ -1,0 +1,7 @@
+# Fail closed when a dependency introduces a build script. These scripts are not
+# needed by Apex; additions must be reviewed and explicitly allowed first.
+strictDepBuilds: true
+
+allowBuilds:
+  esbuild: false
+  msw: false
