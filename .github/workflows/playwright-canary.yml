@@ -1,0 +1,78 @@
+name: Playwright latest canary
+
+on:
+  schedule:
+    - cron: '23 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: playwright-canary-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  latest:
+    # A passing canary is evaluation input; it never changes the local 1.57 baseline automatically.
+    continue-on-error: true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 10.32.0
+          run_install: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - name: Prepare an ephemeral latest-Playwright workspace
+        id: candidate
+        shell: bash
+        run: |
+          candidate_dir="$(mktemp -d)"
+          git archive --format=tar HEAD | tar -x -C "$candidate_dir"
+          candidate_version="$(pnpm view @playwright/test version)"
+          if ! [[ "$candidate_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            printf 'Unexpected Playwright candidate version: %s\n' "$candidate_version" >&2
+            exit 1
+          fi
+          printf 'path=%s\nversion=%s\n' "$candidate_dir" "$candidate_version" >> "$GITHUB_OUTPUT"
+      - name: Install and test the candidate
+        working-directory: ${{ steps.candidate.outputs.path }}
+        env:
+          CANDIDATE_VERSION: ${{ steps.candidate.outputs.version }}
+        run: |
+          pnpm install --frozen-lockfile --ignore-scripts
+          baseline_version="$(node -p "require('./package.json').devDependencies['@playwright/test']")"
+          pnpm add --ignore-scripts --save-dev --save-exact --config.lockfile=false "@playwright/test@$CANDIDATE_VERSION"
+          ./node_modules/.bin/playwright install --with-deps chromium webkit
+          candidate_package_version="$(node -p "require('./node_modules/@playwright/test/package.json').version")"
+          installed_browsers="$(./node_modules/.bin/playwright install --list)"
+          chromium_version="$(printf '%s\n' "$installed_browsers" | awk '/chromium-/ { print $1; exit }')"
+          webkit_version="$(printf '%s\n' "$installed_browsers" | awk '/webkit-/ { print $1; exit }')"
+          test -n "$chromium_version"
+          test -n "$webkit_version"
+          {
+            printf 'Pinned baseline: %s\n' "$baseline_version"
+            printf 'Candidate package: %s\n' "$candidate_package_version"
+            printf 'Chromium: %s\n' "$chromium_version"
+            printf 'WebKit: %s\n' "$webkit_version"
+          } | tee playwright-canary.txt
+          cat playwright-canary.txt >> "$GITHUB_STEP_SUMMARY"
+          pnpm build
+          pnpm test:e2e
+      - name: Upload latest-Playwright diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-canary-${{ steps.candidate.outputs.version }}
+          path: |
+            ${{ steps.candidate.outputs.path }}/playwright-canary.txt
+            ${{ steps.candidate.outputs.path }}/playwright-report
+            ${{ steps.candidate.outputs.path }}/test-results
+          if-no-files-found: ignore
