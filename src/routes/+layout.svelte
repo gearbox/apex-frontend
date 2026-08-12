@@ -13,6 +13,8 @@
   import { locale } from '$lib/stores/locale';
   import { API_BASE_URL, STORAGE_KEYS } from '$lib/utils/constants';
   import { isBrowser } from '$lib/utils/env';
+  import { getInstallPlatform, isStandalone } from '$lib/utils/platform';
+  import { resolveAppViewportHeight } from '$lib/utils/appViewport';
   import { registerPwaServiceWorker } from '$lib/services/pwaRegistration';
   import { disposePwaUpdateService } from '$lib/services/pwaUpdate';
   import { initGenerationDraftGuard } from '$lib/services/generationDraftGuard';
@@ -31,26 +33,22 @@
   // skeleton on More-sheet destinations), WebKit transiently reports
   // innerHeight/visualViewport.height = screen.height − safe-area-inset-top
   // (956 → 894 → 956) and does not reliably emit the restoring resize event.
-  // Without the clamp, --app-height captures the dip and the shell renders
-  // ~62px short for the rest of the session. Clamping to screen.height floors
-  // the dip; screen.* is the only session-invariant metric.
+  // resolveAppViewportHeight preserves the screen-height floor for iOS only.
+  // Android standalone must use the actual visual viewport; screen.height may
+  // include browser/system UI outside the visible PWA and would make the shell
+  // too tall, pushing the bottom navigation below the screen.
   // Debug overlay: 5 taps on the version badge in the More sheet (or ?vpdebug=1).
-  const CLAMP_TO_SCREEN = true; // kill switch: flip to false if clamping proves wrong on device
-
   const updateAppHeight = () => {
-    let h = window.visualViewport?.height ?? window.innerHeight;
-    const standalone =
-      window.matchMedia('(display-mode: standalone)').matches ||
-      ('standalone' in navigator && (navigator as { standalone?: boolean }).standalone === true);
-    if (CLAMP_TO_SCREEN && standalone) {
-      // iOS reports screen.width/height portrait-fixed regardless of orientation
-      const portrait = window.matchMedia('(orientation: portrait)').matches;
-      const screenH = portrait
-        ? Math.max(window.screen.width, window.screen.height)
-        : Math.min(window.screen.width, window.screen.height);
-      h = Math.max(h, screenH);
-    }
-    document.documentElement.style.setProperty('--app-height', `${Math.round(h)}px`);
+    const h = resolveAppViewportHeight({
+      visualViewportHeight: window.visualViewport?.height,
+      innerHeight: window.innerHeight,
+      screenWidth: window.screen.width,
+      screenHeight: window.screen.height,
+      portrait: window.matchMedia('(orientation: portrait)').matches,
+      standalone: isStandalone(),
+      platform: getInstallPlatform(),
+    });
+    document.documentElement.style.setProperty('--app-height', `${h}px`);
   };
 
   afterNavigate(() => {
