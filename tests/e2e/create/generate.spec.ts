@@ -116,64 +116,70 @@ test.describe('Generate page', () => {
     await expect(generateBtn).toBeDisabled();
   });
 
-  test('3. Job submission shows loading state', async ({ authenticatedPage: page }) => {
-    await page.route('**/v1/generate', async (route) => {
-      const headers = route.request().headers();
-      if (!headers['idempotency-key']) {
+  test(
+    '3. Job submission shows loading state',
+    { tag: '@cross-browser' },
+    async ({ authenticatedPage: page }) => {
+      await page.route('**/v1/generate', async (route) => {
+        const headers = route.request().headers();
+        if (!headers['idempotency-key']) {
+          return route.fulfill({
+            status: 400,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              error: 'validation_error',
+              message: 'Missing Idempotency-Key',
+              status_code: 400,
+            }),
+          });
+        }
         return route.fulfill({
-          status: 400,
+          status: 201,
           contentType: 'application/json',
-          body: JSON.stringify({
-            error: 'validation_error',
-            message: 'Missing Idempotency-Key',
-            status_code: 400,
-          }),
+          body: JSON.stringify(mockGenerateResponse),
         });
-      }
-      return route.fulfill({
-        status: 201,
-        contentType: 'application/json',
-        body: JSON.stringify(mockGenerateResponse),
       });
-    });
-    await page.route(
-      '**/v1/jobs/**',
-      jsonRoute({
-        id: 'job_e2e_001',
-        status: 'running',
-        name: 'E2E generation',
-        provider: 'aisha',
-        model: 'aisha-image',
-        generation_type: 't2i',
-        prompt: 'A beautiful test image',
-        created_at: '2025-01-01T00:00:00Z',
-        outputs: [],
-      }),
-    );
+      await page.route(
+        '**/v1/jobs/**',
+        jsonRoute({
+          id: 'job_e2e_001',
+          status: 'running',
+          name: 'E2E generation',
+          provider: 'aisha',
+          model: 'aisha-image',
+          generation_type: 't2i',
+          prompt: 'A beautiful test image',
+          created_at: '2025-01-01T00:00:00Z',
+          outputs: [],
+        }),
+      );
 
-    // Navigate with ?prompt= pre-populated — avoids synthetic input event issues
-    // in Svelte 5 production builds where CDP key events don't trigger oninput handlers.
-    await page.goto('/app/create?prompt=A+beautiful+test+image');
+      // Navigate with ?prompt= pre-populated — avoids synthetic input event issues
+      // in Svelte 5 production builds where CDP key events don't trigger oninput handlers.
+      await page.goto('/app/create?prompt=A+beautiful+test+image');
 
-    // Wait for the first visible Generate button (there are two in DOM: desktop inline + mobile sticky)
-    const generateBtn = page.getByRole('button', { name: /Generate/i }).first();
-    await expect(generateBtn).toBeEnabled();
-    await generateBtn.click();
+      // Wait for the first visible Generate button (there are two in DOM: desktop inline + mobile sticky)
+      const generateBtn = page.getByRole('button', { name: /Generate/i }).first();
+      await expect(generateBtn).toBeEnabled();
+      await generateBtn.click();
 
-    // Should show generating/submitting state
-    await expect(page.getByRole('button', { name: /Submitting|Generating/i })).toBeVisible();
-  });
+      // Should show generating/submitting state
+      await expect(page.getByRole('button', { name: /Submitting|Generating/i })).toBeVisible();
+    },
+  );
 
-  test('4. Mobile layout: sticky Generate button is present at 375px', async ({
-    authenticatedPage: page,
-  }) => {
-    await page.setViewportSize({ width: 375, height: 812 });
-    await page.goto('/app/create');
+  test(
+    '4. Mobile layout: sticky Generate button is present at 375px',
+    { tag: '@mobile' },
+    async ({ authenticatedPage: page }) => {
+      await page.setViewportSize({ width: 375, height: 812 });
+      await page.goto('/app/create');
 
-    // On mobile the button is in the sticky bar (fixed bottom)
-    const generateBtn = page.getByRole('button', { name: /Generate/i });
-    await expect(generateBtn).toBeVisible();
-  });
+      // On mobile the button is in the sticky bar (fixed bottom)
+      const generateBtn = page.getByRole('button', { name: /Generate/i });
+      await expect(generateBtn).toBeVisible();
+    },
+  );
 });
 
 test.describe('Aisha image advanced params', () => {

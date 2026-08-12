@@ -12,7 +12,7 @@ async function prepareCleanIosBrowser(page: Parameters<typeof emulateStandaloneM
   await page.route('**/v1/billing/pricing', jsonRoute([]));
 }
 
-test.describe('iOS install onboarding @mobile', () => {
+test.describe('iOS install onboarding @mobile-webkit', () => {
   test.skip(
     ({ browserName }) => browserName !== 'webkit',
     'iOS install guidance is exercised by the mobile Safari project.',

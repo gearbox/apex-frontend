@@ -159,51 +159,53 @@ test.describe('Sessions page', () => {
     await expect(page.getByRole('button', { name: 'Start Session' })).toBeVisible();
   });
 
-  test('2. Start session → provisioning → shows progress bar', async ({
-    authenticatedPage: page,
-  }) => {
-    let listCallCount = 0;
-    await page.route(
-      (url) => url.pathname.startsWith('/v1/sessions'),
-      async (route) => {
-        const url2 = new URL(route.request().url());
-        const method = route.request().method();
-        const path = url2.pathname;
+  test(
+    '2. Start session → provisioning → shows progress bar',
+    { tag: '@cross-browser' },
+    async ({ authenticatedPage: page }) => {
+      let listCallCount = 0;
+      await page.route(
+        (url) => url.pathname.startsWith('/v1/sessions'),
+        async (route) => {
+          const url2 = new URL(route.request().url());
+          const method = route.request().method();
+          const path = url2.pathname;
 
-        if (method === 'POST' && path === '/v1/sessions') {
-          listCallCount = 1; // mark as started so next list returns provisioning session
-          return route.fulfill({
-            status: 201,
-            contentType: 'application/json',
-            body: JSON.stringify(mockProvisioningSession),
-          });
-        }
-        if (method === 'GET' && path !== '/v1/sessions') {
+          if (method === 'POST' && path === '/v1/sessions') {
+            listCallCount = 1; // mark as started so next list returns provisioning session
+            return route.fulfill({
+              status: 201,
+              contentType: 'application/json',
+              body: JSON.stringify(mockProvisioningSession),
+            });
+          }
+          if (method === 'GET' && path !== '/v1/sessions') {
+            return route.fulfill({
+              status: 200,
+              contentType: 'application/json',
+              body: JSON.stringify(mockProvisioningSession),
+            });
+          }
+          // List: first call returns empty, subsequent calls return provisioning session
+          const sessions = listCallCount > 0 ? [mockProvisioningSession] : [];
           return route.fulfill({
             status: 200,
             contentType: 'application/json',
-            body: JSON.stringify(mockProvisioningSession),
+            body: JSON.stringify({ sessions }),
           });
-        }
-        // List: first call returns empty, subsequent calls return provisioning session
-        const sessions = listCallCount > 0 ? [mockProvisioningSession] : [];
-        return route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({ sessions }),
-        });
-      },
-    );
+        },
+      );
 
-    await page.goto('/app/sessions');
-    await expect(page.getByRole('button', { name: 'Start Session' })).toBeVisible({
-      timeout: 5000,
-    });
-    await page.getByRole('button', { name: 'Start Session' }).click();
+      await page.goto('/app/sessions');
+      await expect(page.getByRole('button', { name: 'Start Session' })).toBeVisible({
+        timeout: 5000,
+      });
+      await page.getByRole('button', { name: 'Start Session' }).click();
 
-    // Progress bar (.progress-wrap has role="progressbar") appears for provisioning sessions
-    await expect(page.getByRole('progressbar')).toBeVisible({ timeout: 8000 });
-  });
+      // Progress bar (.progress-wrap has role="progressbar") appears for provisioning sessions
+      await expect(page.getByRole('progressbar')).toBeVisible({ timeout: 8000 });
+    },
+  );
 
   test('3. Active session shows Stop button', async ({ authenticatedPage: page }) => {
     await page.route(

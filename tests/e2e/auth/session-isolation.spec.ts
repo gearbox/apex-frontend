@@ -65,7 +65,9 @@ function libraryPage(id: string) {
   };
 }
 
-test('A logout then B login in the same tab does not retain A library state', async ({ page }) => {
+test('A logout then B login in the same tab does not retain A library state @cross-browser', async ({
+  page,
+}) => {
   await page.route('**/v1/auth/login', async (route) => {
     const body = (await route.request().postDataJSON()) as { email: string };
     const id = body.email.startsWith('b@') ? 'user-b' : 'user-a';

@@ -557,14 +557,18 @@ test.describe('Library page', () => {
     );
   });
 
-  test('1. Library loads and displays items', async ({ authenticatedPage: page }) => {
-    await page.route((url) => url.pathname === '/v1/library', jsonRoute(mockLibraryPage));
+  test(
+    '1. Library loads and displays items',
+    { tag: '@cross-browser' },
+    async ({ authenticatedPage: page }) => {
+      await page.route((url) => url.pathname === '/v1/library', jsonRoute(mockLibraryPage));
 
-    await page.goto('/app/library');
-    await expect(page.locator('.animate-pulse').first()).not.toBeVisible({ timeout: 5000 });
+      await page.goto('/app/library');
+      await expect(page.locator('.animate-pulse').first()).not.toBeVisible({ timeout: 5000 });
 
-    await expect(page.getByText(/4.*loaded/i)).toBeVisible();
-  });
+      await expect(page.getByText(/4.*loaded/i)).toBeVisible();
+    },
+  );
 
   test('2. Empty library state shows message', async ({ authenticatedPage: page }) => {
     await page.route(
@@ -580,9 +584,7 @@ test.describe('Library page', () => {
   });
 
   test('3. Filter buttons switch media_type (server-side)', async ({ authenticatedPage: page }) => {
-    const requests: string[] = [];
     await page.route('**/v1/library*', (route) => {
-      requests.push(route.request().url());
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -593,11 +595,12 @@ test.describe('Library page', () => {
     await page.goto('/app/library');
     await expect(page.getByText(/\d+\s*loaded/i)).toBeVisible({ timeout: 5000 });
 
+    const imageRequest = page.waitForRequest(
+      (request) =>
+        request.url().includes('/v1/library') && request.url().includes('media_type=image'),
+    );
     await page.getByRole('button', { name: 'Images' }).click();
-    await page.waitForTimeout(500);
-
-    const imageRequest = requests.find((r) => r.includes('media_type=image'));
-    expect(imageRequest).toBeTruthy();
+    expect((await imageRequest).url()).toContain('media_type=image');
   });
 
   test('4. Asset Details sheet opens on card click and shows detail', async ({
