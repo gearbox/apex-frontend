@@ -1,7 +1,11 @@
 import { test, expect } from '@playwright/test';
 
-// Logout exercises push-subscription cleanup through the registered worker.
-test.use({ serviceWorkers: 'allow' });
+// This auth-isolation flow uses page.route() for every API transition. Keep
+// service workers blocked (the global default): a controlling WebKit worker can
+// bypass those mocks, turning a deterministic A → logout → B scenario into a
+// request to an unavailable backend. Push-detachment behavior is covered by
+// the push/auth unit suites; this spec verifies the user-visible cache boundary.
+test.use({ serviceWorkers: 'block' });
 
 const expiresAt = () => new Date(Date.now() + 900_000).toISOString();
 const cookieExpiresAt = () => new Date(Date.now() + 86_400_000).toISOString();
