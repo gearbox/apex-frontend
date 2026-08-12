@@ -58,11 +58,18 @@ jobs:
       - uses: ./.github/actions/setup-project
       - run: pnpm generate
       - run: pnpm build
-      - name: Upload production build
+      # `pnpm preview` is SvelteKit's Vite preview. Besides the static adapter
+      # output in build/, it imports the generated server/client/prerendered
+      # runtime below. Keep both from this one build; E2E must not rebuild.
+      - name: Upload production preview artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: production-build
-          path: build
+          path: |
+            build
+            .svelte-kit/output
+          # upload-artifact excludes dot-directories unless this is explicit.
+          include-hidden-files: true
           if-no-files-found: error
           retention-days: 1
 
@@ -80,10 +87,17 @@ jobs:
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v8.0.0
         with:
           name: production-build
-          path: build
-      - name: Verify production build artifact
+          path: .
+      # This creates .svelte-kit/tsconfig.json for Vite config loading only.
+      # It does not run vite build or replace the downloaded preview output.
+      - run: pnpm generate
+      - name: Verify production preview artifact
         shell: bash
-        run: test -f build/index.html
+        run: |
+          test -f build/index.html
+          test -f .svelte-kit/output/server/index.js
+          test -d .svelte-kit/output/client
+          test -d .svelte-kit/output/prerendered
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test:e2e:chromium
       - name: Upload Chromium diagnostics
@@ -111,10 +125,17 @@ jobs:
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v8.0.0
         with:
           name: production-build
-          path: build
-      - name: Verify production build artifact
+          path: .
+      # Generate the config/type scaffolding needed to load Vite, without
+      # rebuilding the production artifact consumed by this browser lane.
+      - run: pnpm generate
+      - name: Verify production preview artifact
         shell: bash
-        run: test -f build/index.html
+        run: |
+          test -f build/index.html
+          test -f .svelte-kit/output/server/index.js
+          test -d .svelte-kit/output/client
+          test -d .svelte-kit/output/prerendered
       - run: pnpm exec playwright install --with-deps webkit
       - run: pnpm test:e2e:webkit
       - name: Upload WebKit diagnostics

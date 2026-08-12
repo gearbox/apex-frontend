@@ -13,10 +13,11 @@ build ──> chromium ─┤
 ```
 
 `quality`, `unit`, and `build` start from independent clean checkouts. `build`
-generates the production output once and uploads only `build/`; both browser
-lanes download that artifact and serve it with `pnpm preview`. This keeps the
-browser checks on the exact output that passed the build lane rather than
-silently rebuilding it.
+generates the production output once and uploads `build/` plus SvelteKit's small
+`.svelte-kit/output` preview runtime. Both browser lanes download that artifact,
+regenerate only the SvelteKit TypeScript config, and serve it with `pnpm preview`.
+This keeps the browser checks on the exact output that passed the build lane
+rather than silently rebuilding it.
 
 The jobs deliberately retain one Playwright worker each. Chromium and WebKit
 gain parallelism from separate GitHub runners, not from competing browser
