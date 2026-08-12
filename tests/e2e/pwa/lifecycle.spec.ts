@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 
 test.use({ serviceWorkers: 'allow' });
 
-test.describe('PWA update lifecycle fixture', () => {
+test.describe('PWA update lifecycle fixture @mobile-chrome', () => {
   test('a dirty page keeps B waiting, ignores legacy activation, then updates once on confirmation', async ({
     page,
   }) => {
@@ -72,7 +72,7 @@ test.describe('PWA update lifecycle fixture', () => {
   });
 });
 
-test('production output keeps lifecycle resources revalidatable and the precache public', ({
+test('production output keeps lifecycle resources revalidatable and the precache public @mobile-chrome', ({
   browserName,
 }) => {
   test.skip(

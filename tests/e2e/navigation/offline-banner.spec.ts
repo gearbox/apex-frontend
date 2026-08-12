@@ -1,6 +1,6 @@
 import { test, expect } from '../fixtures/auth.fixture';
 
-test.describe('Offline Banner', () => {
+test.describe('Offline Banner @cross-browser', () => {
   test('shows offline banner when network is lost and hides when back online', async ({
     authenticatedPage: page,
   }) => {

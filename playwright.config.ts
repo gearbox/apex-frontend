@@ -5,9 +5,12 @@ export default defineConfig({
   testMatch: '**/*.spec.ts',
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
+  // A retry is a diagnostic safety net, not a way to hide a flaky test.
+  retries: process.env.CI ? 1 : 0,
   workers: process.env.CI ? 1 : undefined,
-  reporter: [['html', { outputFolder: 'playwright-report' }]],
+  reporter: process.env.CI
+    ? [['line'], ['html', { outputFolder: 'playwright-report', open: 'never' }]]
+    : [['html', { outputFolder: 'playwright-report' }]],
 
   use: {
     baseURL: 'http://localhost:4173',
@@ -23,12 +26,14 @@ export default defineConfig({
     {
       name: 'desktop-chrome',
       use: { ...devices['Desktop Chrome'] },
-      grepInvert: /@mobile/,
+      grepInvert: /@mobile(?!-)|@mobile-chrome|@mobile-webkit/,
     },
     {
       name: 'mobile-chrome',
       use: { ...devices['Pixel 5'] },
-      grepInvert: /@desktop/,
+      // Browser-independent behavior runs once in desktop Chromium. These tags
+      // retain Android-specific and critical cross-mobile coverage.
+      grep: /@mobile(?!-)|@mobile-chrome|@cross-browser/,
     },
     // Keep iOS/Safari in the normal matrix. Playwright 1.57.0 is pinned because
     // 1.58+ drops macOS 13 WebKit support for local pre-commit testing.
@@ -41,7 +46,8 @@ export default defineConfig({
         // the spec is exercising.
         storageState: 'tests/e2e/fixtures/mobile-safari-storage-state.json',
       },
-      grepInvert: /@desktop/,
+      // Keep the iOS lane purposeful: touch/PWA behavior and critical journeys.
+      grep: /@mobile(?!-)|@mobile-webkit|@cross-browser/,
     },
   ],
 

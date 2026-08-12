@@ -477,6 +477,20 @@ describe('reconcileOnLaunch', () => {
 });
 
 describe('detachPushOnLogout', () => {
+  it('does not wait for a worker that has not registered while ending a session', async () => {
+    const getRegistration = vi.fn().mockResolvedValue(undefined);
+    stubNavigator({
+      serviceWorker: {
+        getRegistration,
+        ready: new Promise<ServiceWorkerRegistration>(() => {}),
+      },
+    });
+
+    await detachPushOnLogout(USER_A);
+
+    expect(getRegistration).toHaveBeenCalledOnce();
+  });
+
   it('deletes both a live endpoint and a different stale current-user marker', async () => {
     const liveSubscription = makeFakeSubscription('https://push.example.com/logout-live');
     const storedEndpoint = 'https://push.example.com/logout-stale';

@@ -1,7 +1,11 @@
 import { test, expect } from '@playwright/test';
 
-// Logout exercises push-subscription cleanup through the registered worker.
-test.use({ serviceWorkers: 'allow' });
+// This auth-isolation flow uses page.route() for every API transition. Keep
+// service workers blocked (the global default): a controlling WebKit worker can
+// bypass those mocks, turning a deterministic A → logout → B scenario into a
+// request to an unavailable backend. Push-detachment behavior is covered by
+// the push/auth unit suites; this spec verifies the user-visible cache boundary.
+test.use({ serviceWorkers: 'block' });
 
 const expiresAt = () => new Date(Date.now() + 900_000).toISOString();
 const cookieExpiresAt = () => new Date(Date.now() + 86_400_000).toISOString();
@@ -65,7 +69,9 @@ function libraryPage(id: string) {
   };
 }
 
-test('A logout then B login in the same tab does not retain A library state', async ({ page }) => {
+test('A logout then B login in the same tab does not retain A library state @cross-browser', async ({
+  page,
+}) => {
   await page.route('**/v1/auth/login', async (route) => {
     const body = (await route.request().postDataJSON()) as { email: string };
     const id = body.email.startsWith('b@') ? 'user-b' : 'user-a';

@@ -20,7 +20,7 @@ const mockUserProfile = {
   updated_at: '2025-01-01T00:00:00Z',
 };
 
-test.describe('Login page', () => {
+test.describe('Login page @cross-browser', () => {
   test('1. Successful login redirects to /app/create', async ({ page }) => {
     await page.route('**/v1/auth/login', jsonRoute(mockTokenResponse));
     await page.route('**/v1/auth/refresh', jsonRoute(mockTokenResponse));

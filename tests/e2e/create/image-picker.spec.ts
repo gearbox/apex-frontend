@@ -243,9 +243,9 @@ test.describe('Image Picker', () => {
 
     await page.getByRole('button', { name: /Choose from library/i }).click();
 
-    // Wait for uploads to load then click first thumbnail
-    await page.waitForTimeout(500);
-    await page.locator('[aria-pressed]').first().click();
+    const items = page.locator('[aria-pressed]');
+    await expect(items.first()).toBeVisible();
+    await items.first().click();
 
     const confirmBtn = page.getByRole('button', { name: /Use Selected Image/i });
     await expect(confirmBtn).toBeEnabled();
@@ -287,8 +287,9 @@ test.describe('Image Picker', () => {
     await page.getByRole('button', { name: /Choose from library/i }).click();
     await page.getByRole('tab', { name: /Generated/i }).click();
 
-    await page.waitForTimeout(500);
-    await page.locator('[aria-pressed]').first().click();
+    const items = page.locator('[aria-pressed]');
+    await expect(items.first()).toBeVisible();
+    await items.first().click();
     await page.getByRole('button', { name: /Use Selected Image/i }).click();
 
     // Prompt should be auto-filled with the full prompt from the asset detail
@@ -317,8 +318,8 @@ test.describe('Image Picker', () => {
     await page.getByRole('tab', { name: /Generated/i }).click();
 
     // Select the i2i item (second item in the grid)
-    await page.waitForTimeout(500);
     const items = page.locator('[aria-pressed]');
+    await expect(items).toHaveCount(2);
     await items.nth(1).click();
     await page.getByRole('button', { name: /Use Selected Image/i }).click();
 
@@ -336,8 +337,9 @@ test.describe('Image Picker', () => {
 
     // Select from picker
     await page.getByRole('button', { name: /Choose from library/i }).click();
-    await page.waitForTimeout(500);
-    await page.locator('[aria-pressed]').first().click();
+    const items = page.locator('[aria-pressed]');
+    await expect(items.first()).toBeVisible();
+    await items.first().click();
     await page.getByRole('button', { name: /Use Selected Image/i }).click();
 
     await expect(page.getByText('From uploads')).toBeVisible();

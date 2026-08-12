@@ -386,6 +386,20 @@ export async function getLivePushSubscription(): Promise<PushSubscription | null
   return registration.pushManager.getSubscription();
 }
 
+/**
+ * Read a subscription from an already registered worker without waiting for
+ * `navigator.serviceWorker.ready`. Enabling/reconciling push may reasonably
+ * wait for a worker that is still installing; logout must not delay ending a
+ * session when no worker is registered. Any persisted endpoint is still
+ * detached by the caller even when there is no live registration to inspect.
+ */
+async function getExistingPushSubscription(): Promise<PushSubscription | null> {
+  if (!('serviceWorker' in navigator)) return null;
+
+  const registration = capturedRegistration ?? (await navigator.serviceWorker.getRegistration());
+  return registration ? registration.pushManager.getSubscription() : null;
+}
+
 /** True for only the failures that should keep a granted-permission retry nudge eligible. */
 export function isRetryablePushEnableStatus(status: PushEnableStatus): boolean {
   return (
@@ -542,7 +556,7 @@ export async function detachPushOnLogout(userId: string): Promise<void> {
   const stored = readStoredPushRegistration();
   let subscription: PushSubscription | null = null;
   try {
-    subscription = await getLivePushSubscription();
+    subscription = await getExistingPushSubscription();
   } catch (error) {
     reportPushFailure('logout-browser-subscription-read', error);
   }
