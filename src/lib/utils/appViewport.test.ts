@@ -30,6 +30,20 @@ describe('resolveAppViewportHeight', () => {
     ).toBe(956);
   });
 
+  it('uses the landscape screen height as the iOS standalone floor', () => {
+    expect(
+      resolveAppViewportHeight({
+        visualViewportHeight: 380,
+        innerHeight: 380,
+        screenWidth: 956,
+        screenHeight: 440,
+        portrait: false,
+        standalone: true,
+        platform: 'ios',
+      }),
+    ).toBe(440);
+  });
+
   it('uses the visible viewport for iOS outside standalone mode', () => {
     expect(
       resolveAppViewportHeight({
