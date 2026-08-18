@@ -55,7 +55,7 @@
         {cancelLabel ?? m.common_cancel()}
       </button>
       <button class="btn-delete" onclick={onconfirm} disabled={isPending}>
-        {isPending ? '…' : (confirmLabel ?? m.common_delete())}
+        {confirmLabel ?? m.common_delete()}
       </button>
     </div>
   </div>
