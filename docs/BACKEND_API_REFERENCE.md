@@ -1,6 +1,98 @@
 # Backend API Reference — Apex REST API
 
-> _Last updated: 2026-07-26 — **Token-revocation-failure alerting** (§15c, §17): closes the last
+> _Last updated: 2026-07-28 — **Review remediation r2: serialize push-subscription creation
+> against bulk revocation** (§15b): `POST /v1/push/subscriptions` could commit a fresh
+> subscription row *after* a concurrent bulk revocation (logout-all, password change/reset,
+> deactivation, refresh-token reuse detection) had already run its cleanup — `push_subscriptions.
+> user_id` carries `ON DELETE CASCADE`, so the insert's implicit `FOR KEY SHARE` lock on the user
+> row blocks behind the bulk path's `FOR UPDATE`, then proceeds to insert regardless once the bulk
+> transaction commits. The device the revocation was meant to unsubscribe stayed subscribed
+> indefinitely. Fixed by having the handler acquire the same user-row lock
+> (`UserRepository.lock_user_for_session_change`) *before* re-checking revocation and upserting:
+> whichever side wins the lock, the other observes a consistent outcome — either the bulk delete's
+> subsequent snapshot includes the new row, or the insert's re-check sees the epoch the bulk path
+> just wrote and rejects with `401`. Lock ordering is user-row-only in this handler, so it cannot
+> invert the user-row -> refresh-token-row ordering the bulk paths already rely on. Fails open on
+> Redis unavailability, consistent with every other revocation check in this codebase — a cache
+> outage must not block push registration. This required exposing the decoded JWT `TokenPayload`
+> (previously discarded once `auth_guard` returned) via `connection.state["token_payload"]` and a
+> new `get_current_token_payload` DI dependency, following the existing `current_user_id` pattern;
+> `optional_auth_guard` mirrors this for consistency, explicitly setting `None` on the anonymous
+> path. Proven by a 50-iteration-per-ordering concurrency test against a real database
+> (`tests/integration/test_push_subscription_revocation_race.py`) forcing both lock-acquisition
+> orderings deterministically via an `asyncio.Event` rather than relying on scheduling luck.
+> **Follow-up filed, not fixed here**: revocation is enforced only at the guard boundary, so any
+> other mutating handler can still commit work authorized by a token revoked mid-request — push
+> subscriptions were singled out because the row outlives the request and keeps delivering to a
+> device, which is what makes this instance worth a dedicated fix rather than accepting the
+> general gap.
+>
+> _Prior (2026-07-27): **Review remediation: push-cleanup ops alert wiring** (§15c, §17):
+> the push-subscription-cleanup work below shipped `OpsEventType.PUSH_SUBSCRIPTIONS_CLEANUP_FAILED`
+> from all three affected services, but never wired it past that point — no `NotificationClass`
+> member, no `telegram/mapping.py` branch, no catalog entry, no platform-scope membership, so the
+> event reached no operator (the same gap previously found and fixed for
+> `TOKEN_REVOCATION_FAILED`). Fixed by following that precedent exactly: new
+> `NotificationClass.PUSH_SUBSCRIPTIONS_CLEANUP_FAILED` (`"push_subscriptions.cleanup_failed"`),
+> platform-scoped, with a mapping branch and catalog entry, plus a one-time preference seed
+> (migration `032`) for admins who already have a Telegram link — see the Notification Classes
+> table below. `OpsEventType`'s docstring now points at `NotificationClass`'s wiring checklist, so
+> a developer adding a new ops event from that enum has a reason to open the other one. Also in
+> this pass: the three near-identical `_delete_push_subscriptions` methods (`AuthService`,
+> `UserService`, `EmailVerificationService`) were consolidated into one module-level helper
+> (`src.api.services.push_cleanup.delete_user_push_subscriptions`) — the `None`-session guard
+> stayed at the two call sites that need it (`AuthService`/`UserService`), and existing
+> `{source}.push_subscriptions_deleted` / `_cleanup_failed` log event names are unchanged, so no
+> log-based alert or dashboard keyed on them needs updating. `PushSubscriptionRepository.
+> delete_all_for_user` no longer carries a `type: ignore` — its `CursorResult` is now typed
+> explicitly and a driver-reported `-1` (no count available) is clamped to `0` before it reaches
+> logs or the ops payload. A missing `session` on `AuthService`/`UserService` (construction without
+> one, which only happens in tests today — both DI providers always pass one) now logs a warning
+> instead of silently skipping the cleanup. **Rejected**: Sourcery's suggestion to inject
+> `PushSubscriptionRepository` instead of constructing it inline — every other repository in this
+> codebase (e.g. `admin_management.py`) is constructed inline from the session, so special-casing
+> just this one would make these three services the outlier; a wholesale inject-vs-construct
+> refactor is a separate change with its own review.
+>
+> _Prior (2026-07-27): **Push-subscription cleanup on bulk session revocation** (§2, §3,
+> §15b): closes a gap where no server-side path ever deleted a user's Web Push subscriptions.
+> Previously only the client-initiated `DELETE /v1/push/subscriptions` (the caller's own endpoint)
+> and the dispatcher's own expired-subscription pruning ever removed a row — a user who hit
+> "log out all devices" because they suspected compromise left the attacker's device subscribed
+> indefinitely, since nothing else ever touched the table. `PushSubscriptionRepository` gained
+> `delete_all_for_user(user_id) -> int`, now called from all **five** bulk-revocation sites
+> alongside their existing `TokenRevocationService.revoke_user_sessions` call (not inside it —
+> different failure semantics, no dependency on Redis availability):
+> `POST /v1/users/me/logout-all`, `POST /v1/users/me/password`, `POST /v1/auth/reset-password`,
+> `DELETE /v1/users/me`, and refresh-token reuse detection. **`POST /v1/auth/logout`
+> (single-device) is deliberately unchanged** — it still only ever touches the calling device's own
+> subscription client-side, exactly as before. Push deletion runs inside a SAVEPOINT and is
+> best-effort: a failure never blocks the primary action (the password change/reset/logout-all/
+> deactivation still succeeds) and is reported via the new platform-scoped
+> `NotificationClass`-adjacent ops event `ops.push.subscriptions_cleanup_failed`
+> (`PushSubscriptionsCleanupFailedOpsPayload`), logged truthfully rather than assumed successful.
+> No request/response shape changes; no frontend action required to adopt this, though the
+> client-side detach-before-revoke workaround in `ChangePasswordModal`/`LogoutAllModal` is now
+> redundant and can be simplified to a local-only `PushManager` unsubscribe.
+>
+> _Prior (2026-07-27): **`Clear-Site-Data` coverage for session-ending endpoints** (§2, §3):
+> a frontend request to change `Cache-Control` on `/v1/content/...` to `private, no-store` was
+> declined — it would force a full re-fetch of every thumbnail on every library grid render,
+> reproducing the parallel-request saturation behind a prior mobile bug, and would nullify the
+> video prewarm design's HTTP-cache reuse. The residue concern behind that request (private images
+> sitting in a shared device's HTTP cache after an account switch) is instead addressed by
+> extending `Clear-Site-Data: "cache", "storage"` — previously sent only by single-device
+> `POST /v1/auth/logout` — to every other endpoint that ends the caller's own session:
+> `POST /v1/users/me/logout-all`, `POST /v1/users/me/password`, `POST /v1/auth/reset-password`,
+> and `DELETE /v1/users/me`. All five now share one constant (`CLEAR_SITE_DATA_HEADER`,
+> `src/api/security/response_headers.py`). Also newly documented: `POST /v1/auth/logout` returning
+> `200` + the header **regardless of whether `refresh_token` was valid, unknown, or already
+> revoked** is a deliberate, permanent contract, not incidental behavior — a client that discovers
+> its session was revoked remotely has no other way to purge this origin's HTTP cache, so it fires
+> a best-effort logout purely to receive this header. `Cache-Control` on `/v1/content/...` is
+> unchanged. No request/response shapes or status codes changed for any of these five endpoints.
+>
+> _Prior (2026-07-26): **Token-revocation-failure alerting** (§15c, §17): closes the last
 > outstanding gap in [#142](https://github.com/gearbox/apex/issues/142). A failed bulk
 > access-token revocation (the Redis write behind `logout_all`/`change_password`/
 > `deactivate_account`/`reset_password`/`token_reuse_detected`/`refresh_race_detected` failing
@@ -67,7 +159,7 @@
 > traffic). Every request now makes at most one R2 round-trip — the standalone `head_object` call is gone;
 > `Content-Type`/`Content-Length`/`Content-Range` all come from the single GetObject response, and an
 > out-of-range request is rejected using the DB-recorded size before R2 is ever touched. New endpoint
-> `POST /v1/auth/content-cookie` (§2, Bearer-only, 200 with `{ expires_at }`, rate-limited 20/minute) re-mints the `apex_content`
+> `POST /v1/auth/content-cookie` (§2, Bearer-only, 204, rate-limited 20/minute) re-mints the `apex_content`
 > cookie without a full token refresh — frontend should prefer it over `silentRefresh` for recovering
 > image/video auth. No response body contracts changed; frontend should regenerate types (`gen:api`) to
 > pick up the new endpoint._
@@ -142,7 +234,9 @@ Four mutation endpoints require an `Idempotency-Key` header to prevent duplicate
 3. On **retry** with the same key, the server returns the **original cached response** without re-executing the operation.
 4. Keys are scoped to `(user_id, product_id)` — the same key from different users or products does not collide.
 5. Keys expire after 24 hours (configurable via `IDEMPOTENCY_KEY_TTL_HOURS`).
-6. If a key is stuck `processing` (the original request's connection dropped, its worker crashed, etc.) for longer than `IDEMPOTENCY_PROCESSING_STALE_SECONDS` (default 120s), the **next** retry with the same key reclaims it and proceeds — it does not need to wait out the full 24h TTL. A retry within that window still gets `409 idempotency_conflict` (treated as a genuinely concurrent in-flight request).
+6. Generation's synchronous final results (201, billable 422, and normalized provider failures) persist the job state, billing ledger result, resource ID, HTTP status, response body, and completed idempotency key in one transaction. A crash cannot leave a durable debit behind a reclaimable `processing` key.
+7. A key stuck `processing` before a final outcome (the original request's connection dropped, its worker crashed, etc.) for longer than `IDEMPOTENCY_PROCESSING_STALE_SECONDS` (default 120s) can be reclaimed by the next retry. A retry within that window gets `409 idempotency_conflict`.
+8. If committing a completed outcome succeeded but its acknowledgement was lost, a retry returns the stored outcome and retries its post-commit notifications. Notification failures are logged and do not change the completed outcome, billing, or replay response.
 
 ### Error responses
 
@@ -281,6 +375,10 @@ Request:  { refresh_token: string }
 Response: { access_token, refresh_token, token_type: "bearer", expires_in: int, expires_at: datetime,
             content_cookie_expires_at: datetime }
 Errors:   401 (token revoked/expired/invalid | token_reuse_detected | account_inactive)
+Note:     A `token_reuse_detected` 401 (a revoked refresh token replayed) is one of the five
+          bulk-revocation sites — it also deletes every Web Push subscription the user has,
+          same as logout-all, so a confirmed theft signal doesn't leave the thief's device
+          subscribed.
 ```
 
 #### `POST /v1/auth/logout`
@@ -288,6 +386,16 @@ Errors:   401 (token revoked/expired/invalid | token_reuse_detected | account_in
 ```
 Request:  { refresh_token: string }
 Response: { message: string }
+Status:   Always 200, even if refresh_token is unknown, malformed-but-syntactically-valid, or
+          already revoked — a deliberate, permanent contract (not incidental behavior). A client
+          that discovers its session was revoked remotely (logout-all/password change/reset
+          elsewhere) has no way to clear this origin's HTTP cache itself, so it fires a
+          best-effort logout purely to receive the Clear-Site-Data header below. The uniform 200
+          is also the correct privacy posture — it never reveals whether a given refresh token
+          was ever valid.
+Headers:  Clear-Site-Data: "cache", "storage" — purges this origin's HTTP cache/storage on the
+          calling device. Shared across all session-ending endpoints (see the changelog entry
+          above); "executionContexts" is deliberately omitted (would force a page reload).
 Note:     Revokes the specific refresh token. If an Authorization: Bearer header is also present
           (optional — this route isn't guarded, since the access token may already be expired),
           its jti is denylisted for its remaining lifetime (issue #142), so that specific access
@@ -299,6 +407,12 @@ Limitation: this device's apex_content cookie is cleared client-side only — it
           bulk-revocation event (logout-all, password change/reset, deactivation). Users who
           suspect theft should use logout-all or change/reset their password, not rely on
           single-device logout.
+Note:     Does NOT delete the caller's Web Push subscription server-side — deliberately, since
+          this ends only one device's session and other devices must keep receiving push
+          notifications. The client is expected to unsubscribe its own endpoint locally
+          (DELETE /v1/push/subscriptions, §15b) before calling this. Contrast with the five
+          bulk-revocation endpoints (logout-all, password change/reset, deactivation, and
+          refresh-token reuse detection), which delete every subscription the user has.
 ```
 
 #### `POST /v1/auth/verify-email`
@@ -323,6 +437,11 @@ Rate:     3/hour
 Request:  { token: string (20-100 chars), new_password: string (8-128 chars) }
 Response: { message: string }
 Errors:   400 (invalid_token | expired)
+Headers:  (200 only) Clear-Site-Data: "cache", "storage" — the calling device ends its own
+          session here too, and this is the compromised-account recovery path.
+Note:     One of the five bulk-revocation sites — also deletes every Web Push subscription the
+          user has (§15b), same as logout-all. Best-effort: a failure here never blocks the
+          password reset itself from succeeding.
 ```
 
 #### `POST /v1/auth/resend-verification` *(authenticated)*
@@ -406,17 +525,23 @@ Note:     Age capture is policy-driven by the active product's age_gate (see GET
 Request:  { current_password: string, new_password: string }
 Response: { message: string }
 Errors:   400 invalid_password
+Headers:  (200 only) Clear-Site-Data: "cache", "storage" — the caller's own session ends here too.
 Note:     Revokes ALL refresh tokens, plus all live access tokens and the content cookie
           (issue #142) — the most security-sensitive of the three bulk-revocation sites,
-          since a password change is often a reaction to suspected compromise.
+          since a password change is often a reaction to suspected compromise. Also deletes
+          every Web Push subscription the user has (§15b) — best-effort, never blocks the
+          password change itself from succeeding.
 ```
 
 #### `DELETE /v1/users/me`
 
 ```
 Response: { message: string, deactivated_at: datetime }
+Headers:  Clear-Site-Data: "cache", "storage" — the caller's own session ends here too.
 Note:     Soft delete — account can be recovered. Revokes ALL refresh tokens, plus all live
-          access tokens and the content cookie (issue #142).
+          access tokens and the content cookie (issue #142). Also deletes every Web Push
+          subscription the user has (§15b) — best-effort, never blocks deactivation itself
+          from succeeding.
 ```
 
 #### `GET /v1/users/me/stats`
@@ -440,11 +565,16 @@ Response: {
 
 ```
 Response: { message: string }
+Headers:  Clear-Site-Data: "cache", "storage" — the calling device ends its own session here too.
+          Other devices whose sessions this call ends never receive this response at all — they
+          discover the revocation via a 401 on their next request.
 Note:     Revokes ALL refresh tokens, plus all live access tokens and the content cookie
           (issue #142) — the access token used to make this very call also stops working
           from the next request onward. See the module docstring on TokenRevocationService
           (src/api/services/token_revocation.py) for the Redis-backed epoch mechanism and its
-          fail-open posture when Redis is unset or transiently unavailable.
+          fail-open posture when Redis is unset or transiently unavailable. Also deletes every
+          Web Push subscription the user has (§15b) — best-effort, never blocks logout-all
+          itself from succeeding.
 ```
 
 ---
@@ -501,7 +631,7 @@ Request: {
 }
 Response: JobCreatedResponse
 Status:   201 Created
-Errors:   400 (model_disabled | validation_error | generation_failed | not_implemented), 402 insufficient_balance, 403 (model_not_allowed | age_verification_required), 409 (idempotency_conflict | no_active_gpu_session), 429 rate_limited, 503 service_unavailable
+Errors:   400 (model_disabled | validation_error | generation_failed | not_implemented | provider_invalid_request), 402 insufficient_balance, 403 (model_not_allowed | age_verification_required), 409 (idempotency_conflict | no_active_gpu_session), 422 provider_moderation_rejected, 429 (rate_limited | provider_rate_limited), 502 (provider_malformed_response | provider_output_not_delivered), 503 (service_unavailable | provider_timeout | provider_unavailable | provider_authentication_failed | provider_unknown)
 Headers:  Idempotency-Key: <string> (required, max 64 chars)
 Note:     source_output_id enables "remix from Library" — the backend resolves lineage automatically
           (source_job_id + source_output_id) and records it on the new job.
@@ -535,6 +665,48 @@ Note:     source_output_id enables "remix from Library" — the backend resolves
           operation from generating a fresh canvas from scratch. An unsupported value on either path
           returns 400 validation_error with an actionable message (e.g. "omit aspect_ratio to preserve
           the source aspect"); no job is created and no tokens are charged.
+
+          Provider moderation: a synchronous Grok safety rejection returns 422
+          provider_moderation_rejected with a safe actionable message. It differs from Apex's own
+          pre-submission moderation (`moderation`): Grok already accepted and production-observed
+          billing applies to this rejected generation, so the reservation remains spent. Re-use the
+          same Idempotency-Key to replay this 422 safely; do not submit the same intent again.
+
+          Grok video is asynchronous. Both its worker and poll-on-read `GET /v1/jobs/{id}` use the
+          same terminal settlement path.  On completion the first caller takes a short PostgreSQL
+          finalization lease before downloading or writing R2 objects; it then commits the output rows
+          and completed status together.  A crashed claimant is recoverable after the lease expires;
+          losing callers write no outputs and remove any objects if their claim expires mid-flight.
+          Partial unique indexes enforce one full output per job/index and one thumbnail per
+          parent/size bucket across both providers. A worker is optional for correctness and
+          recommended for proactive completion. Repeated GETs and worker/read-through races publish
+          one terminal event and settle billing once.
+
+          A deferred xAI `FAILED` state is authoritative even if its normalized failure kind is
+          `provider_rate_limited` or `provider_timeout`; it is settled immediately. By contrast, a
+          transport-level rate limit/timeout while calling xAI's poll API is transient and leaves the
+          job in progress for the next poll.
+
+          The active `GROK_MODERATION_BILLING_POLICY` controls an accepted moderation rejection:
+          `charge` retains the reservation and `refund` compensates it. Only exact moderation results
+          or call sites with a confirmed accepted deferred request can use that policy; ambiguous or
+          moderation-service infrastructure failures are non-billable. Other normalized provider failures refund once unless an explicit provider policy
+          says otherwise. Synchronous provider failures are
+          returned with stable normalized codes: invalid request 400, provider rate limit 429,
+          malformed response 502, and timeout/unavailable/authentication/unknown 503. Their messages
+          are fixed safe messages, never provider diagnostics.
+
+          A failed billable generation and its refund are one database transaction. If refund creation
+          fails, the terminal failure rolls back, the job stays in flight, and a later poll or sweep
+          retries settlement; workers isolate that error to the affected job.
+
+          Aisha terminal failures use public-safe codes and fixed text: infrastructure failures use
+          `provider_unavailable` / "Generation infrastructure is temporarily unavailable.", ComfyUI
+          execution failures use `provider_execution_failed` / "The generation engine could not
+          complete the request.", timeouts use `provider_timeout` / "Generation timed out before the
+          compute service returned a result.", and swept compute sessions use
+          `generation_session_terminated` / "Generation stopped because the compute session ended."
+          Raw Aisha, ComfyUI, and session diagnostics remain internal only.
 ```
 
 ### JobCreatedResponse Schema
@@ -707,6 +879,11 @@ Response: CursorPage<UnifiedJobResponse>
 ```
 Response: UnifiedJobResponse
 Errors:   404
+Note:     For queued/running Grok video jobs this is poll-on-read. It also enforces
+          GROK_VIDEO_MAX_POLL_TIME from the immutable submission timestamp: an overdue job is
+          failed with provider_timeout and refunded once. Terminal provider outcomes use the same
+          settlement path as the Grok video worker, so no background worker is required for
+          correctness.
 ```
 
 #### `DELETE /v1/jobs/{job_id}`
@@ -735,7 +912,8 @@ interface UnifiedJobResponse {
   started_at: string | null;
   completed_at: string | null;
   outputs: JobOutputItem[]; // empty while processing
-  error: string | null;
+  error: string | null;       // public-safe failure text only
+  failure_code: string | null; // stable code, e.g. "provider_moderation_rejected"
 }
 
 interface JobOutputItem {
@@ -749,6 +927,20 @@ interface JobOutputItem {
 > `format`, `size_bytes`, `thumbnail_url`, or `is_thumbnail`. The full media envelope
 > (`original` + `variants`) is in `media: MediaObject`. Jobs API URLs are now stable
 > content-proxy paths — **no presigned URLs**. `UnifiedJobResponse.thumbnail_url` is removed.
+
+`error` is populated only from the public-safe failure-message boundary. The legacy/internal
+`GenerationJob.error_message` column is never returned by this endpoint. A legacy failed row that
+does not yet have a public-safe message returns `"Generation failed. Please try again."`; it never
+falls back to raw diagnostics.
+
+Grok failure normalization checks an explicit provider/gRPC code first, then a numeric HTTP status,
+then only narrow prose markers (`too many requests`, standalone `429`, `invalid image URL` or
+`invalid image input`, and `bad request`). Other wording is classified as unknown rather than by
+broad terms such as `invalid`, `rate`, `timeout`, or `connection`.
+
+Materialization attempts and storage-cleanup records are scoped to a product. The retention worker
+reconciles each configured product independently; reconciliation, output lookup, and cleanup-outbox
+queries always include that product scope.
 
 ---
 
@@ -1147,17 +1339,9 @@ Response: {
 
 Provides stable, non-expiring authenticated URLs for user content. The server resolves ownership, checks product scoping, then streams bytes directly from R2. **No presigned URLs are exposed** — the client only ever sees `/v1/content/...` paths.
 
-> **Why use this instead of presigned URLs?** Content proxy URLs are permanent (for the lifetime of the resource) and enforce per-request authorization. They are the preferred URL format for Library and any UI that persists content references.
+> **Why use this instead of presigned URLs?** Content proxy URLs are permanent (for the lifetime of the resource), cacheable with `Cache-Control: private, max-age=<ttl>, immutable`, and enforce per-request authorization. They are the preferred URL format for Library and any UI that persists content references.
 
-> **Session-isolation cache policy (frontend security requirement):** these stable URLs are not safe
-> cache keys across account changes. The frontend deliberately does not install a Workbox runtime
-> cache for authenticated content and uses `fetch(..., { cache: 'no-store' })` for authenticated
-> originals/save/prewarm requests; it keeps only a bounded in-memory blob cache which is aborted
-> and cleared synchronously on auth reset. To make normal `<img>`/native-video HTTP caching equally
-> fail closed, the backend must return `Cache-Control: private, no-store` for authenticated
-> `/v1/content/...` responses (or introduce a non-secret session-partitioned URL/cache namespace).
-> The previous persistent `private, max-age, immutable` policy is incompatible with a strict A →
-> logout → B same-tab guarantee.
+> **Why not `Cache-Control: private, no-store`?** Raised and declined (2026-07-27): `no-store` would re-fetch every thumbnail on every library grid render/page switch, reproducing a prior mobile bug (parallel-request saturation causing blank thumbnails) and nullifying the video prewarm design's HTTP-cache reuse. The residue concern it was meant to address — private images surviving in a shared device's HTTP cache after an account switch — is instead closed by `Clear-Site-Data: "cache", "storage"` on every session-ending endpoint (§2, §3) plus client-side session isolation. See the content route's module docstring (`src/api/routes/content.py`) for the full reasoning.
 
 ### Auth: the `apex_content` cookie
 
@@ -1168,9 +1352,7 @@ Requests here accept either a Bearer access token or the `apex_content` cookie (
 All successful (200/206) responses include:
 - `Content-Type` — the stored R2 `ContentType` **only if it's on the inline-safe allowlist** (`image/png`, `image/jpeg`, `image/webp`, `video/mp4`, `video/webm`, `video/quicktime`); otherwise `application/octet-stream`
 - `Content-Length` — bytes in *this* response body (the full object size on 200, the served range's length on 206)
-- `Cache-Control: private, no-store` — required while stable authenticated URLs are shared across
-  account sessions; do not make these responses persistently reusable without an explicit
-  non-secret session-partitioned cache namespace.
+- `Cache-Control: private, max-age=10800, immutable` — 3-hour client cache (default; configurable via `CONTENT_URL_TTL`)
 - `ETag: "<content_id>"` — the output/upload UUID, for conditional requests
 - `X-Content-Id: <content_id>` — same UUID, without quotes
 - `X-Content-Type-Options: nosniff` — always present, blocks MIME-sniffing
@@ -2456,9 +2638,11 @@ data: <JSON-encoded inner payload>
 interface JobStatusPayload {
   job_id: string;           // UUID
   status: JobStatus;        // new status
-  previous_status: string;  // previous status (or "none" on first publish)
+  previous_status: string;  // actual persisted pre-transition status (or "none" on first publish)
   generation_type: string;  // e.g. "t2v"
   provider: string;         // e.g. "grok"
+  failure_code: string | null; // set for normalized terminal failures
+  error_message: string | null; // public-safe terminal-failure message, never backend diagnostics
 }
 
 // job.progress
@@ -2625,6 +2809,12 @@ Errors:   401 unauthorized, 422 validation_error, 503 (push not configured)
 Note:     Upserts by endpoint. If the endpoint was previously registered under a
           different user (shared device, account switch), it is reassigned to the
           current user.
+Note:     Serialized against the five bulk-revocation events below: the handler
+          acquires the same user-row lock those paths take first, then re-checks
+          revocation before upserting. A token revoked concurrently with this
+          request (not just before it) is rejected with 401 rather than being
+          allowed to register a subscription that would outlive the session —
+          see "Server-Side Cleanup on Bulk Session Revocation" below.
 ```
 
 #### `DELETE /v1/push/subscriptions` *(authenticated)*
@@ -2635,8 +2825,40 @@ Response: (empty body)
 Status:   204 No Content
 Errors:   401 unauthorized, 503 (push not configured)
 Note:     Idempotent — returns 204 even if the endpoint was never registered, or
-          already belongs to a different user (no ownership leak).
+          already belongs to a different user (no ownership leak). Deletes only the
+          caller's own endpoint — for every subscription a user has, see the
+          bulk-revocation cleanup note below.
 ```
+
+### Server-Side Cleanup on Bulk Session Revocation
+
+Besides the client-initiated `DELETE /v1/push/subscriptions` above (one endpoint) and the
+dispatcher's own pruning of expired subscriptions (a 404/410 from the push service, see
+"Delivery Guarantees" below), five server-side events also delete **every** subscription a user has
+(`PushSubscriptionRepository.delete_all_for_user`), run alongside their existing
+`TokenRevocationService.revoke_user_sessions` bulk-revocation call:
+
+- `POST /v1/users/me/logout-all` (§3)
+- `POST /v1/users/me/password` (§3)
+- `DELETE /v1/users/me` (§3)
+- `POST /v1/auth/reset-password` (§2.2)
+- Refresh-token reuse detection — a `token_reuse_detected` 401 on `POST /v1/auth/refresh` (§2.2)
+
+This closes the gap the client cannot: a user who suspects compromise and revokes every session
+from one device previously left the attacker's device subscribed indefinitely, since nothing
+server-side ever deleted that row. **Single-device `POST /v1/auth/logout` deliberately does
+NOT delete any subscription** — it ends only one session, and deleting every subscription would
+silently kill push on the user's other devices; the client is expected to unsubscribe its own
+endpoint locally before calling it. Cleanup is best-effort and isolated (a SAVEPOINT, not the
+outer transaction): a failure never blocks the triggering action itself, and is reported via the
+`ops.push.subscriptions_cleanup_failed` ops event rather than assumed successful.
+
+**Race with a concurrent `POST /v1/push/subscriptions`**: any of the five events above can land
+while a device is mid-registration. `POST /v1/push/subscriptions` acquires the same user-row lock
+these events take first, then re-checks revocation before upserting — so whichever side wins the
+lock, the other observes it: a subscription that wins the race is still caught by the bulk delete's
+subsequent snapshot, and a bulk event that wins the race causes the registration to see the fresh
+epoch and reject with 401 rather than insert a row the revocation already believes it cleaned up.
 
 ### Wire Payload Contract
 
@@ -2729,14 +2951,16 @@ Backend-driven **operational alerting for admins/superadmins**, delivered as Tel
 | `user.registered` | product | A new user registers on the admin's own product |
 | `generation.created` | product | A new generation job is submitted |
 | `gpu_node.started` | product | A GPU node finishes provisioning — `provisioning → active` only; resuming a paused session does **not** count as "started" |
-| `generation.failed` | product | A generation job transitions to `failed` |
+| `generation.failed` | product | A generation job transitions to `failed`. Provider-authentication failures are reported separately under `provider_authentication.failed`, not here — see below. |
+| `provider_authentication.failed` | platform | A generation provider rejected its API key/authentication — fires once per failed generation for as long as the credentials are broken, so it's seeded with a 300s throttle (not the usual 0) rather than flooding on every request during an incident |
 | `health.degraded` | platform | A platform health subsystem becomes `degraded`, `unhealthy`, or `unknown` |
 | `health.restored` | platform | A platform health subsystem recovers from a bad status back to a healthy one |
 | `token_revocation.failed` | platform | A bulk access-token revocation (Redis write) failed while Redis is otherwise configured — the affected user's existing access tokens/content cookies remain valid until they expire |
+| `push_subscriptions.cleanup_failed` | platform | A bulk-revocation event's push-subscription cleanup (`delete_all_for_user`) failed — the affected user's devices that should have been unsubscribed may still receive push notifications |
 
-- **Product-scoped** classes (the first four) are delivered only to admins whose own account product matches the event's product — a `synthara` admin never sees a `vex` registration.
-- **Platform-scoped** classes (`health.*`, `token_revocation.failed`) are delivered to every subscribed admin/superadmin regardless of product, since these describe the health/safety of the whole platform rather than any single product.
-- `token_revocation.failed` ships with a one-time seed (migration `029`): every admin who already has a Telegram link gets a subscription automatically, so existing installs don't start blind. It's still an ordinary preference row after that — a subsequent full-set `PUT /v1/admin/notifications/preferences` that omits it un-subscribes the admin, same as any other class.
+- **Product-scoped** classes (`user.registered`, `generation.created`, `gpu_node.started`, `generation.failed`) are delivered only to admins whose own account product matches the event's product — a `synthara` admin never sees a `vex` registration.
+- **Platform-scoped** classes (`provider_authentication.failed`, `health.*`, `token_revocation.failed`, `push_subscriptions.cleanup_failed`) are delivered to every subscribed admin/superadmin regardless of product, since these describe the health/safety of the whole platform rather than any single product.
+- `token_revocation.failed` ships with a one-time seed (migration `029`); `push_subscriptions.cleanup_failed` ships with the same treatment (migration `032`); `provider_authentication.failed` ships the same way in migration `034` (kept separate from the `033` migration that introduced the class's schema/mapping, because Alembic never re-runs an already-applied revision — appending the seed to `033` would silently skip any environment already at `033`) — every admin who already has a Telegram link gets a subscription automatically, so existing installs don't start blind. It's still an ordinary preference row after that — a subsequent full-set `PUT /v1/admin/notifications/preferences` that omits it un-subscribes the admin, same as any other class. Unlike `token_revocation.failed`, `push_subscriptions.cleanup_failed` and `provider_authentication.failed` have no second, preference-independent channel (no health checker watches them), which is why seeding — not just a release note — was judged necessary there.
 - Subscription is **row-presence**, not a flag: `PUT /v1/admin/notifications/preferences` is a full-set replace — a class omitted from the request body is unsubscribed.
 - Each subscribed class carries an optional `min_interval_seconds` throttle (default `0` = unthrottled, max `86400`). Messages suppressed during the cooldown are counted; the next delivered message for that class appends `(+N suppressed)` to the text.
 
@@ -2910,7 +3134,7 @@ Values: `"sfw"`, `"permissive"`
 | `cancelled` | Yes | User or system cancelled |
 | `moderated` | Yes | Content moderated by provider |
 
-**Polling strategy:** Poll `GET /v1/jobs/{id}` every 2s while status is `pending`, `queued`, or `running`. Stop on any terminal status. For real-time updates without polling, subscribe to the SSE `job.status_changed` event (see [§15 Real-Time Events](#15-real-time-events-sse--pubsub)).
+**Polling strategy:** Poll `GET /v1/jobs/{id}` every 2s while status is `pending`, `queued`, or `running`. Stop on any terminal status. A Grok video GET settles terminal provider results itself using the same guarded path as the worker, so this remains correct when no worker is deployed. For real-time updates without polling, subscribe to the SSE `job.status_changed` event (see [§15 Real-Time Events](#15-real-time-events-sse--pubsub)).
 
 ### GpuSessionStatus
 
@@ -3035,10 +3259,12 @@ Values: `"billing_adjust"`
 | `user.registered` | product | New user registration |
 | `generation.created` | product | New generation job submitted |
 | `gpu_node.started` | product | GPU node finishes provisioning (`provisioning → active` only) |
-| `generation.failed` | product | Generation job transitions to `failed` |
+| `generation.failed` | product | Generation job transitions to `failed` (excludes provider-authentication failures, reported separately below) |
+| `provider_authentication.failed` | platform | A generation provider rejected its API key/authentication |
 | `health.degraded` | platform | A health subsystem becomes `degraded`/`unhealthy`/`unknown` |
 | `health.restored` | platform | A health subsystem recovers |
 | `token_revocation.failed` | platform | A bulk access-token revocation failed to write to Redis |
+| `push_subscriptions.cleanup_failed` | platform | A bulk-revocation event's push-subscription cleanup failed |
 
 > Admin ops-notification subscription classes — see [§15c Admin Ops Notifications (Telegram)](#15c-admin-ops-notifications-telegram) for the full subscribe/throttle/delivery model.
 
@@ -3134,15 +3360,16 @@ The `error` code is always a stable snake_case string — treat it like an enum.
 
 | HTTP | `error` | `detail` keys |
 |------|---------|---------------|
-| 400 | `bad_request`, `email_exists`, `invalid_token`, `invalid_password`, `validation_error`, `empty_file`, `file_too_large`, `invalid_file_type`, `upload_failed`, `payment_verification_failed`, `model_disabled`, `generation_failed`, `unknown_product` | — |
+| 400 | `bad_request`, `email_exists`, `invalid_token`, `invalid_password`, `validation_error`, `empty_file`, `file_too_large`, `invalid_file_type`, `upload_failed`, `payment_verification_failed`, `model_disabled`, `generation_failed`, `provider_invalid_request`, `unknown_product` | — |
 | 401 | `unauthorized`, `invalid_credentials`, `account_inactive`, `token_reuse_detected` | — |
 | 402 | `insufficient_balance` | `balance`, `required` |
 | 403 | `forbidden`, `account_inactive`, `permission_denied`, `model_not_allowed`, `age_verification_required` | — |
 | 404 | `not_found`, `account_not_found`, `price_not_found` | — |
 | 409 | `conflict`, `refund_not_eligible`, `organization_balance_nonzero`, `no_active_gpu_session`, `session_already_exists`, `invalid_state`, `jobs_in_flight` | `balance`, `in_flight_count` |
-| 422 | `validation_error`, `moderation` | `provider`, `policy` |
-| 429 | `too_many_requests`, `rate_limited` | `retry_after` |
-| 503 | `service_unavailable`, `no_gpu_capacity`, `provisioning_failed` | — |
+| 422 | `validation_error`, `moderation`, `provider_moderation_rejected` | `provider`, `policy` (Apex moderation only) |
+| 429 | `too_many_requests`, `rate_limited`, `provider_rate_limited` | `retry_after` (global rate limit only) |
+| 502 | `provider_malformed_response`, `provider_output_not_delivered` | — |
+| 503 | `service_unavailable`, `no_gpu_capacity`, `provisioning_failed`, `provider_timeout`, `provider_unavailable`, `provider_execution_failed`, `generation_session_terminated`, `provider_authentication_failed`, `provider_unknown` | — |
 
 **Example responses:**
 
@@ -3158,6 +3385,9 @@ The `error` code is always a stable snake_case string — treat it like an enum.
 
 // 422
 { "error": "moderation", "message": "Content moderated by grok (policy: nsfw)", "status_code": 422, "detail": { "provider": "grok", "policy": "nsfw" } }
+
+// 422 — provider-side Grok moderation; upstream text is never exposed
+{ "error": "provider_moderation_rejected", "message": "The requested content was rejected by the AI provider's safety system. Modify the prompt or input and try again.", "status_code": 422, "detail": null }
 ```
 
 Provider disablement is the one deliberately compact compatibility response used by both top-up
@@ -3193,8 +3423,7 @@ Library responses and the `/v1/content/` endpoints return **content proxy URLs**
 
 These URLs:
 - Are **stable** for the lifetime of the resource (no expiry)
-- Return `Cache-Control: private, no-store` while stable authenticated URLs are used across
-  sessions (or coordinate a non-secret session-partitioned cache namespace with the frontend)
+- Return `Cache-Control: private, max-age=10800, immutable` (3-hour client cache, configurable via `CONTENT_URL_TTL`)
 - Enforce ownership and product scoping on every request
 - Are suitable for `<img src>`, `<video src>`, or background image CSS
 
