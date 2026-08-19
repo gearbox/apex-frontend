@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/svelte';
+import { fireEvent, render, screen } from '@testing-library/svelte';
+import { get } from 'svelte/store';
 import type { components } from '$lib/api/types';
 import { generationStore } from '$lib/stores/generation';
 
@@ -91,5 +92,32 @@ describe('/app/create page — generate gating during providers load', () => {
     for (const btn of generateButtons()) {
       expect(btn.disabled).toBe(false);
     }
+  });
+
+  it('shows the selected model summary and marks missing pricing as unavailable', () => {
+    providersData = GROK_PROVIDERS;
+
+    render(Page);
+
+    expect(screen.getByRole('button', { name: 'Learn more about this model' })).toBeTruthy();
+    expect(screen.getByText('Cost unavailable')).toBeTruthy();
+  });
+
+  it('prefills the typed guide example and closes the guide', async () => {
+    providersData = GROK_PROVIDERS;
+    render(Page);
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Learn more about this model' }));
+    expect(screen.getByRole('dialog')).toBeTruthy();
+    await fireEvent.click(screen.getAllByRole('button', { name: 'Use this prompt' })[0]);
+
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(get(generationStore)).toMatchObject({
+      model: 'grok-imagine-image',
+      mode: 't2i',
+      prompt:
+        'A ceramic coffee mug on a wooden windowsill, soft morning light, shallow depth of field',
+      aspectRatio: '1:1',
+    });
   });
 });

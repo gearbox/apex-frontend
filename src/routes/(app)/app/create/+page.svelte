@@ -43,6 +43,10 @@
   } from '$lib/services/projectInheritance';
   import { libraryKeys, projectKeys } from '$lib/queries/library';
   import { providersQueryOptions } from '$lib/queries/providers';
+  import { defaultModelGuideSource } from '$lib/content/modelGuides/source';
+  import { deriveModelBillingFacts } from '$lib/content/modelGuides/billingFacts';
+  import type { ModelGuideExample } from '$lib/content/modelGuides/types';
+  import ModelSummaryCard from '$lib/components/create/ModelSummaryCard.svelte';
 
   const queryClient = useQueryClient();
 
@@ -80,6 +84,19 @@
   // ── Current model info (includes provider for pricing lookup)
   const currentModelInfo = $derived(
     allModels.find((m) => m.model_key === $generationStore.model) ?? null,
+  );
+
+  const currentGuide = $derived(
+    currentModelInfo ? defaultModelGuideSource.get(currentModelInfo.model_key) : null,
+  );
+
+  const billingFacts = $derived(
+    deriveModelBillingFacts({
+      modelInfo: currentModelInfo,
+      provider: currentModelInfo?.provider ?? null,
+      provisioningMode: currentModelInfo?.provisioningMode ?? null,
+      pricing: pricingQuery.data ?? [],
+    }),
   );
 
   // When the stored model is no longer in the providers list (e.g. first load with
@@ -168,6 +185,15 @@
   let appTitle = $derived($productInfo?.display_name ?? 'Apex');
 
   type ModelType = components['schemas']['ModelType'];
+
+  function handleUseGuideExample(modelKey: ModelType, example: ModelGuideExample) {
+    generationStore.prefill({
+      model: modelKey,
+      mode: example.mode,
+      prompt: example.prompt,
+      aspectRatio: example.aspectRatio,
+    });
+  }
 
   // ── Age gate state
   let showAgeModal = $state(false);
@@ -374,6 +400,14 @@
       models={allModels}
       selectedModel={$generationStore.model}
       onSelect={handleModelSelect}
+    />
+
+    <ModelSummaryCard
+      modelInfo={currentModelInfo}
+      guide={currentGuide}
+      {billingFacts}
+      selectedMode={$generationStore.mode}
+      onuseexample={handleUseGuideExample}
     />
 
     <TypeSelector modelInfo={currentModelInfo ?? null} />

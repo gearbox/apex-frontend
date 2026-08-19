@@ -1,0 +1,99 @@
+import { describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
+import { makeModelInfo } from '../../../mocks/factories/providers';
+import type { ModelGuide } from '$lib/content/modelGuides/types';
+import ModelSummaryCard from './ModelSummaryCard.svelte';
+
+vi.mock('$paraglide/messages', () => ({
+  model_guide_learn_more: () => 'Learn more about this model',
+  model_guide_close: () => 'Close model guide',
+  model_guide_section_good_at: () => 'What this model is good at',
+  model_guide_section_choose_when: () => 'When to choose it',
+  model_guide_section_capabilities: () => 'Capabilities',
+  model_guide_section_restrictions: () => 'Important restrictions',
+  model_guide_section_billing: () => "When you're charged or refunded",
+  model_guide_section_tips: () => 'Prompt tips and best practices',
+  model_guide_section_examples: () => 'Examples & prompts',
+  model_guide_cap_modes: () => 'Modes',
+  model_guide_cap_max_outputs: () => 'Outputs per request',
+  model_guide_cap_max_prompt: () => 'Prompt length',
+  model_guide_cap_negative_prompt: () => 'Negative prompt',
+  model_guide_cap_aspect_ratios: () => 'Aspect ratios',
+  model_guide_cap_age_gate: () => 'Age verification',
+  model_guide_supported: () => 'Supported',
+  model_guide_not_supported: () => 'Not supported',
+  model_guide_age_required: () => 'Required',
+  model_guide_age_not_required: () => 'Not required',
+  model_guide_cost_per_mode: ({ tokens }: { tokens: string }) => `◈ ${tokens} tokens`,
+  model_guide_cost_unknown: () => 'Cost unavailable',
+  model_guide_billed_by_session: () =>
+    'GPU-session uptime is billed separately from generation prices.',
+  model_guide_use_this_prompt: () => 'Use this prompt',
+  model_guide_start_creating: () => 'Start creating',
+  model_guide_mode_t2i: () => 'Text to image',
+  model_guide_mode_i2i: () => 'Image to image',
+  model_guide_mode_t2v: () => 'Text to video',
+  model_guide_mode_i2v: () => 'Image to video',
+  model_guide_mode_v2v: () => 'Video to video',
+  model_guide_mode_flf2v: () => 'First and last frame to video',
+}));
+
+vi.mock('$lib/utils/format', () => ({
+  formatNumber: (value: number) => String(value),
+}));
+
+const guide: ModelGuide = {
+  modelKey: 'grok-imagine-image',
+  tagline: () => 'An authored tagline',
+  goodAt: [],
+  chooseWhen: [],
+  restrictions: [],
+  billingRules: [],
+  promptTips: [],
+  examples: [],
+};
+
+const baseProps = {
+  guide,
+  billingFacts: { costs: [{ mode: 't2i' as const, tokens: 0 }], billedBySession: false },
+  selectedMode: 't2i' as const,
+  onuseexample: vi.fn(),
+};
+
+describe('ModelSummaryCard', () => {
+  it('hides for a missing model', () => {
+    render(ModelSummaryCard, { ...baseProps, modelInfo: null });
+    expect(screen.queryByRole('button')).toBeNull();
+  });
+
+  it('shows authored content, live capability chips, and a real zero-cost price', () => {
+    render(ModelSummaryCard, { ...baseProps, modelInfo: makeModelInfo() });
+
+    expect(screen.getByText('An authored tagline')).toBeTruthy();
+    expect(screen.getByText(/Outputs per request: 10/)).toBeTruthy();
+    expect(screen.getByText(/◈ 0 tokens/)).toBeTruthy();
+  });
+
+  it('falls back to a live description and does not turn unknown pricing into zero', () => {
+    render(ModelSummaryCard, {
+      ...baseProps,
+      guide: null,
+      modelInfo: makeModelInfo({ description: 'Live description' }),
+      billingFacts: { costs: [], billedBySession: false },
+    });
+
+    expect(screen.getByText('Live description')).toBeTruthy();
+    expect(screen.getByText('Cost unavailable')).toBeTruthy();
+    expect(screen.queryByText(/◈ 0 tokens/)).toBeNull();
+  });
+
+  it('opens the guide and restores focus to its trigger after close', async () => {
+    render(ModelSummaryCard, { ...baseProps, modelInfo: makeModelInfo() });
+    const trigger = screen.getByRole('button', { name: 'Learn more about this model' });
+
+    await fireEvent.click(trigger);
+    expect(screen.getByRole('dialog')).toBeTruthy();
+    await fireEvent.click(screen.getByRole('button', { name: 'Close model guide' }));
+    await waitFor(() => expect(document.activeElement).toBe(trigger));
+  });
+});
