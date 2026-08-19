@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/svelte';
 import type { ModelGuideExample } from '$lib/content/modelGuides/types';
+import { modelGuides } from '$lib/content/modelGuides/guides';
 import ModelGuideExamples from './ModelGuideExamples.svelte';
 
-vi.mock('$paraglide/messages', () => ({
+vi.mock('$paraglide/messages', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('$paraglide/messages')>()),
   model_guide_use_this_prompt: () => 'Use this prompt',
 }));
 
@@ -35,5 +37,21 @@ describe('ModelGuideExamples', () => {
     render(ModelGuideExamples, { examples: [example], onuse: vi.fn() });
 
     expect(screen.getByRole('img').getAttribute('src')).toBe(example.image);
+  });
+
+  it('renders the three configured Grok Imagine samples and preserves prompt actions', async () => {
+    const examples = modelGuides['grok-imagine-image'].examples;
+    const onuse = vi.fn();
+    expect(examples.map((example) => example.image)).toEqual([
+      '/model-guides/grok-imagine-image/gi-mug.webp',
+      '/model-guides/grok-imagine-image/gi-fisher.webp',
+      '/model-guides/grok-imagine-image/gi-road.webp',
+    ]);
+
+    render(ModelGuideExamples, { examples, onuse });
+
+    expect(screen.getAllByRole('img')).toHaveLength(3);
+    await fireEvent.click(screen.getAllByRole('button', { name: 'Use this prompt' })[1]);
+    expect(onuse).toHaveBeenCalledWith(examples[1]);
   });
 });

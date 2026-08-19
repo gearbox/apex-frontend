@@ -15,8 +15,8 @@
   import {
     deriveCardState,
     isGenerateEnabled,
+    isProvisioningMode,
     isTerminalStatus,
-    type ProvisioningMode,
     type SessionState,
   } from '$lib/utils/sessionState';
   import { sessionsListQueryOptions, startSessionMutationOptions } from '$lib/queries/sessions';
@@ -90,11 +90,17 @@
     currentModelInfo ? defaultModelGuideSource.get(currentModelInfo.model_key) : null,
   );
 
+  const currentProvisioningMode = $derived(
+    isProvisioningMode(currentModelInfo?.provisioningMode)
+      ? currentModelInfo.provisioningMode
+      : null,
+  );
+
   const billingFacts = $derived(
     deriveModelBillingFacts({
       modelInfo: currentModelInfo,
       provider: currentModelInfo?.provider ?? null,
-      provisioningMode: currentModelInfo?.provisioningMode ?? null,
+      provisioningMode: currentProvisioningMode,
       pricing: pricingQuery.data ?? [],
     }),
   );
@@ -121,12 +127,14 @@
   // ── Card state machine
   const cardState = $derived(
     currentModelInfo
-      ? deriveCardState({
-          provisioningMode: currentModelInfo.provisioningMode as ProvisioningMode,
-          available: currentModelInfo.providerAvailable,
-          sessionState: currentModelInfo.session_state as SessionState | null,
-          isAuthenticated: $isAuthenticated,
-        })
+      ? currentProvisioningMode
+        ? deriveCardState({
+            provisioningMode: currentProvisioningMode,
+            available: currentModelInfo.providerAvailable,
+            sessionState: currentModelInfo.session_state as SessionState | null,
+            isAuthenticated: $isAuthenticated,
+          })
+        : 'UNAVAILABLE'
       : 'READY', // no model selected yet → don't block UI
   );
 
@@ -406,6 +414,7 @@
       modelInfo={currentModelInfo}
       guide={currentGuide}
       {billingFacts}
+      pricingPending={pricingQuery.isPending}
       selectedMode={$generationStore.mode}
       onuseexample={handleUseGuideExample}
     />

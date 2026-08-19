@@ -3,6 +3,7 @@
   import * as m from '$paraglide/messages';
   import { formatNumber } from '$lib/utils/format';
   import { isGenerationMode, type GenerationMode } from '$lib/utils/generationModes';
+  import { modelGuideModeLabel } from '$lib/content/modelGuides/modeLabels';
   import type { components } from '$lib/api/types';
   import type { ModelBillingFacts } from '$lib/content/modelGuides/billingFacts';
   import type { ModelGuide, ModelGuideExample } from '$lib/content/modelGuides/types';
@@ -15,11 +16,13 @@
     modelInfo: ModelInfo | null;
     guide: ModelGuide | null;
     billingFacts: ModelBillingFacts;
+    pricingPending: boolean;
     selectedMode: GenerationMode;
     onuseexample: (modelKey: ModelType, example: ModelGuideExample) => void;
   }
 
-  let { modelInfo, guide, billingFacts, selectedMode, onuseexample }: Props = $props();
+  let { modelInfo, guide, billingFacts, pricingPending, selectedMode, onuseexample }: Props =
+    $props();
   let guideOpen = $state(false);
   let guideTrigger = $state<HTMLButtonElement | null>(null);
 
@@ -32,19 +35,7 @@
       isGenerationMode(capability),
     ),
   );
-  const modeSummary = $derived(modes.map(modeLabel).join(', '));
-
-  function modeLabel(mode: GenerationMode): string {
-    const labels: Record<GenerationMode, () => string> = {
-      t2i: m.model_guide_mode_t2i,
-      i2i: m.model_guide_mode_i2i,
-      t2v: m.model_guide_mode_t2v,
-      i2v: m.model_guide_mode_i2v,
-      v2v: m.model_guide_mode_v2v,
-      flf2v: m.model_guide_mode_flf2v,
-    };
-    return labels[mode]();
-  }
+  const modeSummary = $derived(modes.map(modelGuideModeLabel).join(', '));
 
   function closeGuide() {
     guideOpen = false;
@@ -63,7 +54,9 @@
       </div>
       <span class="shrink-0 rounded-full bg-bg px-2 py-1 text-[11px] font-semibold text-text-muted">
         {selectedCost === null
-          ? m.model_guide_cost_unknown()
+          ? pricingPending
+            ? m.model_guide_cost_loading()
+            : m.model_guide_cost_unknown()
           : m.model_guide_cost_per_mode({ tokens: formatNumber(selectedCost) })}
       </span>
     </div>
@@ -98,6 +91,13 @@
   </section>
 
   {#if guideOpen}
-    <ModelGuideSheet {modelInfo} {guide} {billingFacts} onclose={closeGuide} {onuseexample} />
+    <ModelGuideSheet
+      {modelInfo}
+      {guide}
+      {billingFacts}
+      {pricingPending}
+      onclose={closeGuide}
+      {onuseexample}
+    />
   {/if}
 {/if}

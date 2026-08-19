@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { components } from '$lib/api/types';
 import { makeModelInfo } from '../../../mocks/factories/providers';
+import { isProvisioningMode } from '$lib/utils/sessionState';
 import { deriveModelBillingFacts } from './billingFacts';
 
 type PricingRuleResponse = components['schemas']['PricingRuleResponse'];
@@ -71,5 +72,18 @@ describe('deriveModelBillingFacts', () => {
       { mode: 'i2i', tokens: null },
     ]);
     expect(facts.billedBySession).toBe(true);
+  });
+
+  it('safely degrades an unexpected raw provisioning mode to no session billing', () => {
+    const rawProvisioningMode = 'eventually_on';
+    const facts = deriveModelBillingFacts({
+      modelInfo: makeModelInfo(),
+      provider: 'grok',
+      provisioningMode: isProvisioningMode(rawProvisioningMode) ? rawProvisioningMode : null,
+      pricing: [],
+    });
+
+    expect(isProvisioningMode(rawProvisioningMode)).toBe(false);
+    expect(facts.billedBySession).toBe(false);
   });
 });

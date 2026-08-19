@@ -5,6 +5,7 @@ import type { components } from '$lib/api/types';
 import { generationStore } from '$lib/stores/generation';
 
 type ProvidersResponse = components['schemas']['ProvidersResponse'];
+type PricingRuleResponse = components['schemas']['PricingRuleResponse'];
 
 // Real model_key/aspect_ratios shape: grok-imagine-image does NOT support the
 // store's default '3:4' aspect ratio — mirrors src/mocks/factories/providers.ts.
@@ -37,6 +38,8 @@ const GROK_PROVIDERS: ProvidersResponse = {
 } as unknown as ProvidersResponse;
 
 let providersData: ProvidersResponse | undefined;
+let pricingData: PricingRuleResponse[] | undefined;
+let pricingPending: boolean;
 
 vi.mock('@tanstack/svelte-query', () => ({
   useQueryClient: vi.fn(() => ({ invalidateQueries: vi.fn() })),
@@ -51,11 +54,21 @@ vi.mock('@tanstack/svelte-query', () => ({
         isPending: providersData === undefined,
       };
     }
+    if (key === 'pricing') {
+      return {
+        get data() {
+          return pricingData;
+        },
+        get isPending() {
+          return pricingPending;
+        },
+      };
+    }
     if (key === 'balance' || (key === 'billing' && queryKey[1] === 'balance')) {
       return { data: { balance: 100 }, isLoading: false };
     }
     // pricing / sessions default to an empty resolved list
-    return { data: [], isLoading: false };
+    return { data: [], isLoading: false, isPending: false };
   }),
   createMutation: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
 }));
@@ -65,6 +78,8 @@ import Page from './+page.svelte';
 beforeEach(() => {
   generationStore.reset();
   generationStore.setPrompt('a cat in a hat');
+  pricingData = [];
+  pricingPending = false;
 });
 
 function generateButtons(): HTMLButtonElement[] {
@@ -101,6 +116,39 @@ describe('/app/create page — generate gating during providers load', () => {
 
     expect(screen.getByRole('button', { name: 'Learn more about this model' })).toBeTruthy();
     expect(screen.getByText('Cost unavailable')).toBeTruthy();
+  });
+
+  it('shows a loading price while pricing is pending', () => {
+    providersData = GROK_PROVIDERS;
+    pricingData = undefined;
+    pricingPending = true;
+
+    render(Page);
+
+    expect(screen.getByText('Loading price…')).toBeTruthy();
+    expect(screen.queryByText('Cost unavailable')).toBeNull();
+  });
+
+  it('shows a resolved live price when a pricing rule is available', () => {
+    providersData = GROK_PROVIDERS;
+    pricingData = [
+      {
+        id: '00000000-0000-0000-0000-000000000001',
+        provider: 'grok',
+        generation_type: 't2i',
+        model: 'grok-imagine-image',
+        token_cost: 7,
+        input_token_cost: 0,
+        is_active: true,
+        effective_from: '2026-01-01T00:00:00Z',
+        effective_until: null,
+        notes: null,
+      },
+    ];
+
+    render(Page);
+
+    expect(screen.getByText('◈ 7 tokens')).toBeTruthy();
   });
 
   it('prefills the typed guide example and closes the guide', async () => {

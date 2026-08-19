@@ -24,7 +24,7 @@
 </script>
 
 {#if examples.length > 0}
-  <section class="space-y-3">
+  <div class="space-y-3">
     {#each examples as example (example.prompt)}
       <article class="rounded-xl border border-border bg-bg p-3">
         {#if example.image}
@@ -50,5 +50,5 @@
         >
       </article>
     {/each}
-  </section>
+  </div>
 {/if}

@@ -4,9 +4,11 @@
   import * as m from '$paraglide/messages';
   import { formatNumber } from '$lib/utils/format';
   import { isGenerationMode, type GenerationMode } from '$lib/utils/generationModes';
+  import { getEditAspectRatios, getT2iAspectRatios } from '$lib/utils/modelCapabilities';
   import type { components } from '$lib/api/types';
   import type { ModelBillingFacts } from '$lib/content/modelGuides/billingFacts';
   import type { ModelGuide, ModelGuideExample } from '$lib/content/modelGuides/types';
+  import { modelGuideModeLabel } from '$lib/content/modelGuides/modeLabels';
   import ModelGuideExamples from './ModelGuideExamples.svelte';
   import ModelGuideSectionList from './ModelGuideSectionList.svelte';
 
@@ -17,12 +19,14 @@
     modelInfo: ModelInfo;
     guide: ModelGuide | null;
     billingFacts: ModelBillingFacts;
+    pricingPending: boolean;
     onclose: () => void;
     onuseexample: (modelKey: ModelType, example: ModelGuideExample) => void;
   }
 
-  let { modelInfo, guide, billingFacts, onclose, onuseexample }: Props = $props();
+  let { modelInfo, guide, billingFacts, pricingPending, onclose, onuseexample }: Props = $props();
   let closeButton = $state<HTMLButtonElement | null>(null);
+  let dialogPanel = $state<HTMLDivElement | null>(null);
 
   const description = $derived(guide?.tagline() || modelInfo.description);
   const modes = $derived(
@@ -33,7 +37,10 @@
   const capabilityRows = $derived.by(() => {
     const rows: { label: string; value: string }[] = [];
     if (modes.length > 0)
-      rows.push({ label: m.model_guide_cap_modes(), value: modes.map(modeLabel).join(', ') });
+      rows.push({
+        label: m.model_guide_cap_modes(),
+        value: modes.map(modelGuideModeLabel).join(', '),
+      });
     if (modelInfo.max_images != null) {
       rows.push({ label: m.model_guide_cap_max_outputs(), value: String(modelInfo.max_images) });
     }
@@ -49,10 +56,21 @@
         ? m.model_guide_supported()
         : m.model_guide_not_supported(),
     });
-    if (modelInfo.aspect_ratios.length > 0) {
+    const t2iAspectRatios = getT2iAspectRatios(modelInfo);
+    if (modes.includes('t2i') && t2iAspectRatios.length > 0) {
       rows.push({
-        label: m.model_guide_cap_aspect_ratios(),
-        value: modelInfo.aspect_ratios.join(', '),
+        label: m.model_guide_cap_t2i_aspect_ratios(),
+        value: t2iAspectRatios.join(', '),
+      });
+    }
+    if (modes.includes('i2i')) {
+      const editAspectRatios = getEditAspectRatios(modelInfo);
+      rows.push({
+        label: m.model_guide_cap_i2i_aspect(),
+        value:
+          editAspectRatios.length > 0
+            ? m.model_guide_cap_i2i_auto_with_ratios({ ratios: editAspectRatios.join(', ') })
+            : m.model_guide_cap_i2i_preserve_source(),
       });
     }
     rows.push({
@@ -64,20 +82,44 @@
     return rows;
   });
 
-  function modeLabel(mode: GenerationMode): string {
-    const labels: Record<GenerationMode, () => string> = {
-      t2i: m.model_guide_mode_t2i,
-      i2i: m.model_guide_mode_i2i,
-      t2v: m.model_guide_mode_t2v,
-      i2v: m.model_guide_mode_i2v,
-      v2v: m.model_guide_mode_v2v,
-      flf2v: m.model_guide_mode_flf2v,
-    };
-    return labels[mode]();
+  function handleKeydown(event: KeyboardEvent) {
+    if (event.key === 'Escape') {
+      onclose();
+      event.stopPropagation();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+
+    const focusableControls = getFocusableControls();
+    if (focusableControls.length === 0) return;
+
+    const first = focusableControls[0];
+    const last = focusableControls[focusableControls.length - 1];
+    if (!dialogPanel?.contains(document.activeElement)) {
+      event.preventDefault();
+      first.focus();
+    } else if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
   }
 
-  function handleKeydown(event: KeyboardEvent) {
-    if (event.key === 'Escape') onclose();
+  function getFocusableControls(): HTMLElement[] {
+    if (!dialogPanel) return [];
+    return Array.from(
+      dialogPanel.querySelectorAll<HTMLElement>(
+        'a[href], area[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ),
+    ).filter(
+      (element) =>
+        !element.hidden &&
+        element.tabIndex >= 0 &&
+        getComputedStyle(element).visibility !== 'hidden' &&
+        getComputedStyle(element).display !== 'none',
+    );
   }
 
   function handleBackdropClick(event: MouseEvent) {
@@ -101,6 +143,7 @@
   role="presentation"
 >
   <div
+    bind:this={dialogPanel}
     role="dialog"
     aria-modal="true"
     aria-label={modelInfo.name}
@@ -164,10 +207,12 @@
           <dl class="mt-2 divide-y divide-border rounded-xl border border-border bg-bg px-3">
             {#each billingFacts.costs as cost (cost.mode)}
               <div class="flex items-center justify-between gap-4 py-2.5 text-sm">
-                <dt class="text-text-dim">{modeLabel(cost.mode)}</dt>
+                <dt class="text-text-dim">{modelGuideModeLabel(cost.mode)}</dt>
                 <dd class="font-medium text-text">
                   {cost.tokens === null
-                    ? m.model_guide_cost_unknown()
+                    ? pricingPending
+                      ? m.model_guide_cost_loading()
+                      : m.model_guide_cost_unknown()
                     : m.model_guide_cost_per_mode({ tokens: formatNumber(cost.tokens) })}
                 </dd>
               </div>

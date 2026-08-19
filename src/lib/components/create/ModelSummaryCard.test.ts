@@ -18,7 +18,11 @@ vi.mock('$paraglide/messages', () => ({
   model_guide_cap_max_outputs: () => 'Outputs per request',
   model_guide_cap_max_prompt: () => 'Prompt length',
   model_guide_cap_negative_prompt: () => 'Negative prompt',
-  model_guide_cap_aspect_ratios: () => 'Aspect ratios',
+  model_guide_cap_t2i_aspect_ratios: () => 'Text to image aspect ratios',
+  model_guide_cap_i2i_aspect: () => 'Image to image aspect',
+  model_guide_cap_i2i_preserve_source: () => 'Keeps source aspect',
+  model_guide_cap_i2i_auto_with_ratios: ({ ratios }: { ratios: string }) =>
+    `Auto (source) · ${ratios}`,
   model_guide_cap_age_gate: () => 'Age verification',
   model_guide_supported: () => 'Supported',
   model_guide_not_supported: () => 'Not supported',
@@ -26,6 +30,7 @@ vi.mock('$paraglide/messages', () => ({
   model_guide_age_not_required: () => 'Not required',
   model_guide_cost_per_mode: ({ tokens }: { tokens: string }) => `◈ ${tokens} tokens`,
   model_guide_cost_unknown: () => 'Cost unavailable',
+  model_guide_cost_loading: () => 'Loading price…',
   model_guide_billed_by_session: () =>
     'GPU-session uptime is billed separately from generation prices.',
   model_guide_use_this_prompt: () => 'Use this prompt',
@@ -56,6 +61,7 @@ const guide: ModelGuide = {
 const baseProps = {
   guide,
   billingFacts: { costs: [{ mode: 't2i' as const, tokens: 0 }], billedBySession: false },
+  pricingPending: false,
   selectedMode: 't2i' as const,
   onuseexample: vi.fn(),
 };
@@ -85,6 +91,18 @@ describe('ModelSummaryCard', () => {
     expect(screen.getByText('Live description')).toBeTruthy();
     expect(screen.getByText('Cost unavailable')).toBeTruthy();
     expect(screen.queryByText(/◈ 0 tokens/)).toBeNull();
+  });
+
+  it('shows a loading price while pricing is pending', () => {
+    render(ModelSummaryCard, {
+      ...baseProps,
+      modelInfo: makeModelInfo(),
+      billingFacts: { costs: [], billedBySession: false },
+      pricingPending: true,
+    });
+
+    expect(screen.getByText('Loading price…')).toBeTruthy();
+    expect(screen.queryByText('Cost unavailable')).toBeNull();
   });
 
   it('opens the guide and restores focus to its trigger after close', async () => {

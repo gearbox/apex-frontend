@@ -56,6 +56,10 @@ export type CardState =
 
 export type ProvisioningMode = 'always_on' | 'on_demand';
 
+export function isProvisioningMode(value: string | null | undefined): value is ProvisioningMode {
+  return value === 'always_on' || value === 'on_demand';
+}
+
 export interface DeriveCardStateArgs {
   provisioningMode: ProvisioningMode;
   available: boolean;

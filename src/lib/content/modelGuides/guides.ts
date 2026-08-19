@@ -31,16 +31,19 @@ export const modelGuides: Record<ModelType, ModelGuide> = {
           'A ceramic coffee mug on a wooden windowsill, soft morning light, shallow depth of field',
         mode: 't2i',
         aspectRatio: '1:1',
+        image: '/model-guides/grok-imagine-image/gi-mug.webp',
       },
       {
         prompt: 'Portrait of an elderly fisherman mending a net, overcast harbour, natural light',
         mode: 't2i',
         aspectRatio: '9:16',
+        image: '/model-guides/grok-imagine-image/gi-fisher.webp',
       },
       {
         prompt: 'Wide shot of a mountain road at dusk, low fog, headlights approaching',
         mode: 't2i',
         aspectRatio: '16:9',
+        image: '/model-guides/grok-imagine-image/gi-road.webp',
       },
     ],
   },
@@ -128,10 +131,7 @@ export const modelGuides: Record<ModelType, ModelGuide> = {
     tagline: m.model_guide_aisha_image_tagline,
     goodAt: [m.model_guide_aisha_image_good_at_1, m.model_guide_aisha_image_good_at_2],
     chooseWhen: [m.model_guide_aisha_image_choose_when_1, m.model_guide_aisha_image_choose_when_2],
-    restrictions: [
-      m.model_guide_aisha_image_restrictions_1,
-      m.model_guide_aisha_image_restrictions_2,
-    ],
+    restrictions: [m.model_guide_aisha_image_restrictions_1],
     billingRules: [m.model_guide_aisha_image_billing_1, m.model_guide_aisha_image_billing_2],
     promptTips: [m.model_guide_aisha_image_tips_1, m.model_guide_aisha_image_tips_2],
     examples: [
@@ -159,10 +159,7 @@ export const modelGuides: Record<ModelType, ModelGuide> = {
     tagline: m.model_guide_aisha_video_tagline,
     goodAt: [m.model_guide_aisha_video_good_at_1, m.model_guide_aisha_video_good_at_2],
     chooseWhen: [m.model_guide_aisha_video_choose_when_1, m.model_guide_aisha_video_choose_when_2],
-    restrictions: [
-      m.model_guide_aisha_video_restrictions_1,
-      m.model_guide_aisha_video_restrictions_2,
-    ],
+    restrictions: [m.model_guide_aisha_video_restrictions_1],
     billingRules: [m.model_guide_aisha_video_billing_1, m.model_guide_aisha_video_billing_2],
     promptTips: [m.model_guide_aisha_video_tips_1, m.model_guide_aisha_video_tips_2],
     examples: [

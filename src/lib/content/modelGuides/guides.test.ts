@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
+import { existsSync } from 'node:fs';
+import { extname, resolve } from 'node:path';
 
 vi.mock('$paraglide/messages', async (importOriginal) => {
   const messages = await importOriginal<typeof import('$paraglide/messages')>();
@@ -22,20 +24,32 @@ describe('modelGuides', () => {
     }
   });
 
-  it('contains valid, distinct prompt examples without configured duplicate paths', () => {
+  it('contains valid, distinct prompt examples', () => {
     for (const guide of Object.values(modelGuides)) {
       expect(guide.examples.length).toBeGreaterThan(0);
       expect(new Set(guide.examples.map((example) => example.prompt)).size).toBe(
         guide.examples.length,
       );
-      expect(
-        new Set(guide.examples.flatMap((example) => (example.image ? [example.image] : []))).size,
-      ).toBe(guide.examples.filter((example) => example.image).length);
       for (const example of guide.examples) {
         expect(example.prompt.trim()).not.toBe('');
         expect(isGenerationMode(example.mode)).toBe(true);
         expect(KNOWN_ASPECT_RATIOS).toContain(example.aspectRatio);
       }
+    }
+  });
+
+  it('keeps every configured sample image in its model directory and present under static', () => {
+    const configuredImages = Object.values(modelGuides).flatMap((guide) =>
+      guide.examples.flatMap((example) =>
+        example.image ? [{ modelKey: guide.modelKey, image: example.image }] : [],
+      ),
+    );
+
+    expect(new Set(configuredImages.map(({ image }) => image)).size).toBe(configuredImages.length);
+    for (const { modelKey, image } of configuredImages) {
+      expect(image.startsWith(`/model-guides/${modelKey}/`)).toBe(true);
+      expect(extname(image)).toBe('.webp');
+      expect(existsSync(resolve('static', image.slice(1)))).toBe(true);
     }
   });
 });

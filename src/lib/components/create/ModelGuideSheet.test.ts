@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/svelte';
-import { makeModelInfo } from '../../../mocks/factories/providers';
+import { makeAishaImageModelInfo, makeModelInfo } from '../../../mocks/factories/providers';
+import type { components } from '$lib/api/types';
 import type { ModelBillingFacts } from '$lib/content/modelGuides/billingFacts';
 import type { ModelGuide } from '$lib/content/modelGuides/types';
 import ModelGuideSheet from './ModelGuideSheet.svelte';
@@ -18,7 +19,11 @@ vi.mock('$paraglide/messages', () => ({
   model_guide_cap_max_outputs: () => 'Outputs per request',
   model_guide_cap_max_prompt: () => 'Prompt length',
   model_guide_cap_negative_prompt: () => 'Negative prompt',
-  model_guide_cap_aspect_ratios: () => 'Aspect ratios',
+  model_guide_cap_t2i_aspect_ratios: () => 'Text to image aspect ratios',
+  model_guide_cap_i2i_aspect: () => 'Image to image aspect',
+  model_guide_cap_i2i_preserve_source: () => 'Keeps source aspect',
+  model_guide_cap_i2i_auto_with_ratios: ({ ratios }: { ratios: string }) =>
+    `Auto (source) · ${ratios}`,
   model_guide_cap_age_gate: () => 'Age verification',
   model_guide_supported: () => 'Supported',
   model_guide_not_supported: () => 'Not supported',
@@ -26,6 +31,7 @@ vi.mock('$paraglide/messages', () => ({
   model_guide_age_not_required: () => 'Not required',
   model_guide_cost_per_mode: ({ tokens }: { tokens: string }) => `◈ ${tokens} tokens`,
   model_guide_cost_unknown: () => 'Cost unavailable',
+  model_guide_cost_loading: () => 'Loading price…',
   model_guide_billed_by_session: () =>
     'GPU-session uptime is billed separately from generation prices.',
   model_guide_use_this_prompt: () => 'Use this prompt',
@@ -59,10 +65,14 @@ const billingFacts = {
   billedBySession: false,
 };
 
+type ModelInfo = components['schemas']['ModelInfo'];
+
 function renderSheet(
   overrides: Partial<{
+    modelInfo: ModelInfo;
     guide: ModelGuide | null;
     billingFacts: ModelBillingFacts;
+    pricingPending: boolean;
     onclose: () => void;
     onuseexample: (
       modelKey: ModelGuide['modelKey'],
@@ -74,6 +84,7 @@ function renderSheet(
     modelInfo: makeModelInfo(),
     guide,
     billingFacts,
+    pricingPending: false,
     onclose: vi.fn(),
     onuseexample: vi.fn(),
     ...overrides,
@@ -109,6 +120,49 @@ describe('ModelGuideSheet', () => {
     expect(screen.queryByText('Example prompt')).toBeNull();
   });
 
+  it('shows a loading price only while pricing is pending', () => {
+    renderSheet({
+      billingFacts: { costs: [{ mode: 't2i', tokens: null }], billedBySession: false },
+      pricingPending: true,
+    });
+
+    expect(screen.getByText('Loading price…')).toBeTruthy();
+    expect(screen.queryByText('Cost unavailable')).toBeNull();
+  });
+
+  it('uses distinct live aspect-ratio capabilities for Grok image modes', () => {
+    renderSheet({
+      modelInfo: makeModelInfo({
+        capabilities: ['t2i', 'i2i'],
+        aspect_ratios: ['1:1', '16:9', '9:16'],
+        image: { edit_aspect_ratios: [] },
+      }),
+    });
+
+    expect(screen.getByText('Text to image aspect ratios')).toBeTruthy();
+    expect(screen.getByText('1:1, 16:9, 9:16')).toBeTruthy();
+    expect(screen.getByText('Image to image aspect')).toBeTruthy();
+    expect(screen.getByText('Keeps source aspect')).toBeTruthy();
+  });
+
+  it('shows supported image-edit ratios without borrowing text-to-image ratios', () => {
+    renderSheet({
+      modelInfo: makeAishaImageModelInfo({ capabilities: ['i2i'] }),
+    });
+
+    expect(screen.queryByText('Text to image aspect ratios')).toBeNull();
+    expect(screen.getByText('Auto (source) · 2:3, 3:2, 1:1, 9:16, 16:9, 3:4, 4:3')).toBeTruthy();
+  });
+
+  it('does not show a text-to-image aspect row for a video-only model', () => {
+    renderSheet({
+      modelInfo: makeModelInfo({ capabilities: ['t2v'], aspect_ratios: ['1:1', '16:9'] }),
+    });
+
+    expect(screen.queryByText('Text to image aspect ratios')).toBeNull();
+    expect(screen.queryByText('Image to image aspect')).toBeNull();
+  });
+
   it('closes on Escape and backdrop clicks, but not a panel click', async () => {
     const onclose = vi.fn();
     renderSheet({ onclose });
@@ -119,6 +173,25 @@ describe('ModelGuideSheet', () => {
     expect(onclose).toHaveBeenCalledTimes(1);
     await fireEvent.keyDown(window, { key: 'Escape' });
     expect(onclose).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps keyboard focus inside the dialog and closes once for Escape', async () => {
+    const onclose = vi.fn();
+    renderSheet({ onclose });
+
+    const close = screen.getByRole('button', { name: 'Close model guide' });
+    const startCreating = screen.getByRole('button', { name: 'Start creating' });
+    expect(document.activeElement).toBe(close);
+
+    startCreating.focus();
+    await fireEvent.keyDown(window, { key: 'Tab' });
+    expect(document.activeElement).toBe(close);
+
+    await fireEvent.keyDown(window, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(startCreating);
+
+    await fireEvent.keyDown(window, { key: 'Escape' });
+    expect(onclose).toHaveBeenCalledTimes(1);
   });
 
   it('passes the typed model key, then closes, when an example is used', async () => {

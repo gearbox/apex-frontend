@@ -2,6 +2,7 @@ import type { components } from '$lib/api/types';
 import type { GenerationMode } from '$lib/stores/generation';
 import { findPricingRule } from '$lib/utils/pricing';
 import { GENERATION_MODES, isGenerationMode, isModelType } from '$lib/utils/generationModes';
+import type { ProvisioningMode } from '$lib/utils/sessionState';
 
 type ModelInfo = components['schemas']['ModelInfo'];
 type PricingRuleResponse = components['schemas']['PricingRuleResponse'];
@@ -20,7 +21,7 @@ export interface ModelBillingFacts {
 export function deriveModelBillingFacts(params: {
   modelInfo: ModelInfo | null;
   provider: string | null;
-  provisioningMode: string | null;
+  provisioningMode: ProvisioningMode | null;
   pricing: PricingRuleResponse[];
 }): ModelBillingFacts {
   const { modelInfo, provider, provisioningMode, pricing } = params;
