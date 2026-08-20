@@ -29,7 +29,15 @@ vi.mock('$paraglide/messages', () => ({
   model_guide_not_supported: () => 'Not supported',
   model_guide_age_required: () => 'Required',
   model_guide_age_not_required: () => 'Not required',
-  model_guide_cost_per_mode: ({ tokens }: { tokens: string }) => `◈ ${tokens} tokens`,
+  model_guide_cost_current_estimate: ({ tokens }: { tokens: string }) => `Est. ◈ ${tokens} tokens`,
+  model_guide_cost_per_output: ({ tokens }: { tokens: string }) => `◈ ${tokens} per output`,
+  model_guide_cost_with_input_per_output: ({
+    baseTokens,
+    inputTokens,
+  }: {
+    baseTokens: string;
+    inputTokens: string;
+  }) => `◈ ${baseTokens} + ◈ ${inputTokens} per input image, per output`,
   model_guide_cost_unknown: () => 'Cost unavailable',
   model_guide_cost_loading: () => 'Loading price…',
   model_guide_billed_by_session: () =>
@@ -61,7 +69,7 @@ const guide: ModelGuide = {
 };
 
 const billingFacts = {
-  costs: [{ mode: 't2i' as const, tokens: 0 }],
+  costs: [{ mode: 't2i' as const, tokenCost: 0, inputTokenCost: 0 }],
   billedBySession: false,
 };
 
@@ -92,7 +100,7 @@ function renderSheet(
 }
 
 describe('ModelGuideSheet', () => {
-  it('renders every guide section and a real zero cost', () => {
+  it('renders every guide section and pricing per output', () => {
     renderSheet();
 
     for (const content of [
@@ -105,13 +113,16 @@ describe('ModelGuideSheet', () => {
     ]) {
       expect(screen.getByText(content)).toBeTruthy();
     }
-    expect(screen.getByText(/◈ 0 tokens/)).toBeTruthy();
+    expect(screen.getByText(/◈ 0 per output/)).toBeTruthy();
   });
 
   it('keeps live capabilities and billing when the guide is unknown', () => {
     renderSheet({
       guide: null,
-      billingFacts: { costs: [{ mode: 't2i', tokens: null }], billedBySession: true },
+      billingFacts: {
+        costs: [{ mode: 't2i', tokenCost: null, inputTokenCost: null }],
+        billedBySession: true,
+      },
     });
 
     expect(screen.getByText('Outputs per request')).toBeTruthy();
@@ -122,7 +133,10 @@ describe('ModelGuideSheet', () => {
 
   it('shows a loading price only while pricing is pending', () => {
     renderSheet({
-      billingFacts: { costs: [{ mode: 't2i', tokens: null }], billedBySession: false },
+      billingFacts: {
+        costs: [{ mode: 't2i', tokenCost: null, inputTokenCost: null }],
+        billedBySession: false,
+      },
       pricingPending: true,
     });
 
@@ -192,6 +206,37 @@ describe('ModelGuideSheet', () => {
 
     await fireEvent.keyDown(window, { key: 'Escape' });
     expect(onclose).toHaveBeenCalledTimes(1);
+  });
+
+  it('recovers focus outside the dialog in the direction of Tab navigation', async () => {
+    renderSheet();
+    const close = screen.getByRole('button', { name: 'Close model guide' });
+    const startCreating = screen.getByRole('button', { name: 'Start creating' });
+    const outside = document.createElement('button');
+    document.body.append(outside);
+
+    try {
+      outside.focus();
+      await fireEvent.keyDown(window, { key: 'Tab' });
+      expect(document.activeElement).toBe(close);
+
+      outside.focus();
+      await fireEvent.keyDown(window, { key: 'Tab', shiftKey: true });
+      expect(document.activeElement).toBe(startCreating);
+    } finally {
+      outside.remove();
+    }
+  });
+
+  it('explains input image surcharges without presenting them as request totals', () => {
+    renderSheet({
+      billingFacts: {
+        costs: [{ mode: 'i2i', tokenCost: 7, inputTokenCost: 2 }],
+        billedBySession: false,
+      },
+    });
+
+    expect(screen.getByText('◈ 7 + ◈ 2 per input image, per output')).toBeTruthy();
   });
 
   it('passes the typed model key, then closes, when an example is used', async () => {

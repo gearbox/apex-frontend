@@ -97,7 +97,7 @@
     const last = focusableControls[focusableControls.length - 1];
     if (!dialogPanel?.contains(document.activeElement)) {
       event.preventDefault();
-      first.focus();
+      (event.shiftKey ? last : first).focus();
     } else if (event.shiftKey && document.activeElement === first) {
       event.preventDefault();
       last.focus();
@@ -209,11 +209,16 @@
               <div class="flex items-center justify-between gap-4 py-2.5 text-sm">
                 <dt class="text-text-dim">{modelGuideModeLabel(cost.mode)}</dt>
                 <dd class="font-medium text-text">
-                  {cost.tokens === null
+                  {cost.tokenCost === null || cost.inputTokenCost === null
                     ? pricingPending
                       ? m.model_guide_cost_loading()
                       : m.model_guide_cost_unknown()
-                    : m.model_guide_cost_per_mode({ tokens: formatNumber(cost.tokens) })}
+                    : cost.inputTokenCost > 0
+                      ? m.model_guide_cost_with_input_per_output({
+                          baseTokens: formatNumber(cost.tokenCost),
+                          inputTokens: formatNumber(cost.inputTokenCost),
+                        })
+                      : m.model_guide_cost_per_output({ tokens: formatNumber(cost.tokenCost) })}
                 </dd>
               </div>
             {/each}

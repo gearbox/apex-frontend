@@ -37,6 +37,34 @@ const GROK_PROVIDERS: ProvidersResponse = {
   user_context: null,
 } as unknown as ProvidersResponse;
 
+const GROK_VIDEO_PROVIDERS: ProvidersResponse = {
+  providers: [
+    {
+      provider: 'grok',
+      name: 'xAI Grok',
+      available: true,
+      provisioning_mode: 'always_on',
+      models: [
+        {
+          model_key: 'grok-imagine-video',
+          name: 'Grok Video',
+          description: 'Fast video generation model',
+          capabilities: ['t2v'],
+          is_enabled: true,
+          max_images: 1,
+          max_prompt_length: 4096,
+          supports_negative_prompt: false,
+          aspect_ratios: ['1:1', '16:9', '9:16'],
+          requires_age_verification: false,
+          image: null,
+          video: null,
+        },
+      ],
+    },
+  ],
+  user_context: null,
+} as unknown as ProvidersResponse;
+
 let providersData: ProvidersResponse | undefined;
 let pricingData: PricingRuleResponse[] | undefined;
 let pricingPending: boolean;
@@ -129,7 +157,7 @@ describe('/app/create page — generate gating during providers load', () => {
     expect(screen.queryByText('Cost unavailable')).toBeNull();
   });
 
-  it('shows a resolved live price when a pricing rule is available', () => {
+  it('shows the current request estimate when a pricing rule is available', () => {
     providersData = GROK_PROVIDERS;
     pricingData = [
       {
@@ -148,7 +176,83 @@ describe('/app/create page — generate gating during providers load', () => {
 
     render(Page);
 
-    expect(screen.getByText('◈ 7 tokens')).toBeTruthy();
+    expect(screen.getByText('Est. ◈ 7 tokens')).toBeTruthy();
+    expect(screen.getAllByText('◈ 7')).toHaveLength(2);
+  });
+
+  it('keeps the summary and Generate buttons on the same multi-output estimate', () => {
+    providersData = GROK_PROVIDERS;
+    generationStore.setImageCount(4);
+    pricingData = [
+      {
+        id: '00000000-0000-0000-0000-000000000001',
+        provider: 'grok',
+        generation_type: 't2i',
+        model: 'grok-imagine-image',
+        token_cost: 7,
+        input_token_cost: 0,
+        is_active: true,
+        effective_from: '2026-01-01T00:00:00Z',
+        effective_until: null,
+        notes: null,
+      },
+    ];
+
+    render(Page);
+
+    expect(screen.getByText('Est. ◈ 28 tokens')).toBeTruthy();
+    expect(screen.getAllByText('◈ 28')).toHaveLength(2);
+  });
+
+  it('includes the current input-image surcharge in the estimate', () => {
+    providersData = GROK_PROVIDERS;
+    generationStore.setMode('i2i');
+    generationStore.setUploadedImageId('image_001');
+    pricingData = [
+      {
+        id: '00000000-0000-0000-0000-000000000001',
+        provider: 'grok',
+        generation_type: 'i2i',
+        model: 'grok-imagine-image',
+        token_cost: 7,
+        input_token_cost: 2,
+        is_active: true,
+        effective_from: '2026-01-01T00:00:00Z',
+        effective_until: null,
+        notes: null,
+      },
+    ];
+
+    render(Page);
+
+    expect(screen.getByText('Est. ◈ 9 tokens')).toBeTruthy();
+    expect(screen.getAllByText('◈ 9')).toHaveLength(2);
+  });
+
+  it('uses one output in the estimate after switching from four images to video', () => {
+    providersData = GROK_VIDEO_PROVIDERS;
+    generationStore.setImageCount(4);
+    generationStore.setModel('grok-imagine-video');
+    generationStore.setMode('t2v');
+    pricingData = [
+      {
+        id: '00000000-0000-0000-0000-000000000001',
+        provider: 'grok',
+        generation_type: 't2v',
+        model: 'grok-imagine-video',
+        token_cost: 7,
+        input_token_cost: 0,
+        is_active: true,
+        effective_from: '2026-01-01T00:00:00Z',
+        effective_until: null,
+        notes: null,
+      },
+    ];
+
+    render(Page);
+
+    expect(screen.getByText('Est. ◈ 7 tokens')).toBeTruthy();
+    expect(screen.getAllByText('◈ 7')).toHaveLength(2);
   });
 
   it('prefills the typed guide example and closes the guide', async () => {

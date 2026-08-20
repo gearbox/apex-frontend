@@ -28,7 +28,15 @@ vi.mock('$paraglide/messages', () => ({
   model_guide_not_supported: () => 'Not supported',
   model_guide_age_required: () => 'Required',
   model_guide_age_not_required: () => 'Not required',
-  model_guide_cost_per_mode: ({ tokens }: { tokens: string }) => `◈ ${tokens} tokens`,
+  model_guide_cost_current_estimate: ({ tokens }: { tokens: string }) => `Est. ◈ ${tokens} tokens`,
+  model_guide_cost_per_output: ({ tokens }: { tokens: string }) => `◈ ${tokens} per output`,
+  model_guide_cost_with_input_per_output: ({
+    baseTokens,
+    inputTokens,
+  }: {
+    baseTokens: string;
+    inputTokens: string;
+  }) => `◈ ${baseTokens} + ◈ ${inputTokens} per input image, per output`,
   model_guide_cost_unknown: () => 'Cost unavailable',
   model_guide_cost_loading: () => 'Loading price…',
   model_guide_billed_by_session: () =>
@@ -60,9 +68,12 @@ const guide: ModelGuide = {
 
 const baseProps = {
   guide,
-  billingFacts: { costs: [{ mode: 't2i' as const, tokens: 0 }], billedBySession: false },
+  billingFacts: {
+    costs: [{ mode: 't2i' as const, tokenCost: 0, inputTokenCost: 0 }],
+    billedBySession: false,
+  },
   pricingPending: false,
-  selectedMode: 't2i' as const,
+  currentEstimatedCost: 0,
   onuseexample: vi.fn(),
 };
 
@@ -77,7 +88,7 @@ describe('ModelSummaryCard', () => {
 
     expect(screen.getByText('An authored tagline')).toBeTruthy();
     expect(screen.getByText(/Outputs per request: 10/)).toBeTruthy();
-    expect(screen.getByText(/◈ 0 tokens/)).toBeTruthy();
+    expect(screen.getByText(/Est\. ◈ 0 tokens/)).toBeTruthy();
   });
 
   it('falls back to a live description and does not turn unknown pricing into zero', () => {
@@ -86,11 +97,12 @@ describe('ModelSummaryCard', () => {
       guide: null,
       modelInfo: makeModelInfo({ description: 'Live description' }),
       billingFacts: { costs: [], billedBySession: false },
+      currentEstimatedCost: null,
     });
 
     expect(screen.getByText('Live description')).toBeTruthy();
     expect(screen.getByText('Cost unavailable')).toBeTruthy();
-    expect(screen.queryByText(/◈ 0 tokens/)).toBeNull();
+    expect(screen.queryByText(/Est\. ◈ 0 tokens/)).toBeNull();
   });
 
   it('shows a loading price while pricing is pending', () => {
@@ -99,6 +111,7 @@ describe('ModelSummaryCard', () => {
       modelInfo: makeModelInfo(),
       billingFacts: { costs: [], billedBySession: false },
       pricingPending: true,
+      currentEstimatedCost: null,
     });
 
     expect(screen.getByText('Loading price…')).toBeTruthy();

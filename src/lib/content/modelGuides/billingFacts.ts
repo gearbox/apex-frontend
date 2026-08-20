@@ -7,14 +7,16 @@ import type { ProvisioningMode } from '$lib/utils/sessionState';
 type ModelInfo = components['schemas']['ModelInfo'];
 type PricingRuleResponse = components['schemas']['PricingRuleResponse'];
 
-export interface ModelModeCost {
+export interface ModelModePricing {
   readonly mode: GenerationMode;
   /** null means no active matching pricing rule was found. */
-  readonly tokens: number | null;
+  readonly tokenCost: number | null;
+  /** null means no active matching pricing rule was found. */
+  readonly inputTokenCost: number | null;
 }
 
 export interface ModelBillingFacts {
-  readonly costs: readonly ModelModeCost[];
+  readonly costs: readonly ModelModePricing[];
   readonly billedBySession: boolean;
 }
 
@@ -37,10 +39,14 @@ export function deriveModelBillingFacts(params: {
   );
 
   return {
-    costs: GENERATION_MODES.filter((mode) => supportedModes.has(mode)).map((mode) => ({
-      mode,
-      tokens: findPricingRule(pricing, provider, modelKey, mode)?.token_cost ?? null,
-    })),
+    costs: GENERATION_MODES.filter((mode) => supportedModes.has(mode)).map((mode) => {
+      const rule = findPricingRule(pricing, provider, modelKey, mode);
+      return {
+        mode,
+        tokenCost: rule?.token_cost ?? null,
+        inputTokenCost: rule?.input_token_cost ?? null,
+      };
+    }),
     billedBySession: provisioningMode === 'on_demand',
   };
 }

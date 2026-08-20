@@ -331,7 +331,12 @@ test.describe('Sessions page — create page hook', () => {
     await expect(generateBtn).toBeEnabled({ timeout: 3000 });
     await generateBtn.click();
 
-    // Toast message mentions GPU session
-    await expect(page.getByText(/GPU session/i)).toBeVisible({ timeout: 5000 });
+    // Scope this assertion to the alert so the model guide description cannot
+    // satisfy it before the generation error toast appears.
+    await expect(page.getByRole('alert').filter({ hasText: /No active GPU session/i })).toBeVisible(
+      {
+        timeout: 5000,
+      },
+    );
   });
 });

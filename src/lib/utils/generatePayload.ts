@@ -5,6 +5,18 @@ import { supportsAishaImageParams } from '$lib/utils/modelCapabilities';
 type ModelInfo = components['schemas']['ModelInfo'];
 type UnifiedGenerationRequest = components['schemas']['UnifiedGenerationRequest'];
 
+/**
+ * Normalize the current UI's output count to the backend request contract.
+ * Image modes use the selected count within the live model limit; video modes
+ * submit one output regardless of stale hidden image-count state.
+ */
+export function outputCountForRequest(state: GenerationState, modelInfo: ModelInfo | null): number {
+  if (state.mode !== 't2i' && state.mode !== 'i2i') return 1;
+
+  const requestedCount = Math.max(1, state.imageCount);
+  return modelInfo ? Math.max(1, Math.min(requestedCount, modelInfo.max_images)) : requestedCount;
+}
+
 export function buildGeneratePayload(
   state: GenerationState,
   modelInfo: ModelInfo | null,
@@ -46,7 +58,7 @@ export function buildGeneratePayload(
         ? { aspect_ratio: state.editAspectRatio }
         : {}
       : { aspect_ratio: state.aspectRatio }),
-    n: state.imageCount,
+    n: outputCountForRequest(state, modelInfo),
     duration: state.videoDuration,
     resolution: state.videoResolution,
     ...(state.uploadedImageId ? { input_image_id: state.uploadedImageId } : {}),

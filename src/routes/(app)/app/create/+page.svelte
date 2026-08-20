@@ -7,7 +7,7 @@
   import { generationStore, isGenerating, markGenerationDraftSaved } from '$lib/stores/generation';
   import { activeJobStore } from '$lib/stores/jobs';
   import { addToast } from '$lib/stores/toasts';
-  import { lookupCost } from '$lib/utils/pricing';
+  import { estimatePricingRuleCost, findPricingRule } from '$lib/utils/pricing';
   import { createJobPoller } from '$lib/services/jobPoller';
   import { productInfo } from '$lib/stores/product';
   import { isAgeVerified, isAuthenticated, setUser } from '$lib/stores/auth';
@@ -32,7 +32,7 @@
   import PromptInput from '$lib/components/create/PromptInput.svelte';
   import NegativePromptInput from '$lib/components/create/NegativePromptInput.svelte';
   import ParamsPanel from '$lib/components/create/ParamsPanel.svelte';
-  import { buildGeneratePayload } from '$lib/utils/generatePayload';
+  import { buildGeneratePayload, outputCountForRequest } from '$lib/utils/generatePayload';
   import { supportsAishaImageParams } from '$lib/utils/modelCapabilities';
   import GenerateButton from '$lib/components/create/GenerateButton.svelte';
   import ResultsPanel from '$lib/components/create/ResultsPanel.svelte';
@@ -177,16 +177,29 @@
     queryClient.invalidateQueries({ queryKey: ['providers'] });
   }
 
-  // Derived estimated cost (per unit — imageCount multiplier applied in CostPreview)
-  const estimatedCost = $derived(
+  // Mirror the backend quote: a matching rule is priced against the exact
+  // normalized request state that buildGeneratePayload will submit.
+  const currentPricingRule = $derived(
     pricingQuery.data && currentModelInfo
-      ? lookupCost(
+      ? findPricingRule(
           pricingQuery.data,
           currentModelInfo.provider,
           $generationStore.model,
           $generationStore.mode,
         )
-      : 0,
+      : null,
+  );
+  const currentOutputCount = $derived(outputCountForRequest($generationStore, currentModelInfo));
+  const currentInputImageCount = $derived(
+    $generationStore.uploadedImageId || $generationStore.sourceOutputId ? 1 : 0,
+  );
+  const currentEstimatedCost = $derived(
+    currentPricingRule
+      ? estimatePricingRuleCost(currentPricingRule, {
+          outputCount: currentOutputCount,
+          inputImageCount: currentInputImageCount,
+        })
+      : null,
   );
 
   // Derive app title from productInfo for <title> tag
@@ -415,7 +428,7 @@
       guide={currentGuide}
       {billingFacts}
       pricingPending={pricingQuery.isPending}
-      selectedMode={$generationStore.mode}
+      {currentEstimatedCost}
       onuseexample={handleUseGuideExample}
     />
 
@@ -450,7 +463,7 @@
       <GenerateButton
         onclick={handleGenerate}
         {submitting}
-        {estimatedCost}
+        estimatedCost={currentEstimatedCost}
         disabled={!generateEnabled}
       />
     </div>
@@ -469,7 +482,7 @@
   <GenerateButton
     onclick={handleGenerate}
     {submitting}
-    {estimatedCost}
+    estimatedCost={currentEstimatedCost}
     disabled={!generateEnabled}
   />
 </div>

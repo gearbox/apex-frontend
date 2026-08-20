@@ -17,19 +17,22 @@
     guide: ModelGuide | null;
     billingFacts: ModelBillingFacts;
     pricingPending: boolean;
-    selectedMode: GenerationMode;
+    currentEstimatedCost: number | null;
     onuseexample: (modelKey: ModelType, example: ModelGuideExample) => void;
   }
 
-  let { modelInfo, guide, billingFacts, pricingPending, selectedMode, onuseexample }: Props =
-    $props();
+  let {
+    modelInfo,
+    guide,
+    billingFacts,
+    pricingPending,
+    currentEstimatedCost,
+    onuseexample,
+  }: Props = $props();
   let guideOpen = $state(false);
   let guideTrigger = $state<HTMLButtonElement | null>(null);
 
   const tagline = $derived(guide?.tagline() || modelInfo?.description || '');
-  const selectedCost = $derived(
-    billingFacts.costs.find((row) => row.mode === selectedMode)?.tokens ?? null,
-  );
   const modes = $derived(
     (modelInfo?.capabilities ?? []).filter((capability): capability is GenerationMode =>
       isGenerationMode(capability),
@@ -53,11 +56,11 @@
         {/if}
       </div>
       <span class="shrink-0 rounded-full bg-bg px-2 py-1 text-[11px] font-semibold text-text-muted">
-        {selectedCost === null
+        {currentEstimatedCost === null
           ? pricingPending
             ? m.model_guide_cost_loading()
             : m.model_guide_cost_unknown()
-          : m.model_guide_cost_per_mode({ tokens: formatNumber(selectedCost) })}
+          : m.model_guide_cost_current_estimate({ tokens: formatNumber(currentEstimatedCost) })}
       </span>
     </div>
 

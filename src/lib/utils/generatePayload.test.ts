@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildGeneratePayload } from './generatePayload';
+import { buildGeneratePayload, outputCountForRequest } from './generatePayload';
 import type { GenerationState } from '$lib/stores/generation';
 import { makeGrokImageModelInfo, makeAishaImageModelInfo } from '../../mocks/factories/providers';
 
@@ -307,6 +307,40 @@ describe('buildGeneratePayload — i2i aspect_ratio serialization', () => {
     };
     const payload = buildGeneratePayload(state, grokModelInfo);
     expect(payload.aspect_ratio).toBe('9:16');
+  });
+});
+
+describe('output count normalization', () => {
+  it('submits one video output despite a stale image count', () => {
+    const state: GenerationState = {
+      ...baseState,
+      model: 'grok-imagine-video',
+      mode: 't2v',
+      imageCount: 4,
+    };
+    const videoModel = makeGrokImageModelInfo({
+      model_key: 'grok-imagine-video',
+      capabilities: ['t2v'],
+      max_images: 1,
+    });
+
+    expect(outputCountForRequest(state, videoModel)).toBe(1);
+    expect(buildGeneratePayload(state, videoModel).n).toBe(1);
+  });
+
+  it('uses the selected count for image modes when the model supports it', () => {
+    const state: GenerationState = { ...baseState, mode: 't2i', imageCount: 4 };
+    const imageModel = makeGrokImageModelInfo({ max_images: 4 });
+
+    expect(outputCountForRequest(state, imageModel)).toBe(4);
+    expect(buildGeneratePayload(state, imageModel).n).toBe(4);
+  });
+
+  it('clamps image output count to the live model limit', () => {
+    const state: GenerationState = { ...baseState, mode: 't2i', imageCount: 4 };
+    const imageModel = makeGrokImageModelInfo({ max_images: 2 });
+
+    expect(buildGeneratePayload(state, imageModel).n).toBe(2);
   });
 });
 

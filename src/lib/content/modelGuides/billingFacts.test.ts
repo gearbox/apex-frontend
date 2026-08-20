@@ -34,7 +34,7 @@ describe('deriveModelBillingFacts', () => {
     ).toEqual({ costs: [], billedBySession: false });
   });
 
-  it('uses generation-mode order, ignores unknown capabilities, and applies all pricing fallbacks', () => {
+  it('uses generation-mode order, ignores unknown capabilities, and keeps full matching pricing', () => {
     const modelInfo = makeModelInfo({
       capabilities: ['t2v', 'not-a-mode', 'i2i', 't2i'],
       model_key: 'grok-imagine-image',
@@ -44,16 +44,15 @@ describe('deriveModelBillingFacts', () => {
       provider: 'grok',
       provisioningMode: 'always_on',
       pricing: [
-        rule({ generation_type: 't2i', token_cost: 4 }),
-        rule({ model: 'grok-imagine-image', generation_type: '', token_cost: 5 }),
+        rule({ generation_type: 't2i', token_cost: 4, input_token_cost: 1 }),
         rule({ model: 'grok-imagine-image', generation_type: 't2v', token_cost: 6 }),
       ],
     });
 
     expect(facts.costs).toEqual([
-      { mode: 't2i', tokens: 4 },
-      { mode: 'i2i', tokens: 5 },
-      { mode: 't2v', tokens: 6 },
+      { mode: 't2i', tokenCost: 4, inputTokenCost: 1 },
+      { mode: 'i2i', tokenCost: null, inputTokenCost: null },
+      { mode: 't2v', tokenCost: 6, inputTokenCost: 0 },
     ]);
     expect(facts.billedBySession).toBe(false);
   });
@@ -68,8 +67,8 @@ describe('deriveModelBillingFacts', () => {
     });
 
     expect(facts.costs).toEqual([
-      { mode: 't2i', tokens: 0 },
-      { mode: 'i2i', tokens: null },
+      { mode: 't2i', tokenCost: 0, inputTokenCost: 0 },
+      { mode: 'i2i', tokenCost: null, inputTokenCost: null },
     ]);
     expect(facts.billedBySession).toBe(true);
   });
