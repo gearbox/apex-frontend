@@ -10,6 +10,7 @@ import {
   fetchPaymentProviders,
   fetchPaymentCurrencies,
   fetchBillingTransactions,
+  fetchBillingPricing,
   resolveTier,
   computeSummary,
   type TopUpTierResponse,
@@ -102,6 +103,21 @@ describe('fetchBillingTransactions()', () => {
     expect(capturedUrl).toContain('cursor=cursor%3Aopaque');
     expect(capturedUrl).not.toContain('offset');
     expect(page.next_cursor).toBe('next:opaque');
+  });
+});
+
+describe('fetchBillingPricing()', () => {
+  it('does not turn a pricing API failure into an empty catalog', async () => {
+    server.use(
+      http.get(`${BASE}/v1/billing/pricing`, () =>
+        HttpResponse.json({ detail: 'Pricing is unavailable' }, { status: 503 }),
+      ),
+    );
+
+    await expect(fetchBillingPricing()).rejects.toMatchObject({
+      status_code: 503,
+      message: 'Pricing is unavailable',
+    });
   });
 });
 

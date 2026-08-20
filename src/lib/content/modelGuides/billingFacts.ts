@@ -1,7 +1,7 @@
 import type { components } from '$lib/api/types';
 import type { GenerationMode } from '$lib/stores/generation';
 import { findPricingRule } from '$lib/utils/pricing';
-import { GENERATION_MODES, isGenerationMode, isModelType } from '$lib/utils/generationModes';
+import { createSupportedModes, isModelType } from '$lib/utils/generationModes';
 import type { ProvisioningMode } from '$lib/utils/sessionState';
 
 type ModelInfo = components['schemas']['ModelInfo'];
@@ -32,14 +32,8 @@ export function deriveModelBillingFacts(params: {
     return { costs: [], billedBySession: false };
   }
 
-  const supportedModes = new Set(
-    modelInfo.capabilities.filter((capability): capability is GenerationMode =>
-      isGenerationMode(capability),
-    ),
-  );
-
   return {
-    costs: GENERATION_MODES.filter((mode) => supportedModes.has(mode)).map((mode) => {
+    costs: createSupportedModes(modelInfo).map((mode) => {
       const rule = findPricingRule(pricing, provider, modelKey, mode);
       return {
         mode,

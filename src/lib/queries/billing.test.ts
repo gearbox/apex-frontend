@@ -6,6 +6,7 @@ import { setAuth } from '$lib/stores/auth';
 import { makeUserProfile } from '../../mocks/factories/user';
 import {
   billingKeys,
+  billingPricingQueryOptions,
   topUpOptionsQueryOptions,
   paymentProvidersQueryOptions,
   paymentCurrenciesQueryOptions,
@@ -76,6 +77,15 @@ describe('paymentProvidersQueryOptions()', () => {
     const opts = paymentProvidersQueryOptions();
     expect(opts.queryKey).toEqual(['billing', 'payment-providers']);
     expect(opts.staleTime).toBe(5 * 60 * 1000);
+  });
+});
+
+describe('billingPricingQueryOptions()', () => {
+  it('uses the canonical pricing key, moderate freshness, and focus refetching', () => {
+    const opts = billingPricingQueryOptions();
+    expect(opts.queryKey).toEqual(['billing', 'pricing']);
+    expect(opts.staleTime).toBe(5 * 60 * 1000);
+    expect(opts.refetchOnWindowFocus).toBe(true);
   });
 });
 

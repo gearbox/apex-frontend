@@ -68,11 +68,13 @@ const GROK_VIDEO_PROVIDERS: ProvidersResponse = {
 let providersData: ProvidersResponse | undefined;
 let pricingData: PricingRuleResponse[] | undefined;
 let pricingPending: boolean;
+let queryKeys: unknown[][];
 
 vi.mock('@tanstack/svelte-query', () => ({
   useQueryClient: vi.fn(() => ({ invalidateQueries: vi.fn() })),
   createQuery: vi.fn((optionsFn: () => { queryKey: readonly unknown[] }) => {
     const { queryKey } = optionsFn();
+    queryKeys.push([...queryKey]);
     const key = queryKey[0];
     if (key === 'providers') {
       return {
@@ -82,7 +84,7 @@ vi.mock('@tanstack/svelte-query', () => ({
         isPending: providersData === undefined,
       };
     }
-    if (key === 'pricing') {
+    if (key === 'billing' && queryKey[1] === 'pricing') {
       return {
         get data() {
           return pricingData;
@@ -108,6 +110,7 @@ beforeEach(() => {
   generationStore.setPrompt('a cat in a hat');
   pricingData = [];
   pricingPending = false;
+  queryKeys = [];
 });
 
 function generateButtons(): HTMLButtonElement[] {
@@ -144,6 +147,15 @@ describe('/app/create page — generate gating during providers load', () => {
 
     expect(screen.getByRole('button', { name: 'Learn more about this model' })).toBeTruthy();
     expect(screen.getByText('Cost unavailable')).toBeTruthy();
+  });
+
+  it('uses the canonical billing pricing query key', () => {
+    providersData = GROK_PROVIDERS;
+
+    render(Page);
+
+    expect(queryKeys).toContainEqual(['billing', 'pricing']);
+    expect(queryKeys).not.toContainEqual(['pricing']);
   });
 
   it('shows a loading price while pricing is pending', () => {

@@ -1,7 +1,8 @@
 import * as m from '$paraglide/messages';
 import type { GenerationMode } from '$lib/utils/generationModes';
 
-export function modelGuideModeLabel(mode: GenerationMode): string {
+/** Read at render time so the active Paraglide locale is always respected. */
+export function generationModeLabel(mode: GenerationMode): string {
   const labels: Record<GenerationMode, () => string> = {
     t2i: m.model_guide_mode_t2i,
     i2i: m.model_guide_mode_i2i,

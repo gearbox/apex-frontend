@@ -4,6 +4,14 @@ import type { GenerationMode } from '$lib/stores/generation';
 type ModelType = components['schemas']['ModelType'];
 type PricingRuleResponse = components['schemas']['PricingRuleResponse'];
 
+/** Mirrors the backend's active-window predicate for cached pricing data. */
+export function isPricingRuleEffective(rule: PricingRuleResponse, nowMs = Date.now()): boolean {
+  const from = Date.parse(rule.effective_from);
+  const until = rule.effective_until ? Date.parse(rule.effective_until) : null;
+
+  return rule.is_active && from <= nowMs && (until === null || until > nowMs);
+}
+
 function newestEffectiveRule(rules: readonly PricingRuleResponse[]): PricingRuleResponse | null {
   return rules.reduce<PricingRuleResponse | null>((newest, rule) => {
     if (newest === null) return rule;
@@ -23,9 +31,13 @@ export function findPricingRule(
   provider: string,
   model: ModelType,
   mode: GenerationMode,
+  nowMs = Date.now(),
 ): PricingRuleResponse | null {
   const candidates = pricing.filter(
-    (rule) => rule.is_active && rule.provider === provider && rule.generation_type === mode,
+    (rule) =>
+      isPricingRuleEffective(rule, nowMs) &&
+      rule.provider === provider &&
+      rule.generation_type === mode,
   );
   const exact = newestEffectiveRule(candidates.filter((rule) => rule.model === model));
   if (exact) return exact;

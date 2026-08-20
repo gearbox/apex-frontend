@@ -313,10 +313,7 @@ describe('resolveLibraryAction — useAsSource (remix/animate/extend/etc.)', () 
     expect(get(generationStore).negativePrompt).toBe('');
   });
 
-  it.each([
-    ['animate', 'i2v', 'grok-imagine-video'],
-    ['extend', 'v2v', 'grok-imagine-video'],
-  ] as const)(
+  it.each([['animate', 'i2v', 'grok-imagine-video']] as const)(
     '%s uses detail-backed prompt and resolved video model provenance',
     async (action, expectedMode, expectedModel) => {
       const item = makeLibraryAssetItem({
@@ -346,6 +343,25 @@ describe('resolveLibraryAction — useAsSource (remix/animate/extend/etc.)', () 
       expect(navigate).toHaveBeenCalledWith(ROUTES.create);
     },
   );
+
+  it('does not navigate to Extend while V2V lacks a Create video-input workflow', async () => {
+    const item = makeLibraryAssetItem({
+      asset_ref: `output:${OUTPUT_UUID}`,
+      model: 'grok-imagine-image',
+    });
+    const detail = makeLibraryAssetDetail({ asset_ref: item.asset_ref });
+    const navigate = vi.fn();
+
+    await resolveLibraryAction(
+      'extend',
+      item,
+      {},
+      makeDeps({ navigate, loadDetail: vi.fn().mockResolvedValue(detail) }),
+    )?.();
+
+    expect(get(generationStore).mode).toBe('t2i');
+    expect(navigate).not.toHaveBeenCalled();
+  });
 
   it('keeps the current draft text for use-as-reference', async () => {
     const item = makeLibraryAssetItem({ asset_ref: `output:${OUTPUT_UUID}` });

@@ -15,9 +15,12 @@ vi.mock('$paraglide/messages', () => ({
   model_guide_section_billing: () => "When you're charged or refunded",
   model_guide_section_tips: () => 'Prompt tips and best practices',
   model_guide_section_examples: () => 'Examples & prompts',
-  model_guide_cap_modes: () => 'Modes',
-  model_guide_cap_max_outputs: () => 'Outputs per request',
+  model_guide_cap_modes: () => 'Available in Create',
+  model_guide_cap_max_outputs: () => 'Maximum outputs',
   model_guide_cap_max_prompt: () => 'Prompt length',
+  model_guide_cap_max_duration: () => 'Maximum duration',
+  model_guide_cap_resolutions: () => 'Resolutions',
+  model_guide_seconds: () => 'seconds',
   model_guide_cap_negative_prompt: () => 'Negative prompt',
   model_guide_cap_t2i_aspect_ratios: () => 'Text to image aspect ratios',
   model_guide_cap_i2i_aspect: () => 'Image to image aspect',
@@ -125,7 +128,7 @@ describe('ModelGuideSheet', () => {
       },
     });
 
-    expect(screen.getByText('Outputs per request')).toBeTruthy();
+    expect(screen.getByText('Maximum outputs')).toBeTruthy();
     expect(screen.getByText('Cost unavailable')).toBeTruthy();
     expect(screen.getByText(/GPU-session uptime/)).toBeTruthy();
     expect(screen.queryByText('Example prompt')).toBeNull();
@@ -175,6 +178,24 @@ describe('ModelGuideSheet', () => {
 
     expect(screen.queryByText('Text to image aspect ratios')).toBeNull();
     expect(screen.queryByText('Image to image aspect')).toBeNull();
+  });
+
+  it('shows live video constraints and excludes unavailable Create modes', () => {
+    renderSheet({
+      modelInfo: makeModelInfo({
+        capabilities: ['t2v', 'i2v', 'v2v', 'flf2v'],
+        image: null,
+        video: { max_duration: 4, resolutions: ['480p'] },
+      }),
+    });
+
+    expect(screen.getByText('Maximum duration')).toBeTruthy();
+    expect(screen.getByText('4 seconds')).toBeTruthy();
+    expect(screen.getByText('Resolutions')).toBeTruthy();
+    expect(screen.getByText('480p')).toBeTruthy();
+    expect(screen.getByText(/Text to video/)).toBeTruthy();
+    expect(screen.queryByText('Video to video')).toBeNull();
+    expect(screen.queryByText('First and last frame to video')).toBeNull();
   });
 
   it('closes on Escape and backdrop clicks, but not a panel click', async () => {

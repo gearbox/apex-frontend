@@ -7,6 +7,7 @@ import ModelGuideExamples from './ModelGuideExamples.svelte';
 vi.mock('$paraglide/messages', async (importOriginal) => ({
   ...(await importOriginal<typeof import('$paraglide/messages')>()),
   model_guide_use_this_prompt: () => 'Use this prompt',
+  model_guide_generated_sample: () => 'Generated sample',
 }));
 
 const promptOnly: ModelGuideExample = {
@@ -37,6 +38,7 @@ describe('ModelGuideExamples', () => {
     render(ModelGuideExamples, { examples: [example], onuse: vi.fn() });
 
     expect(screen.getByRole('img').getAttribute('src')).toBe(example.image);
+    expect(screen.getByRole('img').getAttribute('alt')).toBe('Generated sample');
   });
 
   it('renders the three configured Grok Imagine samples and preserves prompt actions', async () => {

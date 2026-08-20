@@ -14,8 +14,8 @@ vi.mock('$paraglide/messages', () => ({
   model_guide_section_billing: () => "When you're charged or refunded",
   model_guide_section_tips: () => 'Prompt tips and best practices',
   model_guide_section_examples: () => 'Examples & prompts',
-  model_guide_cap_modes: () => 'Modes',
-  model_guide_cap_max_outputs: () => 'Outputs per request',
+  model_guide_cap_modes: () => 'Available in Create',
+  model_guide_cap_max_outputs: () => 'Maximum outputs',
   model_guide_cap_max_prompt: () => 'Prompt length',
   model_guide_cap_negative_prompt: () => 'Negative prompt',
   model_guide_cap_t2i_aspect_ratios: () => 'Text to image aspect ratios',
@@ -41,6 +41,7 @@ vi.mock('$paraglide/messages', () => ({
   model_guide_cost_loading: () => 'Loading price…',
   model_guide_billed_by_session: () =>
     'GPU-session uptime is billed separately from generation prices.',
+  model_guide_session_billing_hint: () => 'GPU session billed separately',
   model_guide_use_this_prompt: () => 'Use this prompt',
   model_guide_start_creating: () => 'Start creating',
   model_guide_mode_t2i: () => 'Text to image',
@@ -87,7 +88,7 @@ describe('ModelSummaryCard', () => {
     render(ModelSummaryCard, { ...baseProps, modelInfo: makeModelInfo() });
 
     expect(screen.getByText('An authored tagline')).toBeTruthy();
-    expect(screen.getByText(/Outputs per request: 10/)).toBeTruthy();
+    expect(screen.getByText(/Maximum outputs: 10/)).toBeTruthy();
     expect(screen.getByText(/Est\. ◈ 0 tokens/)).toBeTruthy();
   });
 
@@ -116,6 +117,16 @@ describe('ModelSummaryCard', () => {
 
     expect(screen.getByText('Loading price…')).toBeTruthy();
     expect(screen.queryByText('Cost unavailable')).toBeNull();
+  });
+
+  it('clarifies that an on-demand model has a separate GPU-session charge', () => {
+    render(ModelSummaryCard, {
+      ...baseProps,
+      modelInfo: makeModelInfo(),
+      billingFacts: { costs: [], billedBySession: true },
+    });
+
+    expect(screen.getByText('GPU session billed separately')).toBeTruthy();
   });
 
   it('opens the guide and restores focus to its trigger after close', async () => {

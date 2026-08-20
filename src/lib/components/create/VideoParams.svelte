@@ -1,5 +1,27 @@
 <script lang="ts">
+  import type { components } from '$lib/api/types';
   import { generationStore } from '$lib/stores/generation';
+  import { getVideoConstraints, normalizeVideoParams } from '$lib/utils/videoParams';
+
+  type ModelInfo = components['schemas']['ModelInfo'];
+
+  let { modelInfo }: { modelInfo: ModelInfo | null } = $props();
+
+  const constraints = $derived(getVideoConstraints(modelInfo));
+
+  $effect(() => {
+    const normalized = normalizeVideoParams(
+      modelInfo,
+      $generationStore.videoDuration,
+      $generationStore.videoResolution,
+    );
+    if (normalized.duration !== $generationStore.videoDuration) {
+      generationStore.setVideoDuration(normalized.duration);
+    }
+    if (normalized.resolution !== $generationStore.videoResolution) {
+      generationStore.setVideoResolution(normalized.resolution);
+    }
+  });
 </script>
 
 <div class="flex flex-col gap-3">
@@ -16,7 +38,7 @@
     <input
       type="range"
       min="1"
-      max="15"
+      max={constraints.maxDuration}
       step="1"
       value={$generationStore.videoDuration}
       oninput={(e) =>
@@ -25,7 +47,7 @@
     />
     <div class="flex justify-between text-[10px] text-text-dim">
       <span>1s</span>
-      <span>15s</span>
+      <span>{constraints.maxDuration}s</span>
     </div>
   </div>
 
@@ -35,10 +57,10 @@
       >Resolution</span
     >
     <div class="flex gap-1.5">
-      {#each ['480p', '720p'] as res (res)}
+      {#each constraints.resolutions as res (res)}
         {@const isActive = $generationStore.videoResolution === res}
         <button
-          onclick={() => generationStore.setVideoResolution(res as '480p' | '720p')}
+          onclick={() => generationStore.setVideoResolution(res)}
           class="flex-1 rounded-lg border py-2 text-xs font-semibold transition-all
             {isActive
             ? 'border-accent-dim bg-accent-glow text-accent'

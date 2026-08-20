@@ -35,7 +35,7 @@
           >
             <img
               src={example.image}
-              alt={example.prompt}
+              alt={m.model_guide_generated_sample()}
               loading="lazy"
               decoding="async"
               class="h-full w-full object-cover"

@@ -68,7 +68,7 @@ export function billingPricingQueryOptions() {
   return {
     queryKey: billingKeys.pricing(),
     queryFn: fetchBillingPricing,
-    staleTime: 60 * 60 * 1000,
+    staleTime: 5 * 60 * 1000,
     ...focusAwareBillingQueryDefaults,
   };
 }

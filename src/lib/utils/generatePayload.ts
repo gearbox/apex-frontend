@@ -1,6 +1,7 @@
 import type { components } from '$lib/api/types';
 import type { GenerationState } from '$lib/stores/generation';
 import { supportsAishaImageParams } from '$lib/utils/modelCapabilities';
+import { normalizeVideoParams } from '$lib/utils/videoParams';
 
 type ModelInfo = components['schemas']['ModelInfo'];
 type UnifiedGenerationRequest = components['schemas']['UnifiedGenerationRequest'];
@@ -22,6 +23,7 @@ export function buildGeneratePayload(
   modelInfo: ModelInfo | null,
 ): UnifiedGenerationRequest {
   const isAishaImage = supportsAishaImageParams(modelInfo);
+  const videoParams = normalizeVideoParams(modelInfo, state.videoDuration, state.videoResolution);
 
   // Aisha sizing block (only when gate is true)
   const aishaSize: Partial<UnifiedGenerationRequest> = {};
@@ -59,8 +61,8 @@ export function buildGeneratePayload(
         : {}
       : { aspect_ratio: state.aspectRatio }),
     n: outputCountForRequest(state, modelInfo),
-    duration: state.videoDuration,
-    resolution: state.videoResolution,
+    duration: videoParams.duration,
+    resolution: videoParams.resolution,
     ...(state.uploadedImageId ? { input_image_id: state.uploadedImageId } : {}),
     ...(state.sourceOutputId ? { source_output_id: state.sourceOutputId } : {}),
     ...(modelInfo?.supports_negative_prompt === true && state.negativePrompt.trim().length > 0

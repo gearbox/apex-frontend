@@ -2,8 +2,8 @@
   import { tick } from 'svelte';
   import * as m from '$paraglide/messages';
   import { formatNumber } from '$lib/utils/format';
-  import { isGenerationMode, type GenerationMode } from '$lib/utils/generationModes';
-  import { modelGuideModeLabel } from '$lib/content/modelGuides/modeLabels';
+  import { generationModeLabel } from '$lib/content/generationModeLabels';
+  import { createSupportedModes } from '$lib/utils/generationModes';
   import type { components } from '$lib/api/types';
   import type { ModelBillingFacts } from '$lib/content/modelGuides/billingFacts';
   import type { ModelGuide, ModelGuideExample } from '$lib/content/modelGuides/types';
@@ -33,12 +33,8 @@
   let guideTrigger = $state<HTMLButtonElement | null>(null);
 
   const tagline = $derived(guide?.tagline() || modelInfo?.description || '');
-  const modes = $derived(
-    (modelInfo?.capabilities ?? []).filter((capability): capability is GenerationMode =>
-      isGenerationMode(capability),
-    ),
-  );
-  const modeSummary = $derived(modes.map(modelGuideModeLabel).join(', '));
+  const modes = $derived(createSupportedModes(modelInfo));
+  const modeSummary = $derived(modes.map(generationModeLabel).join(', '));
 
   function closeGuide() {
     guideOpen = false;
@@ -82,6 +78,12 @@
         <span class="rounded-full bg-surface-hover px-2 py-1 text-[11px] text-text-dim">18+</span>
       {/if}
     </div>
+
+    {#if billingFacts.billedBySession}
+      <p class="mt-2 text-[11px] leading-relaxed text-text-dim">
+        {m.model_guide_session_billing_hint()}
+      </p>
+    {/if}
 
     <button
       bind:this={guideTrigger}

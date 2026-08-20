@@ -1,6 +1,7 @@
 <script lang="ts">
   import { generationStore } from '$lib/stores/generation';
   import type { components } from '$lib/api/types';
+  import { isVideoMode } from '$lib/utils/generationModes';
   import { supportsAishaImageParams } from '$lib/utils/modelCapabilities';
   import AspectRatioChips from './AspectRatioChips.svelte';
   import ImageCountStepper from './ImageCountStepper.svelte';
@@ -14,12 +15,12 @@
     aspectError = null,
   }: { modelInfo: ModelInfo | null; aspectError?: string | null } = $props();
 
-  const isVideo = $derived($generationStore.mode === 't2v' || $generationStore.mode === 'i2v');
+  const isVideo = $derived(isVideoMode($generationStore.mode));
   const showAishaParams = $derived(!isVideo && supportsAishaImageParams(modelInfo));
 </script>
 
 {#if isVideo}
-  <VideoParams />
+  <VideoParams {modelInfo} />
 {:else}
   <div class="flex flex-col gap-3">
     <AspectRatioChips {modelInfo} {aspectError} />

@@ -43,10 +43,16 @@
   } from '$lib/services/projectInheritance';
   import { libraryKeys, projectKeys } from '$lib/queries/library';
   import { providersQueryOptions } from '$lib/queries/providers';
+  import { billingPricingQueryOptions } from '$lib/queries/billing';
   import { defaultModelGuideSource } from '$lib/content/modelGuides/source';
   import { deriveModelBillingFacts } from '$lib/content/modelGuides/billingFacts';
   import type { ModelGuideExample } from '$lib/content/modelGuides/types';
   import ModelSummaryCard from '$lib/components/create/ModelSummaryCard.svelte';
+  import {
+    isCreateSupportedMode,
+    modeRequiresImageInput,
+    modeRequiresVideoInput,
+  } from '$lib/utils/generationModes';
 
   const queryClient = useQueryClient();
 
@@ -60,14 +66,7 @@
   const providerQuery = createQuery(() => providersQueryOptions());
 
   // ── Pricing
-  const pricingQuery = createQuery(() => ({
-    queryKey: ['pricing'],
-    queryFn: async () => {
-      const { data } = await apiClient.GET('/v1/billing/pricing');
-      return data ?? [];
-    },
-    staleTime: 60 * 60 * 1000,
-  }));
+  const pricingQuery = createQuery(() => billingPricingQueryOptions());
 
   // Flatten all models from all providers, attaching provider metadata for pricing + session hooks
   const allModels = $derived(
@@ -208,6 +207,7 @@
   type ModelType = components['schemas']['ModelType'];
 
   function handleUseGuideExample(modelKey: ModelType, example: ModelGuideExample) {
+    if (!isCreateSupportedMode(example.mode)) return;
     generationStore.prefill({
       model: modelKey,
       mode: example.mode,
@@ -338,11 +338,12 @@
       return;
     }
 
-    if (
-      (state.mode === 'i2i' || state.mode === 'i2v' || state.mode === 'flf2v') &&
-      !state.uploadedImageId &&
-      !state.sourceOutputId
-    ) {
+    if (modeRequiresVideoInput(state.mode) || !isCreateSupportedMode(state.mode)) {
+      addToast({ type: 'error', message: m.error_generation_mode_unavailable() });
+      return;
+    }
+
+    if (modeRequiresImageInput(state.mode) && !state.uploadedImageId && !state.sourceOutputId) {
       addToast({ type: 'error', message: m.error_source_image_required() });
       return;
     }
@@ -401,11 +402,7 @@
     stopPoller?.();
   });
 
-  const showImageUpload = $derived(
-    $generationStore.mode === 'i2i' ||
-      $generationStore.mode === 'i2v' ||
-      $generationStore.mode === 'flf2v',
-  );
+  const showImageUpload = $derived(modeRequiresImageInput($generationStore.mode));
   const showSkeleton = $derived($isGenerating);
 </script>
 

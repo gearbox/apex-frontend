@@ -1,10 +1,17 @@
 import { describe, it, expect } from 'vitest';
 import {
   GENERATION_MODES,
+  CREATE_SUPPORTED_MODES,
+  VIDEO_MODES,
   MODES_REQUIRING_SOURCE,
   MODEL_TYPES,
   isGenerationMode,
+  isCreateSupportedMode,
+  isVideoMode,
   modeRequiresSource,
+  modeRequiresImageInput,
+  modeRequiresVideoInput,
+  createSupportedModes,
   isModelType,
   enabledModes,
   findModelInfo,
@@ -59,6 +66,37 @@ describe('modeRequiresSource', () => {
   });
 });
 
+describe('Create mode support', () => {
+  it('keeps only modes with complete Create input workflows actionable', () => {
+    expect(CREATE_SUPPORTED_MODES).toEqual(['t2i', 'i2i', 't2v', 'i2v']);
+    expect(isCreateSupportedMode('v2v')).toBe(false);
+    expect(isCreateSupportedMode('flf2v')).toBe(false);
+  });
+
+  it('filters advertised V2V and FLF2V capabilities from Create', () => {
+    const model = makeGrokImageModelInfo({ capabilities: ['t2v', 'i2v', 'v2v', 'flf2v'] });
+
+    expect(createSupportedModes(model)).toEqual(['t2v', 'i2v']);
+  });
+});
+
+describe('mode input and video semantics', () => {
+  it('recognizes every video mode', () => {
+    expect(VIDEO_MODES).toEqual(['t2v', 'i2v', 'v2v', 'flf2v']);
+    for (const mode of VIDEO_MODES) expect(isVideoMode(mode)).toBe(true);
+    expect(isVideoMode('t2i')).toBe(false);
+  });
+
+  it('keeps image and video input requirements distinct', () => {
+    expect(modeRequiresImageInput('i2i')).toBe(true);
+    expect(modeRequiresImageInput('i2v')).toBe(true);
+    expect(modeRequiresImageInput('flf2v')).toBe(true);
+    expect(modeRequiresImageInput('v2v')).toBe(false);
+    expect(modeRequiresVideoInput('v2v')).toBe(true);
+    expect(modeRequiresVideoInput('i2v')).toBe(false);
+  });
+});
+
 describe('isModelType', () => {
   it('accepts every known model key', () => {
     for (const key of MODEL_TYPES) {
@@ -110,6 +148,24 @@ describe('enabledModes', () => {
       user_context: null,
     };
     expect(enabledModes(providers)).toEqual(new Set(['t2i']));
+  });
+
+  it('does not expose enabled capabilities that current Create cannot submit', () => {
+    const providers: ProvidersResponse = {
+      providers: [
+        makeProviderInfo([
+          makeGrokImageModelInfo({
+            model_key: 'grok-imagine-video',
+            is_enabled: true,
+            capabilities: ['t2v', 'v2v'],
+          }),
+        ]),
+      ],
+      user_context: null,
+    };
+
+    expect(enabledModes(providers)).toEqual(new Set(['t2v']));
+    expect(resolveModelForMode(providers, 'v2v')).toBeNull();
   });
 
   it('ignores unrecognized capability strings from the backend', () => {

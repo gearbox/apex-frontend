@@ -3,12 +3,12 @@
   import { X } from '@lucide/svelte';
   import * as m from '$paraglide/messages';
   import { formatNumber } from '$lib/utils/format';
-  import { isGenerationMode, type GenerationMode } from '$lib/utils/generationModes';
+  import { createSupportedModes } from '$lib/utils/generationModes';
+  import { generationModeLabel } from '$lib/content/generationModeLabels';
   import { getEditAspectRatios, getT2iAspectRatios } from '$lib/utils/modelCapabilities';
   import type { components } from '$lib/api/types';
   import type { ModelBillingFacts } from '$lib/content/modelGuides/billingFacts';
   import type { ModelGuide, ModelGuideExample } from '$lib/content/modelGuides/types';
-  import { modelGuideModeLabel } from '$lib/content/modelGuides/modeLabels';
   import ModelGuideExamples from './ModelGuideExamples.svelte';
   import ModelGuideSectionList from './ModelGuideSectionList.svelte';
 
@@ -29,17 +29,16 @@
   let dialogPanel = $state<HTMLDivElement | null>(null);
 
   const description = $derived(guide?.tagline() || modelInfo.description);
-  const modes = $derived(
-    modelInfo.capabilities.filter((capability): capability is GenerationMode =>
-      isGenerationMode(capability),
-    ),
+  const modes = $derived(createSupportedModes(modelInfo));
+  const actionableExamples = $derived(
+    (guide?.examples ?? []).filter((example) => modes.includes(example.mode)),
   );
   const capabilityRows = $derived.by(() => {
     const rows: { label: string; value: string }[] = [];
     if (modes.length > 0)
       rows.push({
         label: m.model_guide_cap_modes(),
-        value: modes.map(modelGuideModeLabel).join(', '),
+        value: modes.map(generationModeLabel).join(', '),
       });
     if (modelInfo.max_images != null) {
       rows.push({ label: m.model_guide_cap_max_outputs(), value: String(modelInfo.max_images) });
@@ -48,6 +47,16 @@
       rows.push({
         label: m.model_guide_cap_max_prompt(),
         value: formatNumber(modelInfo.max_prompt_length),
+      });
+    }
+    if (modelInfo.video) {
+      rows.push({
+        label: m.model_guide_cap_max_duration(),
+        value: `${modelInfo.video.max_duration} ${m.model_guide_seconds()}`,
+      });
+      rows.push({
+        label: m.model_guide_cap_resolutions(),
+        value: modelInfo.video.resolutions.join(', '),
       });
     }
     rows.push({
@@ -207,7 +216,7 @@
           <dl class="mt-2 divide-y divide-border rounded-xl border border-border bg-bg px-3">
             {#each billingFacts.costs as cost (cost.mode)}
               <div class="flex items-center justify-between gap-4 py-2.5 text-sm">
-                <dt class="text-text-dim">{modelGuideModeLabel(cost.mode)}</dt>
+                <dt class="text-text-dim">{generationModeLabel(cost.mode)}</dt>
                 <dd class="font-medium text-text">
                   {cost.tokenCost === null || cost.inputTokenCost === null
                     ? pricingPending
@@ -242,14 +251,16 @@
 
       {#if guide}
         <ModelGuideSectionList title={m.model_guide_section_tips()} items={guide.promptTips} />
-        <section>
-          <h3 class="text-[11px] font-semibold uppercase tracking-wider text-text-muted">
-            {m.model_guide_section_examples()}
-          </h3>
-          <div class="mt-2">
-            <ModelGuideExamples examples={guide.examples} onuse={handleUseExample} />
-          </div>
-        </section>
+        {#if actionableExamples.length > 0}
+          <section>
+            <h3 class="text-[11px] font-semibold uppercase tracking-wider text-text-muted">
+              {m.model_guide_section_examples()}
+            </h3>
+            <div class="mt-2">
+              <ModelGuideExamples examples={actionableExamples} onuse={handleUseExample} />
+            </div>
+          </section>
+        {/if}
       {/if}
     </div>
 

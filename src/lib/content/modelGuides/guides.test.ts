@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { existsSync } from 'node:fs';
 import { extname, resolve } from 'node:path';
+import sharp from 'sharp';
 
 vi.mock('$paraglide/messages', async (importOriginal) => {
   const messages = await importOriginal<typeof import('$paraglide/messages')>();
@@ -38,7 +39,7 @@ describe('modelGuides', () => {
     }
   });
 
-  it('keeps every configured sample image in its model directory and present under static', () => {
+  it('keeps every configured sample image valid, bounded, and aligned with its example', async () => {
     const configuredImages = Object.values(modelGuides).flatMap((guide) =>
       guide.examples.flatMap((example) =>
         example.image ? [{ modelKey: guide.modelKey, image: example.image }] : [],
@@ -47,9 +48,24 @@ describe('modelGuides', () => {
 
     expect(new Set(configuredImages.map(({ image }) => image)).size).toBe(configuredImages.length);
     for (const { modelKey, image } of configuredImages) {
+      const imagePath = resolve('static', image.slice(1));
       expect(image.startsWith(`/model-guides/${modelKey}/`)).toBe(true);
       expect(extname(image)).toBe('.webp');
-      expect(existsSync(resolve('static', image.slice(1)))).toBe(true);
+      expect(existsSync(imagePath)).toBe(true);
+
+      const metadata = await sharp(imagePath).metadata();
+      expect(metadata.format).toBe('webp');
+      expect(metadata.width).toBeDefined();
+      expect(metadata.height).toBeDefined();
+      expect(Math.max(metadata.width!, metadata.height!)).toBeLessThanOrEqual(512);
+
+      const example = Object.values(modelGuides)
+        .flatMap((guide) => guide.examples)
+        .find((candidate) => candidate.image === image);
+      expect(example).toBeDefined();
+      const [width, height] = example!.aspectRatio.split(':').map(Number);
+      const actualAspect = metadata.width! / metadata.height!;
+      expect(Math.abs(actualAspect - width / height)).toBeLessThanOrEqual(0.02);
     }
   });
 });
