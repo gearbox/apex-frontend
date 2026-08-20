@@ -25,8 +25,9 @@ export function deriveModelBillingFacts(params: {
   provider: string | null;
   provisioningMode: ProvisioningMode | null;
   pricing: PricingRuleResponse[];
+  nowMs: number;
 }): ModelBillingFacts {
-  const { modelInfo, provider, provisioningMode, pricing } = params;
+  const { modelInfo, provider, provisioningMode, pricing, nowMs } = params;
   const modelKey = modelInfo?.model_key;
   if (!modelInfo || !provider || !modelKey || !isModelType(modelKey)) {
     return { costs: [], billedBySession: false };
@@ -34,7 +35,7 @@ export function deriveModelBillingFacts(params: {
 
   return {
     costs: createSupportedModes(modelInfo).map((mode) => {
-      const rule = findPricingRule(pricing, provider, modelKey, mode);
+      const rule = findPricingRule(pricing, provider, modelKey, mode, nowMs);
       return {
         mode,
         tokenCost: rule?.token_cost ?? null,

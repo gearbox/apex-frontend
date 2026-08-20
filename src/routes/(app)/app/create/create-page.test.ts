@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/svelte';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen } from '@testing-library/svelte';
 import { get } from 'svelte/store';
 import type { components } from '$lib/api/types';
 import { generationStore } from '$lib/stores/generation';
@@ -69,37 +69,41 @@ let providersData: ProvidersResponse | undefined;
 let pricingData: PricingRuleResponse[] | undefined;
 let pricingPending: boolean;
 let queryKeys: unknown[][];
+let pricingQueryIntervals: Array<number | false | undefined>;
 
 vi.mock('@tanstack/svelte-query', () => ({
   useQueryClient: vi.fn(() => ({ invalidateQueries: vi.fn() })),
-  createQuery: vi.fn((optionsFn: () => { queryKey: readonly unknown[] }) => {
-    const { queryKey } = optionsFn();
-    queryKeys.push([...queryKey]);
-    const key = queryKey[0];
-    if (key === 'providers') {
-      return {
-        get data() {
-          return providersData;
-        },
-        isPending: providersData === undefined,
-      };
-    }
-    if (key === 'billing' && queryKey[1] === 'pricing') {
-      return {
-        get data() {
-          return pricingData;
-        },
-        get isPending() {
-          return pricingPending;
-        },
-      };
-    }
-    if (key === 'balance' || (key === 'billing' && queryKey[1] === 'balance')) {
-      return { data: { balance: 100 }, isLoading: false };
-    }
-    // pricing / sessions default to an empty resolved list
-    return { data: [], isLoading: false, isPending: false };
-  }),
+  createQuery: vi.fn(
+    (optionsFn: () => { queryKey: readonly unknown[]; refetchInterval?: number | false }) => {
+      const { queryKey, refetchInterval } = optionsFn();
+      queryKeys.push([...queryKey]);
+      const key = queryKey[0];
+      if (key === 'providers') {
+        return {
+          get data() {
+            return providersData;
+          },
+          isPending: providersData === undefined,
+        };
+      }
+      if (key === 'billing' && queryKey[1] === 'pricing') {
+        pricingQueryIntervals.push(refetchInterval);
+        return {
+          get data() {
+            return pricingData;
+          },
+          get isPending() {
+            return pricingPending;
+          },
+        };
+      }
+      if (key === 'balance' || (key === 'billing' && queryKey[1] === 'balance')) {
+        return { data: { balance: 100 }, isLoading: false };
+      }
+      // pricing / sessions default to an empty resolved list
+      return { data: [], isLoading: false, isPending: false };
+    },
+  ),
   createMutation: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
 }));
 
@@ -111,6 +115,12 @@ beforeEach(() => {
   pricingData = [];
   pricingPending = false;
   queryKeys = [];
+  pricingQueryIntervals = [];
+});
+
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
 });
 
 function generateButtons(): HTMLButtonElement[] {
@@ -156,6 +166,7 @@ describe('/app/create page — generate gating during providers load', () => {
 
     expect(queryKeys).toContainEqual(['billing', 'pricing']);
     expect(queryKeys).not.toContainEqual(['pricing']);
+    expect(pricingQueryIntervals).toEqual([60_000]);
   });
 
   it('shows a loading price while pricing is pending', () => {
@@ -241,6 +252,32 @@ describe('/app/create page — generate gating during providers load', () => {
     expect(screen.getAllByText('◈ 9')).toHaveLength(2);
   });
 
+  it('does not charge a retained i2i source after switching back to t2i', () => {
+    providersData = GROK_PROVIDERS;
+    generationStore.setMode('i2i');
+    generationStore.setUploadedImageId('image_001');
+    generationStore.setMode('t2i');
+    pricingData = [
+      {
+        id: '00000000-0000-0000-0000-000000000001',
+        provider: 'grok',
+        generation_type: 't2i',
+        model: 'grok-imagine-image',
+        token_cost: 7,
+        input_token_cost: 2,
+        is_active: true,
+        effective_from: '2026-01-01T00:00:00Z',
+        effective_until: null,
+        notes: null,
+      },
+    ];
+
+    render(Page);
+
+    expect(screen.getByText('Est. ◈ 7 tokens')).toBeTruthy();
+    expect(screen.getAllByText('◈ 7')).toHaveLength(2);
+  });
+
   it('uses one output in the estimate after switching from four images to video', () => {
     providersData = GROK_VIDEO_PROVIDERS;
     generationStore.setImageCount(4);
@@ -283,5 +320,81 @@ describe('/app/create page — generate gating during providers load', () => {
         'A ceramic coffee mug on a wooden windowsill, soft morning light, shallow depth of field',
       aspectRatio: '1:1',
     });
+  });
+
+  it('expires the mounted estimate and model-guide facts on the minute pricing clock', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-01T00:00:00Z'));
+    providersData = GROK_PROVIDERS;
+    pricingData = [
+      {
+        id: '00000000-0000-0000-0000-000000000001',
+        provider: 'grok',
+        generation_type: 't2i',
+        model: 'grok-imagine-image',
+        token_cost: 7,
+        input_token_cost: 0,
+        is_active: true,
+        effective_from: '2026-05-01T00:00:00Z',
+        effective_until: '2026-06-01T00:01:00Z',
+        notes: null,
+      },
+    ];
+
+    render(Page);
+    expect(screen.getByText('Est. ◈ 7 tokens')).toBeTruthy();
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Learn more about this model' }));
+    expect(screen.getAllByText('Cost unavailable')).toHaveLength(1);
+
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(screen.queryAllByText('Est. ◈ 7 tokens')).toHaveLength(0);
+    // One compact estimate plus the T2I and I2I model-guide rows are unavailable.
+    expect(screen.getAllByText('Cost unavailable')).toHaveLength(3);
+  });
+
+  it('uses a newly fetched pricing rule on the next pricing clock update', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-01T00:00:00Z'));
+    providersData = GROK_PROVIDERS;
+    pricingData = [
+      {
+        id: '00000000-0000-0000-0000-000000000001',
+        provider: 'grok',
+        generation_type: 't2i',
+        model: 'grok-imagine-image',
+        token_cost: 7,
+        input_token_cost: 0,
+        is_active: true,
+        effective_from: '2026-05-01T00:00:00Z',
+        effective_until: '2026-06-01T00:01:00Z',
+        notes: null,
+      },
+    ];
+
+    render(Page);
+    expect(screen.getByText('Est. ◈ 7 tokens')).toBeTruthy();
+
+    // Simulate the Create-only query's minute refetch returning the rule that
+    // was not effective when the previous response was fetched.
+    pricingData = [
+      {
+        id: '00000000-0000-0000-0000-000000000002',
+        provider: 'grok',
+        generation_type: 't2i',
+        model: 'grok-imagine-image',
+        token_cost: 11,
+        input_token_cost: 0,
+        is_active: true,
+        effective_from: '2026-06-01T00:01:00Z',
+        effective_until: null,
+        notes: null,
+      },
+    ];
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(screen.getByText('Est. ◈ 11 tokens')).toBeTruthy();
+    expect(screen.getAllByText('◈ 11')).toHaveLength(2);
   });
 });

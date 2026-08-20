@@ -32,7 +32,11 @@
   import PromptInput from '$lib/components/create/PromptInput.svelte';
   import NegativePromptInput from '$lib/components/create/NegativePromptInput.svelte';
   import ParamsPanel from '$lib/components/create/ParamsPanel.svelte';
-  import { buildGeneratePayload, outputCountForRequest } from '$lib/utils/generatePayload';
+  import {
+    buildGeneratePayload,
+    inputImageCountForRequest,
+    outputCountForRequest,
+  } from '$lib/utils/generatePayload';
   import { supportsAishaImageParams } from '$lib/utils/modelCapabilities';
   import GenerateButton from '$lib/components/create/GenerateButton.svelte';
   import ResultsPanel from '$lib/components/create/ResultsPanel.svelte';
@@ -55,18 +59,28 @@
   } from '$lib/utils/generationModes';
 
   const queryClient = useQueryClient();
+  let pricingNowMs = $state(Date.now());
 
   // Pre-populate prompt from ?prompt= URL parameter (supports deep-linking)
   onMount(() => {
     const prompt = new URLSearchParams(window.location.search).get('prompt');
     if (prompt) generationStore.setPrompt(prompt);
+
+    // Cached pricing can expire while Create remains open. A minute-granularity
+    // clock keeps local rule selection reactive, while the query below discovers
+    // newly-effective backend rules on the same bounded cadence.
+    const pricingClock = window.setInterval(() => {
+      pricingNowMs = Date.now();
+    }, 60_000);
+
+    return () => window.clearInterval(pricingClock);
   });
 
   // ── Provider info (model capabilities)
   const providerQuery = createQuery(() => providersQueryOptions());
 
   // ── Pricing
-  const pricingQuery = createQuery(() => billingPricingQueryOptions());
+  const pricingQuery = createQuery(() => billingPricingQueryOptions(60_000));
 
   // Flatten all models from all providers, attaching provider metadata for pricing + session hooks
   const allModels = $derived(
@@ -101,6 +115,7 @@
       provider: currentModelInfo?.provider ?? null,
       provisioningMode: currentProvisioningMode,
       pricing: pricingQuery.data ?? [],
+      nowMs: pricingNowMs,
     }),
   );
 
@@ -185,13 +200,12 @@
           currentModelInfo.provider,
           $generationStore.model,
           $generationStore.mode,
+          pricingNowMs,
         )
       : null,
   );
   const currentOutputCount = $derived(outputCountForRequest($generationStore, currentModelInfo));
-  const currentInputImageCount = $derived(
-    $generationStore.uploadedImageId || $generationStore.sourceOutputId ? 1 : 0,
-  );
+  const currentInputImageCount = $derived(inputImageCountForRequest($generationStore));
   const currentEstimatedCost = $derived(
     currentPricingRule
       ? estimatePricingRuleCost(currentPricingRule, {

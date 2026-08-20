@@ -81,11 +81,16 @@ describe('paymentProvidersQueryOptions()', () => {
 });
 
 describe('billingPricingQueryOptions()', () => {
-  it('uses the canonical pricing key, moderate freshness, and focus refetching', () => {
+  it('uses the canonical pricing key, moderate freshness, focus refetching, and no default polling', () => {
     const opts = billingPricingQueryOptions();
     expect(opts.queryKey).toEqual(['billing', 'pricing']);
     expect(opts.staleTime).toBe(5 * 60 * 1000);
+    expect(opts.refetchInterval).toBe(false);
     expect(opts.refetchOnWindowFocus).toBe(true);
+  });
+
+  it('forwards a caller-provided polling interval', () => {
+    expect(billingPricingQueryOptions(60_000).refetchInterval).toBe(60_000);
   });
 });
 

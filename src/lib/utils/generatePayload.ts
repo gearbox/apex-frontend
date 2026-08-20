@@ -1,5 +1,6 @@
 import type { components } from '$lib/api/types';
 import type { GenerationState } from '$lib/stores/generation';
+import { modeRequiresImageInput } from '$lib/utils/generationModes';
 import { supportsAishaImageParams } from '$lib/utils/modelCapabilities';
 import { normalizeVideoParams } from '$lib/utils/videoParams';
 
@@ -16,6 +17,27 @@ export function outputCountForRequest(state: GenerationState, modelInfo: ModelIn
 
   const requestedCount = Math.max(1, state.imageCount);
   return modelInfo ? Math.max(1, Math.min(requestedCount, modelInfo.max_images)) : requestedCount;
+}
+
+/**
+ * Project retained image-source draft state onto the generation request contract.
+ * Text-only modes intentionally omit a stale source so it cannot affect either
+ * generation behavior or the backend's input-image pricing surcharge.
+ */
+function imageSourceForRequest(
+  state: GenerationState,
+): Pick<UnifiedGenerationRequest, 'input_image_id' | 'source_output_id'> {
+  if (!modeRequiresImageInput(state.mode)) return {};
+
+  if (state.uploadedImageId) return { input_image_id: state.uploadedImageId };
+  if (state.sourceOutputId) return { source_output_id: state.sourceOutputId };
+  return {};
+}
+
+/** Returns the number of image inputs serialized into the normalized request. */
+export function inputImageCountForRequest(state: GenerationState): number {
+  const source = imageSourceForRequest(state);
+  return source.input_image_id || source.source_output_id ? 1 : 0;
 }
 
 export function buildGeneratePayload(
@@ -63,8 +85,7 @@ export function buildGeneratePayload(
     n: outputCountForRequest(state, modelInfo),
     duration: videoParams.duration,
     resolution: videoParams.resolution,
-    ...(state.uploadedImageId ? { input_image_id: state.uploadedImageId } : {}),
-    ...(state.sourceOutputId ? { source_output_id: state.sourceOutputId } : {}),
+    ...imageSourceForRequest(state),
     ...(modelInfo?.supports_negative_prompt === true && state.negativePrompt.trim().length > 0
       ? { negative_prompt: state.negativePrompt.trim() }
       : {}),

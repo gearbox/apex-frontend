@@ -27,4 +27,14 @@ describe('TypeSelector', () => {
     expect(screen.queryByRole('button', { name: 'Video to video' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'First and last frame to video' })).toBeNull();
   });
+
+  it('exposes stable mode semantics and selected state', () => {
+    render(TypeSelector, { modelInfo: makeModelInfo({ capabilities: ['t2i', 'i2i'] }) });
+
+    const textToImage = screen.getByRole('button', { name: 'Text to image' });
+    const imageToImage = screen.getByRole('button', { name: 'Image to image' });
+    expect(textToImage.getAttribute('data-generation-mode')).toBe('t2i');
+    expect(textToImage.getAttribute('aria-pressed')).toBe('true');
+    expect(imageToImage.getAttribute('aria-pressed')).toBe('false');
+  });
 });

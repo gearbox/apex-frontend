@@ -30,6 +30,7 @@ describe('deriveModelBillingFacts', () => {
         provider: null,
         provisioningMode: null,
         pricing: [],
+        nowMs: Date.parse('2026-02-15T00:00:00Z'),
       }),
     ).toEqual({ costs: [], billedBySession: false });
   });
@@ -47,6 +48,7 @@ describe('deriveModelBillingFacts', () => {
         rule({ generation_type: 't2i', token_cost: 4, input_token_cost: 1 }),
         rule({ model: 'grok-imagine-image', generation_type: 't2v', token_cost: 6 }),
       ],
+      nowMs: Date.parse('2026-02-15T00:00:00Z'),
     });
 
     expect(facts.costs).toEqual([
@@ -64,6 +66,7 @@ describe('deriveModelBillingFacts', () => {
       provider: 'grok',
       provisioningMode: 'on_demand',
       pricing: [rule({ token_cost: 0 })],
+      nowMs: Date.parse('2026-02-15T00:00:00Z'),
     });
 
     expect(facts.costs).toEqual([
@@ -80,9 +83,22 @@ describe('deriveModelBillingFacts', () => {
       provider: 'grok',
       provisioningMode: isProvisioningMode(rawProvisioningMode) ? rawProvisioningMode : null,
       pricing: [],
+      nowMs: Date.parse('2026-02-15T00:00:00Z'),
     });
 
     expect(isProvisioningMode(rawProvisioningMode)).toBe(false);
     expect(facts.billedBySession).toBe(false);
+  });
+
+  it('does not expose a model-guide price after its supplied clock passes the expiry', () => {
+    const facts = deriveModelBillingFacts({
+      modelInfo: makeModelInfo({ capabilities: ['t2i'] }),
+      provider: 'grok',
+      provisioningMode: 'always_on',
+      pricing: [rule({ effective_until: '2026-02-15T00:00:00Z' })],
+      nowMs: Date.parse('2026-02-15T00:00:00Z'),
+    });
+
+    expect(facts.costs).toEqual([{ mode: 't2i', tokenCost: null, inputTokenCost: null }]);
   });
 });

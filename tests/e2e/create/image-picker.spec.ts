@@ -1,10 +1,22 @@
 import { Buffer } from 'node:buffer';
+import type { Page } from '@playwright/test';
 import { test, expect } from '../fixtures/auth.fixture';
 import { jsonRoute } from '../helpers/api';
 
 // This suite intercepts image URLs with page.route(); keep a prior PWA worker
 // from satisfying those requests outside Playwright's route handlers in WebKit.
 test.use({ serviceWorkers: 'block' });
+
+async function selectGenerationMode(
+  page: Page,
+  mode: 't2i' | 'i2i' | 't2v' | 'i2v',
+): Promise<void> {
+  await page.locator(`[data-generation-mode="${mode}"]`).click();
+}
+
+function imagePickerItems(page: Page) {
+  return page.getByRole('dialog', { name: 'Choose from library' }).locator('[aria-pressed]');
+}
 
 function makeMedia(url: string, mediaType: 'image' | 'video' = 'image') {
   return {
@@ -201,7 +213,7 @@ test.describe('Image Picker', () => {
   }) => {
     await page.goto('/app/create');
 
-    await page.getByRole('button', { name: 'Image → Image' }).click();
+    await selectGenerationMode(page, 'i2i');
 
     await expect(page.getByRole('button', { name: /Choose from library/i })).toBeVisible();
   });
@@ -215,7 +227,7 @@ test.describe('Image Picker', () => {
 
   test('3. Picker opens and shows uploads tab', async ({ authenticatedPage: page }) => {
     await page.goto('/app/create');
-    await page.getByRole('button', { name: 'Image → Image' }).click();
+    await selectGenerationMode(page, 'i2i');
 
     await page.getByRole('button', { name: /Choose from library/i }).click();
 
@@ -225,25 +237,25 @@ test.describe('Image Picker', () => {
 
   test('4. Can switch to Generated tab', async ({ authenticatedPage: page }) => {
     await page.goto('/app/create');
-    await page.getByRole('button', { name: 'Image → Image' }).click();
+    await selectGenerationMode(page, 'i2i');
 
     await page.getByRole('button', { name: /Choose from library/i }).click();
     await page.getByRole('tab', { name: /Generated/i }).click();
 
     // Should show generated items (the library query fires with source=output)
-    await expect(page.locator('[aria-pressed]').first()).toBeVisible({ timeout: 5000 });
-    await expect(page.locator('[aria-pressed]')).toHaveCount(2);
+    await expect(imagePickerItems(page).first()).toBeVisible({ timeout: 5000 });
+    await expect(imagePickerItems(page)).toHaveCount(2);
   });
 
   test('5. Selecting an upload and confirming updates the preview', async ({
     authenticatedPage: page,
   }) => {
     await page.goto('/app/create');
-    await page.getByRole('button', { name: 'Image → Image' }).click();
+    await selectGenerationMode(page, 'i2i');
 
     await page.getByRole('button', { name: /Choose from library/i }).click();
 
-    const items = page.locator('[aria-pressed]');
+    const items = imagePickerItems(page);
     await expect(items.first()).toBeVisible();
     await items.first().click();
 
@@ -262,7 +274,7 @@ test.describe('Image Picker', () => {
     authenticatedPage: page,
   }) => {
     await page.goto('/app/create');
-    await page.getByRole('button', { name: 'Image → Image' }).click();
+    await selectGenerationMode(page, 'i2i');
     await page.getByRole('button', { name: /Choose from library/i }).click();
 
     await expect(page.getByRole('button', { name: 'Upload: photo.jpg' })).toBeVisible();
@@ -273,7 +285,7 @@ test.describe('Image Picker', () => {
     authenticatedPage: page,
   }) => {
     await page.goto('/app/create');
-    await page.getByRole('button', { name: 'Image → Image' }).click();
+    await selectGenerationMode(page, 'i2i');
     await page.getByRole('button', { name: /Choose from library/i }).click();
 
     await expect(page.getByRole('button', { name: 'Upload: Unnamed upload' })).toBeVisible();
@@ -282,12 +294,12 @@ test.describe('Image Picker', () => {
 
   test('6. Selecting a generated output auto-fills prompt', async ({ authenticatedPage: page }) => {
     await page.goto('/app/create');
-    await page.getByRole('button', { name: 'Image → Image' }).click();
+    await selectGenerationMode(page, 'i2i');
 
     await page.getByRole('button', { name: /Choose from library/i }).click();
     await page.getByRole('tab', { name: /Generated/i }).click();
 
-    const items = page.locator('[aria-pressed]');
+    const items = imagePickerItems(page);
     await expect(items.first()).toBeVisible();
     await items.first().click();
     await page.getByRole('button', { name: /Use Selected Image/i }).click();
@@ -299,7 +311,7 @@ test.describe('Image Picker', () => {
 
   test('7. Escape closes the picker', async ({ authenticatedPage: page }) => {
     await page.goto('/app/create');
-    await page.getByRole('button', { name: 'Image → Image' }).click();
+    await selectGenerationMode(page, 'i2i');
 
     await page.getByRole('button', { name: /Choose from library/i }).click();
     await expect(page.getByRole('heading', { name: 'Choose from Library' })).toBeVisible();
@@ -312,13 +324,13 @@ test.describe('Image Picker', () => {
     authenticatedPage: page,
   }) => {
     await page.goto('/app/create');
-    await page.getByRole('button', { name: 'Image → Image' }).click();
+    await selectGenerationMode(page, 'i2i');
 
     await page.getByRole('button', { name: /Choose from library/i }).click();
     await page.getByRole('tab', { name: /Generated/i }).click();
 
     // Select the i2i item (second item in the grid)
-    const items = page.locator('[aria-pressed]');
+    const items = imagePickerItems(page);
     await expect(items).toHaveCount(2);
     await items.nth(1).click();
     await page.getByRole('button', { name: /Use Selected Image/i }).click();
@@ -333,11 +345,11 @@ test.describe('Image Picker', () => {
 
   test('9. Clearing the selection resets the preview', async ({ authenticatedPage: page }) => {
     await page.goto('/app/create');
-    await page.getByRole('button', { name: 'Image → Image' }).click();
+    await selectGenerationMode(page, 'i2i');
 
     // Select from picker
     await page.getByRole('button', { name: /Choose from library/i }).click();
-    const items = page.locator('[aria-pressed]');
+    const items = imagePickerItems(page);
     await expect(items.first()).toBeVisible();
     await items.first().click();
     await page.getByRole('button', { name: /Use Selected Image/i }).click();

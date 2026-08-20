@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { buildGeneratePayload, outputCountForRequest } from './generatePayload';
+import {
+  buildGeneratePayload,
+  inputImageCountForRequest,
+  outputCountForRequest,
+} from './generatePayload';
 import type { GenerationState } from '$lib/stores/generation';
 import { makeGrokImageModelInfo, makeAishaImageModelInfo } from '../../mocks/factories/providers';
 
@@ -71,19 +75,37 @@ describe('buildGeneratePayload — Grok model', () => {
     expect(payload.sampler).toBeUndefined();
   });
 
-  it('includes input_image_id when set', () => {
-    const state: GenerationState = { ...baseState, uploadedImageId: 'img_001' };
+  it('includes input_image_id for i2i when set', () => {
+    const state: GenerationState = { ...baseState, mode: 'i2i', uploadedImageId: 'img_001' };
     const payload = buildGeneratePayload(state, grokModelInfo);
     expect(payload.input_image_id).toBe('img_001');
     expect(payload.source_output_id).toBeUndefined();
+    expect(inputImageCountForRequest(state)).toBe(1);
   });
 
-  it('includes source_output_id when set', () => {
-    const state: GenerationState = { ...baseState, sourceOutputId: 'out_001' };
+  it('includes source_output_id for i2i when set', () => {
+    const state: GenerationState = { ...baseState, mode: 'i2i', sourceOutputId: 'out_001' };
     const payload = buildGeneratePayload(state, grokModelInfo);
     expect(payload.source_output_id).toBe('out_001');
     expect(payload.input_image_id).toBeUndefined();
+    expect(inputImageCountForRequest(state)).toBe(1);
   });
+
+  it.each(['t2i', 't2v'] as const)(
+    'omits a retained source after switching from i2i to %s',
+    (mode) => {
+      const state: GenerationState = {
+        ...baseState,
+        mode,
+        uploadedImageId: 'img_001',
+      };
+      const payload = buildGeneratePayload(state, grokModelInfo);
+
+      expect(payload.input_image_id).toBeUndefined();
+      expect(payload.source_output_id).toBeUndefined();
+      expect(inputImageCountForRequest(state)).toBe(0);
+    },
+  );
 });
 
 describe('buildGeneratePayload — Aisha model negative_prompt', () => {

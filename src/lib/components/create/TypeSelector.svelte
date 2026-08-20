@@ -39,6 +39,8 @@
       {@const isActive = $generationStore.mode === modeOpt.value}
       <button
         onclick={() => generationStore.setMode(modeOpt.value)}
+        data-generation-mode={modeOpt.value}
+        aria-pressed={isActive}
         class="flex-1 rounded-lg border py-2 text-center text-xs font-medium transition-all
           {isActive
           ? 'border-accent-dim bg-accent-glow text-accent'
