@@ -24,16 +24,8 @@ vi.mock('$paraglide/runtime', () => ({
 
 vi.mock('$lib/stores/generation', () => ({
   generationStore: {
-    subscribe: (
-      fn: (v: {
-        prompt: string;
-        jobStatus: null;
-        progress: null;
-        mode: string;
-        imageCount: number;
-      }) => void,
-    ) => {
-      fn({ prompt: 'a cool image', jobStatus: null, progress: null, mode: 't2i', imageCount: 1 });
+    subscribe: (fn: (v: { prompt: string; jobStatus: null; progress: null }) => void) => {
+      fn({ prompt: 'a cool image', jobStatus: null, progress: null });
       return () => {};
     },
   },
@@ -69,9 +61,26 @@ describe('GenerateButton — positive balance', () => {
 
     const btn = screen.getByRole('button') as HTMLButtonElement;
     expect(btn.textContent).toContain('Generate');
+    expect(btn.textContent).toContain('◈ 5');
     expect(btn.disabled).toBe(false);
     await fireEvent.click(btn);
     expect(onclick).toHaveBeenCalledOnce();
+  });
+});
+
+describe('GenerateButton — cost preview', () => {
+  it('shows the page-provided total estimate without applying another multiplier', () => {
+    mockBalanceQuery(500);
+    render(GenerateButton, { props: { onclick: vi.fn(), estimatedCost: 28 } });
+
+    expect(screen.getByRole('button').textContent).toContain('◈ 28');
+  });
+
+  it('keeps a missing price visibly unknown', () => {
+    mockBalanceQuery(500);
+    render(GenerateButton, { props: { onclick: vi.fn(), estimatedCost: null } });
+
+    expect(screen.getByRole('button').textContent).toContain('◈ ?');
   });
 });
 

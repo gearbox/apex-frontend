@@ -7,7 +7,7 @@
   import { generationStore, isGenerating, markGenerationDraftSaved } from '$lib/stores/generation';
   import { activeJobStore } from '$lib/stores/jobs';
   import { addToast } from '$lib/stores/toasts';
-  import { lookupCost } from '$lib/utils/pricing';
+  import { estimatePricingRuleCost, findPricingRule } from '$lib/utils/pricing';
   import { createJobPoller } from '$lib/services/jobPoller';
   import { productInfo } from '$lib/stores/product';
   import { isAgeVerified, isAuthenticated, setUser } from '$lib/stores/auth';
@@ -15,8 +15,8 @@
   import {
     deriveCardState,
     isGenerateEnabled,
+    isProvisioningMode,
     isTerminalStatus,
-    type ProvisioningMode,
     type SessionState,
   } from '$lib/utils/sessionState';
   import { sessionsListQueryOptions, startSessionMutationOptions } from '$lib/queries/sessions';
@@ -32,7 +32,11 @@
   import PromptInput from '$lib/components/create/PromptInput.svelte';
   import NegativePromptInput from '$lib/components/create/NegativePromptInput.svelte';
   import ParamsPanel from '$lib/components/create/ParamsPanel.svelte';
-  import { buildGeneratePayload } from '$lib/utils/generatePayload';
+  import {
+    buildGeneratePayload,
+    inputImageCountForRequest,
+    outputCountForRequest,
+  } from '$lib/utils/generatePayload';
   import { supportsAishaImageParams } from '$lib/utils/modelCapabilities';
   import GenerateButton from '$lib/components/create/GenerateButton.svelte';
   import ResultsPanel from '$lib/components/create/ResultsPanel.svelte';
@@ -43,27 +47,40 @@
   } from '$lib/services/projectInheritance';
   import { libraryKeys, projectKeys } from '$lib/queries/library';
   import { providersQueryOptions } from '$lib/queries/providers';
+  import { billingPricingQueryOptions } from '$lib/queries/billing';
+  import { defaultModelGuideSource } from '$lib/content/modelGuides/source';
+  import { deriveModelBillingFacts } from '$lib/content/modelGuides/billingFacts';
+  import type { ModelGuideExample } from '$lib/content/modelGuides/types';
+  import ModelSummaryCard from '$lib/components/create/ModelSummaryCard.svelte';
+  import {
+    isCreateSupportedMode,
+    modeRequiresImageInput,
+    modeRequiresVideoInput,
+  } from '$lib/utils/generationModes';
 
   const queryClient = useQueryClient();
+  let pricingNowMs = $state(Date.now());
 
   // Pre-populate prompt from ?prompt= URL parameter (supports deep-linking)
   onMount(() => {
     const prompt = new URLSearchParams(window.location.search).get('prompt');
     if (prompt) generationStore.setPrompt(prompt);
+
+    // Cached pricing can expire while Create remains open. A minute-granularity
+    // clock keeps local rule selection reactive, while the query below discovers
+    // newly-effective backend rules on the same bounded cadence.
+    const pricingClock = window.setInterval(() => {
+      pricingNowMs = Date.now();
+    }, 60_000);
+
+    return () => window.clearInterval(pricingClock);
   });
 
   // ── Provider info (model capabilities)
   const providerQuery = createQuery(() => providersQueryOptions());
 
   // ── Pricing
-  const pricingQuery = createQuery(() => ({
-    queryKey: ['pricing'],
-    queryFn: async () => {
-      const { data } = await apiClient.GET('/v1/billing/pricing');
-      return data ?? [];
-    },
-    staleTime: 60 * 60 * 1000,
-  }));
+  const pricingQuery = createQuery(() => billingPricingQueryOptions(60_000));
 
   // Flatten all models from all providers, attaching provider metadata for pricing + session hooks
   const allModels = $derived(
@@ -80,6 +97,26 @@
   // ── Current model info (includes provider for pricing lookup)
   const currentModelInfo = $derived(
     allModels.find((m) => m.model_key === $generationStore.model) ?? null,
+  );
+
+  const currentGuide = $derived(
+    currentModelInfo ? defaultModelGuideSource.get(currentModelInfo.model_key) : null,
+  );
+
+  const currentProvisioningMode = $derived(
+    isProvisioningMode(currentModelInfo?.provisioningMode)
+      ? currentModelInfo.provisioningMode
+      : null,
+  );
+
+  const billingFacts = $derived(
+    deriveModelBillingFacts({
+      modelInfo: currentModelInfo,
+      provider: currentModelInfo?.provider ?? null,
+      provisioningMode: currentProvisioningMode,
+      pricing: pricingQuery.data ?? [],
+      nowMs: pricingNowMs,
+    }),
   );
 
   // When the stored model is no longer in the providers list (e.g. first load with
@@ -104,12 +141,14 @@
   // ── Card state machine
   const cardState = $derived(
     currentModelInfo
-      ? deriveCardState({
-          provisioningMode: currentModelInfo.provisioningMode as ProvisioningMode,
-          available: currentModelInfo.providerAvailable,
-          sessionState: currentModelInfo.session_state as SessionState | null,
-          isAuthenticated: $isAuthenticated,
-        })
+      ? currentProvisioningMode
+        ? deriveCardState({
+            provisioningMode: currentProvisioningMode,
+            available: currentModelInfo.providerAvailable,
+            sessionState: currentModelInfo.session_state as SessionState | null,
+            isAuthenticated: $isAuthenticated,
+          })
+        : 'UNAVAILABLE'
       : 'READY', // no model selected yet → don't block UI
   );
 
@@ -152,22 +191,44 @@
     queryClient.invalidateQueries({ queryKey: ['providers'] });
   }
 
-  // Derived estimated cost (per unit — imageCount multiplier applied in CostPreview)
-  const estimatedCost = $derived(
+  // Mirror the backend quote: a matching rule is priced against the exact
+  // normalized request state that buildGeneratePayload will submit.
+  const currentPricingRule = $derived(
     pricingQuery.data && currentModelInfo
-      ? lookupCost(
+      ? findPricingRule(
           pricingQuery.data,
           currentModelInfo.provider,
           $generationStore.model,
           $generationStore.mode,
+          pricingNowMs,
         )
-      : 0,
+      : null,
+  );
+  const currentOutputCount = $derived(outputCountForRequest($generationStore, currentModelInfo));
+  const currentInputImageCount = $derived(inputImageCountForRequest($generationStore));
+  const currentEstimatedCost = $derived(
+    currentPricingRule
+      ? estimatePricingRuleCost(currentPricingRule, {
+          outputCount: currentOutputCount,
+          inputImageCount: currentInputImageCount,
+        })
+      : null,
   );
 
   // Derive app title from productInfo for <title> tag
   let appTitle = $derived($productInfo?.display_name ?? 'Apex');
 
   type ModelType = components['schemas']['ModelType'];
+
+  function handleUseGuideExample(modelKey: ModelType, example: ModelGuideExample) {
+    if (!isCreateSupportedMode(example.mode)) return;
+    generationStore.prefill({
+      model: modelKey,
+      mode: example.mode,
+      prompt: example.prompt,
+      aspectRatio: example.aspectRatio,
+    });
+  }
 
   // ── Age gate state
   let showAgeModal = $state(false);
@@ -291,11 +352,12 @@
       return;
     }
 
-    if (
-      (state.mode === 'i2i' || state.mode === 'i2v' || state.mode === 'flf2v') &&
-      !state.uploadedImageId &&
-      !state.sourceOutputId
-    ) {
+    if (modeRequiresVideoInput(state.mode) || !isCreateSupportedMode(state.mode)) {
+      addToast({ type: 'error', message: m.error_generation_mode_unavailable() });
+      return;
+    }
+
+    if (modeRequiresImageInput(state.mode) && !state.uploadedImageId && !state.sourceOutputId) {
       addToast({ type: 'error', message: m.error_source_image_required() });
       return;
     }
@@ -354,11 +416,7 @@
     stopPoller?.();
   });
 
-  const showImageUpload = $derived(
-    $generationStore.mode === 'i2i' ||
-      $generationStore.mode === 'i2v' ||
-      $generationStore.mode === 'flf2v',
-  );
+  const showImageUpload = $derived(modeRequiresImageInput($generationStore.mode));
   const showSkeleton = $derived($isGenerating);
 </script>
 
@@ -374,6 +432,15 @@
       models={allModels}
       selectedModel={$generationStore.model}
       onSelect={handleModelSelect}
+    />
+
+    <ModelSummaryCard
+      modelInfo={currentModelInfo}
+      guide={currentGuide}
+      {billingFacts}
+      pricingPending={pricingQuery.isPending}
+      {currentEstimatedCost}
+      onuseexample={handleUseGuideExample}
     />
 
     <TypeSelector modelInfo={currentModelInfo ?? null} />
@@ -407,7 +474,7 @@
       <GenerateButton
         onclick={handleGenerate}
         {submitting}
-        {estimatedCost}
+        estimatedCost={currentEstimatedCost}
         disabled={!generateEnabled}
       />
     </div>
@@ -426,7 +493,7 @@
   <GenerateButton
     onclick={handleGenerate}
     {submitting}
-    {estimatedCost}
+    estimatedCost={currentEstimatedCost}
     disabled={!generateEnabled}
   />
 </div>

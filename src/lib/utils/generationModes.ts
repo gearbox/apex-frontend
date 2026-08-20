@@ -17,19 +17,59 @@ export const GENERATION_MODES = [
   'flf2v',
 ] as const satisfies readonly GenerationMode[];
 
-export function isGenerationMode(value: string | null | undefined): value is GenerationMode {
-  return value != null && (GENERATION_MODES as readonly string[]).includes(value);
-}
-
-export const MODES_REQUIRING_SOURCE = [
+/** Modes with complete source input and request-building support in Create. */
+export const CREATE_SUPPORTED_MODES = [
+  't2i',
   'i2i',
+  't2v',
+  'i2v',
+] as const satisfies readonly GenerationMode[];
+
+export const VIDEO_MODES = [
+  't2v',
   'i2v',
   'v2v',
   'flf2v',
 ] as const satisfies readonly GenerationMode[];
 
+export function isGenerationMode(value: string | null | undefined): value is GenerationMode {
+  return value != null && (GENERATION_MODES as readonly string[]).includes(value);
+}
+
+export function isCreateSupportedMode(
+  value: string | null | undefined,
+): value is (typeof CREATE_SUPPORTED_MODES)[number] {
+  return value != null && (CREATE_SUPPORTED_MODES as readonly string[]).includes(value);
+}
+
+export function isVideoMode(mode: GenerationMode): boolean {
+  return (VIDEO_MODES as readonly GenerationMode[]).includes(mode);
+}
+
+export const MODES_REQUIRING_IMAGE_INPUT = [
+  'i2i',
+  'i2v',
+  'flf2v',
+] as const satisfies readonly GenerationMode[];
+
+export const MODES_REQUIRING_VIDEO_INPUT = ['v2v'] as const satisfies readonly GenerationMode[];
+
+/** @deprecated Prefer the image/video-specific helpers. */
+export const MODES_REQUIRING_SOURCE = [
+  ...MODES_REQUIRING_IMAGE_INPUT,
+  ...MODES_REQUIRING_VIDEO_INPUT,
+] as const satisfies readonly GenerationMode[];
+
+export function modeRequiresImageInput(mode: GenerationMode): boolean {
+  return (MODES_REQUIRING_IMAGE_INPUT as readonly GenerationMode[]).includes(mode);
+}
+
+export function modeRequiresVideoInput(mode: GenerationMode): boolean {
+  return (MODES_REQUIRING_VIDEO_INPUT as readonly GenerationMode[]).includes(mode);
+}
+
 export function modeRequiresSource(mode: GenerationMode): boolean {
-  return (MODES_REQUIRING_SOURCE as readonly GenerationMode[]).includes(mode);
+  return modeRequiresImageInput(mode) || modeRequiresVideoInput(mode);
 }
 
 /** Single source of truth for the five model keys — see `ModelType` in schema.json. */
@@ -45,6 +85,12 @@ export function isModelType(key: string): key is ModelType {
   return (MODEL_TYPES as readonly string[]).includes(key);
 }
 
+/** Returns backend-advertised modes that the current Create UI can submit. */
+export function createSupportedModes(modelInfo: ModelInfo | null | undefined): GenerationMode[] {
+  const capabilities = modelInfo?.capabilities ?? [];
+  return CREATE_SUPPORTED_MODES.filter((mode) => capabilities.includes(mode));
+}
+
 /**
  * Every mode `resolveModelForMode` can satisfy with at least one enabled known model, across
  * all providers. This must remain the exact visibility predicate for the resolver: an action
@@ -56,7 +102,8 @@ export function enabledModes(providers: ProvidersResponse | null | undefined): S
     for (const model of provider.models) {
       if (!model.is_enabled || !isModelType(model.model_key)) continue;
       for (const capability of model.capabilities) {
-        if (isGenerationMode(capability)) modes.add(capability);
+        if (isGenerationMode(capability) && isCreateSupportedMode(capability))
+          modes.add(capability);
       }
     }
   }
@@ -76,7 +123,7 @@ export function findModelInfo(
 }
 
 function isCapableEnabledModel(model: ModelInfo, mode: GenerationMode): boolean {
-  return model.is_enabled && model.capabilities.includes(mode);
+  return isCreateSupportedMode(mode) && model.is_enabled && model.capabilities.includes(mode);
 }
 
 /**

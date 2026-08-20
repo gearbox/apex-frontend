@@ -10,12 +10,12 @@
   let {
     onclick,
     submitting = false,
-    estimatedCost = 0,
+    estimatedCost,
     disabled: externalDisabled = false,
   }: {
     onclick: () => void;
     submitting?: boolean;
-    estimatedCost?: number;
+    estimatedCost: number | null;
     disabled?: boolean;
   } = $props();
 

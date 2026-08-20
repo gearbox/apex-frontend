@@ -64,11 +64,12 @@ export function paymentCurrenciesQueryOptions() {
   };
 }
 
-export function billingPricingQueryOptions() {
+export function billingPricingQueryOptions(refetchInterval: number | false = false) {
   return {
     queryKey: billingKeys.pricing(),
     queryFn: fetchBillingPricing,
-    staleTime: 60 * 60 * 1000,
+    staleTime: 5 * 60 * 1000,
+    refetchInterval,
     ...focusAwareBillingQueryDefaults,
   };
 }
