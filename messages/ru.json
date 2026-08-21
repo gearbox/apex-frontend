@@ -621,7 +621,7 @@
   "model_guide_aisha_image_tagline": "Модель изображений, работающая при активной GPU-сессии.",
   "model_guide_aisha_image_good_at_1": "Создаёт изображение по подробному текстовому промпту.",
   "model_guide_aisha_image_good_at_2": "Позволяет использовать доступные для модели параметры изображения.",
-  "model_guide_aisha_image_choose_when_1": "Выберите её, когда у вас есть активная сессия для этой модели.",
+  "model_guide_aisha_image_choose_when_1": "Выберите её, если вам нужна генерация либо SFW- либо NSFW-изображений.",
   "model_guide_aisha_image_choose_when_2": "Используйте её, когда хотите настроить доступные параметры изображения перед генерацией.",
   "model_guide_aisha_image_restrictions_1": "Перед генерацией нужна активная GPU-сессия.",
   "model_guide_aisha_image_billing_1": "Токены за генерацию списываются при отправке задачи генерации.",

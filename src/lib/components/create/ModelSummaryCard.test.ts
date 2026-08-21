@@ -84,12 +84,17 @@ describe('ModelSummaryCard', () => {
     expect(screen.queryByRole('button')).toBeNull();
   });
 
-  it('shows authored content, live capability chips, and a real zero-cost price', () => {
-    render(ModelSummaryCard, { ...baseProps, modelInfo: makeModelInfo() });
+  it('shows authored content, non-shrinking capability chips, and a real zero-cost price', () => {
+    const { container } = render(ModelSummaryCard, { ...baseProps, modelInfo: makeModelInfo() });
 
     expect(screen.getByText('An authored tagline')).toBeTruthy();
     expect(screen.getByText(/Maximum outputs: 10/)).toBeTruthy();
     expect(screen.getByText(/Est\. ◈ 0 tokens/)).toBeTruthy();
+    for (const chip of container.querySelectorAll('[data-model-summary-chip]')) {
+      expect(chip.classList.contains('w-fit')).toBe(true);
+      expect(chip.classList.contains('max-w-full')).toBe(true);
+      expect(chip.classList.contains('shrink-0')).toBe(true);
+    }
   });
 
   it('falls back to a live description and does not turn unknown pricing into zero', () => {

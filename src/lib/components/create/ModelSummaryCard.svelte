@@ -62,20 +62,30 @@
 
     <div class="mt-3 flex flex-wrap gap-1.5">
       {#if modeSummary}
-        <span class="rounded-full bg-surface-hover px-2 py-1 text-[11px] text-text-dim"
+        <span
+          data-model-summary-chip
+          class="inline-flex w-fit max-w-full shrink-0 break-words rounded-full bg-surface-hover px-2 py-1 text-[11px] text-text-dim"
           >{m.model_guide_cap_modes()}: {modeSummary}</span
         >
       {/if}
-      <span class="rounded-full bg-surface-hover px-2 py-1 text-[11px] text-text-dim"
+      <span
+        data-model-summary-chip
+        class="inline-flex w-fit max-w-full shrink-0 break-words rounded-full bg-surface-hover px-2 py-1 text-[11px] text-text-dim"
         >{m.model_guide_cap_max_outputs()}: {modelInfo.max_images}</span
       >
       {#if modelInfo.supports_negative_prompt}
-        <span class="rounded-full bg-surface-hover px-2 py-1 text-[11px] text-text-dim"
+        <span
+          data-model-summary-chip
+          class="inline-flex w-fit max-w-full shrink-0 break-words rounded-full bg-surface-hover px-2 py-1 text-[11px] text-text-dim"
           >{m.model_guide_cap_negative_prompt()}</span
         >
       {/if}
       {#if modelInfo.requires_age_verification}
-        <span class="rounded-full bg-surface-hover px-2 py-1 text-[11px] text-text-dim">18+</span>
+        <span
+          data-model-summary-chip
+          class="inline-flex w-fit max-w-full shrink-0 break-words rounded-full bg-surface-hover px-2 py-1 text-[11px] text-text-dim"
+          >18+</span
+        >
       {/if}
     </div>
 
