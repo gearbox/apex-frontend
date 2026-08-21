@@ -195,7 +195,7 @@
               <div class="flex min-w-0 flex-col gap-1 py-2.5 text-sm">
                 <dt class="text-xs text-text-dim">{row.label}</dt>
                 <dd
-                  class="min-w-0 whitespace-normal break-words font-medium leading-relaxed text-text [overflow-wrap:anywhere]"
+                  class="min-w-0 whitespace-normal wrap-anywhere font-medium leading-relaxed text-text"
                 >
                   {row.value}
                 </dd>
@@ -222,7 +222,7 @@
               <div class="flex min-w-0 flex-col gap-1 py-2.5 text-sm">
                 <dt class="text-xs text-text-dim">{generationModeLabel(cost.mode)}</dt>
                 <dd
-                  class="min-w-0 whitespace-normal break-words font-medium leading-relaxed text-text [overflow-wrap:anywhere]"
+                  class="min-w-0 whitespace-normal wrap-anywhere font-medium leading-relaxed text-text"
                 >
                   {cost.tokenCost === null || cost.inputTokenCost === null
                     ? pricingPending
