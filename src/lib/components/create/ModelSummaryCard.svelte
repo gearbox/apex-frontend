@@ -44,20 +44,22 @@
 
 {#if modelInfo}
   <section class="rounded-2xl border border-border bg-surface p-3" aria-label={modelInfo.name}>
-    <div class="flex items-start justify-between gap-3">
-      <div class="min-w-0">
-        <h2 class="truncate text-sm font-semibold text-text">{modelInfo.name}</h2>
-        {#if tagline}
-          <p class="mt-1 text-xs leading-relaxed text-text-dim">{tagline}</p>
-        {/if}
+    <div>
+      <div data-model-summary-heading-row class="flex items-start justify-between gap-3">
+        <h2 class="min-w-0 flex-1 truncate text-sm font-semibold text-text">{modelInfo.name}</h2>
+        <span
+          class="shrink-0 rounded-full bg-bg px-2 py-1 text-[11px] font-semibold text-text-muted"
+        >
+          {currentEstimatedCost === null
+            ? pricingPending
+              ? m.model_guide_cost_loading()
+              : m.model_guide_cost_unknown()
+            : m.model_guide_cost_current_estimate({ tokens: formatNumber(currentEstimatedCost) })}
+        </span>
       </div>
-      <span class="shrink-0 rounded-full bg-bg px-2 py-1 text-[11px] font-semibold text-text-muted">
-        {currentEstimatedCost === null
-          ? pricingPending
-            ? m.model_guide_cost_loading()
-            : m.model_guide_cost_unknown()
-          : m.model_guide_cost_current_estimate({ tokens: formatNumber(currentEstimatedCost) })}
-      </span>
+      {#if tagline}
+        <p class="mt-1 text-xs leading-relaxed text-text-dim">{tagline}</p>
+      {/if}
     </div>
 
     <div class="mt-3 flex flex-wrap gap-1.5">
