@@ -6,41 +6,56 @@
     openProjectsSheet,
     projectsSheetOpen,
   } from '$lib/stores/ui';
-  import { TAB_ITEMS } from '$lib/utils/constants';
+  import { getActiveLibraryProjectId, isLibraryUrl } from '$lib/utils/projectNavigation';
   import * as m from '$paraglide/messages';
-  import { Folder, Plus, Images, MoreVertical } from '@lucide/svelte';
+  import { Folder, Plus, Images, MoreVertical, Server } from '@lucide/svelte';
 
-  const iconMap: Record<string, typeof Plus> = {
-    plus: Plus,
-    library: Images,
-  };
+  const isCreateActive = $derived($page.url.pathname.startsWith('/app/create'));
+  const isSessionsActive = $derived($page.url.pathname.startsWith('/app/sessions'));
+  const isLibraryActive = $derived(isLibraryUrl($page.url));
+  const activeLibraryProjectId = $derived(getActiveLibraryProjectId($page.url));
 </script>
 
 <nav class="btm-tabs chrome-no-select">
-  {#each TAB_ITEMS as item (item.href)}
-    {@const Icon = iconMap[item.icon]}
-    {@const isActive = $page.url.pathname.startsWith(item.href)}
-    <a href={item.href} class="btm-tab" class:active={isActive}>
-      <span class="btm-tab-icon">
-        {#if Icon}<Icon size={22} strokeWidth={isActive ? 2.25 : 1.75} />{/if}
-      </span>
-      <span class="btm-tab-label">{item.label}</span>
-    </a>
-  {/each}
-
-  <button
-    type="button"
-    onclick={openProjectsSheet}
-    class="btm-tab"
-    class:active={$projectsSheetOpen}
-    aria-expanded={$projectsSheetOpen}
-    aria-controls="mobile-projects-sheet"
-  >
+  <a href="/app/create" class="btm-tab" class:active={isCreateActive}>
     <span class="btm-tab-icon">
-      <Folder size={22} strokeWidth={$projectsSheetOpen ? 2.25 : 1.75} />
+      <Plus size={22} strokeWidth={isCreateActive ? 2.25 : 1.75} />
     </span>
-    <span class="btm-tab-label">{m.library_projects()}</span>
-  </button>
+    <span class="btm-tab-label">{m.nav_create()}</span>
+  </a>
+
+  <a href="/app/sessions" class="btm-tab" class:active={isSessionsActive}>
+    <span class="btm-tab-icon">
+      <Server size={22} strokeWidth={isSessionsActive ? 2.25 : 1.75} />
+    </span>
+    <span class="btm-tab-label">{m.nav_sessions()}</span>
+  </a>
+
+  <div class="btm-library-slot" class:active={isLibraryActive} data-testid="mobile-library-slot">
+    <a
+      href="/app/library"
+      class="btm-library-action btm-library-action-library"
+      aria-label={m.library_title()}
+    >
+      <Images size={22} strokeWidth={isLibraryActive ? 2.25 : 1.75} />
+    </a>
+    <button
+      type="button"
+      onclick={openProjectsSheet}
+      class="btm-library-action btm-library-action-projects"
+      class:project-active={activeLibraryProjectId !== null}
+      aria-label={m.library_projects()}
+      aria-expanded={$projectsSheetOpen}
+      aria-controls="mobile-projects-sheet"
+      data-testid="mobile-library-projects-action"
+    >
+      <Folder
+        size={22}
+        strokeWidth={activeLibraryProjectId !== null || $projectsSheetOpen ? 2.25 : 1.75}
+      />
+    </button>
+    <span class="btm-tab-label btm-library-label">{m.library_title()}</span>
+  </div>
 
   <button
     type="button"
@@ -68,7 +83,9 @@
   }
 
   .btm-tab {
-    flex: 1;
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 46px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -97,5 +114,74 @@
 
   .btm-tab-label {
     line-height: 1;
+  }
+
+  .btm-library-slot {
+    position: relative;
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 46px;
+  }
+
+  .btm-library-action {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    display: flex;
+    width: 50%;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    background: transparent;
+    padding: 0 0 13px;
+    color: var(--apex-text-dim);
+    cursor: pointer;
+    text-decoration: none;
+    transition:
+      color 0.15s,
+      opacity 0.15s;
+  }
+
+  .btm-library-action-library {
+    left: 0;
+  }
+
+  .btm-library-action-projects {
+    right: 0;
+  }
+
+  .btm-library-action-projects::before {
+    position: absolute;
+    top: 8px;
+    bottom: 16px;
+    left: 0;
+    width: 1px;
+    background: var(--apex-border);
+    content: '';
+  }
+
+  .btm-library-slot.active .btm-library-action-library,
+  .btm-library-slot.active .btm-library-label {
+    color: var(--apex-accent);
+    font-weight: 700;
+  }
+
+  .btm-library-action-projects.project-active {
+    color: var(--apex-accent);
+    opacity: 0.72;
+  }
+
+  .btm-library-label {
+    position: absolute;
+    right: 0;
+    bottom: 6px;
+    left: 0;
+    z-index: 1;
+    color: var(--apex-text-dim);
+    font-size: 10px;
+    font-weight: 500;
+    pointer-events: none;
+    text-align: center;
+    transition: color 0.15s;
   }
 </style>

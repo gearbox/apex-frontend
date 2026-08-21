@@ -3,7 +3,7 @@
   import { moreSheetOpen, closeMoreSheet } from '$lib/stores/ui';
   import { isAdmin } from '$lib/stores/auth';
   import * as m from '$paraglide/messages';
-  import { Coins, Activity, User, Shield, Server, ChevronRight } from '@lucide/svelte';
+  import { Coins, Activity, User, Shield, ChevronRight } from '@lucide/svelte';
   import AppVersionBadge from '$lib/components/shared/AppVersionBadge.svelte';
   import MobileNavSheet from './MobileNavSheet.svelte';
   import { viewportDebug } from '$lib/stores/debug.svelte';
@@ -40,11 +40,6 @@
 {#if $moreSheetOpen}
   <MobileNavSheet id="mobile-more-sheet" label={m.nav_more()} onclose={closeMoreSheet}>
     <nav>
-      <a href="/app/sessions" onclick={closeMoreSheet} class="sheet-item">
-        <span class="sheet-item-icon"><Server size={20} strokeWidth={1.75} /></span>
-        <span class="sheet-item-label">{m.nav_sessions()}</span>
-        <span class="sheet-item-chevron"><ChevronRight size={16} /></span>
-      </a>
       <a href="/app/billing" onclick={closeMoreSheet} class="sheet-item">
         <span class="sheet-item-icon"><Coins size={20} strokeWidth={1.75} /></span>
         <span class="sheet-item-label">{m.nav_billing()}</span>
