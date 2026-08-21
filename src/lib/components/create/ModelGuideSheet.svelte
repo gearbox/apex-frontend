@@ -192,9 +192,13 @@
         {#if capabilityRows.length > 0}
           <dl class="mt-2 divide-y divide-border rounded-xl border border-border bg-bg px-3">
             {#each capabilityRows as row (row.label)}
-              <div class="flex items-start justify-between gap-4 py-2.5 text-sm">
-                <dt class="shrink-0 text-text-dim">{row.label}</dt>
-                <dd class="text-right font-medium text-text">{row.value}</dd>
+              <div class="flex min-w-0 flex-col gap-1 py-2.5 text-sm">
+                <dt class="text-xs text-text-dim">{row.label}</dt>
+                <dd
+                  class="min-w-0 whitespace-normal break-words font-medium leading-relaxed text-text [overflow-wrap:anywhere]"
+                >
+                  {row.value}
+                </dd>
               </div>
             {/each}
           </dl>
@@ -215,9 +219,11 @@
         {#if billingFacts.costs.length > 0}
           <dl class="mt-2 divide-y divide-border rounded-xl border border-border bg-bg px-3">
             {#each billingFacts.costs as cost (cost.mode)}
-              <div class="flex items-center justify-between gap-4 py-2.5 text-sm">
-                <dt class="text-text-dim">{generationModeLabel(cost.mode)}</dt>
-                <dd class="font-medium text-text">
+              <div class="flex min-w-0 flex-col gap-1 py-2.5 text-sm">
+                <dt class="text-xs text-text-dim">{generationModeLabel(cost.mode)}</dt>
+                <dd
+                  class="min-w-0 whitespace-normal break-words font-medium leading-relaxed text-text [overflow-wrap:anywhere]"
+                >
                   {cost.tokenCost === null || cost.inputTokenCost === null
                     ? pricingPending
                       ? m.model_guide_cost_loading()

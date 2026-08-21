@@ -621,7 +621,7 @@
   "model_guide_aisha_image_tagline": "Model slika koji generiše dok je vaša GPU sesija aktivna.",
   "model_guide_aisha_image_good_at_1": "Pravi sliku iz detaljnog tekstualnog prompta.",
   "model_guide_aisha_image_good_at_2": "Omogućava vam da koristite dostupne opcije slike za ovaj model.",
-  "model_guide_aisha_image_choose_when_1": "Izaberite ga kada imate aktivnu sesiju za ovaj model.",
+  "model_guide_aisha_image_choose_when_1": "Izaberite ga kada želite generisanje ili SFW ili NSFW slika.",
   "model_guide_aisha_image_choose_when_2": "Koristite ga kada želite da podesite dostupna podešavanja slike pre generisanja.",
   "model_guide_aisha_image_restrictions_1": "Pre generisanja vam je potrebna aktivna GPU sesija.",
   "model_guide_aisha_image_billing_1": "Tokeni za generisanje se odbijaju kada se pošalje zadatak generisanja.",

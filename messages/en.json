@@ -621,7 +621,7 @@
   "model_guide_aisha_image_tagline": "An image model that generates while your GPU session is active.",
   "model_guide_aisha_image_good_at_1": "Creating an image from a detailed text prompt.",
   "model_guide_aisha_image_good_at_2": "Letting you use the live image options available for this model.",
-  "model_guide_aisha_image_choose_when_1": "Choose it when you have an active session for this model.",
+  "model_guide_aisha_image_choose_when_1": "Choose it when you need either SFW or NSFW image generation.",
   "model_guide_aisha_image_choose_when_2": "Use it when you want to tune the available image settings before generating.",
   "model_guide_aisha_image_restrictions_1": "You need an active GPU session before you can generate.",
   "model_guide_aisha_image_billing_1": "Generation tokens are deducted when a generation job is submitted.",

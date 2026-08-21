@@ -249,15 +249,25 @@ describe('ModelGuideSheet', () => {
     }
   });
 
-  it('explains input image surcharges without presenting them as request totals', () => {
+  it('keeps long capability and billing values complete in semantic stacked rows', () => {
     renderSheet({
+      modelInfo: makeAishaImageModelInfo({ capabilities: ['i2i'] }),
       billingFacts: {
         costs: [{ mode: 'i2i', tokenCost: 7, inputTokenCost: 2 }],
         billedBySession: false,
       },
     });
 
-    expect(screen.getByText('◈ 7 + ◈ 2 per input image, per output')).toBeTruthy();
+    const capability = screen.getByText('Auto (source) · 2:3, 3:2, 1:1, 9:16, 16:9, 3:4, 4:3');
+    expect(capability.tagName).toBe('DD');
+    expect(capability.previousElementSibling?.tagName).toBe('DT');
+    expect(capability.parentElement?.classList.contains('flex-col')).toBe(true);
+
+    const price = screen.getByText('◈ 7 + ◈ 2 per input image, per output');
+    expect(price.tagName).toBe('DD');
+    expect(price.previousElementSibling?.tagName).toBe('DT');
+    expect(price.parentElement?.classList.contains('flex-col')).toBe(true);
+    expect(price.classList.contains('text-right')).toBe(false);
   });
 
   it('passes the typed model key, then closes, when an example is used', async () => {
