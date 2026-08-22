@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 import { test, expect } from '../fixtures/auth.fixture';
 import { jsonRoute } from '../helpers/api';
 
@@ -40,6 +40,30 @@ async function mockLibraryProjectNavigation(page: Page) {
   return libraryRequests;
 }
 
+async function dragSheetHandle(sheet: Locator, distance: number) {
+  const handle = sheet.getByTestId('mobile-nav-sheet-drag-zone');
+  await expect(handle).toBeVisible();
+  const pointer = {
+    button: 0,
+    clientX: 100,
+    isPrimary: true,
+    pointerId: 1,
+    pointerType: 'touch',
+  };
+  await handle.dispatchEvent('pointerdown', { ...pointer, clientY: 100 });
+  await handle.dispatchEvent('pointermove', { ...pointer, clientY: 100 + distance });
+  await handle.dispatchEvent('pointerup', { ...pointer, clientY: 100 + distance });
+}
+
+async function expectViewportDialog(page: Page, dialog: Locator) {
+  await expect(dialog).toBeVisible();
+  const [box, viewport] = await Promise.all([dialog.boundingBox(), page.viewportSize()]);
+  if (!box || !viewport) throw new Error('Dialog or viewport is not measurable');
+
+  expect(box.y).toBeLessThanOrEqual(1);
+  expect(box.height).toBeGreaterThanOrEqual(viewport.height - 1);
+}
+
 test.describe('Projects navigation', () => {
   test(
     'desktop nests the complete project list beneath Library and filters by URL',
@@ -77,6 +101,40 @@ test.describe('Projects navigation', () => {
       const libraryRequests = await mockLibraryProjectNavigation(page);
 
       await page.goto('/app/create');
+
+      const bottomTabs = page.locator('.btm-tabs');
+      await expect(bottomTabs.locator('.btm-tab-label')).toHaveText([
+        'Create',
+        'Sessions',
+        'Library',
+        'More',
+      ]);
+      await expect(page.getByRole('link', { name: 'Sessions' })).toHaveAttribute(
+        'href',
+        '/app/sessions',
+      );
+      await expect(page.getByRole('link', { name: 'Library' })).toHaveAttribute(
+        'href',
+        '/app/library',
+      );
+      await expect(page.getByRole('button', { name: 'Projects' })).toHaveAttribute(
+        'aria-controls',
+        'mobile-projects-sheet',
+      );
+      await expect(page.getByRole('button', { name: 'Projects' })).toHaveAttribute(
+        'aria-expanded',
+        'false',
+      );
+
+      await page.getByRole('link', { name: 'Sessions' }).click();
+      await expect(page).toHaveURL(/\/app\/sessions/);
+      await expect(page.getByRole('link', { name: 'Sessions' })).toHaveClass(/active/);
+
+      await page.goto('/app/create');
+      await page.getByRole('link', { name: 'Library' }).click();
+      await expect(page).toHaveURL(/\/app\/library$/);
+
+      await page.goto('/app/create');
       await page.getByRole('button', { name: 'Projects' }).click();
 
       const projectsSheet = page.locator('#mobile-projects-sheet');
@@ -98,11 +156,81 @@ test.describe('Projects navigation', () => {
 
       await expect(projectsSheet).toHaveCount(0);
       await expect(page).toHaveURL(/\/app\/library\?project=project-8/);
+      await expect(page.getByTestId('mobile-library-slot')).toHaveClass(/active/);
+      await expect(page.getByTestId('mobile-library-projects-action')).toHaveClass(
+        /project-active/,
+      );
       await expect
         .poll(() =>
           libraryRequests.some((url) => url.searchParams.get('project_id') === 'project-8'),
         )
         .toBe(true);
+    },
+  );
+
+  test(
+    'mobile Projects and More sheets share handle-only swipe-down dismissal',
+    { tag: '@mobile' },
+    async ({ authenticatedPage: page }) => {
+      await mockLibraryProjectNavigation(page);
+      await page.goto('/app/create');
+
+      const projectsSheet = page.locator('#mobile-projects-sheet');
+      await page.getByRole('button', { name: 'Projects' }).click();
+      await dragSheetHandle(projectsSheet, 220);
+      await expect(projectsSheet).toHaveCount(0);
+
+      await page.getByRole('button', { name: 'Projects' }).click();
+      await dragSheetHandle(projectsSheet, 20);
+      await expect(projectsSheet).toBeVisible();
+
+      const projectList = projectsSheet.locator('.mobile-project-list');
+      await expect(projectList).toBeVisible();
+      const listBox = await projectList.boundingBox();
+      if (!listBox) throw new Error('Mobile project list is not measurable');
+      await page.mouse.move(listBox.x + listBox.width / 2, listBox.y + 20);
+      await page.mouse.down();
+      await page.mouse.move(listBox.x + listBox.width / 2, listBox.y + 80, { steps: 3 });
+      await page.mouse.up();
+      await expect(projectsSheet).toBeVisible();
+
+      await page.locator('[role="presentation"]').click({ position: { x: 4, y: 4 } });
+      await page.getByRole('button', { name: 'More' }).click();
+      const moreSheet = page.locator('#mobile-more-sheet');
+      await expect(moreSheet).toBeVisible();
+      await expect(moreSheet.getByRole('link', { name: 'Sessions' })).toHaveCount(0);
+      await dragSheetHandle(moreSheet, 220);
+      await expect(moreSheet).toHaveCount(0);
+    },
+  );
+
+  test(
+    'mobile project dialogs cover the viewport without disabling the sheet handle',
+    { tag: '@mobile' },
+    async ({ authenticatedPage: page }) => {
+      await mockLibraryProjectNavigation(page);
+      await page.goto('/app/create');
+
+      await page.getByRole('button', { name: 'Projects' }).click();
+      const projectsSheet = page.locator('#mobile-projects-sheet');
+      await expect(projectsSheet).toBeVisible();
+
+      await projectsSheet.getByRole('button', { name: 'New project' }).click();
+      const newProjectDialog = page.getByRole('dialog', { name: 'New project' });
+      await expectViewportDialog(page, newProjectDialog);
+      await newProjectDialog.getByRole('button', { name: 'Cancel' }).click();
+      await expect(newProjectDialog).toHaveCount(0);
+      await expect(projectsSheet).toBeVisible();
+
+      await projectsSheet.getByLabel('Delete: Project 1').click();
+      const deleteProjectDialog = page.getByRole('dialog', { name: 'Delete project' });
+      await expectViewportDialog(page, deleteProjectDialog);
+      await deleteProjectDialog.getByRole('button', { name: 'Cancel' }).click();
+      await expect(deleteProjectDialog).toHaveCount(0);
+      await expect(projectsSheet).toBeVisible();
+
+      await dragSheetHandle(projectsSheet, 220);
+      await expect(projectsSheet).toHaveCount(0);
     },
   );
 });

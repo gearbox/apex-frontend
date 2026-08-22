@@ -62,11 +62,6 @@ export interface NavItem {
   icon: string; // lucide icon name
 }
 
-export const TAB_ITEMS: NavItem[] = [
-  { label: 'Create', href: '/app/create', icon: 'plus' },
-  { label: 'Library', href: '/app/library', icon: 'library' },
-];
-
 export const MORE_ITEMS: NavItem[] = [
   { label: 'Billing & Tokens', href: '/app/billing', icon: 'coins' },
   { label: 'Job History', href: '/app/jobs', icon: 'activity' },
