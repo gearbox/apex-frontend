@@ -19,9 +19,9 @@
   let previousFocus: HTMLElement | null = null;
   let previousBodyOverflow = '';
   let dragOffset = $state(0);
-  let isDragging = $state(false);
-  let isDismissing = $state(false);
+  let motionPhase = $state<'idle' | 'dragging' | 'snapping' | 'dismissing'>('idle');
   let activePointerId: number | null = null;
+  let activePointerTarget: HTMLElement | null = null;
   let dragStartX = 0;
   let dragStartY = 0;
   let dragStartedAt = 0;
@@ -35,22 +35,36 @@
   const DISMISS_DISTANCE_MAX_PX = 160;
   const FAST_FLICK_MIN_DISTANCE_PX = 28;
   const FAST_FLICK_VELOCITY_PX_PER_MS = 0.65;
-  const DISMISS_TRANSITION_MS = 220;
+  // transitionend is the normal completion signal. This only covers a lost or cancelled event.
+  const DISMISS_FALLBACK_TIMEOUT_MS = 1000;
 
   function releasePointer(target: HTMLElement, pointerId: number) {
     if (target.hasPointerCapture?.(pointerId)) target.releasePointerCapture?.(pointerId);
   }
 
   function resetDrag(target?: HTMLElement) {
-    if (target && activePointerId !== null) releasePointer(target, activePointerId);
+    const pointerTarget = target ?? activePointerTarget;
+    if (pointerTarget && activePointerId !== null) releasePointer(pointerTarget, activePointerId);
     activePointerId = null;
+    activePointerTarget = null;
     dragIntentResolved = false;
     isHorizontalGesture = false;
-    isDragging = false;
+  }
+
+  function returnToIdle() {
+    motionPhase = 'idle';
+    dragOffset = 0;
   }
 
   function snapBack(target?: HTMLElement) {
+    const wasDragging = motionPhase === 'dragging';
     resetDrag(target);
+    if (!wasDragging) {
+      returnToIdle();
+      return;
+    }
+
+    motionPhase = 'snapping';
     dragOffset = 0;
   }
 
@@ -71,9 +85,9 @@
   }
 
   function finishDismissal() {
-    if (!isDismissing) return;
-    isDismissing = false;
+    if (motionPhase !== 'dismissing') return;
     clearDismissTimer();
+    returnToIdle();
     onclose();
   }
 
@@ -85,6 +99,7 @@
 
     return () => {
       clearDismissTimer();
+      resetDrag();
       document.body.style.overflow = previousBodyOverflow;
       previousFocus?.focus();
     };
@@ -95,23 +110,23 @@
   }
 
   function handleDragStart(event: PointerEvent) {
-    if (isDismissing || !event.isPrimary || event.button !== 0) return;
+    if (motionPhase === 'dismissing' || !event.isPrimary || event.button !== 0) return;
 
     const target = event.currentTarget as HTMLElement;
     activePointerId = event.pointerId;
+    activePointerTarget = target;
     dragStartX = event.clientX;
     dragStartY = event.clientY;
     dragStartedAt = performance.now();
     dragIntentResolved = false;
     isHorizontalGesture = false;
-    isDragging = false;
-    dragOffset = 0;
+    returnToIdle();
     target.setPointerCapture?.(event.pointerId);
     event.preventDefault();
   }
 
   function handleDragMove(event: PointerEvent) {
-    if (event.pointerId !== activePointerId || isDismissing) return;
+    if (event.pointerId !== activePointerId || motionPhase === 'dismissing') return;
 
     const deltaX = event.clientX - dragStartX;
     const deltaY = event.clientY - dragStartY;
@@ -124,7 +139,9 @@
 
     if (isHorizontalGesture) return;
 
-    isDragging = deltaY > 0;
+    if (deltaY <= 0) return;
+
+    motionPhase = 'dragging';
     dragOffset = Math.min(Math.max(deltaY, 0), getPanelHeight());
     event.preventDefault();
   }
@@ -137,6 +154,7 @@
     const elapsedMs = Math.max(performance.now() - dragStartedAt, 1);
     const velocity = downwardDistance / elapsedMs;
     const shouldDismiss =
+      motionPhase === 'dragging' &&
       dragIntentResolved &&
       !isHorizontalGesture &&
       (downwardDistance >= getDismissDistance() ||
@@ -146,11 +164,11 @@
     resetDrag(target);
 
     if (!shouldDismiss) {
-      dragOffset = 0;
+      snapBack();
       return;
     }
 
-    isDismissing = true;
+    motionPhase = 'dismissing';
     dragOffset = getPanelHeight() + 24;
 
     if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
@@ -158,7 +176,7 @@
       return;
     }
 
-    dismissTimer = setTimeout(finishDismissal, DISMISS_TRANSITION_MS + 80);
+    dismissTimer = setTimeout(finishDismissal, DISMISS_FALLBACK_TIMEOUT_MS);
   }
 
   function handleDragCancel(event: PointerEvent) {
@@ -167,7 +185,9 @@
   }
 
   function handlePanelTransitionEnd(event: TransitionEvent) {
-    if (event.target === event.currentTarget && isDismissing) finishDismissal();
+    if (event.target !== event.currentTarget || event.propertyName !== 'transform') return;
+    if (motionPhase === 'snapping') returnToIdle();
+    if (motionPhase === 'dismissing') finishDismissal();
   }
 </script>
 
@@ -178,9 +198,8 @@
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <div
     class="sheet-panel-shell"
-    class:dragging={isDragging}
-    class:dismissing={isDismissing}
-    style:transform={`translateY(${dragOffset}px)`}
+    class:dragging={motionPhase === 'dragging'}
+    style:transform={motionPhase === 'idle' ? undefined : `translateY(${dragOffset}px)`}
     ontransitionend={handlePanelTransitionEnd}
   >
     <div

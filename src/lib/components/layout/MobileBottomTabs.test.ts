@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/svelte';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen } from '@testing-library/svelte';
 import { get } from 'svelte/store';
 import { closeMobileNavSheet, mobileNavSheet } from '$lib/stores/ui';
 
@@ -17,6 +17,8 @@ vi.mock('$app/stores', () => ({
 import MobileBottomTabs from './MobileBottomTabs.svelte';
 
 describe('MobileBottomTabs', () => {
+  afterEach(() => cleanup());
+
   beforeEach(() => {
     state.pageUrl = new URL('http://localhost/app/create');
     closeMobileNavSheet();
@@ -34,9 +36,14 @@ describe('MobileBottomTabs', () => {
     );
     expect(screen.getByRole('link', { name: 'Library' }).getAttribute('href')).toBe('/app/library');
 
+    expect(screen.getByRole('link', { name: 'Create' }).getAttribute('aria-current')).toBe('page');
+    expect(screen.getByRole('link', { name: 'Sessions' }).getAttribute('aria-current')).toBeNull();
+    expect(screen.getByRole('link', { name: 'Library' }).getAttribute('aria-current')).toBeNull();
+
     const projects = screen.getByRole('button', { name: 'Projects' });
     expect(projects.getAttribute('aria-controls')).toBe('mobile-projects-sheet');
     expect(projects.getAttribute('aria-expanded')).toBe('false');
+    expect(projects.getAttribute('aria-current')).toBeNull();
 
     await fireEvent.click(projects);
     expect(get(mobileNavSheet)).toBe('projects');
@@ -51,5 +58,19 @@ describe('MobileBottomTabs', () => {
       'active',
     );
     expect(screen.getByRole('button', { name: 'Projects' }).classList).toContain('project-active');
+    expect(screen.getByRole('link', { name: 'Library' }).getAttribute('aria-current')).toBe('page');
+    expect(screen.getByRole('link', { name: 'Create' }).getAttribute('aria-current')).toBeNull();
+    expect(screen.getByRole('link', { name: 'Sessions' }).getAttribute('aria-current')).toBeNull();
+  });
+
+  it('marks Sessions as the current page when its route is active', () => {
+    state.pageUrl = new URL('http://localhost/app/sessions');
+    render(MobileBottomTabs);
+
+    expect(screen.getByRole('link', { name: 'Sessions' }).getAttribute('aria-current')).toBe(
+      'page',
+    );
+    expect(screen.getByRole('link', { name: 'Create' }).getAttribute('aria-current')).toBeNull();
+    expect(screen.getByRole('link', { name: 'Library' }).getAttribute('aria-current')).toBeNull();
   });
 });

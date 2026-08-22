@@ -114,8 +114,11 @@ describe('MobileMoreSheet', () => {
     await tick();
 
     expect(screen.getByRole('dialog', { name: 'More' })).toBeTruthy();
-    expect(
-      screen.getByRole('dialog', { name: 'More' }).parentElement?.getAttribute('style'),
-    ).toContain('translateY(0px)');
+    const shell = screen.getByRole('dialog', { name: 'More' }).parentElement!;
+    expect(shell.getAttribute('style')).toContain('translateY(0px)');
+
+    await fireEvent.transitionEnd(shell, { propertyName: 'transform' });
+    await tick();
+    expect(shell.getAttribute('style')).toBe('');
   });
 });

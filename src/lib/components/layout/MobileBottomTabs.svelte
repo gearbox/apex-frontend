@@ -17,14 +17,24 @@
 </script>
 
 <nav class="btm-tabs chrome-no-select">
-  <a href="/app/create" class="btm-tab" class:active={isCreateActive}>
+  <a
+    href="/app/create"
+    class="btm-tab"
+    class:active={isCreateActive}
+    aria-current={isCreateActive ? 'page' : undefined}
+  >
     <span class="btm-tab-icon">
       <Plus size={22} strokeWidth={isCreateActive ? 2.25 : 1.75} />
     </span>
     <span class="btm-tab-label">{m.nav_create()}</span>
   </a>
 
-  <a href="/app/sessions" class="btm-tab" class:active={isSessionsActive}>
+  <a
+    href="/app/sessions"
+    class="btm-tab"
+    class:active={isSessionsActive}
+    aria-current={isSessionsActive ? 'page' : undefined}
+  >
     <span class="btm-tab-icon">
       <Server size={22} strokeWidth={isSessionsActive ? 2.25 : 1.75} />
     </span>
@@ -36,6 +46,7 @@
       href="/app/library"
       class="btm-library-action btm-library-action-library"
       aria-label={m.library_title()}
+      aria-current={isLibraryActive ? 'page' : undefined}
     >
       <Images size={22} strokeWidth={isLibraryActive ? 2.25 : 1.75} />
     </a>
@@ -54,7 +65,7 @@
         strokeWidth={activeLibraryProjectId !== null || $projectsSheetOpen ? 2.25 : 1.75}
       />
     </button>
-    <span class="btm-tab-label btm-library-label">{m.library_title()}</span>
+    <span class="btm-tab-label btm-library-label" aria-hidden="true">{m.library_title()}</span>
   </div>
 
   <button

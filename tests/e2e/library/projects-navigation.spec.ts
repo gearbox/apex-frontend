@@ -55,6 +55,15 @@ async function dragSheetHandle(sheet: Locator, distance: number) {
   await handle.dispatchEvent('pointerup', { ...pointer, clientY: 100 + distance });
 }
 
+async function expectViewportDialog(page: Page, dialog: Locator) {
+  await expect(dialog).toBeVisible();
+  const [box, viewport] = await Promise.all([dialog.boundingBox(), page.viewportSize()]);
+  if (!box || !viewport) throw new Error('Dialog or viewport is not measurable');
+
+  expect(box.y).toBeLessThanOrEqual(1);
+  expect(box.height).toBeGreaterThanOrEqual(viewport.height - 1);
+}
+
 test.describe('Projects navigation', () => {
   test(
     'desktop nests the complete project list beneath Library and filters by URL',
@@ -192,6 +201,36 @@ test.describe('Projects navigation', () => {
       await expect(moreSheet.getByRole('link', { name: 'Sessions' })).toHaveCount(0);
       await dragSheetHandle(moreSheet, 220);
       await expect(moreSheet).toHaveCount(0);
+    },
+  );
+
+  test(
+    'mobile project dialogs cover the viewport without disabling the sheet handle',
+    { tag: '@mobile' },
+    async ({ authenticatedPage: page }) => {
+      await mockLibraryProjectNavigation(page);
+      await page.goto('/app/create');
+
+      await page.getByRole('button', { name: 'Projects' }).click();
+      const projectsSheet = page.locator('#mobile-projects-sheet');
+      await expect(projectsSheet).toBeVisible();
+
+      await projectsSheet.getByRole('button', { name: 'New project' }).click();
+      const newProjectDialog = page.getByRole('dialog', { name: 'New project' });
+      await expectViewportDialog(page, newProjectDialog);
+      await newProjectDialog.getByRole('button', { name: 'Cancel' }).click();
+      await expect(newProjectDialog).toHaveCount(0);
+      await expect(projectsSheet).toBeVisible();
+
+      await projectsSheet.getByLabel('Delete: Project 1').click();
+      const deleteProjectDialog = page.getByRole('dialog', { name: 'Delete project' });
+      await expectViewportDialog(page, deleteProjectDialog);
+      await deleteProjectDialog.getByRole('button', { name: 'Cancel' }).click();
+      await expect(deleteProjectDialog).toHaveCount(0);
+      await expect(projectsSheet).toBeVisible();
+
+      await dragSheetHandle(projectsSheet, 220);
+      await expect(projectsSheet).toHaveCount(0);
     },
   );
 });
