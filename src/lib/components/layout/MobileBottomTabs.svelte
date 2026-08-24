@@ -61,7 +61,7 @@
       data-testid="mobile-library-projects-action"
     >
       <Folder
-        size={22}
+        size={20}
         strokeWidth={activeLibraryProjectId !== null || $projectsSheetOpen ? 2.25 : 1.75}
       />
     </button>
@@ -139,6 +139,7 @@
     top: 0;
     bottom: 0;
     display: flex;
+    box-sizing: border-box;
     width: 50%;
     align-items: center;
     justify-content: center;
@@ -155,10 +156,14 @@
 
   .btm-library-action-library {
     left: 0;
+    justify-content: flex-end;
+    padding-right: 7px;
   }
 
   .btm-library-action-projects {
     right: 0;
+    justify-content: flex-start;
+    padding-left: 8px;
   }
 
   .btm-library-action-projects::before {
@@ -169,6 +174,7 @@
     width: 1px;
     background: var(--apex-border);
     content: '';
+    opacity: 0.72;
   }
 
   .btm-library-slot.active .btm-library-action-library,
