@@ -142,7 +142,7 @@ describe('ModelSummaryCard', () => {
 
   it('opens the guide and restores focus to its trigger after close', async () => {
     render(ModelSummaryCard, { ...baseProps, modelInfo: makeModelInfo() });
-    const trigger = screen.getByRole('button', { name: 'Learn more about this model' });
+    const trigger = screen.getByRole('button', { name: 'Open model guide' });
 
     await fireEvent.click(trigger);
     expect(screen.getByRole('dialog')).toBeTruthy();

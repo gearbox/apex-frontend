@@ -418,7 +418,15 @@
 
   function useAsInput(frame: ExtractedFrame) {
     generationStore.setMode('i2i');
-    generationStore.setUploadedImageId(frame.upload_id, toMediaSrc(frame.media.original.url));
+    generationStore.setSourceMedia([
+      {
+        assetRef: `upload:${frame.upload_id}`,
+        mediaType: frame.media.media_type,
+        previewUrl: toMediaSrc(frame.media.original.url),
+        label: 'Extracted frame',
+        available: true,
+      },
+    ]);
     void goto(ROUTES.create);
     onclose();
   }

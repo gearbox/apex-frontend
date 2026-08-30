@@ -1,5 +1,5 @@
 import type { QueryClient } from '@tanstack/svelte-query';
-import { libraryAssetQueryOptions } from '$lib/queries/library';
+import { libraryAssetQueryOptions, libraryGroupQueryOptions } from '$lib/queries/library';
 import type { components } from '$lib/api/types';
 import type { LibraryActionDeps } from './actions';
 
@@ -16,5 +16,6 @@ export function createLibraryActionDeps(
       return getProviders();
     },
     loadDetail: (assetRef) => queryClient.ensureQueryData(libraryAssetQueryOptions(assetRef)),
+    loadGroup: (jobId) => queryClient.ensureQueryData(libraryGroupQueryOptions(jobId)),
   };
 }

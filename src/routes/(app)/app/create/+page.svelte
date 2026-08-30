@@ -36,8 +36,9 @@
     buildGeneratePayload,
     inputImageCountForRequest,
     outputCountForRequest,
+    validateSourceMedia,
   } from '$lib/utils/generatePayload';
-  import { supportsAishaImageParams } from '$lib/utils/modelCapabilities';
+  import { isGenerationParameterSupported, sourceMediaPolicy } from '$lib/utils/modelCapabilities';
   import GenerateButton from '$lib/components/create/GenerateButton.svelte';
   import ResultsPanel from '$lib/components/create/ResultsPanel.svelte';
   import { ROUTES } from '$lib/utils/routes';
@@ -52,11 +53,7 @@
   import { deriveModelBillingFacts } from '$lib/content/modelGuides/billingFacts';
   import type { ModelGuideExample } from '$lib/content/modelGuides/types';
   import ModelSummaryCard from '$lib/components/create/ModelSummaryCard.svelte';
-  import {
-    isCreateSupportedMode,
-    modeRequiresImageInput,
-    modeRequiresVideoInput,
-  } from '$lib/utils/generationModes';
+  import { isCreateSupportedMode } from '$lib/utils/generationModes';
 
   const queryClient = useQueryClient();
   let pricingNowMs = $state(Date.now());
@@ -123,7 +120,9 @@
   // only on-demand models), fall back to the first available model automatically.
   $effect(() => {
     if (currentModelInfo === null && allModels.length > 0) {
-      generationStore.setModel(allModels[0].model_key as never);
+      generationStore.setModel(
+        (allModels.find((model) => model.is_enabled) ?? allModels[0]).model_key as never,
+      );
     }
   });
 
@@ -157,7 +156,9 @@
   // validated against the real model yet. Block generation until it settles instead of
   // letting a stale default aspect ratio slip through buildGeneratePayload.
   const providersReady = $derived(providerQuery.data !== undefined);
-  const generateEnabled = $derived(providersReady && isGenerateEnabled(cardState));
+  const generateEnabled = $derived(
+    providersReady && currentModelInfo?.is_enabled === true && isGenerateEnabled(cardState),
+  );
 
   // ── Start session mutation
   const startMutation = createMutation(() => startSessionMutationOptions(queryClient));
@@ -205,7 +206,9 @@
       : null,
   );
   const currentOutputCount = $derived(outputCountForRequest($generationStore, currentModelInfo));
-  const currentInputImageCount = $derived(inputImageCountForRequest($generationStore));
+  const currentInputImageCount = $derived(
+    inputImageCountForRequest($generationStore, currentModelInfo),
+  );
   const currentEstimatedCost = $derived(
     currentPricingRule
       ? estimatePricingRuleCost(currentPricingRule, {
@@ -229,6 +232,10 @@
       aspectRatio: example.aspectRatio,
     });
   }
+
+  const sourcePolicy = $derived(sourceMediaPolicy(currentModelInfo, $generationStore.mode));
+  const sourceValidation = $derived(validateSourceMedia($generationStore, currentModelInfo));
+  const canSubmit = $derived(generateEnabled && sourceValidation.valid);
 
   // ── Age gate state
   let showAgeModal = $state(false);
@@ -292,6 +299,14 @@
       addToast({ type: 'warning', message: m.error_service_unavailable() });
     } else if (apiErr.error === 'moderation') {
       addToast({ type: 'warning', message: apiErr.message });
+    } else if (apiErr.error === 'unsupported_generation_parameter') {
+      // This should be unreachable after projecting through discovery. Keep a
+      // safe diagnostic signal while still showing the backend's public text.
+      console.error('[generation] capability contract failure', {
+        model: $generationStore.model,
+        generationType: $generationStore.mode,
+      });
+      addToast({ type: 'error', message: apiErr.message });
     } else {
       addToast({
         type: 'error',
@@ -352,19 +367,27 @@
       return;
     }
 
-    if (modeRequiresVideoInput(state.mode) || !isCreateSupportedMode(state.mode)) {
+    if (
+      !currentModelInfo?.is_enabled ||
+      !currentModelInfo.capabilities.includes(state.mode) ||
+      !isCreateSupportedMode(state.mode)
+    ) {
       addToast({ type: 'error', message: m.error_generation_mode_unavailable() });
       return;
     }
 
-    if (modeRequiresImageInput(state.mode) && !state.uploadedImageId && !state.sourceOutputId) {
-      addToast({ type: 'error', message: m.error_source_image_required() });
+    if (!sourceValidation.valid) {
+      addToast({
+        type: 'error',
+        message: sourceValidation.message ?? m.error_source_image_required(),
+      });
       return;
     }
 
     // Guard: prevent submitting an incomplete custom-size pair
     if (
-      supportsAishaImageParams(currentModelInfo) &&
+      isGenerationParameterSupported(currentModelInfo, 'width') &&
+      isGenerationParameterSupported(currentModelInfo, 'height') &&
       state.sizingMode === 'custom' &&
       (state.customWidth === null) !== (state.customHeight === null)
     ) {
@@ -416,7 +439,7 @@
     stopPoller?.();
   });
 
-  const showImageUpload = $derived(modeRequiresImageInput($generationStore.mode));
+  const showImageUpload = $derived(sourcePolicy.accepted && $generationStore.mode !== 'v2v');
   const showSkeleton = $derived($isGenerating);
 </script>
 
@@ -446,11 +469,11 @@
     <TypeSelector modelInfo={currentModelInfo ?? null} />
 
     {#if showImageUpload}
-      <ImageUpload />
+      <ImageUpload policy={sourcePolicy} />
     {/if}
 
     <PromptInput />
-    {#if currentModelInfo?.supports_negative_prompt === true}
+    {#if isGenerationParameterSupported(currentModelInfo, 'negative_prompt')}
       <NegativePromptInput />
     {/if}
     <ParamsPanel modelInfo={currentModelInfo} {aspectError} />
@@ -475,7 +498,7 @@
         onclick={handleGenerate}
         {submitting}
         estimatedCost={currentEstimatedCost}
-        disabled={!generateEnabled}
+        disabled={!canSubmit}
       />
     </div>
   </div>
@@ -494,7 +517,7 @@
     onclick={handleGenerate}
     {submitting}
     estimatedCost={currentEstimatedCost}
-    disabled={!generateEnabled}
+    disabled={!canSubmit}
   />
 </div>
 

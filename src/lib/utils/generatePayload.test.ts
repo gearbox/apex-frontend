@@ -1,11 +1,28 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
   buildGeneratePayload,
   inputImageCountForRequest,
   outputCountForRequest,
+  sourceMediaForRequest,
+  validateSourceMedia,
 } from './generatePayload';
-import type { GenerationState } from '$lib/stores/generation';
-import { makeGrokImageModelInfo, makeAishaImageModelInfo } from '../../mocks/factories/providers';
+import type { GenerationState, SourceMediaDraft } from '$lib/stores/generation';
+import { makeGrokImageModelInfo } from '../../mocks/factories/providers';
+
+const upload: SourceMediaDraft = {
+  assetRef: 'upload:11111111-1111-1111-1111-111111111111',
+  mediaType: 'image',
+  previewUrl: '/upload.png',
+  label: 'upload',
+  available: true,
+};
+const output: SourceMediaDraft = {
+  assetRef: 'output:22222222-2222-2222-2222-222222222222',
+  mediaType: 'image',
+  previewUrl: '/output.png',
+  label: 'output',
+  available: true,
+};
 
 const baseState: GenerationState = {
   provider: 'grok',
@@ -13,370 +30,189 @@ const baseState: GenerationState = {
   mode: 't2i',
   prompt: 'a cat',
   negativePrompt: 'blurry',
-  uploadedImageId: null,
-  sourceOutputId: null,
-  selectedImagePreviewUrl: null,
+  sourceMedia: [],
+  inputVideoUrl: null,
   aspectRatio: '1:1',
   editAspectRatio: null,
-  imageCount: 1,
+  imageCount: 3,
   videoDuration: 5,
   videoResolution: '720p',
   sizingMode: 'tier',
-  imageTier: null,
+  imageTier: 'high',
   customWidth: null,
   customHeight: null,
-  seed: null,
-  steps: null,
-  cfg: null,
-  sampler: null,
-  scheduler: null,
-  denoise: null,
+  seed: 42,
+  steps: 30,
+  cfg: 7,
+  sampler: 'euler',
+  scheduler: 'karras',
+  denoise: 0.8,
   activeJobId: null,
   jobStatus: null,
   completedJob: null,
   progress: null,
 };
 
-const grokModelInfo = makeGrokImageModelInfo();
-
-const aishaModelInfo = makeAishaImageModelInfo();
-
-describe('buildGeneratePayload — Grok model', () => {
-  it('always includes prompt, model, generation_type, aspect_ratio, n, duration', () => {
-    const payload = buildGeneratePayload(baseState, grokModelInfo);
-    expect(payload.prompt).toBe('a cat');
-    expect(payload.model).toBe('grok-imagine-image');
-    expect(payload.generation_type).toBe('t2i');
-    expect(payload.aspect_ratio).toBe('1:1');
-    expect(payload.n).toBe(1);
-    expect(payload.duration).toBe(5);
-  });
-
-  it('never includes negative_prompt when model does not support it', () => {
-    const payload = buildGeneratePayload(baseState, grokModelInfo);
-    expect(payload.negative_prompt).toBeUndefined();
-  });
-
-  it('never includes Aisha params even when store has them set', () => {
-    const state: GenerationState = {
-      ...baseState,
-      model: 'grok-imagine-image',
-      imageTier: 'high',
-      seed: 42,
-      steps: 30,
-      sampler: 'euler',
-    };
-    const payload = buildGeneratePayload(state, grokModelInfo);
-    expect(payload.image_resolution).toBeUndefined();
-    expect(payload.width).toBeUndefined();
-    expect(payload.height).toBeUndefined();
-    expect(payload.seed).toBeUndefined();
-    expect(payload.steps).toBeUndefined();
-    expect(payload.sampler).toBeUndefined();
-  });
-
-  it('includes input_image_id for i2i when set', () => {
-    const state: GenerationState = { ...baseState, mode: 'i2i', uploadedImageId: 'img_001' };
-    const payload = buildGeneratePayload(state, grokModelInfo);
-    expect(payload.input_image_id).toBe('img_001');
-    expect(payload.source_output_id).toBeUndefined();
-    expect(inputImageCountForRequest(state)).toBe(1);
-  });
-
-  it('includes source_output_id for i2i when set', () => {
-    const state: GenerationState = { ...baseState, mode: 'i2i', sourceOutputId: 'out_001' };
-    const payload = buildGeneratePayload(state, grokModelInfo);
-    expect(payload.source_output_id).toBe('out_001');
-    expect(payload.input_image_id).toBeUndefined();
-    expect(inputImageCountForRequest(state)).toBe(1);
-  });
-
-  it.each(['t2i', 't2v'] as const)(
-    'omits a retained source after switching from i2i to %s',
-    (mode) => {
-      const state: GenerationState = {
-        ...baseState,
-        mode,
-        uploadedImageId: 'img_001',
-      };
-      const payload = buildGeneratePayload(state, grokModelInfo);
-
-      expect(payload.input_image_id).toBeUndefined();
-      expect(payload.source_output_id).toBeUndefined();
-      expect(inputImageCountForRequest(state)).toBe(0);
+function model(overrides: Parameters<typeof makeGrokImageModelInfo>[0] = {}) {
+  return makeGrokImageModelInfo({
+    max_images: 4,
+    unsupported_parameters: [],
+    inputs: {
+      source_media: {
+        min: 1,
+        max: 3,
+        media_types: ['image'],
+        required_for: ['i2i'],
+      },
     },
-  );
-});
+    ...overrides,
+  });
+}
 
-describe('buildGeneratePayload — Aisha model negative_prompt', () => {
-  it('includes negative_prompt when model supports it and value is non-empty', () => {
-    const payload = buildGeneratePayload({ ...baseState, model: 'aisha-image' }, aishaModelInfo);
-    expect(payload.negative_prompt).toBe('blurry');
+describe('canonical source_media payload projection', () => {
+  it('serializes ordered upload/output asset refs and never emits deprecated aliases', () => {
+    const payload = buildGeneratePayload(
+      { ...baseState, mode: 'i2i', sourceMedia: [output, upload] },
+      model(),
+    );
+
+    expect(payload.source_media).toEqual([
+      { asset_ref: 'output:22222222-2222-2222-2222-222222222222' },
+      { asset_ref: 'upload:11111111-1111-1111-1111-111111111111' },
+    ]);
+    expect(payload).not.toHaveProperty('input_image_id');
+    expect(payload).not.toHaveProperty('source_output_id');
+    expect(payload).not.toHaveProperty('source_images');
   });
 
-  it('includes the default negative_prompt (non-empty string)', () => {
-    const state: GenerationState = {
-      ...baseState,
-      model: 'aisha-image',
-      negativePrompt: 'waxy texture, blurry face',
-    };
-    const payload = buildGeneratePayload(state, aishaModelInfo);
-    expect(payload.negative_prompt).toBe('waxy texture, blurry face');
+  it('omits owned media entirely when the latest model declares source_media null', () => {
+    const payload = buildGeneratePayload(
+      { ...baseState, mode: 'i2i', sourceMedia: [upload] },
+      model({ inputs: { source_media: null } }),
+    );
+    expect(payload.source_media).toBeUndefined();
+    expect(
+      validateSourceMedia(
+        { ...baseState, mode: 'i2i', sourceMedia: [upload] },
+        model({ inputs: { source_media: null } }),
+      ),
+    ).toEqual({
+      valid: true,
+      message: null,
+    });
   });
 
-  it('trims negative_prompt before sending', () => {
-    const state: GenerationState = {
-      ...baseState,
-      model: 'aisha-image',
-      negativePrompt: '  blurry  ',
-    };
-    const payload = buildGeneratePayload(state, aishaModelInfo);
-    expect(payload.negative_prompt).toBe('blurry');
-  });
-
-  it('omits negative_prompt when value is blank/whitespace', () => {
-    const state: GenerationState = {
-      ...baseState,
-      model: 'aisha-image',
-      negativePrompt: '   ',
-    };
-    const payload = buildGeneratePayload(state, aishaModelInfo);
-    expect(payload.negative_prompt).toBeUndefined();
-  });
-
-  it('omits negative_prompt when empty string', () => {
-    const state: GenerationState = {
-      ...baseState,
-      model: 'aisha-image',
-      negativePrompt: '',
-    };
-    const payload = buildGeneratePayload(state, aishaModelInfo);
-    expect(payload.negative_prompt).toBeUndefined();
-  });
-});
-
-describe('buildGeneratePayload — Aisha image sizing', () => {
-  it('tier mode with imageTier set → image_resolution present, no width/height', () => {
-    const state: GenerationState = {
-      ...baseState,
-      model: 'aisha-image',
-      sizingMode: 'tier',
-      imageTier: 'high',
-    };
-    const payload = buildGeneratePayload(state, aishaModelInfo);
-    expect(payload.image_resolution).toBe('high');
-    expect(payload.width).toBeUndefined();
-    expect(payload.height).toBeUndefined();
-  });
-
-  it('tier mode with null imageTier → no sizing fields (model default)', () => {
-    const state: GenerationState = {
-      ...baseState,
-      model: 'aisha-image',
-      sizingMode: 'tier',
-      imageTier: null,
-    };
-    const payload = buildGeneratePayload(state, aishaModelInfo);
-    expect(payload.image_resolution).toBeUndefined();
-    expect(payload.width).toBeUndefined();
-    expect(payload.height).toBeUndefined();
-  });
-
-  it('custom mode with both dims → width+height present, no image_resolution', () => {
-    const state: GenerationState = {
-      ...baseState,
-      model: 'aisha-image',
-      sizingMode: 'custom',
-      customWidth: 1024,
-      customHeight: 768,
-    };
-    const payload = buildGeneratePayload(state, aishaModelInfo);
-    expect(payload.width).toBe(1024);
-    expect(payload.height).toBe(768);
-    expect(payload.image_resolution).toBeUndefined();
-  });
-
-  it('custom mode with only width → neither sizing field (half-pair omitted)', () => {
-    const state: GenerationState = {
-      ...baseState,
-      model: 'aisha-image',
-      sizingMode: 'custom',
-      customWidth: 1024,
-      customHeight: null,
-    };
-    const payload = buildGeneratePayload(state, aishaModelInfo);
-    expect(payload.width).toBeUndefined();
-    expect(payload.height).toBeUndefined();
-    expect(payload.image_resolution).toBeUndefined();
-  });
-
-  it('custom mode with only height → neither sizing field (half-pair omitted)', () => {
-    const state: GenerationState = {
-      ...baseState,
-      model: 'aisha-image',
-      sizingMode: 'custom',
-      customWidth: null,
-      customHeight: 768,
-    };
-    const payload = buildGeneratePayload(state, aishaModelInfo);
-    expect(payload.width).toBeUndefined();
-    expect(payload.height).toBeUndefined();
-    expect(payload.image_resolution).toBeUndefined();
-  });
-
-  it('custom mode with both null → no sizing fields', () => {
-    const state: GenerationState = {
-      ...baseState,
-      model: 'aisha-image',
-      sizingMode: 'custom',
-      customWidth: null,
-      customHeight: null,
-    };
-    const payload = buildGeneratePayload(state, aishaModelInfo);
-    expect(payload.width).toBeUndefined();
-    expect(payload.height).toBeUndefined();
-    expect(payload.image_resolution).toBeUndefined();
-  });
-});
-
-describe('buildGeneratePayload — Aisha sampler overrides', () => {
-  it('includes only non-null sampler fields', () => {
-    const state: GenerationState = {
-      ...baseState,
-      model: 'aisha-image',
-      seed: 42,
-      steps: 30,
-      cfg: null,
-      sampler: 'euler',
-      scheduler: null,
-      denoise: 0.8,
-    };
-    const payload = buildGeneratePayload(state, aishaModelInfo);
-    expect(payload.seed).toBe(42);
-    expect(payload.steps).toBe(30);
-    expect(payload.cfg).toBeUndefined();
-    expect(payload.sampler).toBe('euler');
-    expect(payload.scheduler).toBeUndefined();
-    expect(payload.denoise).toBe(0.8);
-  });
-
-  it('omits all sampler fields when all are null', () => {
-    const state: GenerationState = { ...baseState, model: 'aisha-image' };
-    const payload = buildGeneratePayload(state, aishaModelInfo);
-    expect(payload.seed).toBeUndefined();
-    expect(payload.steps).toBeUndefined();
-    expect(payload.cfg).toBeUndefined();
-    expect(payload.sampler).toBeUndefined();
-    expect(payload.scheduler).toBeUndefined();
-    expect(payload.denoise).toBeUndefined();
-  });
-});
-
-describe('buildGeneratePayload — i2i aspect_ratio serialization', () => {
-  it('i2i + editAspectRatio: null → aspect_ratio key absent from payload', () => {
-    const state: GenerationState = {
-      ...baseState,
-      mode: 'i2i',
-      aspectRatio: '3:4',
-      editAspectRatio: null,
-      sourceOutputId: 'out_001',
-    };
-    const payload = buildGeneratePayload(state, grokModelInfo);
-    expect(payload).not.toHaveProperty('aspect_ratio');
-  });
-
-  it('i2i + editAspectRatio: "16:9" → sent as 16:9', () => {
-    const state: GenerationState = {
-      ...baseState,
-      mode: 'i2i',
-      aspectRatio: '3:4',
-      editAspectRatio: '16:9',
-      sourceOutputId: 'out_001',
-    };
-    const payload = buildGeneratePayload(state, aishaModelInfo);
-    expect(payload.aspect_ratio).toBe('16:9');
-  });
-
-  it('t2i still sends state.aspectRatio regardless of editAspectRatio (regression)', () => {
-    const state: GenerationState = {
-      ...baseState,
-      mode: 't2i',
-      aspectRatio: '1:1',
-      editAspectRatio: '16:9',
-    };
-    const payload = buildGeneratePayload(state, grokModelInfo);
-    expect(payload.aspect_ratio).toBe('1:1');
-  });
-
-  it('t2v still sends state.aspectRatio, unaffected by editAspectRatio (regression)', () => {
-    const state: GenerationState = {
-      ...baseState,
-      mode: 't2v',
-      aspectRatio: '16:9',
-      editAspectRatio: '1:1',
-    };
-    const payload = buildGeneratePayload(state, grokModelInfo);
-    expect(payload.aspect_ratio).toBe('16:9');
-  });
-
-  it('i2v still sends state.aspectRatio, unaffected by editAspectRatio (regression)', () => {
-    const state: GenerationState = {
-      ...baseState,
-      mode: 'i2v',
-      aspectRatio: '9:16',
-      editAspectRatio: '1:1',
-      uploadedImageId: 'img_001',
-    };
-    const payload = buildGeneratePayload(state, grokModelInfo);
-    expect(payload.aspect_ratio).toBe('9:16');
-  });
-});
-
-describe('output count normalization', () => {
-  it('submits one video output despite a stale image count', () => {
-    const state: GenerationState = {
-      ...baseState,
-      model: 'grok-imagine-video',
-      mode: 't2v',
-      imageCount: 4,
-    };
-    const videoModel = makeGrokImageModelInfo({
-      model_key: 'grok-imagine-video',
-      capabilities: ['t2v'],
-      max_images: 1,
+  it('filters stale unsupported kinds and current max before pricing or POST projection', () => {
+    const audio: SourceMediaDraft = { ...upload, assetRef: 'upload:audio', mediaType: 'audio' };
+    const third = { ...upload, assetRef: 'upload:third' };
+    const fourth = { ...upload, assetRef: 'upload:fourth' };
+    const state = { ...baseState, sourceMedia: [upload, audio, output, third, fourth] };
+    const current = model({
+      inputs: { source_media: { min: 1, max: 2, media_types: ['image'], required_for: [] } },
     });
 
-    expect(outputCountForRequest(state, videoModel)).toBe(1);
-    expect(buildGeneratePayload(state, videoModel).n).toBe(1);
-  });
-
-  it('uses the selected count for image modes when the model supports it', () => {
-    const state: GenerationState = { ...baseState, mode: 't2i', imageCount: 4 };
-    const imageModel = makeGrokImageModelInfo({ max_images: 4 });
-
-    expect(outputCountForRequest(state, imageModel)).toBe(4);
-    expect(buildGeneratePayload(state, imageModel).n).toBe(4);
-  });
-
-  it('clamps image output count to the live model limit', () => {
-    const state: GenerationState = { ...baseState, mode: 't2i', imageCount: 4 };
-    const imageModel = makeGrokImageModelInfo({ max_images: 2 });
-
-    expect(buildGeneratePayload(state, imageModel).n).toBe(2);
+    expect(sourceMediaForRequest(state, current)).toEqual([
+      { asset_ref: upload.assetRef },
+      { asset_ref: output.assetRef },
+    ]);
+    expect(inputImageCountForRequest(state, current)).toBe(2);
+    expect(validateSourceMedia(state, current).valid).toBe(false);
   });
 });
 
-describe('buildGeneratePayload — null modelInfo', () => {
-  it('omits negative_prompt and Aisha params when modelInfo is null', () => {
-    const state: GenerationState = {
-      ...baseState,
-      negativePrompt: 'blurry',
-      imageTier: 'high',
-      seed: 42,
-    };
-    const payload = buildGeneratePayload(state, null);
-    expect(payload.negative_prompt).toBeUndefined();
-    expect(payload.image_resolution).toBeUndefined();
-    expect(payload.seed).toBeUndefined();
+describe('source_media required_for', () => {
+  it('does not treat min as required outside required_for', () => {
+    const state = { ...baseState, mode: 't2i' as const };
+    expect(validateSourceMedia(state, model())).toEqual({
+      valid: true,
+      message: null,
+    });
+    expect(buildGeneratePayload(state, model()).source_media).toBeUndefined();
+  });
+
+  it('requires min only for i2i in this provider response', () => {
+    expect(validateSourceMedia({ ...baseState, mode: 'i2i' }, model()).valid).toBe(false);
+    expect(
+      validateSourceMedia({ ...baseState, mode: 'i2i', sourceMedia: [upload] }, model()),
+    ).toEqual({
+      valid: true,
+      message: null,
+    });
+  });
+
+  it('makes a future mode required solely from required_for', () => {
+    const futureModel = model({
+      capabilities: ['t2i', 'future-edit'],
+      inputs: {
+        source_media: { min: 1, max: 2, media_types: ['image'], required_for: ['future-edit'] },
+      },
+    });
+    expect(validateSourceMedia({ ...baseState, mode: 'future-edit' }, futureModel).valid).toBe(
+      false,
+    );
+    expect(
+      validateSourceMedia({ ...baseState, mode: 'future-edit', sourceMedia: [upload] }, futureModel)
+        .valid,
+    ).toBe(true);
+  });
+
+  it('keeps v2v on input_video_url and out of source_media validation', () => {
+    const payload = buildGeneratePayload(
+      { ...baseState, mode: 'v2v', inputVideoUrl: '/v1/content/outputs/video' },
+      model(),
+    );
+    expect(payload.input_video_url).toBe('/v1/content/outputs/video');
+    expect(payload.source_media).toBeUndefined();
+    expect(validateSourceMedia({ ...baseState, mode: 'v2v' }, model()).valid).toBe(true);
+  });
+});
+
+describe('unsupported parameter projection', () => {
+  it('omits every stale unsupported parameter and forces n=1 without batch_size', () => {
+    const payload = buildGeneratePayload(
+      baseState,
+      model({
+        unsupported_parameters: [
+          'aspect_ratio',
+          'batch_size',
+          'cfg',
+          'denoise',
+          'height',
+          'image_resolution',
+          'negative_prompt',
+          'sampler',
+          'scheduler',
+          'seed',
+          'steps',
+          'width',
+        ],
+      }),
+    );
+    expect(payload.n).toBe(1);
+    for (const key of [
+      'aspect_ratio',
+      'negative_prompt',
+      'image_resolution',
+      'width',
+      'height',
+      'seed',
+      'steps',
+      'cfg',
+      'sampler',
+      'scheduler',
+      'denoise',
+    ]) {
+      expect(payload).not.toHaveProperty(key);
+    }
+  });
+
+  it('uses max_images only when batch_size is currently supported', () => {
+    expect(outputCountForRequest(baseState, model({ max_images: 2 }))).toBe(2);
+    expect(
+      outputCountForRequest(
+        baseState,
+        model({ max_images: 10, unsupported_parameters: ['batch_size'] }),
+      ),
+    ).toBe(1);
   });
 });

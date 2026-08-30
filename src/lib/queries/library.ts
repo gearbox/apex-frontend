@@ -14,7 +14,7 @@ type LibraryAssetDetail = components['schemas']['LibraryAssetDetail'];
 type LibraryGroupDetail = components['schemas']['LibraryGroupDetail'];
 type LibraryAssetSource = components['schemas']['LibraryAssetSource'];
 type LibraryAssetPatch = components['schemas']['LibraryAssetPatch'];
-type OutputMediaType = components['schemas']['OutputMediaType'];
+type MediaKind = components['schemas']['MediaKind'];
 type LibrarySort = components['schemas']['LibrarySort'];
 type LibraryProject = components['schemas']['LibraryProject'];
 type LibraryProjectCreate = components['schemas']['LibraryProjectCreate'];
@@ -64,7 +64,7 @@ export const tagKeys = {
 
 export interface LibraryListParams {
   source?: LibraryAssetSource | null;
-  media_type?: OutputMediaType | null;
+  media_type?: MediaKind | null;
   model?: string | null;
   favorite?: boolean | null;
   project_id?: string | null;

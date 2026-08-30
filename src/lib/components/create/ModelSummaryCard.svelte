@@ -101,6 +101,7 @@
       bind:this={guideTrigger}
       type="button"
       class="mt-3 text-xs font-semibold text-accent hover:underline"
+      aria-label="Open model guide"
       aria-haspopup="dialog"
       aria-expanded={guideOpen}
       onclick={() => (guideOpen = true)}>{m.model_guide_learn_more()}</button

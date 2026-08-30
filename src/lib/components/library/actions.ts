@@ -15,7 +15,11 @@ import {
   Trash2,
 } from '@lucide/svelte';
 import type { LucideIcon } from '@lucide/svelte';
-import { generationStore, type GenerationState } from '$lib/stores/generation';
+import {
+  generationStore,
+  type GenerationState,
+  type SourceMediaDraft,
+} from '$lib/stores/generation';
 import { mediaFallbackSrc } from '$lib/media';
 import { ROUTES } from '$lib/utils/routes';
 import { parseAssetRef } from '$lib/utils/assetRef';
@@ -25,11 +29,14 @@ import { addToast } from '$lib/stores/toasts';
 import {
   type GenerationMode,
   isGenerationMode,
-  modeRequiresSource,
   resolveModelForMode,
   findModelInfo,
 } from '$lib/utils/generationModes';
-import { getEditAspectRatios, KNOWN_ASPECT_RATIOS } from '$lib/utils/modelCapabilities';
+import {
+  getEditAspectRatios,
+  KNOWN_ASPECT_RATIOS,
+  sourceMediaPolicy,
+} from '$lib/utils/modelCapabilities';
 import type { components } from '$lib/api/types';
 import * as m from '$paraglide/messages';
 
@@ -42,7 +49,14 @@ type GenerationType = components['schemas']['GenerationType'];
 type AspectRatio = components['schemas']['AspectRatio'];
 type ModelType = components['schemas']['ModelType'];
 type LibraryAssetDetail = components['schemas']['LibraryAssetDetail'];
+type LibraryGroupDetail = components['schemas']['LibraryGroupDetail'];
 type ProvidersResponse = components['schemas']['ProvidersResponse'];
+
+function sourceMediaLabel(assetRef: string): string | null {
+  if (assetRef.startsWith('output:')) return 'From generated';
+  if (assetRef.startsWith('upload:')) return 'From uploads';
+  return null;
+}
 
 /** Common shape shared by LibraryAssetItem and LibraryAssetDetail — enough for action dispatch. */
 export interface LibraryActionAsset {
@@ -68,6 +82,8 @@ export interface LibraryActionDeps {
   providers: ProvidersResponse | null | undefined;
   /** `queryClient.ensureQueryData(libraryAssetQueryOptions(ref))` at the call site. */
   loadDetail: (assetRef: string) => Promise<LibraryAssetDetail>;
+  /** Re-Generate sources are authoritative only on the owning generation group. */
+  loadGroup?: (jobId: string) => Promise<LibraryGroupDetail>;
   /** Defaults to `goto` — injected only for tests. */
   navigate?: (path: string) => void | Promise<void>;
 }
@@ -117,8 +133,7 @@ async function saveAsset(asset: LibraryActionAsset, mode: SaveCapability) {
   }
 }
 
-/** Shared prefill+navigate tail. `afterPrefill` runs between the two — the only place an image
- *  source may be set, since `prefill` itself resets image-source fields unless present in params. */
+/** Shared prefill+navigate tail. */
 async function prefillAndGo(
   params: Partial<GenerationState>,
   deps: LibraryActionDeps,
@@ -171,11 +186,19 @@ async function useAsSource(
       return;
     }
 
-    const { source, id } = parseAssetRef(sourceAsset.asset_ref);
-    const previewUrl = mediaFallbackSrc(sourceAsset.media, 512);
+    const sourceMedia: SourceMediaDraft = {
+      assetRef: sourceAsset.asset_ref,
+      mediaType: sourceAsset.media.media_type,
+      previewUrl: mediaFallbackSrc(sourceAsset.media, 512),
+      label: sourceMediaLabel(sourceAsset.asset_ref),
+      available: true,
+    };
     const prefillParams: Partial<GenerationState> = {
       model,
       mode: policy.mode,
+      ...(policy.mode === 'v2v'
+        ? { inputVideoUrl: sourceAsset.media.original.url }
+        : { sourceMedia: [sourceMedia] }),
       ...(policy.prompt === 'copy-provenance'
         ? {
             prompt: sourceAsset.prompt ?? '',
@@ -186,13 +209,7 @@ async function useAsSource(
         : {}),
     };
 
-    await prefillAndGo(prefillParams, deps, () => {
-      if (source === 'output') {
-        generationStore.setSourceOutputId(id, previewUrl);
-      } else {
-        generationStore.setUploadedImageId(id, previewUrl);
-      }
-    });
+    await prefillAndGo(prefillParams, deps);
   } catch {
     // This includes detail resolution and navigation. All handlers are safe to invoke
     // fire-and-forget by ContextMenu, so failures must be surfaced rather than rejected.
@@ -218,33 +235,27 @@ async function reproduce(asset: LibraryActionAsset, deps: LibraryActionDeps): Pr
       return;
     }
 
-    let afterPrefill: (() => void) | undefined;
-
-    if (modeRequiresSource(mode)) {
-      const sourceRef = detail.lineage?.source_asset_ref;
-      if (!sourceRef) {
+    const modelInfo = findModelInfo(deps.providers, model);
+    const needsGroup = mode === 'v2v' || sourceMediaPolicy(modelInfo, mode).accepted;
+    let group: LibraryGroupDetail | undefined;
+    if (needsGroup) {
+      if (!detail.job_id || !deps.loadGroup) {
         addToast({ type: 'error', message: m.library_reproduce_source_missing() });
         return;
       }
-
-      let sourceDetail: LibraryAssetDetail;
-      try {
-        sourceDetail = await deps.loadDetail(sourceRef);
-      } catch {
-        addToast({ type: 'error', message: m.library_reproduce_source_missing() });
-        return;
-      }
-
-      const previewUrl = mediaFallbackSrc(sourceDetail.media, 512);
-      const { source, id } = parseAssetRef(sourceRef);
-      afterPrefill = () => {
-        if (source === 'output') {
-          generationStore.setSourceOutputId(id, previewUrl);
-        } else {
-          generationStore.setUploadedImageId(id, previewUrl);
-        }
-      };
+      group = await deps.loadGroup(detail.job_id);
     }
+    // `source_media` records every original position, including deleted assets.
+    // Never use the deprecated group `input_media` as a fallback here.
+    const sourceMedia = [...(group?.source_media ?? [])]
+      .sort((a, b) => a.position - b.position)
+      .map<SourceMediaDraft>((source) => ({
+        assetRef: source.asset_ref,
+        mediaType: source.media?.media_type ?? null,
+        previewUrl: source.media ? mediaFallbackSrc(source.media, 512) : null,
+        label: sourceMediaLabel(source.asset_ref),
+        available: source.available,
+      }));
 
     const prefillParams: Partial<GenerationState> = {
       prompt: detail.prompt ?? '',
@@ -252,10 +263,18 @@ async function reproduce(asset: LibraryActionAsset, deps: LibraryActionDeps): Pr
       negativePrompt: detail.negative_prompt ?? '',
       model,
       mode,
+      // v2v remains deliberately separate from owned source_media. Its
+      // legacy group input is used only to reconstruct input_video_url, never
+      // as a fallback for the ordered source-media replay above.
+      ...(mode === 'v2v'
+        ? { inputVideoUrl: group?.input_media?.original.url ?? null }
+        : needsGroup
+          ? { sourceMedia }
+          : {}),
       ...aspectRatioPrefill(detail.aspect_ratio, mode, model, deps.providers),
     };
 
-    await prefillAndGo(prefillParams, deps, afterPrefill);
+    await prefillAndGo(prefillParams, deps);
   } catch {
     addToast({ type: 'error', message: m.error_generic() });
   }

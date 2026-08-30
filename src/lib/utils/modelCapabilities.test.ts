@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import {
-  supportsAishaImageParams,
+  hasImageSizingConstraints,
   getEditAspectRatios,
   KNOWN_ASPECT_RATIOS,
+  isGenerationParameterSupported,
+  sourceMediaPolicy,
 } from './modelCapabilities';
 import type { components } from '$lib/api/types';
 import { makeGrokImageModelInfo, makeAishaImageModelInfo } from '../../mocks/factories/providers';
@@ -16,17 +18,17 @@ const aishaModelInfo: ModelInfo = makeAishaImageModelInfo();
 // valid input to guard against for older/degraded backend responses.
 const grokModelInfo: ModelInfo = makeGrokImageModelInfo({ image: null });
 
-describe('supportsAishaImageParams', () => {
-  it('returns true for Aisha model with supported_tiers', () => {
-    expect(supportsAishaImageParams(aishaModelInfo)).toBe(true);
+describe('provider capabilities', () => {
+  it('uses image metadata without model-key capability checks', () => {
+    expect(hasImageSizingConstraints(aishaModelInfo)).toBe(true);
   });
 
   it('returns false for Grok model (image: null)', () => {
-    expect(supportsAishaImageParams(grokModelInfo)).toBe(false);
+    expect(hasImageSizingConstraints(grokModelInfo)).toBe(false);
   });
 
   it('returns false for null modelInfo', () => {
-    expect(supportsAishaImageParams(null)).toBe(false);
+    expect(hasImageSizingConstraints(null)).toBe(false);
   });
 
   it('returns false for model with image.supported_tiers: null', () => {
@@ -34,7 +36,30 @@ describe('supportsAishaImageParams', () => {
       ...aishaModelInfo,
       image: { ...aishaModelInfo.image!, supported_tiers: null },
     };
-    expect(supportsAishaImageParams(modelWithNullTiers)).toBe(false);
+    expect(hasImageSizingConstraints(modelWithNullTiers)).toBe(false);
+  });
+
+  it('maps unsupported parameters centrally', () => {
+    const constrained = { ...aishaModelInfo, unsupported_parameters: ['negative_prompt', 'seed'] };
+    expect(isGenerationParameterSupported(constrained, 'negative_prompt')).toBe(false);
+    expect(isGenerationParameterSupported(constrained, 'seed')).toBe(false);
+    expect(isGenerationParameterSupported(constrained, 'cfg')).toBe(true);
+  });
+
+  it('derives requiredness only from required_for, including future modes', () => {
+    const constrained = {
+      ...grokModelInfo,
+      inputs: {
+        source_media: {
+          min: 1,
+          max: 2,
+          media_types: ['image'] as components['schemas']['MediaKind'][],
+          required_for: ['future-edit'],
+        },
+      },
+    };
+    expect(sourceMediaPolicy(constrained, 't2i').required).toBe(false);
+    expect(sourceMediaPolicy(constrained, 'future-edit').required).toBe(true);
   });
 });
 

@@ -9,10 +9,9 @@
   } from '$lib/queries/library';
   import { addToast } from '$lib/stores/toasts';
   import { isDesktop } from '$lib/utils/breakpoints';
-  import { parseAssetRef } from '$lib/utils/assetRef';
   import { assetLabel } from '$lib/utils/assetName';
   import type { components } from '$lib/api/types';
-  import MediaImage from '$lib/media/MediaImage.svelte';
+  import Media from '$lib/media/Media.svelte';
   import { mediaFallbackSrc } from '$lib/media/index';
   import InfiniteScrollSentinel from '$lib/components/shared/InfiniteScrollSentinel.svelte';
   import ConfirmDeleteModal from '$lib/components/shared/ConfirmDeleteModal.svelte';
@@ -20,25 +19,29 @@
   import * as m from '$paraglide/messages';
 
   type LibraryAssetItem = components['schemas']['LibraryAssetItem'];
+  type MediaKind = components['schemas']['MediaKind'];
 
-  export interface ImagePickerSelection {
-    source: 'upload' | 'output';
-    id: string;
+  export interface MediaPickerSelection {
+    assetRef: string;
+    mediaType: string;
     previewUrl: string;
     prompt?: string | null;
   }
 
   let {
     open,
+    mediaTypes,
     onclose,
     onselect,
   }: {
     open: boolean;
+    mediaTypes: readonly string[];
     onclose: () => void;
-    onselect: (selection: ImagePickerSelection) => void;
+    onselect: (selection: MediaPickerSelection) => void;
   } = $props();
 
   let activeTab = $state<'uploads' | 'generated'>('uploads');
+  let activeMediaType = $state('image');
   let selectedItem = $state<LibraryAssetItem | null>(null);
   let uploadDeleteTarget = $state<LibraryAssetItem | null>(null);
   let confirming = $state(false);
@@ -53,29 +56,39 @@
   // Both queries always enabled when the modal is open so tab-switching never
   // triggers a loading skeleton flash — data is already in cache.
 
+  $effect(() => {
+    if (!mediaTypes.includes(activeMediaType)) activeMediaType = mediaTypes[0] ?? 'image';
+  });
+
   const uploadsQuery = createInfiniteQuery(() => ({
-    ...libraryListInfiniteQueryOptions({ source: 'upload', media_type: 'image' }),
+    ...libraryListInfiniteQueryOptions({
+      source: 'upload',
+      media_type: activeMediaType as MediaKind,
+    }),
     enabled: open,
   }));
 
   const generatedQuery = createInfiniteQuery(() => ({
-    ...libraryListInfiniteQueryOptions({ source: 'output', media_type: 'image' }),
+    ...libraryListInfiniteQueryOptions({
+      source: 'output',
+      media_type: activeMediaType as MediaKind,
+    }),
     enabled: open,
   }));
 
   const uploadItems = $derived((uploadsQuery.data?.pages ?? []).flatMap((p) => p.items));
   const generatedItems = $derived((generatedQuery.data?.pages ?? []).flatMap((p) => p.items));
+  const isImageOnly = $derived(mediaTypes.length === 1 && mediaTypes[0] === 'image');
 
   /* ─── Confirm ─── */
 
   async function handleConfirm() {
     if (!selectedItem || confirming) return;
     const item = selectedItem;
-    const { source, id } = parseAssetRef(item.asset_ref);
     const previewUrl = mediaFallbackSrc(item.media, 512);
 
-    if (source === 'upload') {
-      onselect({ source: 'upload', id, previewUrl });
+    if (item.source === 'upload') {
+      onselect({ assetRef: item.asset_ref, mediaType: item.media.media_type, previewUrl });
       return;
     }
 
@@ -83,9 +96,14 @@
     confirming = true;
     try {
       const detail = await queryClient.fetchQuery(libraryAssetQueryOptions(item.asset_ref));
-      onselect({ source: 'output', id, previewUrl, prompt: detail.prompt });
+      onselect({
+        assetRef: item.asset_ref,
+        mediaType: item.media.media_type,
+        previewUrl,
+        prompt: detail.prompt,
+      });
     } catch {
-      onselect({ source: 'output', id, previewUrl });
+      onselect({ assetRef: item.asset_ref, mediaType: item.media.media_type, previewUrl });
     } finally {
       confirming = false;
     }
@@ -167,12 +185,14 @@
            md:h-auto md:max-h-[80vh] md:max-w-160 md:rounded-2xl"
     role="dialog"
     aria-modal="true"
-    aria-label="Choose from library"
+    aria-label={isImageOnly ? 'Choose from library' : 'Choose source media from library'}
     tabindex="-1"
   >
     <!-- Header -->
     <div class="flex shrink-0 items-center justify-between border-b border-border px-5 py-4">
-      <h2 class="text-sm font-semibold text-text">Choose from Library</h2>
+      <h2 class="text-sm font-semibold text-text">
+        {isImageOnly ? 'Choose from Library' : 'Choose Source Media'}
+      </h2>
       <button
         onclick={onclose}
         class="rounded-md p-1 text-text-muted transition-colors hover:text-text"
@@ -200,6 +220,25 @@
       {/each}
     </div>
 
+    {#if mediaTypes.length > 1}
+      <div class="flex shrink-0 gap-1 border-b border-border px-5 py-2">
+        {#each mediaTypes as mediaType (mediaType)}
+          <button
+            onclick={() => {
+              activeMediaType = mediaType;
+              selectedItem = null;
+            }}
+            class="rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors
+              {activeMediaType === mediaType
+              ? 'bg-accent/15 text-accent'
+              : 'text-text-muted hover:text-text'}"
+          >
+            {mediaType}
+          </button>
+        {/each}
+      </div>
+    {/if}
+
     <!-- Content area: scrollable, min-h-0 lets flex-1 shrink below content size -->
     <div class="min-h-0 flex-1 overflow-y-auto p-4">
       {#if activeTab === 'uploads'}
@@ -213,7 +252,7 @@
           <div class="flex flex-col items-center justify-center py-12 text-center">
             <p class="text-sm text-text-dim">No uploads yet</p>
             <p class="mt-1 text-xs text-text-muted">
-              Upload an image using the drag & drop zone above
+              Upload a compatible file using the drop zone above
             </p>
           </div>
         {:else}
@@ -238,7 +277,7 @@
                     name: assetLabel(item, m.imagepicker_upload_unnamed()),
                   })}
                 >
-                  <MediaImage
+                  <Media
                     media={item.media}
                     alt={assetLabel(item, '')}
                     sizes="(max-width: 768px) 33vw, 25vw"
@@ -305,9 +344,9 @@
                 class="group relative aspect-square overflow-hidden rounded-lg border-2 transition-colors
                   {isSelected ? 'border-accent' : 'border-transparent hover:border-border-active'}"
                 aria-pressed={isSelected}
-                aria-label="Generated image"
+                aria-label={isImageOnly ? 'Generated image' : 'Generated media'}
               >
-                <MediaImage
+                <Media
                   media={item.media}
                   alt=""
                   sizes="(max-width: 768px) 33vw, 25vw"
@@ -350,7 +389,7 @@
           ? 'bg-accent text-white hover:bg-accent/90'
           : 'cursor-not-allowed bg-surface text-text-dim'}"
       >
-        {confirming ? 'Loading…' : 'Use Selected Image'}
+        {confirming ? 'Loading…' : isImageOnly ? 'Use Selected Image' : 'Add Selected Media'}
       </button>
     </div>
   </div>

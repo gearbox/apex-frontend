@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { get } from 'svelte/store';
 import { generationStore } from '$lib/stores/generation';
 import { activeProject } from '$lib/stores/activeProject.svelte';
+import type { SourceMediaPolicy } from '$lib/utils/modelCapabilities';
 
 const { invalidateQueries, uploadMediaMock, inheritProjectForUploadMock } = vi.hoisted(() => ({
   invalidateQueries: vi.fn(),
@@ -10,17 +11,21 @@ const { invalidateQueries, uploadMediaMock, inheritProjectForUploadMock } = vi.h
   inheritProjectForUploadMock: vi.fn(),
 }));
 
-vi.mock('@tanstack/svelte-query', () => ({
-  useQueryClient: () => ({ invalidateQueries }),
-}));
-
+vi.mock('@tanstack/svelte-query', () => ({ useQueryClient: () => ({ invalidateQueries }) }));
 vi.mock('$lib/api/upload', () => ({ uploadMedia: uploadMediaMock }));
-
 vi.mock('$lib/services/projectInheritance', () => ({
   inheritProjectForUpload: inheritProjectForUploadMock,
 }));
 
 import ImageUpload from './ImageUpload.svelte';
+
+const policy: SourceMediaPolicy = {
+  accepted: true,
+  required: true,
+  min: 1,
+  max: 2,
+  mediaTypes: ['image'],
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -28,52 +33,44 @@ beforeEach(() => {
   activeProject.reset();
 });
 
-describe('ImageUpload', () => {
-  it('displays an externally selected uploaded image with its supplied preview', async () => {
-    generationStore.setUploadedImageId(
-      'extracted-upload-1',
-      'http://localhost:8000/v1/content/uploads/extracted-upload-1',
-    );
-
-    render(ImageUpload);
-
-    await waitFor(() => {
-      expect(screen.getByRole('img', { name: 'Selected' }).getAttribute('src')).toBe(
-        'http://localhost:8000/v1/content/uploads/extracted-upload-1',
-      );
-    });
-    expect(screen.getByText('From uploads')).toBeTruthy();
+describe('capability-driven source picker', () => {
+  it('renders ordered selected sources and identifies the primary reference', () => {
+    generationStore.setSourceMedia([
+      {
+        assetRef: 'upload:one',
+        mediaType: 'image',
+        previewUrl: '/one.png',
+        label: 'first',
+        available: true,
+      },
+    ]);
+    render(ImageUpload, { policy });
+    expect(screen.getByText(/Primary/)).toBeTruthy();
   });
 
-  it('assigns a newly uploaded source image to the active project without blocking upload success', async () => {
+  it('writes upload:<uuid> source refs and assigns the completed upload to the active project', async () => {
     activeProject.set('project-1');
     uploadMediaMock.mockResolvedValue({
-      id: 'upload-1',
+      id: '11111111-1111-1111-1111-111111111111',
       media: {
         media_type: 'image',
-        original: {
-          url: '/v1/content/uploads/upload-1',
-          content_type: 'image/jpeg',
-          size_bytes: 1,
-        },
+        original: { url: '/v1/content/uploads/one', content_type: 'image/jpeg', size_bytes: 1 },
         variants: [],
       },
     });
-    inheritProjectForUploadMock.mockRejectedValue(new Error('project assignment failed'));
-
-    const { container } = render(ImageUpload);
-    const input = container.querySelector('input[type="file"]');
-    expect(input).not.toBeNull();
-
-    await fireEvent.change(input!, {
+    const { container } = render(ImageUpload, { policy });
+    const input = container.querySelector('input[type="file"]')!;
+    await fireEvent.change(input, {
       target: { files: [new File(['image'], 'source.jpg', { type: 'image/jpeg' })] },
     });
 
-    await waitFor(() => {
-      expect(inheritProjectForUploadMock).toHaveBeenCalledWith('upload-1', 'project-1');
-    });
-    expect(get(generationStore).uploadedImageId).toBe('upload-1');
-    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['library'] });
-    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['library', 'projects'] });
+    await waitFor(() => expect(get(generationStore).sourceMedia).toHaveLength(1));
+    expect(get(generationStore).sourceMedia[0].assetRef).toBe(
+      'upload:11111111-1111-1111-1111-111111111111',
+    );
+    expect(inheritProjectForUploadMock).toHaveBeenCalledWith(
+      '11111111-1111-1111-1111-111111111111',
+      'project-1',
+    );
   });
 });

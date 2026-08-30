@@ -17,15 +17,15 @@ vi.mock('$paraglide/messages', () => ({
 describe('TypeSelector', () => {
   beforeEach(() => generationStore.reset());
 
-  it('does not offer V2V or FLF2V without matching Create input workflows', () => {
+  it('offers every provider-advertised mode without a frontend mode allow-list', () => {
     render(TypeSelector, {
       modelInfo: makeModelInfo({ capabilities: ['t2v', 'i2v', 'v2v', 'flf2v'] }),
     });
 
     expect(screen.getByRole('button', { name: 'Text to video' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Image to video' })).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Video to video' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'First and last frame to video' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Video to video' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'First and last frame to video' })).toBeTruthy();
   });
 
   it('exposes stable mode semantics and selected state', () => {

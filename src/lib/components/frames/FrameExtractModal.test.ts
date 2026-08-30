@@ -5,11 +5,11 @@ import { server } from '../../../mocks/server';
 import { MOCK_BASE_URL as BASE } from '../../../mocks/config';
 import type { components } from '$lib/api/types';
 
-const { gotoMock, invalidateQueriesMock, setModeMock, setUploadedImageIdMock } = vi.hoisted(() => ({
+const { gotoMock, invalidateQueriesMock, setModeMock, setSourceMediaMock } = vi.hoisted(() => ({
   gotoMock: vi.fn(),
   invalidateQueriesMock: vi.fn(),
   setModeMock: vi.fn(),
-  setUploadedImageIdMock: vi.fn(),
+  setSourceMediaMock: vi.fn(),
 }));
 
 const { desktopBreakpoint } = vi.hoisted(() => {
@@ -35,7 +35,7 @@ vi.mock('$app/navigation', () => ({ goto: gotoMock }));
 vi.mock('$lib/stores/generation', () => ({
   generationStore: {
     setMode: setModeMock,
-    setUploadedImageId: setUploadedImageIdMock,
+    setSourceMedia: setSourceMediaMock,
   },
 }));
 
@@ -479,10 +479,13 @@ describe('FrameExtractModal', () => {
 
     await fireEvent.click(screen.getAllByRole('button', { name: 'Use as input' })[0]);
     expect(setModeMock).toHaveBeenCalledWith('i2i');
-    expect(setUploadedImageIdMock).toHaveBeenCalledWith(
-      'extracted-upload-1',
-      'http://localhost:8000/v1/content/uploads/extracted-upload-1',
-    );
+    expect(setSourceMediaMock).toHaveBeenCalledWith([
+      expect.objectContaining({
+        assetRef: 'upload:extracted-upload-1',
+        mediaType: 'image',
+        available: true,
+      }),
+    ]);
     expect(gotoMock).toHaveBeenCalledWith('/app/create');
     expect(onclose).toHaveBeenCalledOnce();
   });

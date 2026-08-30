@@ -184,6 +184,22 @@ export const libraryHandlers = [
               size_bytes: 500000,
             },
           }),
+          source_media: [
+            {
+              position: 0,
+              asset_ref: 'upload:upload_mock_001',
+              available: true,
+              media: makeMediaObject({
+                original: {
+                  url: '/v1/content/uploads/upload_mock_001',
+                  width: 1024,
+                  height: 768,
+                  content_type: 'image/jpeg',
+                  size_bytes: 500000,
+                },
+              }),
+            },
+          ],
           generation_type: 'i2i',
           aspect_ratio: '16:9',
           lineage: makeLibraryGroupLineage({

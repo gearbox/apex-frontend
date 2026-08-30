@@ -1,59 +1,84 @@
 <script lang="ts">
-  import { generationStore } from '$lib/stores/generation';
+  import { generationStore, type SourceMediaDraft } from '$lib/stores/generation';
   import { addToast } from '$lib/stores/toasts';
-  import { formatFileSize } from '$lib/utils/format';
-  import { X, ImageIcon, GalleryHorizontalEnd } from '@lucide/svelte';
+  import { X, ImagePlus, GalleryHorizontalEnd, AlertTriangle } from '@lucide/svelte';
   import ImagePickerModal from './ImagePickerModal.svelte';
-  import type { ImagePickerSelection } from './ImagePickerModal.svelte';
+  import type { MediaPickerSelection } from './ImagePickerModal.svelte';
   import { mediaFallbackSrc } from '$lib/media/index';
   import { uploadMedia } from '$lib/api/upload';
   import { useQueryClient } from '@tanstack/svelte-query';
   import { libraryKeys, projectKeys } from '$lib/queries/library';
-  import { ACCEPTED_IMAGE_TYPES } from '$lib/utils/constants';
+  import { ACCEPTED_IMAGE_TYPES, ACCEPTED_VIDEO_TYPES } from '$lib/utils/constants';
   import { activeProject } from '$lib/stores/activeProject.svelte';
   import { inheritProjectForUpload } from '$lib/services/projectInheritance';
+  import type { SourceMediaPolicy } from '$lib/utils/modelCapabilities';
+  import type { components } from '$lib/api/types';
+
+  type MediaKind = components['schemas']['MediaKind'];
+
+  let { policy }: { policy: SourceMediaPolicy } = $props();
 
   const queryClient = useQueryClient();
-
-  const MAX_SIZE_BYTES = 20 * 1024 * 1024; // 20 MB
-
+  const MAX_SIZE_BYTES = 20 * 1024 * 1024;
   let dragOver = $state(false);
   let uploading = $state(false);
-  let previewUrl = $state<string | null>(null);
-  let fileName = $state<string | null>(null);
-  let fileSize = $state<number | null>(null);
   let pickerOpen = $state(false);
-  let pickerSelection = $state<{ previewUrl: string; label: string } | null>(null);
-
+  let replacementIndex = $state<number | null>(null);
   let fileInput: HTMLInputElement;
 
-  // Sync external selections (generated-output reuse and extracted frames).
-  $effect(() => {
-    const storeState = $generationStore;
-    if (storeState.sourceOutputId && storeState.selectedImagePreviewUrl && !pickerSelection) {
-      pickerSelection = {
-        previewUrl: storeState.selectedImagePreviewUrl,
-        label: 'From generated',
-      };
+  const sourceMedia = $derived($generationStore.sourceMedia);
+  const mediaTypes = $derived(policy.mediaTypes);
+  const isSingleImagePicker = $derived(
+    policy.max === 1 && mediaTypes.length === 1 && mediaTypes[0] === 'image',
+  );
+  const atCapacity = $derived(sourceMedia.length >= policy.max);
+  const acceptedFileTypes = $derived(
+    mediaTypes.flatMap((type) =>
+      type === 'image' ? ACCEPTED_IMAGE_TYPES : type === 'video' ? ACCEPTED_VIDEO_TYPES : [],
+    ),
+  );
+
+  function mediaTypeForFile(file: File): MediaKind | null {
+    if (file.type.startsWith('image/')) return 'image';
+    if (file.type.startsWith('video/')) return 'video';
+    return null;
+  }
+
+  function canUse(source: SourceMediaDraft, replacing: number | null): boolean {
+    if (!policy.mediaTypes.includes(source.mediaType as MediaKind)) {
+      addToast({ type: 'error', message: 'That media type is not accepted by this model.' });
+      return false;
     }
-    if (storeState.uploadedImageId && storeState.selectedImagePreviewUrl && !pickerSelection) {
-      pickerSelection = {
-        previewUrl: storeState.selectedImagePreviewUrl,
-        label: 'From uploads',
-      };
+    const duplicate = sourceMedia.some(
+      (item, index) => index !== replacing && item.assetRef === source.assetRef,
+    );
+    if (duplicate) {
+      addToast({ type: 'warning', message: 'That source is already selected.' });
+      return false;
     }
-    if (!storeState.sourceOutputId && !storeState.uploadedImageId && pickerSelection) {
-      pickerSelection = null;
+    if (replacing === null && atCapacity) {
+      addToast({
+        type: 'warning',
+        message: `This model accepts up to ${policy.max} source items.`,
+      });
+      return false;
     }
-  });
+    return true;
+  }
+
+  function addOrReplace(source: SourceMediaDraft) {
+    if (!canUse(source, replacementIndex)) return;
+    if (replacementIndex === null) generationStore.appendSourceMedia(source);
+    else generationStore.replaceSourceMedia(replacementIndex, source);
+    replacementIndex = null;
+  }
 
   function validateFile(file: File): string | null {
-    if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
-      return 'Only PNG, JPEG, and WebP are supported';
+    const mediaType = mediaTypeForFile(file);
+    if (!mediaType || !mediaTypes.includes(mediaType) || !acceptedFileTypes.includes(file.type)) {
+      return 'This model does not accept that file type.';
     }
-    if (file.size > MAX_SIZE_BYTES) {
-      return 'File must be under 20 MB';
-    }
+    if (file.size > MAX_SIZE_BYTES) return 'File must be under 20 MB';
     return null;
   }
 
@@ -63,195 +88,199 @@
       addToast({ type: 'error', message: validationError });
       return;
     }
+    const mediaType = mediaTypeForFile(file);
+    if (!mediaType) return;
 
-    // Keep the project selected when this upload starts. The Library URL remains the
-    // source of truth, but it may change while the upload request is in flight.
     const projectId = activeProject.id;
     uploading = true;
-    previewUrl = URL.createObjectURL(file);
-    fileName = file.name;
-    fileSize = file.size;
-
     try {
       const result = await uploadMedia(file);
-      generationStore.setUploadedImageId(result.id);
-      // Project assignment is convenience metadata: a successfully uploaded source
-      // image must remain usable for generation even if its follow-up bulk call fails.
+      addOrReplace({
+        assetRef: `upload:${result.id}`,
+        mediaType: result.media.media_type,
+        previewUrl: mediaFallbackSrc(result.media, 512),
+        label: file.name,
+        available: true,
+      });
       try {
         await inheritProjectForUpload(result.id, projectId);
       } catch {
-        // A later Library refetch is safe; do not turn an assignment failure into an
-        // upload failure after the source image has already been accepted.
+        // Assignment is convenience metadata; the completed upload remains usable.
       }
       queryClient.invalidateQueries({ queryKey: libraryKeys.all });
       queryClient.invalidateQueries({ queryKey: projectKeys.all });
-      // Switch to picker-selection preview using the immediate media from the response
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-      previewUrl = null;
-      pickerSelection = {
-        previewUrl: mediaFallbackSrc(result.media, 512),
-        label: file.name,
-      };
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Upload failed. Please try again.';
-      addToast({ type: 'error', message });
-      clearUpload();
+      addToast({
+        type: 'error',
+        message: err instanceof Error ? err.message : 'Upload failed. Please try again.',
+      });
     } finally {
       uploading = false;
+      if (fileInput) fileInput.value = '';
     }
   }
 
-  function clearUpload() {
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    previewUrl = null;
-    fileName = null;
-    fileSize = null;
-    pickerSelection = null;
-    generationStore.setUploadedImageId(null);
-    if (fileInput) fileInput.value = '';
-  }
-
-  function clearSelection() {
-    pickerSelection = null;
-    clearUpload();
-    generationStore.setSourceOutputId(null);
-  }
-
-  function handleDrop(e: DragEvent) {
-    dragOver = false;
-    const file = e.dataTransfer?.files[0];
-    if (file) uploadFile(file);
-  }
-
-  function handleFileChange(e: Event) {
-    const file = (e.target as HTMLInputElement).files?.[0];
-    if (file) uploadFile(file);
-  }
-
-  function handlePickerSelect(selection: ImagePickerSelection) {
+  function handlePickerSelect(selection: MediaPickerSelection) {
     pickerOpen = false;
+    addOrReplace({
+      assetRef: selection.assetRef,
+      mediaType: selection.mediaType,
+      previewUrl: selection.previewUrl,
+      label: selection.assetRef.startsWith('output:') ? 'From generated' : 'From uploads',
+      available: true,
+    });
+    if (selection.prompt) generationStore.setPrompt(selection.prompt);
+  }
 
-    // Clear any previous file upload state
-    if (previewUrl && !pickerSelection) URL.revokeObjectURL(previewUrl);
-    previewUrl = null;
-    fileName = null;
-    fileSize = null;
-    if (fileInput) fileInput.value = '';
-
-    if (selection.source === 'upload') {
-      generationStore.setUploadedImageId(selection.id);
-      pickerSelection = {
-        previewUrl: selection.previewUrl,
-        label: 'From uploads',
-      };
-    } else {
-      generationStore.setSourceOutputId(selection.id, selection.previewUrl);
-      pickerSelection = {
-        previewUrl: selection.previewUrl,
-        label: 'From generated',
-      };
-
-      if (selection.prompt) {
-        generationStore.setPrompt(selection.prompt);
-      }
-    }
+  function openPicker(index: number | null = null) {
+    replacementIndex = index;
+    pickerOpen = true;
   }
 </script>
 
 <div class="flex flex-col gap-2">
-  <span class="text-[11px] font-semibold uppercase tracking-wider text-text-muted"
-    >Source Image</span
-  >
-
-  {#if pickerSelection}
-    <!-- Picker selection preview -->
-    <div class="relative flex items-center gap-3 rounded-2.5 border border-border bg-surface p-3">
-      <img
-        src={pickerSelection.previewUrl}
-        alt="Selected"
-        class="h-14 w-14 rounded-lg object-cover"
-      />
-      <div class="min-w-0 flex-1">
-        <p class="truncate text-xs font-medium text-text">{pickerSelection.label}</p>
-      </div>
-      <button
-        onclick={clearSelection}
-        class="shrink-0 rounded-md p-1 text-text-muted transition-colors hover:text-text"
-        aria-label="Remove image"
-      >
-        <X size={14} />
-      </button>
-    </div>
-  {:else if previewUrl}
-    <div class="relative flex items-center gap-3 rounded-2.5 border border-border bg-surface p-3">
-      <img src={previewUrl} alt="Preview" class="h-14 w-14 rounded-lg object-cover" />
-      <div class="min-w-0 flex-1">
-        <p class="truncate text-xs font-medium text-text">{fileName}</p>
-        {#if fileSize}
-          <p class="text-[11px] text-text-dim">{formatFileSize(fileSize)}</p>
-        {/if}
-        {#if uploading}
-          <p class="text-[11px] text-accent">Uploading…</p>
-        {/if}
-      </div>
-      <button
-        onclick={clearUpload}
-        class="shrink-0 rounded-md p-1 text-text-muted hover:text-text transition-colors"
-        aria-label="Remove image"
-      >
-        <X size={14} />
-      </button>
-    </div>
-  {:else}
-    <!-- Drag-drop zone -->
-    <button
-      type="button"
-      class="flex flex-col items-center gap-2 rounded-2.5 border-2 border-dashed p-5 transition-colors
-        {dragOver ? 'border-accent bg-accent-glow' : 'border-border hover:border-border-active'}"
-      ondragover={(e) => {
-        e.preventDefault();
-        dragOver = true;
-      }}
-      ondragleave={() => (dragOver = false)}
-      ondrop={(e) => {
-        e.preventDefault();
-        handleDrop(e);
-      }}
-      onclick={() => fileInput.click()}
+  <div class="flex items-baseline justify-between">
+    <span class="text-[11px] font-semibold uppercase tracking-wider text-text-muted"
+      >{isSingleImagePicker ? 'Source Image' : 'Source Media'}</span
     >
-      <ImageIcon size={24} class="text-text-dim" />
-      <div class="text-center">
-        <p class="text-xs font-medium text-text-muted">
-          Drop image here or <span class="text-accent">browse</span>
-        </p>
-        <p class="text-[11px] text-text-dim">PNG, JPEG, WebP · Max 20 MB</p>
-      </div>
-    </button>
+    {#if !isSingleImagePicker}
+      <span class="text-[11px] text-text-dim">{sourceMedia.length} / {policy.max}</span>
+    {/if}
+  </div>
 
-    <!-- Choose from library -->
-    <button
-      type="button"
-      class="flex w-full items-center justify-center gap-2 rounded-xl border border-border px-3 py-2.5 text-xs font-medium text-text-muted transition-colors hover:border-border-active hover:text-text"
-      onclick={() => (pickerOpen = true)}
-    >
-      <GalleryHorizontalEnd size={14} />
-      Choose from library
-    </button>
+  {#if sourceMedia.length > 0}
+    <div class="flex flex-col gap-2">
+      {#each sourceMedia as source, index (source.assetRef)}
+        <div
+          class="relative flex items-center gap-3 rounded-2.5 border p-3 {source.available
+            ? 'border-border bg-surface'
+            : 'border-warning/60 bg-warning/10'}"
+        >
+          <span
+            class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent/15 text-xs font-semibold text-accent"
+          >
+            {index + 1}
+          </span>
+          {#if source.available && source.previewUrl}
+            <!-- Media renders poster frames for video and degrades safely for future kinds. -->
+            <img src={source.previewUrl} alt="" class="h-12 w-12 rounded-lg object-cover" />
+          {:else}
+            <AlertTriangle size={22} class="text-warning" aria-label="Source unavailable" />
+          {/if}
+          <div class="min-w-0 flex-1">
+            <p class="truncate text-xs font-medium text-text">{source.label ?? source.assetRef}</p>
+            <p class="text-[11px] text-text-dim">
+              {source.available
+                ? `${source.mediaType ?? 'unknown'}${index === 0 ? ' · Primary' : ''}`
+                : 'Unavailable — replace to preserve this position'}
+            </p>
+          </div>
+          {#if !source.available}
+            <button
+              type="button"
+              onclick={() => openPicker(index)}
+              class="rounded-md px-2 py-1 text-xs text-accent hover:bg-accent/10">Replace</button
+            >
+          {/if}
+          <button
+            onclick={() => generationStore.removeSourceMedia(index)}
+            class="shrink-0 rounded-md p-1 text-text-muted transition-colors hover:text-text"
+            aria-label={isSingleImagePicker ? 'Remove image' : 'Remove source media'}
+          >
+            <X size={14} />
+          </button>
+        </div>
+      {/each}
+    </div>
+  {/if}
+
+  {#if !atCapacity}
+    {#if isSingleImagePicker}
+      <button
+        type="button"
+        disabled={uploading}
+        class="flex flex-col items-center gap-2 rounded-2.5 border-2 border-dashed p-5 transition-colors
+          {dragOver ? 'border-accent bg-accent-glow' : 'border-border hover:border-border-active'}"
+        ondragover={(event) => {
+          event.preventDefault();
+          dragOver = true;
+        }}
+        ondragleave={() => (dragOver = false)}
+        ondrop={(event) => {
+          event.preventDefault();
+          dragOver = false;
+          const file = event.dataTransfer?.files[0];
+          if (file) void uploadFile(file);
+        }}
+        onclick={() => fileInput.click()}
+      >
+        <ImagePlus size={24} class="text-text-dim" />
+        <span class="text-xs font-medium text-text-muted"
+          >{uploading ? 'Uploading…' : 'Drop image here or browse'}</span
+        >
+        <span class="text-[11px] text-text-dim">PNG, JPEG, WebP · Max 20 MB</span>
+      </button>
+      <button
+        type="button"
+        onclick={() => openPicker()}
+        class="flex w-full items-center justify-center gap-2 rounded-xl border border-border px-3 py-2.5 text-xs font-medium text-text-muted transition-colors hover:border-border-active hover:text-text"
+      >
+        <GalleryHorizontalEnd size={14} /> Choose from library
+      </button>
+    {:else}
+      <div class="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          disabled={uploading}
+          class="flex items-center justify-center gap-2 rounded-xl border border-dashed px-3 py-3 text-xs font-medium text-text-muted transition-colors hover:border-border-active hover:text-text disabled:cursor-wait"
+          ondragover={(event) => {
+            event.preventDefault();
+            dragOver = true;
+          }}
+          ondragleave={() => (dragOver = false)}
+          ondrop={(event) => {
+            event.preventDefault();
+            dragOver = false;
+            const file = event.dataTransfer?.files[0];
+            if (file) void uploadFile(file);
+          }}
+          onclick={() => fileInput.click()}
+          class:border-accent={dragOver}
+        >
+          <ImagePlus size={15} />
+          {uploading ? 'Uploading…' : 'Upload'}
+        </button>
+        <button
+          type="button"
+          onclick={() => openPicker()}
+          class="flex items-center justify-center gap-2 rounded-xl border border-border px-3 py-3 text-xs font-medium text-text-muted transition-colors hover:border-border-active hover:text-text"
+        >
+          <GalleryHorizontalEnd size={15} /> Library
+        </button>
+      </div>
+    {/if}
   {/if}
 
   <input
     bind:this={fileInput}
     type="file"
-    accept={ACCEPTED_IMAGE_TYPES.join(',')}
+    accept={acceptedFileTypes.join(',')}
     class="hidden"
-    onchange={handleFileChange}
+    onchange={(event) => {
+      const file = (event.target as HTMLInputElement).files?.[0];
+      if (file) void uploadFile(file);
+    }}
   />
 </div>
 
 {#if pickerOpen}
   <ImagePickerModal
     open={pickerOpen}
-    onclose={() => (pickerOpen = false)}
+    {mediaTypes}
+    onclose={() => {
+      pickerOpen = false;
+      replacementIndex = null;
+    }}
     onselect={handlePickerSelect}
   />
 {/if}

@@ -2,7 +2,6 @@
   import { generationStore } from '$lib/stores/generation';
   import { timeAgo } from '$lib/utils/format';
   import { Download, Share, RefreshCw, Play, Repeat2 } from '@lucide/svelte';
-  import { toMediaSrc } from '$lib/media/index';
   import MediaImage from '$lib/media/MediaImage.svelte';
   import MediaVideo from '$lib/media/MediaVideo.svelte';
   import { saveMedia, resolveSaveCapabilities } from '$lib/media/save';
@@ -31,7 +30,15 @@
   function handleUseAsInput(output: JobOutputItem) {
     if (!job) return;
     generationStore.setMode('i2i');
-    generationStore.setSourceOutputId(output.id, toMediaSrc(output.media.original.url));
+    generationStore.setSourceMedia([
+      {
+        assetRef: `output:${output.id}`,
+        mediaType: output.media.media_type,
+        previewUrl: output.media.original.url,
+        label: 'From generated',
+        available: true,
+      },
+    ]);
   }
 </script>
 

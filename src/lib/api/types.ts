@@ -2386,10 +2386,11 @@ export interface components {
             job_id: string;
             badge: components["schemas"]["LibraryBadge"];
             input_media?: components["schemas"]["MediaObject"] | null;
+            source_media?: components["schemas"]["LibrarySourceMediaItem"][];
             prompt: string;
             negative_prompt?: string | null;
             outputs: components["schemas"]["LibraryOutputItem"][];
-            media_type: components["schemas"]["OutputMediaType"];
+            media_type: components["schemas"]["MediaKind"];
             model?: string | null;
             provider: string;
             generation_type: components["schemas"]["GenerationType"];
@@ -2481,6 +2482,13 @@ export interface components {
          * @enum {string}
          */
         LibrarySort: "newest" | "oldest" | "expiring_soon";
+        /** LibrarySourceMediaItem */
+        LibrarySourceMediaItem: {
+            position: number;
+            asset_ref: string;
+            available: boolean;
+            media?: components["schemas"]["MediaObject"] | null;
+        };
         /** LibraryTag */
         LibraryTag: {
             /** Format: uuid */
@@ -2551,11 +2559,18 @@ export interface components {
             email: string;
             password: string;
         };
+        /**
+         * MediaKind
+         * @description Supported owned-library media kinds.
+         * @enum {string}
+         */
+        MediaKind: "image" | "video";
         /** MediaObject */
         MediaObject: {
-            media_type: components["schemas"]["OutputMediaType"];
+            media_type: components["schemas"]["MediaKind"];
             original: components["schemas"]["MediaOriginal"];
             variants: components["schemas"]["ImageVariant"][];
+            asset_ref?: string | null;
         };
         /** MediaOriginal */
         MediaOriginal: {
@@ -2589,12 +2604,18 @@ export interface components {
             max_images: number;
             max_prompt_length: number;
             supports_negative_prompt: boolean;
+            unsupported_parameters?: string[];
             aspect_ratios: string[];
             /** @default false */
             requires_age_verification: boolean;
+            inputs?: components["schemas"]["ModelInputs"];
             image?: components["schemas"]["ImageConstraints"] | null;
             video?: components["schemas"]["VideoConstraints"] | null;
             session_state?: string | null;
+        };
+        /** ModelInputs */
+        ModelInputs: {
+            source_media?: components["schemas"]["SourceMediaConstraints"] | null;
         };
         /** ModelListResponse */
         ModelListResponse: {
@@ -2674,12 +2695,6 @@ export interface components {
             expires_at: string;
             media: components["schemas"]["MediaObject"];
         };
-        /**
-         * OutputMediaType
-         * @description Media type classification for gallery filtering.
-         * @enum {string}
-         */
-        OutputMediaType: "image" | "video";
         /** PatchPricingRuleRequest */
         PatchPricingRuleRequest: {
             token_cost?: number | null;
@@ -2860,6 +2875,17 @@ export interface components {
             input_image_id?: string | null;
             source_output_id?: string | null;
         };
+        /** SourceMediaConstraints */
+        SourceMediaConstraints: {
+            min: number;
+            max: number;
+            media_types: components["schemas"]["MediaKind"][];
+            required_for: string[];
+        };
+        /** SourceMediaReference */
+        SourceMediaReference: {
+            asset_ref: string;
+        };
         /** StartSessionRequest */
         StartSessionRequest: {
             model: components["schemas"]["ModelType"];
@@ -2991,6 +3017,7 @@ export interface components {
             prompt: string;
             generation_type: components["schemas"]["GenerationType"];
             model: components["schemas"]["ModelType"];
+            source_media?: components["schemas"]["SourceMediaReference"][] | null;
             input_image_id?: string | null;
             source_output_id?: string | null;
             source_images?: components["schemas"]["SourceImageReference"][] | null;
@@ -3032,6 +3059,7 @@ export interface components {
             completed_at?: string | null;
             outputs?: components["schemas"]["JobOutputItem"][];
             error?: string | null;
+            failure_code?: string | null;
         };
         /** UpdateProfileRequest */
         UpdateProfileRequest: {
@@ -6799,7 +6827,7 @@ export interface operations {
                 limit?: number;
                 cursor?: string | null;
                 source?: components["schemas"]["LibraryAssetSource"] | null;
-                media_type?: components["schemas"]["OutputMediaType"] | null;
+                media_type?: components["schemas"]["MediaKind"] | null;
                 model?: string | null;
                 favorite?: boolean | null;
                 project_id?: string | null;

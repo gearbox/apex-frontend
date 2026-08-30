@@ -1,7 +1,8 @@
 import { writable, derived, get } from 'svelte/store';
 import type { components } from '$lib/api/types';
 
-export type GenerationMode = 't2i' | 'i2i' | 't2v' | 'i2v' | 'v2v' | 'flf2v';
+/** Provider-discovered generation modes are intentionally open-ended. */
+export type GenerationMode = string;
 type ModelType = components['schemas']['ModelType'];
 type AspectRatio = components['schemas']['AspectRatio'];
 type JobStatus = components['schemas']['JobStatus'];
@@ -9,19 +10,33 @@ type UnifiedJobResponse = components['schemas']['UnifiedJobResponse'];
 type Resolution = components['schemas']['Resolution'];
 type Sampler = components['schemas']['Sampler'];
 type Scheduler = components['schemas']['Scheduler'];
+type MediaKind = components['schemas']['MediaKind'];
+
+/**
+ * Canonical editable source state. Asset refs remain intact so a draft never
+ * has to infer whether an ID came from an upload or a prior output.
+ */
+export interface SourceMediaDraft {
+  assetRef: string;
+  mediaType: MediaKind | string | null;
+  previewUrl: string | null;
+  label: string | null;
+  /** False only for an unavailable item restored by Re-Generate. */
+  available: boolean;
+}
 
 export interface GenerationState {
   // Model
-  provider: 'grok';
+  provider: string;
   model: ModelType;
   mode: GenerationMode;
 
   // Inputs
   prompt: string;
   negativePrompt: string;
-  uploadedImageId: string | null; // from file upload → maps to input_image_id
-  sourceOutputId: string | null; // from gallery picker → maps to source_output_id
-  selectedImagePreviewUrl: string | null; // content proxy URL for picker preview display
+  sourceMedia: SourceMediaDraft[];
+  /** Temporary v2v-only path; owned `source_media` is intentionally not used for v2v yet. */
+  inputVideoUrl: string | null;
 
   // Parameters
   aspectRatio: AspectRatio; // t2i / video default aspect
@@ -61,9 +76,8 @@ function createGenerationStore() {
     mode: 't2i',
     prompt: '',
     negativePrompt: DEFAULT_NEGATIVE_PROMPT,
-    uploadedImageId: null,
-    sourceOutputId: null,
-    selectedImagePreviewUrl: null,
+    sourceMedia: [],
+    inputVideoUrl: null,
     aspectRatio: '3:4',
     editAspectRatio: null,
     imageCount: 1,
@@ -130,24 +144,70 @@ function createGenerationStore() {
       update((s) => ({ ...s, negativePrompt }));
     },
 
-    setUploadedImageId(id: string | null, previewUrl: string | null = null) {
+    appendSourceMedia(source: SourceMediaDraft) {
+      update((s) =>
+        s.sourceMedia.some((item) => item.assetRef === source.assetRef)
+          ? s
+          : { ...s, sourceMedia: [...s.sourceMedia, source] },
+      );
+    },
+
+    /** Replaces a single position while retaining the rest of the ordered draft. */
+    replaceSourceMedia(index: number, source: SourceMediaDraft) {
+      update((s) => {
+        if (index < 0 || index >= s.sourceMedia.length) return s;
+        if (
+          s.sourceMedia.some(
+            (item, itemIndex) => itemIndex !== index && item.assetRef === source.assetRef,
+          )
+        ) {
+          return s;
+        }
+        const sourceMedia = [...s.sourceMedia];
+        sourceMedia[index] = source;
+        return { ...s, sourceMedia };
+      });
+    },
+
+    removeSourceMedia(index: number) {
       update((s) => ({
         ...s,
-        uploadedImageId: id,
-        // Clear sourceOutputId — mutually exclusive
-        sourceOutputId: id ? null : s.sourceOutputId,
-        selectedImagePreviewUrl: id ? previewUrl : null,
+        sourceMedia: s.sourceMedia.filter((_, itemIndex) => itemIndex !== index),
       }));
     },
 
-    setSourceOutputId(id: string | null, previewUrl: string | null = null) {
-      update((s) => ({
-        ...s,
-        sourceOutputId: id,
-        // Clear uploadedImageId — mutually exclusive
-        uploadedImageId: id ? null : s.uploadedImageId,
-        selectedImagePreviewUrl: id ? previewUrl : null,
-      }));
+    reorderSourceMedia(from: number, to: number) {
+      update((s) => {
+        if (
+          from < 0 ||
+          to < 0 ||
+          from >= s.sourceMedia.length ||
+          to >= s.sourceMedia.length ||
+          from === to
+        ) {
+          return s;
+        }
+        const sourceMedia = [...s.sourceMedia];
+        const [item] = sourceMedia.splice(from, 1);
+        sourceMedia.splice(to, 0, item);
+        return { ...s, sourceMedia };
+      });
+    },
+
+    setSourceMedia(sourceMedia: SourceMediaDraft[]) {
+      const unique: SourceMediaDraft[] = [];
+      const seen = new Set<string>();
+      for (const source of sourceMedia) {
+        if (!seen.has(source.assetRef)) {
+          seen.add(source.assetRef);
+          unique.push(source);
+        }
+      }
+      update((s) => ({ ...s, sourceMedia: unique }));
+    },
+
+    setInputVideoUrl(inputVideoUrl: string | null) {
+      update((s) => ({ ...s, inputVideoUrl }));
     },
 
     setAspectRatio(aspectRatio: AspectRatio) {
@@ -159,7 +219,7 @@ function createGenerationStore() {
     },
 
     setImageCount(imageCount: number) {
-      update((s) => ({ ...s, imageCount: Math.max(1, Math.min(4, imageCount)) }));
+      update((s) => ({ ...s, imageCount: Math.max(1, imageCount) }));
     },
 
     setVideoDuration(videoDuration: number) {
@@ -269,10 +329,11 @@ function createGenerationStore() {
         jobStatus: null,
         completedJob: null,
         progress: null,
-        // Reset image source unless explicitly provided in params
-        ...(!params.uploadedImageId && !params.sourceOutputId
-          ? { uploadedImageId: null, sourceOutputId: null, selectedImagePreviewUrl: null }
-          : {}),
+        // Reset selected sources unless the prefill explicitly restores their order.
+        ...(params.sourceMedia === undefined ? { sourceMedia: [] } : {}),
+        // `input_video_url` is a distinct, temporary v2v input. Never carry a
+        // prior video's URL into a subsequent prefill by accident.
+        ...(params.inputVideoUrl === undefined ? { inputVideoUrl: null } : {}),
         // Reset i2i aspect to Auto unless explicitly provided in params
         editAspectRatio: params.editAspectRatio !== undefined ? params.editAspectRatio : null,
       }));
@@ -300,8 +361,12 @@ export function generationDraftFingerprint(state: GenerationState): string {
     mode: state.mode,
     prompt: state.prompt,
     negativePrompt: state.negativePrompt,
-    uploadedImageId: state.uploadedImageId,
-    sourceOutputId: state.sourceOutputId,
+    sourceMedia: state.sourceMedia.map(({ assetRef, mediaType, available }) => ({
+      assetRef,
+      mediaType,
+      available,
+    })),
+    inputVideoUrl: state.inputVideoUrl,
     aspectRatio: state.aspectRatio,
     editAspectRatio: state.editAspectRatio,
     imageCount: state.imageCount,
