@@ -20,8 +20,7 @@ export function sourceMediaPolicy(
   modelInfo: ModelInfo | null | undefined,
   generationType: string,
 ): SourceMediaPolicy {
-  const inputs = modelInfo?.inputs;
-  const constraints = inputs?.source_media;
+  const constraints = modelInfo?.inputs?.source_media;
   if (constraints) {
     return {
       accepted: true,
@@ -32,38 +31,40 @@ export function sourceMediaPolicy(
     };
   }
 
-  // Discovery added `inputs.source_media` after the original image picker
-  // shipped. A missing `inputs` object therefore means a legacy response, not
-  // that an i2i/i2v model rejects the established one-image request path.
-  // An explicit `inputs: { source_media: null }` (or `{}`) remains authoritative
-  // and deliberately disables the fallback.
-  if (
-    modelInfo?.inputs === undefined &&
-    (generationType === 'i2i' || generationType === 'i2v' || generationType === 'flf2v')
-  ) {
-    return { accepted: true, required: true, min: 1, max: 1, mediaTypes: ['image'] };
-  }
-
+  // A missing or null discovery block cannot safely imply media support or
+  // requiredness. `required_for` is the sole authority for that policy.
   return { accepted: false, required: false, min: 0, max: 0, mediaTypes: [] };
 }
 
-/** The complete backend vocabulary, mapped once to the draft controls it governs. */
-export const GENERATION_PARAMETER_CONTROLS = {
-  aspect_ratio: 'aspectRatio',
-  batch_size: 'imageCount',
-  cfg: 'cfg',
-  denoise: 'denoise',
-  height: 'customHeight',
-  image_resolution: 'imageTier',
-  negative_prompt: 'negativePrompt',
-  sampler: 'sampler',
-  scheduler: 'scheduler',
-  seed: 'seed',
-  steps: 'steps',
-  width: 'customWidth',
-} as const;
+/** Backend parameters with writable Create-draft controls. */
+export type GenerationParameter =
+  | 'aspect_ratio'
+  | 'batch_size'
+  | 'cfg'
+  | 'denoise'
+  | 'height'
+  | 'image_resolution'
+  | 'negative_prompt'
+  | 'sampler'
+  | 'scheduler'
+  | 'seed'
+  | 'steps'
+  | 'width';
 
-export type GenerationParameter = keyof typeof GENERATION_PARAMETER_CONTROLS;
+/** Returns the currently usable sizing mechanisms in draft/UI order. */
+export function supportedSizingModes(
+  modelInfo: ModelInfo | null | undefined,
+): Array<'tier' | 'custom'> {
+  const modes: Array<'tier' | 'custom'> = [];
+  if (isGenerationParameterSupported(modelInfo, 'image_resolution')) modes.push('tier');
+  if (
+    isGenerationParameterSupported(modelInfo, 'width') &&
+    isGenerationParameterSupported(modelInfo, 'height')
+  ) {
+    modes.push('custom');
+  }
+  return modes;
+}
 
 export function isGenerationParameterSupported(
   modelInfo: ModelInfo | null | undefined,
@@ -121,9 +122,4 @@ export function getT2iAspectRatios(modelInfo: ModelInfo | null | undefined): Asp
   return ratios.filter((r): r is AspectRatio =>
     (KNOWN_ASPECT_RATIOS as readonly string[]).includes(r),
   );
-}
-
-/** Whether image sizing metadata exists; individual control support is separate. */
-export function hasImageSizingConstraints(modelInfo: ModelInfo | null | undefined): boolean {
-  return modelInfo?.image?.supported_tiers != null;
 }

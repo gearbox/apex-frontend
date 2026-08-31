@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildGeneratePayload,
-  inputImageCountForRequest,
+  sourceMediaCountForRequest,
   outputCountForRequest,
   sourceMediaForRequest,
   validateSourceMedia,
@@ -25,7 +25,6 @@ const output: SourceMediaDraft = {
 };
 
 const baseState: GenerationState = {
-  provider: 'grok',
   model: 'grok-imagine-image',
   mode: 't2i',
   prompt: 'a cat',
@@ -115,7 +114,7 @@ describe('canonical source_media payload projection', () => {
       { asset_ref: upload.assetRef },
       { asset_ref: output.assetRef },
     ]);
-    expect(inputImageCountForRequest(state, current)).toBe(2);
+    expect(sourceMediaCountForRequest(state, current)).toBe(2);
     expect(validateSourceMedia(state, current).valid).toBe(false);
   });
 });
@@ -164,6 +163,18 @@ describe('source_media required_for', () => {
     expect(payload.input_video_url).toBe('/v1/content/outputs/video');
     expect(payload.source_media).toBeUndefined();
     expect(validateSourceMedia({ ...baseState, mode: 'v2v' }, model()).valid).toBe(true);
+  });
+
+  it('rejects duplicate source refs before they can satisfy a minimum count', () => {
+    const state = { ...baseState, mode: 'i2i' as const, sourceMedia: [upload, upload] };
+    expect(validateSourceMedia(state, model()).valid).toBe(false);
+    expect(sourceMediaForRequest(state, model())).toEqual([{ asset_ref: upload.assetRef }]);
+  });
+
+  it('keeps validation and serialized source counts aligned for valid drafts', () => {
+    const state = { ...baseState, mode: 'i2i' as const, sourceMedia: [upload, output] };
+    expect(validateSourceMedia(state, model()).valid).toBe(true);
+    expect(sourceMediaForRequest(state, model())).toHaveLength(state.sourceMedia.length);
   });
 });
 
@@ -214,5 +225,65 @@ describe('unsupported parameter projection', () => {
         model({ max_images: 10, unsupported_parameters: ['batch_size'] }),
       ),
     ).toBe(1);
+  });
+});
+
+describe('general payload normalization regressions', () => {
+  it('always keeps the common request fields and normalizes the output count', () => {
+    const payload = buildGeneratePayload(baseState, model({ max_images: 2 }));
+    expect(payload).toMatchObject({
+      prompt: 'a cat',
+      model: 'grok-imagine-image',
+      generation_type: 't2i',
+      aspect_ratio: '1:1',
+      n: 2,
+    });
+  });
+
+  it('trims a supported negative prompt and omits blank values', () => {
+    const supportsNegative = model({ supports_negative_prompt: true });
+    expect(
+      buildGeneratePayload({ ...baseState, negativePrompt: '  crisp  ' }, supportsNegative),
+    ).toMatchObject({ negative_prompt: 'crisp' });
+    expect(
+      buildGeneratePayload({ ...baseState, negativePrompt: '   ' }, supportsNegative),
+    ).not.toHaveProperty('negative_prompt');
+  });
+
+  it('projects tier and custom sizing mutually exclusively', () => {
+    expect(buildGeneratePayload(baseState, model())).toMatchObject({ image_resolution: 'high' });
+    expect(buildGeneratePayload(baseState, model())).not.toHaveProperty('width');
+    const custom = buildGeneratePayload(
+      {
+        ...baseState,
+        sizingMode: 'custom',
+        customWidth: 1024,
+        customHeight: 768,
+      },
+      model(),
+    );
+    expect(custom).toMatchObject({ width: 1024, height: 768 });
+    expect(custom).not.toHaveProperty('image_resolution');
+  });
+
+  it('omits an incomplete custom sizing pair', () => {
+    const payload = buildGeneratePayload(
+      { ...baseState, sizingMode: 'custom', customWidth: 1024, customHeight: null },
+      model(),
+    );
+    expect(payload).not.toHaveProperty('width');
+    expect(payload).not.toHaveProperty('height');
+  });
+
+  it('uses edit aspect ratio only for i2i and leaves Auto absent', () => {
+    expect(
+      buildGeneratePayload({ ...baseState, mode: 'i2i', editAspectRatio: null }, model()),
+    ).not.toHaveProperty('aspect_ratio');
+    expect(
+      buildGeneratePayload({ ...baseState, mode: 'i2i', editAspectRatio: '16:9' }, model()),
+    ).toMatchObject({ aspect_ratio: '16:9' });
+    expect(
+      buildGeneratePayload({ ...baseState, mode: 't2v', editAspectRatio: '16:9' }, model()),
+    ).toMatchObject({ aspect_ratio: '1:1' });
   });
 });

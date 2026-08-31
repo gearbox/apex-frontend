@@ -3,14 +3,14 @@
   import type { components } from '$lib/api/types';
   import * as m from '$paraglide/messages';
   import { generationModeLabel } from '$lib/content/generationModeLabels';
-  import { createSupportedModes } from '$lib/utils/generationModes';
+  import { createActionableModes } from '$lib/utils/generationModes';
 
   type ModelInfo = components['schemas']['ModelInfo'];
 
   let { modelInfo }: { modelInfo: ModelInfo | null } = $props();
 
   const supportedModes = $derived(
-    createSupportedModes(modelInfo).map((value) => ({
+    createActionableModes(modelInfo, $generationStore).map((value) => ({
       value,
       label: generationModeLabel(value),
     })),

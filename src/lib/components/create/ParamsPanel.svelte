@@ -3,14 +3,13 @@
   import type { components } from '$lib/api/types';
   import { isVideoMode } from '$lib/utils/generationModes';
   import {
-    hasImageSizingConstraints,
     isGenerationParameterSupported,
     supportsAnyGenerationParameter,
   } from '$lib/utils/modelCapabilities';
   import AspectRatioChips from './AspectRatioChips.svelte';
   import ImageCountStepper from './ImageCountStepper.svelte';
   import VideoParams from './VideoParams.svelte';
-  import AishaImageParams from './AishaImageParams.svelte';
+  import WorkflowImageParams from './WorkflowImageParams.svelte';
 
   type ModelInfo = components['schemas']['ModelInfo'];
 
@@ -22,7 +21,6 @@
   const isVideo = $derived(isVideoMode($generationStore.mode));
   const showWorkflowParams = $derived(
     !isVideo &&
-      hasImageSizingConstraints(modelInfo) &&
       supportsAnyGenerationParameter(modelInfo, [
         'image_resolution',
         'width',
@@ -52,7 +50,7 @@
       <ImageCountStepper {modelInfo} />
     {/if}
     {#if showWorkflowParams && modelInfo}
-      <AishaImageParams {modelInfo} />
+      <WorkflowImageParams {modelInfo} />
     {/if}
   </div>
 {/if}

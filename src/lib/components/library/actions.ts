@@ -15,30 +15,20 @@ import {
   Trash2,
 } from '@lucide/svelte';
 import type { LucideIcon } from '@lucide/svelte';
-import {
-  generationStore,
-  type GenerationState,
-  type SourceMediaDraft,
-} from '$lib/stores/generation';
-import { mediaFallbackSrc } from '$lib/media';
+import { generationStore, type GenerationState } from '$lib/stores/generation';
 import { ROUTES } from '$lib/utils/routes';
 import { parseAssetRef } from '$lib/utils/assetRef';
 import { saveMedia, resolveSaveCapabilities, type SaveCapability } from '$lib/media/save';
 import { toastSaveError } from '$lib/media/save/toastSaveError';
 import { addToast } from '$lib/stores/toasts';
-import {
-  type GenerationMode,
-  isGenerationMode,
-  resolveModelForMode,
-  findModelInfo,
-} from '$lib/utils/generationModes';
-import {
-  getEditAspectRatios,
-  KNOWN_ASPECT_RATIOS,
-  sourceMediaPolicy,
-} from '$lib/utils/modelCapabilities';
+import { type GenerationMode } from '$lib/utils/generationModes';
 import type { components } from '$lib/api/types';
 import * as m from '$paraglide/messages';
+import {
+  prefillSourceForGeneration,
+  replayGenerationPrefill,
+  sourceMediaDraft,
+} from '$lib/services/generationPrefill';
 
 export type LibraryAction = components['schemas']['LibraryAction'];
 /** Frontend-only pseudo-action layered on top of the backend enum — never sent to the API. */
@@ -46,17 +36,9 @@ export type LibraryUiAction = LibraryAction | 'share';
 export type LibraryActionGroup = 'save' | 'navigate';
 type MediaObject = components['schemas']['MediaObject'];
 type GenerationType = components['schemas']['GenerationType'];
-type AspectRatio = components['schemas']['AspectRatio'];
-type ModelType = components['schemas']['ModelType'];
 type LibraryAssetDetail = components['schemas']['LibraryAssetDetail'];
 type LibraryGroupDetail = components['schemas']['LibraryGroupDetail'];
 type ProvidersResponse = components['schemas']['ProvidersResponse'];
-
-function sourceMediaLabel(assetRef: string): string | null {
-  if (assetRef.startsWith('output:')) return 'From generated';
-  if (assetRef.startsWith('upload:')) return 'From uploads';
-  return null;
-}
 
 /** Common shape shared by LibraryAssetItem and LibraryAssetDetail — enough for action dispatch. */
 export interface LibraryActionAsset {
@@ -144,28 +126,6 @@ async function prefillAndGo(
   await Promise.resolve((deps.navigate ?? goto)(ROUTES.create));
 }
 
-/** i2i reshapes via editAspectRatio and must be validated against the resolved model's real
- * edit capabilities; every other mode uses the t2i/video aspectRatio field. */
-export function aspectRatioPrefill(
-  aspectRatio: string | null | undefined,
-  mode: GenerationMode,
-  model: ModelType,
-  providers: ProvidersResponse | null | undefined,
-): Pick<GenerationState, 'aspectRatio'> | Pick<GenerationState, 'editAspectRatio'> | undefined {
-  if (!aspectRatio) return undefined;
-
-  if (mode === 'i2i') {
-    const editRatios = getEditAspectRatios(findModelInfo(providers, model));
-    return (editRatios as readonly string[]).includes(aspectRatio)
-      ? { editAspectRatio: aspectRatio as AspectRatio }
-      : undefined;
-  }
-
-  return (KNOWN_ASPECT_RATIOS as readonly string[]).includes(aspectRatio)
-    ? { aspectRatio: aspectRatio as AspectRatio }
-    : undefined;
-}
-
 /** Prefills the generation store with this asset as the source image and navigates to Create.
  * Provenance actions fetch detail first because list summaries intentionally omit prompt fields. */
 async function useAsSource(
@@ -180,25 +140,16 @@ async function useAsSource(
     // actions need generation metadata; source-only actions intentionally preserve draft text.
     const sourceAsset =
       policy.prompt === 'copy-provenance' ? await deps.loadDetail(asset.asset_ref) : asset;
-    const model = resolveModelForMode(deps.providers, policy.mode, sourceAsset.model);
-    if (!model) {
-      addToast({ type: 'error', message: m.library_action_no_model() });
-      return;
-    }
-
-    const sourceMedia: SourceMediaDraft = {
-      assetRef: sourceAsset.asset_ref,
-      mediaType: sourceAsset.media.media_type,
-      previewUrl: mediaFallbackSrc(sourceAsset.media, 512),
-      label: sourceMediaLabel(sourceAsset.asset_ref),
-      available: true,
-    };
-    const prefillParams: Partial<GenerationState> = {
-      model,
+    const didPrefill = prefillSourceForGeneration({
+      providers: deps.providers,
       mode: policy.mode,
-      ...(policy.mode === 'v2v'
-        ? { inputVideoUrl: sourceAsset.media.original.url }
-        : { sourceMedia: [sourceMedia] }),
+      preferredModel: sourceAsset.model,
+      source: sourceMediaDraft(
+        sourceAsset.asset_ref,
+        sourceAsset.media,
+        sourceAsset.asset_ref.startsWith('output:') ? 'From generated' : 'From uploads',
+      ),
+      inputVideoUrl: sourceAsset.media.original.url,
       ...(policy.prompt === 'copy-provenance'
         ? {
             prompt: sourceAsset.prompt ?? '',
@@ -207,9 +158,12 @@ async function useAsSource(
             negativePrompt: sourceAsset.negative_prompt ?? '',
           }
         : {}),
-    };
-
-    await prefillAndGo(prefillParams, deps);
+    });
+    if (!didPrefill) {
+      addToast({ type: 'error', message: m.library_action_no_model() });
+      return;
+    }
+    await Promise.resolve((deps.navigate ?? goto)(ROUTES.create));
   } catch {
     // This includes detail resolution and navigation. All handlers are safe to invoke
     // fire-and-forget by ContextMenu, so failures must be surfaced rather than rejected.
@@ -225,56 +179,35 @@ async function useAsSource(
 async function reproduce(asset: LibraryActionAsset, deps: LibraryActionDeps): Promise<void> {
   try {
     const detail = await deps.loadDetail(asset.asset_ref);
-    const mode: GenerationMode = isGenerationMode(detail.generation_type)
-      ? detail.generation_type
-      : 't2i';
-
-    const model = resolveModelForMode(deps.providers, mode, detail.model);
-    if (!model) {
+    const preliminary = replayGenerationPrefill(detail, deps.providers);
+    if (preliminary.ok) {
+      await prefillAndGo(preliminary.params, deps);
+      return;
+    }
+    if (!preliminary.ok && preliminary.reason === 'no-model') {
       addToast({ type: 'error', message: m.library_action_no_model() });
       return;
     }
-
-    const modelInfo = findModelInfo(deps.providers, model);
-    const needsGroup = mode === 'v2v' || sourceMediaPolicy(modelInfo, mode).accepted;
-    let group: LibraryGroupDetail | undefined;
-    if (needsGroup) {
-      if (!detail.job_id || !deps.loadGroup) {
-        addToast({ type: 'error', message: m.library_reproduce_source_missing() });
-        return;
-      }
-      group = await deps.loadGroup(detail.job_id);
+    if (!detail.job_id || !deps.loadGroup) {
+      addToast({ type: 'error', message: m.library_reproduce_source_missing() });
+      return;
     }
-    // `source_media` records every original position, including deleted assets.
-    // Never use the deprecated group `input_media` as a fallback here.
-    const sourceMedia = [...(group?.source_media ?? [])]
-      .sort((a, b) => a.position - b.position)
-      .map<SourceMediaDraft>((source) => ({
-        assetRef: source.asset_ref,
-        mediaType: source.media?.media_type ?? null,
-        previewUrl: source.media ? mediaFallbackSrc(source.media, 512) : null,
-        label: sourceMediaLabel(source.asset_ref),
-        available: source.available,
-      }));
-
-    const prefillParams: Partial<GenerationState> = {
-      prompt: detail.prompt ?? '',
-      // Explicit detail null means the original generation had no negative prompt.
-      negativePrompt: detail.negative_prompt ?? '',
-      model,
-      mode,
-      // v2v remains deliberately separate from owned source_media. Its
-      // legacy group input is used only to reconstruct input_video_url, never
-      // as a fallback for the ordered source-media replay above.
-      ...(mode === 'v2v'
-        ? { inputVideoUrl: group?.input_media?.original.url ?? null }
-        : needsGroup
-          ? { sourceMedia }
-          : {}),
-      ...aspectRatioPrefill(detail.aspect_ratio, mode, model, deps.providers),
-    };
-
-    await prefillAndGo(prefillParams, deps);
+    const result = replayGenerationPrefill(
+      detail,
+      deps.providers,
+      await deps.loadGroup(detail.job_id),
+    );
+    if (!result.ok) {
+      addToast({
+        type: 'error',
+        message:
+          result.reason === 'no-model'
+            ? m.library_action_no_model()
+            : m.library_reproduce_source_missing(),
+      });
+      return;
+    }
+    await prefillAndGo(result.params, deps);
   } catch {
     addToast({ type: 'error', message: m.error_generic() });
   }

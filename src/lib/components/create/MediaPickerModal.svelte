@@ -332,8 +332,8 @@
           </div>
         {:else if generatedItems.length === 0}
           <div class="flex flex-col items-center justify-center py-12 text-center">
-            <p class="text-sm text-text-dim">No generated images yet</p>
-            <p class="mt-1 text-xs text-text-muted">Create your first image to see it here</p>
+            <p class="text-sm text-text-dim">No generated media yet</p>
+            <p class="mt-1 text-xs text-text-muted">Create your first item to see it here</p>
           </div>
         {:else}
           <div class="grid grid-cols-3 gap-2 md:grid-cols-4">

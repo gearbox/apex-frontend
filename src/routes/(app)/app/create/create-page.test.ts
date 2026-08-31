@@ -160,6 +160,32 @@ describe('/app/create page — generate gating during providers load', () => {
     }
   });
 
+  it('keeps a selected disabled model visible but makes the Create card unavailable', () => {
+    providersData = {
+      ...GROK_PROVIDERS,
+      providers: [
+        {
+          ...GROK_PROVIDERS.providers[0],
+          provisioning_mode: 'on_demand',
+          models: [
+            {
+              ...GROK_PROVIDERS.providers[0].models[0],
+              is_enabled: false,
+              session_state: 'none',
+            },
+          ],
+        },
+      ],
+    };
+
+    render(Page);
+
+    expect(screen.getByText('Grok Imagine (Unavailable)')).toBeTruthy();
+    expect(screen.getByText('Temporarily unavailable')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /start session/i })).toBeNull();
+    for (const btn of generateButtons()) expect(btn.disabled).toBe(true);
+  });
+
   it('shows the selected model summary and marks missing pricing as unavailable', () => {
     providersData = GROK_PROVIDERS;
 

@@ -27,7 +27,6 @@ export interface SourceMediaDraft {
 
 export interface GenerationState {
   // Model
-  provider: string;
   model: ModelType;
   mode: GenerationMode;
 
@@ -45,13 +44,13 @@ export interface GenerationState {
   videoDuration: number;
   videoResolution: '480p' | '720p';
 
-  // Aisha image sizing (image_resolution XOR width+height)
+  // Workflow image sizing (image_resolution XOR width+height)
   sizingMode: 'tier' | 'custom';
   imageTier: Resolution | null;
   customWidth: number | null;
   customHeight: number | null;
 
-  // Aisha sampler overrides (null = Auto / use model bundle default)
+  // Workflow sampler overrides (null = Auto / use model bundle default)
   seed: number | null;
   steps: number | null;
   cfg: number | null;
@@ -71,7 +70,6 @@ const DEFAULT_NEGATIVE_PROMPT =
 
 function createGenerationStore() {
   const initial: GenerationState = {
-    provider: 'grok',
     model: 'grok-imagine-image',
     mode: 't2i',
     prompt: '',
@@ -176,34 +174,8 @@ function createGenerationStore() {
       }));
     },
 
-    reorderSourceMedia(from: number, to: number) {
-      update((s) => {
-        if (
-          from < 0 ||
-          to < 0 ||
-          from >= s.sourceMedia.length ||
-          to >= s.sourceMedia.length ||
-          from === to
-        ) {
-          return s;
-        }
-        const sourceMedia = [...s.sourceMedia];
-        const [item] = sourceMedia.splice(from, 1);
-        sourceMedia.splice(to, 0, item);
-        return { ...s, sourceMedia };
-      });
-    },
-
     setSourceMedia(sourceMedia: SourceMediaDraft[]) {
-      const unique: SourceMediaDraft[] = [];
-      const seen = new Set<string>();
-      for (const source of sourceMedia) {
-        if (!seen.has(source.assetRef)) {
-          seen.add(source.assetRef);
-          unique.push(source);
-        }
-      }
-      update((s) => ({ ...s, sourceMedia: unique }));
+      update((s) => ({ ...s, sourceMedia: normalizeSourceMedia(sourceMedia) }));
     },
 
     setInputVideoUrl(inputVideoUrl: string | null) {
@@ -325,12 +297,13 @@ function createGenerationStore() {
       update((s) => ({
         ...s,
         ...defined,
+        ...(params.sourceMedia === undefined
+          ? { sourceMedia: [] }
+          : { sourceMedia: normalizeSourceMedia(params.sourceMedia) }),
         activeJobId: null,
         jobStatus: null,
         completedJob: null,
         progress: null,
-        // Reset selected sources unless the prefill explicitly restores their order.
-        ...(params.sourceMedia === undefined ? { sourceMedia: [] } : {}),
         // `input_video_url` is a distinct, temporary v2v input. Never carry a
         // prior video's URL into a subsequent prefill by accident.
         ...(params.inputVideoUrl === undefined ? { inputVideoUrl: null } : {}),
@@ -350,13 +323,28 @@ function createGenerationStore() {
 export const generationStore = createGenerationStore();
 
 /**
+ * Canonical source-list normalization at state boundaries. It preserves the
+ * first occurrence and its position, so valid replay order is never changed.
+ */
+export function normalizeSourceMedia(sourceMedia: readonly SourceMediaDraft[]): SourceMediaDraft[] {
+  const unique: SourceMediaDraft[] = [];
+  const seen = new Set<string>();
+  for (const source of sourceMedia) {
+    if (!seen.has(source.assetRef)) {
+      seen.add(source.assetRef);
+      unique.push(source);
+    }
+  }
+  return unique;
+}
+
+/**
  * A stable value comparison for all user-editable generation inputs. UI-only
  * preview URLs and backend job progress are deliberately excluded: neither is
  * user-authored work that needs to block a safe application-shell reload.
  */
 export function generationDraftFingerprint(state: GenerationState): string {
   return JSON.stringify({
-    provider: state.provider,
     model: state.model,
     mode: state.mode,
     prompt: state.prompt,

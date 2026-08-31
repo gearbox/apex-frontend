@@ -4,7 +4,8 @@ import type { ModelGuide } from './types';
 
 type ModelType = components['schemas']['ModelType'];
 
-export const modelGuides: Record<ModelType, ModelGuide> = {
+/** Optional presentation content; provider discovery owns model availability. */
+export const modelGuides: Partial<Record<ModelType, ModelGuide>> = {
   'grok-imagine-image': {
     modelKey: 'grok-imagine-image',
     tagline: m.model_guide_grok_imagine_image_tagline,

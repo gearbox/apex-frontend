@@ -6,7 +6,7 @@
   type ModelInfo = components['schemas']['ModelInfo'];
   let { modelInfo }: { modelInfo: ModelInfo | null } = $props();
   const counts = $derived(
-    Array.from({ length: Math.max(1, Math.min(modelInfo?.max_images ?? 1, 10)) }, (_, i) => i + 1),
+    Array.from({ length: Math.max(1, modelInfo?.max_images ?? 1) }, (_, i) => i + 1),
   );
 </script>
 

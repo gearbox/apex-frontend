@@ -1,25 +1,12 @@
 import type { components } from '$lib/api/types';
-import type { GenerationMode } from '$lib/stores/generation';
+import type { GenerationMode, GenerationState } from '$lib/stores/generation';
 
 export type { GenerationMode };
 
 type ProvidersResponse = components['schemas']['ProvidersResponse'];
 type ModelInfo = components['schemas']['ModelInfo'];
 type ModelType = components['schemas']['ModelType'];
-
-/** Single source of truth for the six generation modes — see `GenerationType` in schema.json. */
-export const GENERATION_MODES = [
-  't2i',
-  'i2i',
-  't2v',
-  'i2v',
-  'v2v',
-  'flf2v',
-] as const satisfies readonly GenerationMode[];
-
-/** Legacy display ordering only. Availability always comes from `capabilities`. */
-export const CREATE_SUPPORTED_MODES = GENERATION_MODES;
-
+/** Frontend presentation classification for video parameter layout, not capability policy. */
 export const VIDEO_MODES = [
   't2v',
   'i2v',
@@ -31,30 +18,33 @@ export function isGenerationMode(value: string | null | undefined): value is Gen
   return typeof value === 'string' && value.length > 0;
 }
 
-export function isCreateSupportedMode(value: string | null | undefined): value is GenerationMode {
-  return isGenerationMode(value);
-}
-
 export function isVideoMode(mode: GenerationMode): boolean {
   return (VIDEO_MODES as readonly GenerationMode[]).includes(mode);
-}
-
-/** Single source of truth for the five model keys — see `ModelType` in schema.json. */
-export const MODEL_TYPES = [
-  'aisha-image',
-  'aisha-video',
-  'grok-imagine-image',
-  'grok-2-image-1212',
-  'grok-imagine-video',
-] as const satisfies readonly ModelType[];
-
-export function isModelType(key: string): key is ModelType {
-  return (MODEL_TYPES as readonly string[]).includes(key);
 }
 
 /** Returns backend-advertised modes. No client-side mode allow-list is applied. */
 export function createSupportedModes(modelInfo: ModelInfo | null | undefined): GenerationMode[] {
   return (modelInfo?.capabilities ?? []).filter(isGenerationMode);
+}
+
+/**
+ * Create UI readiness is separate from advertised model capability. v2v still
+ * uses the temporary `input_video_url` transport, so blank Create cannot enter
+ * it until a caller (for example Library Extend) explicitly supplies that URL.
+ * Delete this exception when v2v migrates to source_media.
+ */
+export function canEnterCreateMode(
+  mode: GenerationMode,
+  draft: Pick<GenerationState, 'inputVideoUrl'>,
+): boolean {
+  return mode !== 'v2v' || Boolean(draft.inputVideoUrl?.trim());
+}
+
+export function createActionableModes(
+  modelInfo: ModelInfo | null | undefined,
+  draft: Pick<GenerationState, 'inputVideoUrl'>,
+): GenerationMode[] {
+  return createSupportedModes(modelInfo).filter((mode) => canEnterCreateMode(mode, draft));
 }
 
 /**

@@ -28,13 +28,13 @@
   import type { components } from '$lib/api/types';
   import type { UserProfile } from '$lib/stores/auth';
   import TypeSelector from '$lib/components/create/TypeSelector.svelte';
-  import ImageUpload from '$lib/components/create/ImageUpload.svelte';
+  import SourceMediaInput from '$lib/components/create/SourceMediaInput.svelte';
   import PromptInput from '$lib/components/create/PromptInput.svelte';
   import NegativePromptInput from '$lib/components/create/NegativePromptInput.svelte';
   import ParamsPanel from '$lib/components/create/ParamsPanel.svelte';
   import {
     buildGeneratePayload,
-    inputImageCountForRequest,
+    sourceMediaCountForRequest,
     outputCountForRequest,
     validateSourceMedia,
   } from '$lib/utils/generatePayload';
@@ -53,7 +53,8 @@
   import { deriveModelBillingFacts } from '$lib/content/modelGuides/billingFacts';
   import type { ModelGuideExample } from '$lib/content/modelGuides/types';
   import ModelSummaryCard from '$lib/components/create/ModelSummaryCard.svelte';
-  import { isCreateSupportedMode } from '$lib/utils/generationModes';
+  import { canEnterCreateMode, isGenerationMode } from '$lib/utils/generationModes';
+  import { libraryGroupQueryOptions } from '$lib/queries/library';
 
   const queryClient = useQueryClient();
   let pricingNowMs = $state(Date.now());
@@ -140,14 +141,16 @@
   // ── Card state machine
   const cardState = $derived(
     currentModelInfo
-      ? currentProvisioningMode
-        ? deriveCardState({
-            provisioningMode: currentProvisioningMode,
-            available: currentModelInfo.providerAvailable,
-            sessionState: currentModelInfo.session_state as SessionState | null,
-            isAuthenticated: $isAuthenticated,
-          })
-        : 'UNAVAILABLE'
+      ? currentModelInfo.is_enabled === false
+        ? 'UNAVAILABLE'
+        : currentProvisioningMode
+          ? deriveCardState({
+              provisioningMode: currentProvisioningMode,
+              available: currentModelInfo.providerAvailable,
+              sessionState: currentModelInfo.session_state as SessionState | null,
+              isAuthenticated: $isAuthenticated,
+            })
+          : 'UNAVAILABLE'
       : 'READY', // no model selected yet → don't block UI
   );
 
@@ -164,7 +167,7 @@
   const startMutation = createMutation(() => startSessionMutationOptions(queryClient));
 
   function handleStart() {
-    if (!currentModelInfo) return;
+    if (!currentModelInfo || currentModelInfo.is_enabled === false) return;
     startMutation.mutate(currentModelInfo.model_key as never, {
       onError: (err) => {
         const e = parseApiError(err, 0);
@@ -206,14 +209,14 @@
       : null,
   );
   const currentOutputCount = $derived(outputCountForRequest($generationStore, currentModelInfo));
-  const currentInputImageCount = $derived(
-    inputImageCountForRequest($generationStore, currentModelInfo),
+  const currentSourceMediaCount = $derived(
+    sourceMediaCountForRequest($generationStore, currentModelInfo),
   );
   const currentEstimatedCost = $derived(
     currentPricingRule
       ? estimatePricingRuleCost(currentPricingRule, {
           outputCount: currentOutputCount,
-          inputImageCount: currentInputImageCount,
+          inputImageCount: currentSourceMediaCount,
         })
       : null,
   );
@@ -224,7 +227,7 @@
   type ModelType = components['schemas']['ModelType'];
 
   function handleUseGuideExample(modelKey: ModelType, example: ModelGuideExample) {
-    if (!isCreateSupportedMode(example.mode)) return;
+    if (!isGenerationMode(example.mode)) return;
     generationStore.prefill({
       model: modelKey,
       mode: example.mode,
@@ -235,7 +238,11 @@
 
   const sourcePolicy = $derived(sourceMediaPolicy(currentModelInfo, $generationStore.mode));
   const sourceValidation = $derived(validateSourceMedia($generationStore, currentModelInfo));
-  const canSubmit = $derived(generateEnabled && sourceValidation.valid);
+  const canSubmit = $derived(
+    generateEnabled &&
+      sourceValidation.valid &&
+      canEnterCreateMode($generationStore.mode, $generationStore),
+  );
 
   // ── Age gate state
   let showAgeModal = $state(false);
@@ -370,7 +377,8 @@
     if (
       !currentModelInfo?.is_enabled ||
       !currentModelInfo.capabilities.includes(state.mode) ||
-      !isCreateSupportedMode(state.mode)
+      !isGenerationMode(state.mode) ||
+      !canEnterCreateMode(state.mode, state)
     ) {
       addToast({ type: 'error', message: m.error_generation_mode_unavailable() });
       return;
@@ -439,7 +447,7 @@
     stopPoller?.();
   });
 
-  const showImageUpload = $derived(sourcePolicy.accepted && $generationStore.mode !== 'v2v');
+  const showSourceMediaInput = $derived(sourcePolicy.accepted && $generationStore.mode !== 'v2v');
   const showSkeleton = $derived($isGenerating);
 </script>
 
@@ -468,8 +476,8 @@
 
     <TypeSelector modelInfo={currentModelInfo ?? null} />
 
-    {#if showImageUpload}
-      <ImageUpload policy={sourcePolicy} />
+    {#if showSourceMediaInput}
+      <SourceMediaInput policy={sourcePolicy} />
     {/if}
 
     <PromptInput />
@@ -480,7 +488,11 @@
 
     <!-- Results (mobile: inline below form) -->
     <div class="md:hidden">
-      <ResultsPanel {showSkeleton} />
+      <ResultsPanel
+        {showSkeleton}
+        providers={providerQuery.data}
+        loadGroup={(jobId) => queryClient.ensureQueryData(libraryGroupQueryOptions(jobId))}
+      />
     </div>
 
     <!-- Session state panel: badge + in-place CTA for the selected model -->
@@ -505,7 +517,11 @@
 
   <!-- Results panel (desktop only) -->
   <div class="hidden flex-1 overflow-y-auto md:block">
-    <ResultsPanel {showSkeleton} />
+    <ResultsPanel
+      {showSkeleton}
+      providers={providerQuery.data}
+      loadGroup={(jobId) => queryClient.ensureQueryData(libraryGroupQueryOptions(jobId))}
+    />
   </div>
 </div>
 

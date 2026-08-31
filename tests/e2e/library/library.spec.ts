@@ -202,6 +202,14 @@ const mockProvidersResponse = {
           max_prompt_length: 4096,
           supports_negative_prompt: true,
           aspect_ratios: ['1:1', '16:9', '3:4'],
+          inputs: {
+            source_media: {
+              min: 1,
+              max: 1,
+              media_types: ['image'],
+              required_for: ['i2i'],
+            },
+          },
           image: null,
           video: null,
         },

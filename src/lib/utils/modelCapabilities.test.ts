@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import {
-  hasImageSizingConstraints,
   getEditAspectRatios,
   KNOWN_ASPECT_RATIOS,
   isGenerationParameterSupported,
   sourceMediaPolicy,
+  supportedSizingModes,
 } from './modelCapabilities';
 import type { components } from '$lib/api/types';
 import { makeGrokImageModelInfo, makeAishaImageModelInfo } from '../../mocks/factories/providers';
@@ -19,24 +19,18 @@ const aishaModelInfo: ModelInfo = makeAishaImageModelInfo();
 const grokModelInfo: ModelInfo = makeGrokImageModelInfo({ image: null });
 
 describe('provider capabilities', () => {
-  it('uses image metadata without model-key capability checks', () => {
-    expect(hasImageSizingConstraints(aishaModelInfo)).toBe(true);
-  });
-
-  it('returns false for Grok model (image: null)', () => {
-    expect(hasImageSizingConstraints(grokModelInfo)).toBe(false);
-  });
-
-  it('returns false for null modelInfo', () => {
-    expect(hasImageSizingConstraints(null)).toBe(false);
-  });
-
-  it('returns false for model with image.supported_tiers: null', () => {
+  it('derives sizing controls from writable parameters, not quality tiers', () => {
     const modelWithNullTiers: ModelInfo = {
       ...aishaModelInfo,
       image: { ...aishaModelInfo.image!, supported_tiers: null },
     };
-    expect(hasImageSizingConstraints(modelWithNullTiers)).toBe(false);
+    expect(supportedSizingModes(modelWithNullTiers)).toEqual(['tier', 'custom']);
+    expect(
+      supportedSizingModes({
+        ...modelWithNullTiers,
+        unsupported_parameters: ['image_resolution'],
+      }),
+    ).toEqual(['custom']);
   });
 
   it('maps unsupported parameters centrally', () => {
@@ -60,6 +54,19 @@ describe('provider capabilities', () => {
     };
     expect(sourceMediaPolicy(constrained, 't2i').required).toBe(false);
     expect(sourceMediaPolicy(constrained, 'future-edit').required).toBe(true);
+  });
+
+  it('fails closed when discovery omits inputs instead of inventing legacy source requirements', () => {
+    const withoutInputs = { ...grokModelInfo, inputs: undefined };
+    for (const mode of ['i2i', 'i2v', 'flf2v']) {
+      expect(sourceMediaPolicy(withoutInputs, mode)).toEqual({
+        accepted: false,
+        required: false,
+        min: 0,
+        max: 0,
+        mediaTypes: [],
+      });
+    }
   });
 });
 

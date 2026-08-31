@@ -1,5 +1,9 @@
 import type { components } from '$lib/api/types';
-import type { GenerationState, SourceMediaDraft } from '$lib/stores/generation';
+import {
+  normalizeSourceMedia,
+  type GenerationState,
+  type SourceMediaDraft,
+} from '$lib/stores/generation';
 import {
   isGenerationParameterSupported,
   sourceMediaPolicy,
@@ -23,15 +27,12 @@ function allowedSourceMedia(
   if (!policy.accepted) return [];
 
   const selected: SourceMediaDraft[] = [];
-  const seen = new Set<string>();
-  for (const source of sourceMedia) {
+  for (const source of normalizeSourceMedia(sourceMedia)) {
     if (
       source.available &&
       source.mediaType !== null &&
-      policy.mediaTypes.includes(source.mediaType as never) &&
-      !seen.has(source.assetRef)
+      policy.mediaTypes.includes(source.mediaType as never)
     ) {
-      seen.add(source.assetRef);
       selected.push(source);
     }
   }
@@ -54,6 +55,10 @@ export function validateSourceMedia(
 
   if (state.sourceMedia.some((source) => !source.available)) {
     return { valid: false, message: 'Replace unavailable source media before generating.' };
+  }
+  const refs = state.sourceMedia.map((source) => source.assetRef);
+  if (new Set(refs).size !== refs.length) {
+    return { valid: false, message: 'Each source item must be selected only once.' };
   }
   if (
     state.sourceMedia.some(
@@ -106,7 +111,7 @@ export function outputCountForRequest(state: GenerationState, modelInfo: ModelIn
 }
 
 /** Returns the normalized owned-media count used by the pricing quote. */
-export function inputImageCountForRequest(
+export function sourceMediaCountForRequest(
   state: GenerationState,
   modelInfo: ModelInfo | null,
 ): number {

@@ -2,8 +2,8 @@
   import { generationStore, type SourceMediaDraft } from '$lib/stores/generation';
   import { addToast } from '$lib/stores/toasts';
   import { X, ImagePlus, GalleryHorizontalEnd, AlertTriangle } from '@lucide/svelte';
-  import ImagePickerModal from './ImagePickerModal.svelte';
-  import type { MediaPickerSelection } from './ImagePickerModal.svelte';
+  import MediaPickerModal from './MediaPickerModal.svelte';
+  import type { MediaPickerSelection } from './MediaPickerModal.svelte';
   import { mediaFallbackSrc } from '$lib/media/index';
   import { uploadMedia } from '$lib/api/upload';
   import { useQueryClient } from '@tanstack/svelte-query';
@@ -13,6 +13,7 @@
   import { inheritProjectForUpload } from '$lib/services/projectInheritance';
   import type { SourceMediaPolicy } from '$lib/utils/modelCapabilities';
   import type { components } from '$lib/api/types';
+  import { shouldCopySourcePrompt } from '$lib/utils/sourcePromptPolicy';
 
   type MediaKind = components['schemas']['MediaKind'];
 
@@ -122,6 +123,10 @@
 
   function handlePickerSelect(selection: MediaPickerSelection) {
     pickerOpen = false;
+    const copyProvenancePrompt = shouldCopySourcePrompt(
+      sourceMedia.length,
+      $generationStore.prompt,
+    );
     addOrReplace({
       assetRef: selection.assetRef,
       mediaType: selection.mediaType,
@@ -129,7 +134,11 @@
       label: selection.assetRef.startsWith('output:') ? 'From generated' : 'From uploads',
       available: true,
     });
-    if (selection.prompt) generationStore.setPrompt(selection.prompt);
+    // Generic source selection must not replace a prompt the user is already
+    // composing. Provenance-copy actions (Remix/Re-Generate) own that policy.
+    if (selection.prompt && copyProvenancePrompt) {
+      generationStore.setPrompt(selection.prompt);
+    }
   }
 
   function openPicker(index: number | null = null) {
@@ -161,9 +170,15 @@
           >
             {index + 1}
           </span>
-          {#if source.available && source.previewUrl}
-            <!-- Media renders poster frames for video and degrades safely for future kinds. -->
+          {#if source.available && source.previewUrl && (source.mediaType === 'image' || source.mediaType === 'video')}
+            <!-- Video preview URLs point at poster variants. -->
             <img src={source.previewUrl} alt="" class="h-12 w-12 rounded-lg object-cover" />
+          {:else if source.available}
+            <div
+              class="flex h-12 w-12 items-center justify-center rounded-lg bg-surface text-center text-[10px] text-text-dim"
+            >
+              Unsupported
+            </div>
           {:else}
             <AlertTriangle size={22} class="text-warning" aria-label="Source unavailable" />
           {/if}
@@ -274,7 +289,7 @@
 </div>
 
 {#if pickerOpen}
-  <ImagePickerModal
+  <MediaPickerModal
     open={pickerOpen}
     {mediaTypes}
     onclose={() => {

@@ -17,7 +17,7 @@ vi.mock('$lib/services/projectInheritance', () => ({
   inheritProjectForUpload: inheritProjectForUploadMock,
 }));
 
-import ImageUpload from './ImageUpload.svelte';
+import SourceMediaInput from './SourceMediaInput.svelte';
 
 const policy: SourceMediaPolicy = {
   accepted: true,
@@ -44,7 +44,7 @@ describe('capability-driven source picker', () => {
         available: true,
       },
     ]);
-    render(ImageUpload, { policy });
+    render(SourceMediaInput, { policy });
     expect(screen.getByText(/Primary/)).toBeTruthy();
   });
 
@@ -58,7 +58,7 @@ describe('capability-driven source picker', () => {
         variants: [],
       },
     });
-    const { container } = render(ImageUpload, { policy });
+    const { container } = render(SourceMediaInput, { policy });
     const input = container.querySelector('input[type="file"]')!;
     await fireEvent.change(input, {
       target: { files: [new File(['image'], 'source.jpg', { type: 'image/jpeg' })] },

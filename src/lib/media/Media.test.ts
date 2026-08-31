@@ -49,4 +49,12 @@ describe('Media', () => {
     expect(container.querySelector('img')).toBeNull();
     expect(container.querySelector('video')?.getAttribute('preload')).toBe('none');
   });
+
+  it('degrades unknown future media kinds to a neutral tile', () => {
+    const audio = { ...makeImageMedia(), media_type: 'audio' } as unknown as MediaObject;
+    const { container, getByText } = render(Media, { props: { media: audio } });
+    expect(getByText('Unsupported media type: audio')).toBeTruthy();
+    expect(container.querySelector('img')).toBeNull();
+    expect(container.querySelector('video')).toBeNull();
+  });
 });

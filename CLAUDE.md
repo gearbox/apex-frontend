@@ -55,9 +55,8 @@ src/
 │   │   │   ├── TypeSelector.svelte
 │   │   │   ├── PromptInput.svelte
 │   │   │   ├── ParamsPanel.svelte
-│   │   │   ├── ImageUpload.svelte    # Drag-drop upload + "Choose from library" trigger
-│   │   │   ├── ImagePickerModal.svelte # Library picker: bottom sheet (mobile) / modal (desktop)
-│   │   │   ├── GeneratedI2iOutputs.svelte # Expands i2i gallery items into individual selectable outputs
+│   │   │   ├── SourceMediaInput.svelte # Drag-drop source-media upload + library trigger
+│   │   │   ├── MediaPickerModal.svelte # Library picker: bottom sheet (mobile) / modal (desktop)
 │   │   │   ├── GenerateButton.svelte # Inline (desktop) or sticky bar (mobile)
 │   │   │   ├── ResultsPanel.svelte
 │   │   │   └── CostPreview.svelte
@@ -331,9 +330,9 @@ Each image output thumbnail in the ResultsPanel has a third hover action button 
 
 The user stays on the Create page; the mode switches to I2I and the image appears in the upload zone.
 
-### ImageUpload — External Source Sync
+### SourceMediaInput — External Source Sync
 
-`ImageUpload.svelte` uses a `$effect` to watch `$generationStore.sourceOutputId`. When it is set externally (by the Lightbox Re-Generate or ResultsPanel "Use as input"), the component updates its local `pickerSelection` state to show the "From generated" preview strip. This keeps the component reactive to store changes without prop threading.
+`SourceMediaInput.svelte` renders canonical `$generationStore.sourceMedia` directly. Source-prefill actions resolve a capable model before writing this ordered draft state.
 
 ---
 
@@ -382,38 +381,30 @@ The Image Picker lets users select a previously uploaded or generated image as t
 
 ### Entry Point
 
-Triggered from `ImageUpload.svelte` via a **"Choose from library"** button shown below the drag-drop zone when no image is selected. Opens as a bottom sheet on mobile (`< 768px`) or a centered modal on desktop (`≥ 768px`).
+Triggered from `SourceMediaInput.svelte` via a **"Choose from library"** button. Opens as a bottom sheet on mobile (`< 768px`) or a centered modal on desktop (`≥ 768px`).
 
 ### Tabs
 
-| Tab           | Endpoint                           | Key field                            |
-| ------------- | ---------------------------------- | ------------------------------------ |
-| **Uploads**   | `GET /v1/storage/uploads`          | `id` → `input_image_id`              |
-| **Generated** | `GET /v1/gallery?media_type=image` | image output ID → `source_output_id` |
-
-### Generated Tab — i2i vs t2i distinction
-
-The Generated tab distinguishes between job badge types:
-
-- **`badge='image'` (i2i jobs)** — rendered via `GeneratedI2iOutputs.svelte`, which fetches the gallery detail and expands each individual image output as its own selectable thumbnail. Output ID is already known — no detail fetch on confirm.
-- **`badge='prompt'` (t2i jobs)** — shows `cover_url` directly. On confirm, fetches `GET /v1/gallery/{job_id}` to resolve the first image output ID.
+| Tab           | Endpoint                        | Key field                          |
+| ------------- | ------------------------------- | ---------------------------------- |
+| **Uploads**   | `GET /v1/library?source=upload` | asset ref → ordered `source_media` |
+| **Generated** | `GET /v1/library?source=output` | asset ref → ordered `source_media` |
 
 ### Selection Behaviour
 
-The picker emits an `ImagePickerSelection` (`source: 'upload' | 'output'`, `id`, `previewUrl`, `prompt?`) to `ImageUpload.svelte`, which then updates the store:
+The picker emits a `MediaPickerSelection` (`assetRef`, `mediaType`, `previewUrl`, `prompt?`) to `SourceMediaInput.svelte`, which then updates the store:
 
-- **Upload selected** → calls `generationStore.setUploadedImageId(id)`, shows preview labelled "From uploads"
-- **Generated selected** → calls `generationStore.setSourceOutputId(id, previewUrl)`, auto-fills prompt field, shows preview labelled "From generated"
-- `input_image_id` and `source_output_id` are **mutually exclusive** — the store enforces this; setting one clears the other
-- The "Choose from library" button is only shown when no image is currently set (neither file upload nor picker selection)
+- **Upload selected** → appends an `upload:<id>` draft item and labels it "From uploads"
+- **Generated selected** → appends an `output:<id>` draft item and labels it "From generated"
+- Draft refs are unique and preserve their insertion order; a selection only copies provenance prompt text for a blank draft's first source
+- The picker remains available until the model-advertised source-media maximum is reached
 
 ### Store Fields (GenerationState)
 
-| Field                     | Type             | Purpose                                           |
-| ------------------------- | ---------------- | ------------------------------------------------- |
-| `uploadedImageId`         | `string \| null` | maps to `input_image_id` in the API request       |
-| `sourceOutputId`          | `string \| null` | maps to `source_output_id` in the API request     |
-| `selectedImagePreviewUrl` | `string \| null` | content proxy URL used for picker preview display |
+| Field           | Type                 | Purpose                              |
+| --------------- | -------------------- | ------------------------------------ |
+| `sourceMedia`   | `SourceMediaDraft[]` | canonical ordered request sources    |
+| `inputVideoUrl` | `string \| null`     | temporary legacy v2v input transport |
 
 ### Query Layer
 

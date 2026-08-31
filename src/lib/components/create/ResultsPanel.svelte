@@ -4,41 +4,83 @@
   import { Download, Share, RefreshCw, Play, Repeat2 } from '@lucide/svelte';
   import MediaImage from '$lib/media/MediaImage.svelte';
   import MediaVideo from '$lib/media/MediaVideo.svelte';
+  import Media from '$lib/media/Media.svelte';
   import { saveMedia, resolveSaveCapabilities } from '$lib/media/save';
   import { toastSaveError } from '$lib/media/save/toastSaveError';
+  import { addToast } from '$lib/stores/toasts';
+  import {
+    prefillSourceForGeneration,
+    replayGenerationPrefill,
+    sourceMediaDraft,
+  } from '$lib/services/generationPrefill';
   import * as m from '$paraglide/messages';
   import type { components } from '$lib/api/types';
 
   type UnifiedJobResponse = components['schemas']['UnifiedJobResponse'];
-  type ModelType = components['schemas']['ModelType'];
   type JobOutputItem = components['schemas']['JobOutputItem'];
+  type ProvidersResponse = components['schemas']['ProvidersResponse'];
+  type LibraryGroupDetail = components['schemas']['LibraryGroupDetail'];
 
-  let { showSkeleton = false }: { showSkeleton?: boolean } = $props();
+  let {
+    showSkeleton = false,
+    providers = undefined,
+    loadGroup = undefined,
+  }: {
+    showSkeleton?: boolean;
+    providers?: ProvidersResponse;
+    loadGroup?: (jobId: string) => Promise<LibraryGroupDetail>;
+  } = $props();
 
   const job = $derived($generationStore.completedJob);
   const outputs = $derived(job?.outputs ?? []);
 
   let videoModalOutput = $state<JobOutputItem | null>(null);
 
-  function handleRegenerate(completedJob: UnifiedJobResponse) {
-    generationStore.prefill({
-      prompt: completedJob.prompt,
-      model: (completedJob.model ?? 'grok-imagine-image') as ModelType,
-    });
+  async function handleRegenerate(completedJob: UnifiedJobResponse) {
+    const preliminary = replayGenerationPrefill(completedJob, providers);
+    if (preliminary.ok) {
+      generationStore.prefill(preliminary.params);
+      return;
+    }
+    if (preliminary.reason === 'no-model') {
+      addToast({ type: 'error', message: m.library_action_no_model() });
+      return;
+    }
+    if (!loadGroup) {
+      addToast({ type: 'error', message: m.library_reproduce_source_missing() });
+      return;
+    }
+    try {
+      const replay = replayGenerationPrefill(
+        completedJob,
+        providers,
+        await loadGroup(completedJob.id),
+      );
+      if (!replay.ok) {
+        addToast({
+          type: 'error',
+          message:
+            replay.reason === 'no-model'
+              ? m.library_action_no_model()
+              : m.library_reproduce_source_missing(),
+        });
+        return;
+      }
+      generationStore.prefill(replay.params);
+    } catch {
+      addToast({ type: 'error', message: m.library_reproduce_source_missing() });
+    }
   }
 
   function handleUseAsInput(output: JobOutputItem) {
     if (!job) return;
-    generationStore.setMode('i2i');
-    generationStore.setSourceMedia([
-      {
-        assetRef: `output:${output.id}`,
-        mediaType: output.media.media_type,
-        previewUrl: output.media.original.url,
-        label: 'From generated',
-        available: true,
-      },
-    ]);
+    const didPrefill = prefillSourceForGeneration({
+      providers,
+      mode: 'i2i',
+      preferredModel: $generationStore.model,
+      source: sourceMediaDraft(`output:${output.id}`, output.media, 'From generated'),
+    });
+    if (!didPrefill) addToast({ type: 'error', message: m.library_action_no_model() });
   }
 </script>
 
@@ -83,13 +125,15 @@
                 </button>
               </div>
             </div>
-          {:else}
+          {:else if output.media.media_type === 'image'}
             <MediaImage
               media={output.media}
               alt="Generated output"
               sizes="(max-width: 768px) 50vw, 33vw"
               class="w-full object-cover"
             />
+          {:else}
+            <Media media={output.media} alt="Generated output" class="h-full w-full" />
           {/if}
 
           <!-- Hover actions -->
@@ -111,7 +155,7 @@
             {/each}
             {#if job}
               <button
-                onclick={() => handleRegenerate(job)}
+                onclick={() => void handleRegenerate(job)}
                 class="flex h-7 w-7 items-center justify-center rounded-lg bg-white/20 text-white backdrop-blur-sm hover:bg-white/30 transition-colors"
                 aria-label="Re-generate with same prompt"
               >

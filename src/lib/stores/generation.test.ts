@@ -36,17 +36,16 @@ describe('generationStore source media', () => {
     ]);
   });
 
-  it('replaces, removes, and reorders positions without changing refs', () => {
+  it('replaces and removes positions without changing the remaining order', () => {
     const third = { ...upload, assetRef: 'upload:33333333-3333-3333-3333-333333333333' };
     generationStore.setSourceMedia([upload, output, third]);
     generationStore.replaceSourceMedia(1, { ...output, available: false });
-    generationStore.reorderSourceMedia(2, 0);
+    expect(get(generationStore).sourceMedia[1].available).toBe(false);
     generationStore.removeSourceMedia(1);
     expect(get(generationStore).sourceMedia.map((source) => source.assetRef)).toEqual([
+      upload.assetRef,
       third.assetRef,
-      output.assetRef,
     ]);
-    expect(get(generationStore).sourceMedia[1].available).toBe(false);
   });
 
   it('does not replace a position with a duplicate ref', () => {
@@ -69,6 +68,14 @@ describe('generationStore source media', () => {
     ]);
   });
 
+  it('normalizes duplicate prefill refs without changing the first source position', () => {
+    generationStore.prefill({ sourceMedia: [output, upload, output] });
+    expect(get(generationStore).sourceMedia.map((source) => source.assetRef)).toEqual([
+      output.assetRef,
+      upload.assetRef,
+    ]);
+  });
+
   it('includes source identity and availability, but not preview URLs, in the draft fingerprint', () => {
     const before = get(generationStore);
     const fingerprint = generationDraftFingerprint({ ...before, sourceMedia: [upload] });
@@ -84,5 +91,63 @@ describe('generationStore source media', () => {
     expect(get(generationDraftIsDirty)).toBe(true);
     markGenerationDraftSaved();
     expect(get(generationDraftIsDirty)).toBe(false);
+  });
+});
+
+describe('generationStore draft hygiene', () => {
+  it('ignores job-tracking updates in the dirty baseline but tracks later draft edits', () => {
+    markGenerationDraftSaved();
+    generationStore.startJob('job-1');
+    generationStore.setProgress(50);
+    generationStore.setError();
+    expect(get(generationDraftIsDirty)).toBe(false);
+    generationStore.setPrompt('edited after submission');
+    expect(get(generationDraftIsDirty)).toBe(true);
+  });
+
+  it('does not overwrite a non-nullable field when a prefill explicitly passes undefined', () => {
+    generationStore.setNegativePrompt('keep me');
+    generationStore.prefill({ negativePrompt: undefined });
+    expect(get(generationStore).negativePrompt).toBe('keep me');
+  });
+
+  it('resets edit aspect ratio on model and mode transitions unless a prefill explicitly provides it', () => {
+    generationStore.setEditAspectRatio('16:9');
+    generationStore.setMode('i2i');
+    expect(get(generationStore).editAspectRatio).toBeNull();
+    generationStore.setEditAspectRatio('16:9');
+    generationStore.setModel('grok-2-image-1212');
+    expect(get(generationStore).editAspectRatio).toBeNull();
+    generationStore.prefill({ editAspectRatio: '1:1' });
+    expect(get(generationStore).editAspectRatio).toBe('1:1');
+  });
+
+  it('clamps custom dimensions and writable parameter ranges', () => {
+    generationStore.setCustomSize(1, 9_999);
+    generationStore.setSteps(0);
+    generationStore.setCfg(99);
+    generationStore.setDenoise(-1);
+    expect(get(generationStore)).toMatchObject({
+      customWidth: 256,
+      customHeight: 4096,
+      steps: 1,
+      cfg: 30,
+      denoise: 0,
+    });
+  });
+
+  it('clears workflow parameter overrides when the model changes', () => {
+    generationStore.setImageTier('high');
+    generationStore.setCustomSize(1024, 768);
+    generationStore.setSeed(42);
+    generationStore.setSampler('euler');
+    generationStore.setModel('grok-2-image-1212');
+    expect(get(generationStore)).toMatchObject({
+      imageTier: null,
+      customWidth: null,
+      customHeight: null,
+      seed: null,
+      sampler: null,
+    });
   });
 });

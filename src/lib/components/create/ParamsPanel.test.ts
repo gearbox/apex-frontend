@@ -13,4 +13,13 @@ describe('ParamsPanel', () => {
     });
     expect(screen.queryByText('Images Count')).toBeNull();
   });
+
+  it('shows writable advanced controls even when quality tiers are absent', () => {
+    const model = makeGrokImageModelInfo({
+      image: { edit_aspect_ratios: [], supported_tiers: null },
+      unsupported_parameters: ['image_resolution', 'width', 'height'],
+    });
+    render(ParamsPanel, { modelInfo: model });
+    expect(screen.getByText('Advanced')).toBeTruthy();
+  });
 });

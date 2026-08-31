@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount, tick } from 'svelte';
   import { goto } from '$app/navigation';
-  import { createMutation, useQueryClient } from '@tanstack/svelte-query';
+  import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
   import { X } from '@lucide/svelte';
   import FrameScrubber from '$lib/components/frames/FrameScrubber.svelte';
   import FrameStrip from '$lib/components/frames/FrameStrip.svelte';
@@ -30,6 +30,9 @@
   import Spinner from '$lib/components/ui/Spinner.svelte';
   import type { components } from '$lib/api/types';
   import * as m from '$paraglide/messages';
+  import { addToast } from '$lib/stores/toasts';
+  import { prefillSourceForGeneration, sourceMediaDraft } from '$lib/services/generationPrefill';
+  import { providersQueryOptions } from '$lib/queries/providers';
 
   type MediaObject = components['schemas']['MediaObject'];
   type FrameJobResponse = components['schemas']['FrameJobResponse'];
@@ -82,6 +85,7 @@
   const manualFrameButtons = new Map<number, HTMLButtonElement>();
 
   const queryClient = useQueryClient();
+  const providersQuery = createQuery(() => providersQueryOptions());
   const previewMutation = createMutation(() => previewFramesMutationOptions());
   const extractMutation = createMutation(() => extractFramesMutationOptions());
 
@@ -417,16 +421,19 @@
   }
 
   function useAsInput(frame: ExtractedFrame) {
-    generationStore.setMode('i2i');
-    generationStore.setSourceMedia([
-      {
-        assetRef: `upload:${frame.upload_id}`,
-        mediaType: frame.media.media_type,
+    const didPrefill = prefillSourceForGeneration({
+      providers: providersQuery.data,
+      mode: 'i2i',
+      preferredModel: $generationStore.model,
+      source: {
+        ...sourceMediaDraft(`upload:${frame.upload_id}`, frame.media, 'Extracted frame'),
         previewUrl: toMediaSrc(frame.media.original.url),
-        label: 'Extracted frame',
-        available: true,
       },
-    ]);
+    });
+    if (!didPrefill) {
+      addToast({ type: 'error', message: m.library_action_no_model() });
+      return;
+    }
     void goto(ROUTES.create);
     onclose();
   }

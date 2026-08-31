@@ -1,7 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { get } from 'svelte/store';
 import { generationStore } from '$lib/stores/generation';
-import { resolveLibraryAction, type LibraryActionDeps } from './actions';
+import {
+  filterVisibleLibraryActions,
+  libraryActionGroup,
+  resolveLibraryAction,
+  type LibraryActionDeps,
+} from './actions';
 import { makeLibraryAssetDetail } from '../../../mocks/factories/library';
 import { makeMediaObject, makeVideoMediaObject } from '../../../mocks/factories/media';
 import { makeGrokImageModelInfo } from '../../../mocks/factories/providers';
@@ -143,5 +148,61 @@ describe('Re-Generate source-media replay', () => {
     await action?.();
     expect(get(generationStore).inputVideoUrl).toBe('/v1/content/outputs/vid_mock_001');
     expect(get(generationStore).sourceMedia).toEqual([]);
+  });
+});
+
+describe('Library action visibility and provenance', () => {
+  it('filters unavailable mode actions, preserves order, and expands download by platform capability', () => {
+    expect(
+      filterVisibleLibraryActions(['remix', 'animate', 'download', 'favorite'], {
+        availableModes: new Set(['i2i']),
+        saveCapabilities: ['share', 'download'],
+      }),
+    ).toEqual(['remix', 'share', 'download', 'favorite']);
+    expect(
+      filterVisibleLibraryActions(['use_as_first_frame'], {
+        availableModes: new Set(),
+        saveCapabilities: ['download'],
+      }),
+    ).toEqual([]);
+  });
+
+  it('keeps save actions independent while serializing source/replay navigation actions', () => {
+    expect(libraryActionGroup('share')).toBe('save');
+    expect(libraryActionGroup('download')).toBe('save');
+    expect(libraryActionGroup('remix')).toBe('navigate');
+    expect(libraryActionGroup('reproduce')).toBe('navigate');
+    expect(libraryActionGroup('favorite')).toBeNull();
+  });
+
+  it('copies provenance prompt fields for Remix while source-only references preserve the draft', async () => {
+    generationStore.prefill({ prompt: 'my draft', negativePrompt: 'my negative' });
+    const remixed = { ...asset, prompt: 'original', negative_prompt: 'original negative' };
+    const remixDeps = deps([]);
+    remixDeps.loadDetail = vi.fn().mockResolvedValue(remixed);
+    await resolveLibraryAction('remix', remixed, {}, remixDeps)?.();
+    expect(get(generationStore)).toMatchObject({
+      prompt: 'original',
+      negativePrompt: 'original negative',
+    });
+
+    generationStore.prefill({ prompt: 'my draft', negativePrompt: 'my negative' });
+    await resolveLibraryAction('use_as_reference', remixed, {}, deps([]))?.();
+    expect(get(generationStore)).toMatchObject({
+      prompt: 'my draft',
+      negativePrompt: 'my negative',
+    });
+  });
+
+  it('does not navigate when no enabled model can satisfy the requested source action', async () => {
+    const noModelDeps = deps([]);
+    noModelDeps.providers = {
+      providers: [],
+      user_context: null,
+    };
+    const action = resolveLibraryAction('animate', asset, {}, noModelDeps);
+    await action?.();
+    expect(noModelDeps.navigate).not.toHaveBeenCalled();
+    expect(addToastMock).toHaveBeenCalled();
   });
 });
