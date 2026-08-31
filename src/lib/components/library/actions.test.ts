@@ -8,7 +8,7 @@ import {
   type LibraryActionDeps,
 } from './actions';
 import { makeLibraryAssetDetail } from '../../../mocks/factories/library';
-import { makeMediaObject, makeVideoMediaObject } from '../../../mocks/factories/media';
+import { makeMediaObject } from '../../../mocks/factories/media';
 import { makeGrokImageModelInfo } from '../../../mocks/factories/providers';
 import type { components } from '$lib/api/types';
 
@@ -136,18 +136,45 @@ describe('Re-Generate source-media replay', () => {
     expect(get(generationStore).sourceMedia).toEqual([]);
   });
 
-  it('reproduces v2v through the group video URL, never through source_media', async () => {
+  it('does not navigate for historical v2v Re-Generate without a replayable input URL', async () => {
     const v2vAsset = {
       ...asset,
       generation_type: 'v2v' as const,
       model: 'grok-imagine-image',
     };
-    const actionDeps = deps([], { input_media: makeVideoMediaObject() });
+    const actionDeps = deps([], { input_media: null, source_media: [] });
     actionDeps.loadDetail = vi.fn().mockResolvedValue(v2vAsset);
     const action = resolveLibraryAction('reproduce', v2vAsset, {}, actionDeps);
     await action?.();
-    expect(get(generationStore).inputVideoUrl).toBe('/v1/content/outputs/vid_mock_001');
+    expect(actionDeps.navigate).not.toHaveBeenCalled();
+    expect(addToastMock).toHaveBeenCalled();
+    expect(get(generationStore).inputVideoUrl).toBeNull();
     expect(get(generationStore).sourceMedia).toEqual([]);
+  });
+
+  it('does not navigate when no current model can preserve an original optional source', async () => {
+    const actionDeps = deps([
+      { position: 0, asset_ref: SOURCE_A, available: true, media: makeMediaObject() },
+    ]);
+    actionDeps.providers = {
+      providers: [
+        {
+          provider: 'grok',
+          name: 'Grok',
+          available: true,
+          provisioning_mode: 'always_on',
+          models: [
+            makeGrokImageModelInfo({ capabilities: ['i2i'], inputs: { source_media: null } }),
+          ],
+        },
+      ],
+      user_context: null,
+    };
+
+    await resolveLibraryAction('reproduce', asset, {}, actionDeps)?.();
+
+    expect(actionDeps.navigate).not.toHaveBeenCalled();
+    expect(addToastMock).toHaveBeenCalled();
   });
 });
 
@@ -165,6 +192,13 @@ describe('Library action visibility and provenance', () => {
         saveCapabilities: ['download'],
       }),
     ).toEqual([]);
+    expect(
+      filterVisibleLibraryActions(['reproduce', 'extend'], {
+        availableModes: new Set(['v2v']),
+        generationType: 'v2v',
+        saveCapabilities: ['download'],
+      }),
+    ).toEqual(['extend']);
   });
 
   it('keeps save actions independent while serializing source/replay navigation actions', () => {

@@ -103,6 +103,161 @@ describe('capability-aware source prefill', () => {
 });
 
 describe('replayGenerationPrefill', () => {
+  it('uses another compatible model when the original optional t2i source is no longer accepted', () => {
+    const discovery = providers([
+      makeGrokImageModelInfo({
+        capabilities: ['t2i'],
+        inputs: { source_media: null },
+      }),
+      makeGrokImageModelInfo({
+        model_key: 'grok-2-image-1212',
+        capabilities: ['t2i'],
+        inputs: {
+          source_media: {
+            min: 1,
+            max: 4,
+            media_types: ['image'],
+            required_for: [],
+          },
+        },
+      }),
+    ]);
+
+    const result = replayGenerationPrefill(
+      { generation_type: 't2i', model: 'grok-imagine-image', prompt: 'original prompt' },
+      discovery,
+      group({
+        generation_type: 't2i',
+        source_media: [
+          {
+            position: 0,
+            asset_ref: 'upload:optional-source',
+            available: true,
+            media: {
+              media_type: 'image',
+              original: {
+                url: '/v1/content/uploads/optional-source',
+                content_type: 'image/png',
+                size_bytes: 1,
+              },
+              variants: [],
+            },
+          },
+        ],
+      }),
+    );
+
+    expect(result).toMatchObject({ ok: true });
+    if (result.ok) {
+      expect(result.params.model).toBe('grok-2-image-1212');
+      expect(result.params.sourceMedia).toMatchObject([{ assetRef: 'upload:optional-source' }]);
+    }
+  });
+
+  it('fails explicitly rather than dropping optional t2i sources when no current model accepts them', () => {
+    const discovery = providers([
+      makeGrokImageModelInfo({ capabilities: ['t2i'], inputs: { source_media: null } }),
+    ]);
+
+    expect(
+      replayGenerationPrefill(
+        { generation_type: 't2i', model: 'grok-imagine-image', prompt: 'original prompt' },
+        discovery,
+        group({
+          generation_type: 't2i',
+          source_media: [
+            {
+              position: 0,
+              asset_ref: 'upload:optional-source',
+              available: true,
+              media: {
+                media_type: 'image',
+                original: {
+                  url: '/v1/content/uploads/optional-source',
+                  content_type: 'image/png',
+                  size_bytes: 1,
+                },
+                variants: [],
+              },
+            },
+          ],
+        }),
+      ),
+    ).toEqual({ ok: false, reason: 'incompatible-source-policy' });
+  });
+
+  it('fails rather than truncating a replay whose original source count exceeds the live max', () => {
+    const discovery = providers([
+      makeGrokImageModelInfo({
+        capabilities: ['i2i'],
+        inputs: {
+          source_media: {
+            min: 1,
+            max: 1,
+            media_types: ['image'],
+            required_for: ['i2i'],
+          },
+        },
+      }),
+    ]);
+
+    expect(
+      replayGenerationPrefill(
+        { generation_type: 'i2i', model: 'grok-imagine-image', prompt: 'original prompt' },
+        discovery,
+        group({
+          source_media: [
+            {
+              position: 0,
+              asset_ref: 'upload:first',
+              available: true,
+              media: sourceMedia('image'),
+            },
+            {
+              position: 1,
+              asset_ref: 'upload:second',
+              available: true,
+              media: sourceMedia('image'),
+            },
+          ],
+        }),
+      ),
+    ).toEqual({ ok: false, reason: 'incompatible-source-policy' });
+  });
+
+  it('requires every available persisted media kind to be accepted by the replay model', () => {
+    const discovery = providers([
+      makeGrokImageModelInfo({
+        capabilities: ['i2i'],
+        inputs: {
+          source_media: {
+            min: 1,
+            max: 4,
+            media_types: ['image'],
+            required_for: ['i2i'],
+          },
+        },
+      }),
+    ]);
+
+    expect(
+      replayGenerationPrefill(
+        { generation_type: 'i2i', model: 'grok-imagine-image', prompt: 'original prompt' },
+        discovery,
+        group({
+          source_media: [
+            {
+              position: 0,
+              asset_ref: 'upload:video',
+              available: true,
+              media: sourceMedia('video'),
+            },
+          ],
+        }),
+      ),
+    ).toEqual({ ok: false, reason: 'incompatible-source-policy' });
+  });
+
   it('replays ordered source positions and unavailable sources without normalizing them away', () => {
     const discovery = providers([makeGrokImageModelInfo({ capabilities: ['i2i'] })]);
     const result = replayGenerationPrefill(
@@ -162,29 +317,26 @@ describe('replayGenerationPrefill', () => {
     ).toEqual({ ok: false, reason: 'duplicate-source' });
   });
 
-  it('keeps v2v on input_video_url and never reconstructs source_media', () => {
+  it('does not claim exact v2v replay when the group has no persisted input URL', () => {
     const discovery = providers([makeGrokImageModelInfo({ capabilities: ['v2v'] })]);
-    const result = replayGenerationPrefill(
-      { generation_type: 'v2v', model: 'grok-imagine-image', prompt: 'extend this' },
-      discovery,
-      group({
-        media_type: 'video',
-        generation_type: 'v2v',
-        input_media: {
-          media_type: 'video',
-          original: {
-            url: '/v1/content/outputs/video',
-            content_type: 'video/mp4',
-            size_bytes: 1,
-          },
-          variants: [],
-        },
-      }),
-    );
-    expect(result).toMatchObject({ ok: true });
-    if (result.ok) {
-      expect(result.params.inputVideoUrl).toBe('/v1/content/outputs/video');
-      expect(result.params.sourceMedia).toBeUndefined();
-    }
+    expect(
+      replayGenerationPrefill(
+        { generation_type: 'v2v', model: 'grok-imagine-image', prompt: 'extend this' },
+        discovery,
+        group({ media_type: 'video', generation_type: 'v2v', input_media: null, source_media: [] }),
+      ),
+    ).toEqual({ ok: false, reason: 'legacy-v2v-source-unavailable' });
   });
 });
+
+function sourceMedia(media_type: 'image' | 'video'): components['schemas']['MediaObject'] {
+  return {
+    media_type,
+    original: {
+      url: `/v1/content/uploads/source.${media_type === 'image' ? 'png' : 'mp4'}`,
+      content_type: media_type === 'image' ? 'image/png' : 'video/mp4',
+      size_bytes: 1,
+    },
+    variants: [],
+  };
+}

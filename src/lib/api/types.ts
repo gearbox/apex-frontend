@@ -2627,7 +2627,7 @@ export interface components {
          * @description Available model types.
          * @enum {string}
          */
-        ModelType: "aisha-image" | "aisha-video" | "grok-imagine-image" | "grok-2-image-1212" | "grok-imagine-video";
+        ModelType: "aisha-image" | "aisha-image-lite" | "aisha-video" | "grok-imagine-image" | "grok-2-image-1212" | "grok-imagine-video";
         /** NotificationClassInfo */
         NotificationClassInfo: {
             notification_class: string;

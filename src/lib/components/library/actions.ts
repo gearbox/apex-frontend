@@ -28,6 +28,7 @@ import {
   prefillSourceForGeneration,
   replayGenerationPrefill,
   sourceMediaDraft,
+  type ReplayFailureReason,
 } from '$lib/services/generationPrefill';
 
 export type LibraryAction = components['schemas']['LibraryAction'];
@@ -126,6 +127,19 @@ async function prefillAndGo(
   await Promise.resolve((deps.navigate ?? goto)(ROUTES.create));
 }
 
+function replayFailureMessage(reason: ReplayFailureReason): string {
+  switch (reason) {
+    case 'no-model':
+      return m.library_action_no_model();
+    case 'incompatible-source-policy':
+      return m.library_reproduce_source_incompatible();
+    case 'legacy-v2v-source-unavailable':
+      return m.library_reproduce_v2v_unavailable();
+    default:
+      return m.library_reproduce_source_missing();
+  }
+}
+
 /** Prefills the generation store with this asset as the source image and navigates to Create.
  * Provenance actions fetch detail first because list summaries intentionally omit prompt fields. */
 async function useAsSource(
@@ -179,15 +193,6 @@ async function useAsSource(
 async function reproduce(asset: LibraryActionAsset, deps: LibraryActionDeps): Promise<void> {
   try {
     const detail = await deps.loadDetail(asset.asset_ref);
-    const preliminary = replayGenerationPrefill(detail, deps.providers);
-    if (preliminary.ok) {
-      await prefillAndGo(preliminary.params, deps);
-      return;
-    }
-    if (!preliminary.ok && preliminary.reason === 'no-model') {
-      addToast({ type: 'error', message: m.library_action_no_model() });
-      return;
-    }
     if (!detail.job_id || !deps.loadGroup) {
       addToast({ type: 'error', message: m.library_reproduce_source_missing() });
       return;
@@ -198,13 +203,7 @@ async function reproduce(asset: LibraryActionAsset, deps: LibraryActionDeps): Pr
       await deps.loadGroup(detail.job_id),
     );
     if (!result.ok) {
-      addToast({
-        type: 'error',
-        message:
-          result.reason === 'no-model'
-            ? m.library_action_no_model()
-            : m.library_reproduce_source_missing(),
-      });
+      addToast({ type: 'error', message: replayFailureMessage(result.reason) });
       return;
     }
     await prefillAndGo(result.params, deps);
@@ -287,12 +286,19 @@ export const LIBRARY_ACTION_ICONS: Record<LibraryUiAction, LucideIcon> = {
  */
 export function filterVisibleLibraryActions(
   actions: LibraryAction[],
-  opts: { availableModes: ReadonlySet<GenerationMode>; saveCapabilities?: SaveCapability[] },
+  opts: {
+    availableModes: ReadonlySet<GenerationMode>;
+    generationType?: GenerationType | null;
+    saveCapabilities?: SaveCapability[];
+  },
 ): LibraryUiAction[] {
   const filtered = actions.filter((action) => {
     // Duplicate of `remix` with the current API surface — deferred until a real
     // create-variation prefill (denoise/seed) is implemented.
     if (action === 'create_variation') return false;
+    // v2v historical requests have no replayable original input URL in the
+    // current group contract. Extend remains independently available.
+    if (action === 'reproduce' && opts.generationType === 'v2v') return false;
     const mode = ACTION_MODE[action];
     if (mode && !opts.availableModes.has(mode)) return false;
     return true;

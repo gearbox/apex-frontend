@@ -323,7 +323,10 @@
 
   const menuItems = $derived(
     currentDetail
-      ? filterVisibleLibraryActions(currentDetail.available_actions, { availableModes })
+      ? filterVisibleLibraryActions(currentDetail.available_actions, {
+          availableModes,
+          generationType: currentDetail.generation_type,
+        })
           .filter(
             (action) =>
               action !== 'delete' &&

@@ -15,6 +15,7 @@ import {
 
 type AspectRatio = components['schemas']['AspectRatio'];
 type LibraryGroupDetail = components['schemas']['LibraryGroupDetail'];
+type ModelInfo = components['schemas']['ModelInfo'];
 type ModelType = components['schemas']['ModelType'];
 type ProvidersResponse = components['schemas']['ProvidersResponse'];
 type MediaObject = components['schemas']['MediaObject'];
@@ -74,13 +75,100 @@ export interface ReplaySource {
 }
 
 export type ReplayPrefillResult =
-  | { ok: true; params: Partial<GenerationState> }
-  | { ok: false; reason: 'no-model' | 'missing-source' | 'duplicate-source' };
+  { ok: true; params: Partial<GenerationState> } | { ok: false; reason: ReplayFailureReason };
+
+export type ReplayFailureReason =
+  | 'no-model'
+  | 'missing-source'
+  | 'duplicate-source'
+  | 'incompatible-source-policy'
+  | 'legacy-v2v-source-unavailable';
+
+export interface ReplayModelRequest {
+  providers: ProvidersResponse | null | undefined;
+  mode: GenerationMode;
+  preferredModel?: string | null;
+  /** Ordered persisted sources, including unavailable positional placeholders. */
+  sourceMedia: readonly SourceMediaDraft[];
+}
 
 function sourceMediaLabel(assetRef: string): string | null {
   if (assetRef.startsWith('output:')) return 'From generated';
   if (assetRef.startsWith('upload:')) return 'From uploads';
   return null;
+}
+
+function isEnabledModeModel(model: ModelInfo, mode: GenerationMode): boolean {
+  return model.is_enabled && model.capabilities.includes(mode);
+}
+
+function acceptsReplaySources(
+  model: ModelInfo,
+  mode: GenerationMode,
+  sourceMedia: readonly SourceMediaDraft[],
+): boolean {
+  if (!isEnabledModeModel(model, mode)) return false;
+
+  const policy = sourceMediaPolicy(model, mode);
+  if (!policy.accepted || policy.max < sourceMedia.length) return false;
+
+  // A missing media object is expected for unavailable historical positions.
+  // Keep that position intact and let the Create UI require the user to replace it.
+  return sourceMedia.every(
+    (source) =>
+      !source.available ||
+      (source.mediaType !== null && policy.mediaTypes.includes(source.mediaType)),
+  );
+}
+
+/**
+ * Resolves a replay target without weakening normal mode-only model selection.
+ * An original source list must fit the live model policy in its entirety: it is
+ * never normalized, shortened, or given a fabricated media kind here.
+ */
+export function resolveModelForReplay({
+  providers,
+  mode,
+  preferredModel,
+  sourceMedia,
+}: ReplayModelRequest): ModelType | null {
+  const providerList = providers?.providers ?? [];
+  const preferredProvider = preferredModel
+    ? providerList.find((provider) =>
+        provider.models.some((model) => model.model_key === preferredModel),
+      )
+    : undefined;
+
+  const originalModel = preferredProvider?.models.find(
+    (model) => model.model_key === preferredModel,
+  );
+  if (originalModel && acceptsReplaySources(originalModel, mode, sourceMedia)) {
+    return originalModel.model_key as ModelType;
+  }
+
+  const sameProviderModel = preferredProvider?.models.find(
+    (model) => model.model_key !== preferredModel && acceptsReplaySources(model, mode, sourceMedia),
+  );
+  if (sameProviderModel) return sameProviderModel.model_key as ModelType;
+
+  for (const provider of providerList) {
+    if (provider === preferredProvider) continue;
+    const model = provider.models.find((candidate) =>
+      acceptsReplaySources(candidate, mode, sourceMedia),
+    );
+    if (model) return model.model_key as ModelType;
+  }
+
+  return null;
+}
+
+function hasEnabledModeModel(
+  providers: ProvidersResponse | null | undefined,
+  mode: GenerationMode,
+): boolean {
+  return (providers?.providers ?? []).some((provider) =>
+    provider.models.some((model) => isEnabledModeModel(model, mode)),
+  );
 }
 
 /** i2i edits use edit ratios; every other mode uses the regular aspect ratio. */
@@ -116,17 +204,13 @@ export function replayGenerationPrefill(
   const mode: GenerationMode = isGenerationMode(source.generation_type)
     ? source.generation_type
     : 't2i';
-  const model = resolveModelForMode(providers, mode, source.model);
-  if (!model) return { ok: false, reason: 'no-model' };
+  if (!group) return { ok: false, reason: 'missing-source' };
 
-  const modelInfo = findModelInfo(providers, model);
-  const needsGroup = mode === 'v2v' || sourceMediaPolicy(modelInfo, mode).accepted;
-  if (needsGroup && !group) return { ok: false, reason: 'missing-source' };
-  if (mode === 'v2v' && !group?.input_media?.original.url) {
-    return { ok: false, reason: 'missing-source' };
-  }
+  // Historical v2v inputs remain URL-based in this API arc. Group `input_media`
+  // is derived from owned source_media, so it cannot reconstruct the original URL.
+  if (mode === 'v2v') return { ok: false, reason: 'legacy-v2v-source-unavailable' };
 
-  const sourceMedia = [...(group?.source_media ?? [])]
+  const sourceMedia = [...(group.source_media ?? [])]
     .sort((a, b) => a.position - b.position)
     .map<SourceMediaDraft>((item) => ({
       assetRef: item.asset_ref,
@@ -139,6 +223,25 @@ export function replayGenerationPrefill(
     return { ok: false, reason: 'duplicate-source' };
   }
 
+  const model =
+    sourceMedia.length > 0
+      ? resolveModelForReplay({
+          providers,
+          mode,
+          preferredModel: source.model,
+          sourceMedia,
+        })
+      : resolveModelForMode(providers, mode, source.model);
+  if (!model) {
+    return {
+      ok: false,
+      reason:
+        sourceMedia.length > 0 && hasEnabledModeModel(providers, mode)
+          ? 'incompatible-source-policy'
+          : 'no-model',
+    };
+  }
+
   return {
     ok: true,
     params: {
@@ -146,13 +249,9 @@ export function replayGenerationPrefill(
       negativePrompt: source.negative_prompt ?? '',
       model,
       mode,
-      // The temporary legacy v2v input remains URL-based. All owned-media
-      // flows replay canonical source_media in stored positional order.
-      ...(mode === 'v2v'
-        ? { inputVideoUrl: group?.input_media?.original.url ?? null }
-        : needsGroup
-          ? { sourceMedia }
-          : {}),
+      // Group source_media is the complete replay authority. Preserve the
+      // canonical list even when the historical request had no owned sources.
+      sourceMedia,
       ...aspectRatioPrefill(source.aspect_ratio, mode, model, providers),
     },
   };

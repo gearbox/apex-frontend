@@ -12,6 +12,7 @@
     prefillSourceForGeneration,
     replayGenerationPrefill,
     sourceMediaDraft,
+    type ReplayFailureReason,
   } from '$lib/services/generationPrefill';
   import * as m from '$paraglide/messages';
   import type { components } from '$lib/api/types';
@@ -36,16 +37,20 @@
 
   let videoModalOutput = $state<JobOutputItem | null>(null);
 
+  function replayFailureMessage(reason: ReplayFailureReason): string {
+    switch (reason) {
+      case 'no-model':
+        return m.library_action_no_model();
+      case 'incompatible-source-policy':
+        return m.library_reproduce_source_incompatible();
+      case 'legacy-v2v-source-unavailable':
+        return m.library_reproduce_v2v_unavailable();
+      default:
+        return m.library_reproduce_source_missing();
+    }
+  }
+
   async function handleRegenerate(completedJob: UnifiedJobResponse) {
-    const preliminary = replayGenerationPrefill(completedJob, providers);
-    if (preliminary.ok) {
-      generationStore.prefill(preliminary.params);
-      return;
-    }
-    if (preliminary.reason === 'no-model') {
-      addToast({ type: 'error', message: m.library_action_no_model() });
-      return;
-    }
     if (!loadGroup) {
       addToast({ type: 'error', message: m.library_reproduce_source_missing() });
       return;
@@ -57,13 +62,7 @@
         await loadGroup(completedJob.id),
       );
       if (!replay.ok) {
-        addToast({
-          type: 'error',
-          message:
-            replay.reason === 'no-model'
-              ? m.library_action_no_model()
-              : m.library_reproduce_source_missing(),
-        });
+        addToast({ type: 'error', message: replayFailureMessage(replay.reason) });
         return;
       }
       generationStore.prefill(replay.params);
@@ -153,7 +152,7 @@
                 {/if}
               </button>
             {/each}
-            {#if job}
+            {#if job && job.generation_type !== 'v2v'}
               <button
                 onclick={() => void handleRegenerate(job)}
                 class="flex h-7 w-7 items-center justify-center rounded-lg bg-white/20 text-white backdrop-blur-sm hover:bg-white/30 transition-colors"
