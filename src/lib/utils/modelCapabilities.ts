@@ -3,6 +3,89 @@ import type { components } from '$lib/api/types';
 type ModelInfo = components['schemas']['ModelInfo'];
 type AspectRatio = components['schemas']['AspectRatio'];
 
+/**
+ * The backend is the authority for both the source-media picker and its
+ * requiredness. `min` is a cardinality limit, not an unconditional required
+ * count: it applies only to modes listed in `required_for`.
+ */
+export interface SourceMediaPolicy {
+  accepted: boolean;
+  required: boolean;
+  min: number;
+  max: number;
+  mediaTypes: readonly string[];
+}
+
+export function sourceMediaPolicy(
+  modelInfo: ModelInfo | null | undefined,
+  generationType: string,
+): SourceMediaPolicy {
+  const constraints = modelInfo?.inputs?.source_media;
+  if (constraints) {
+    return {
+      accepted: true,
+      required: constraints.required_for.includes(generationType),
+      min: constraints.min,
+      max: constraints.max,
+      mediaTypes: constraints.media_types,
+    };
+  }
+
+  // A missing or null discovery block cannot safely imply media support or
+  // requiredness. `required_for` is the sole authority for that policy.
+  return { accepted: false, required: false, min: 0, max: 0, mediaTypes: [] };
+}
+
+/** Backend parameters with writable Create-draft controls. */
+export type GenerationParameter =
+  | 'aspect_ratio'
+  | 'batch_size'
+  | 'cfg'
+  | 'denoise'
+  | 'height'
+  | 'image_resolution'
+  | 'negative_prompt'
+  | 'sampler'
+  | 'scheduler'
+  | 'seed'
+  | 'steps'
+  | 'width';
+
+/** Returns the currently usable sizing mechanisms in draft/UI order. */
+export function supportedSizingModes(
+  modelInfo: ModelInfo | null | undefined,
+): Array<'tier' | 'custom'> {
+  const modes: Array<'tier' | 'custom'> = [];
+  if (isGenerationParameterSupported(modelInfo, 'image_resolution')) modes.push('tier');
+  if (
+    isGenerationParameterSupported(modelInfo, 'width') &&
+    isGenerationParameterSupported(modelInfo, 'height')
+  ) {
+    modes.push('custom');
+  }
+  return modes;
+}
+
+export function isGenerationParameterSupported(
+  modelInfo: ModelInfo | null | undefined,
+  parameter: GenerationParameter,
+): boolean {
+  if (modelInfo == null || modelInfo.unsupported_parameters?.includes(parameter)) return false;
+
+  // This pre-existing boolean is the compatibility contract for older provider
+  // responses, which do not include an `unsupported_parameters` list.
+  if (parameter === 'negative_prompt') return modelInfo.supports_negative_prompt === true;
+
+  return true;
+}
+
+export function supportsAnyGenerationParameter(
+  modelInfo: ModelInfo | null | undefined,
+  parameters: readonly GenerationParameter[],
+): boolean {
+  return parameters.some((parameter) => isGenerationParameterSupported(modelInfo, parameter));
+}
+
 export const KNOWN_ASPECT_RATIOS: readonly AspectRatio[] = [
   '2:3',
   '3:2',
@@ -39,17 +122,4 @@ export function getT2iAspectRatios(modelInfo: ModelInfo | null | undefined): Asp
   return ratios.filter((r): r is AspectRatio =>
     (KNOWN_ASPECT_RATIOS as readonly string[]).includes(r),
   );
-}
-
-/**
- * Whether the model exposes Aisha-style configurable image params
- * (quality tiers, custom width/height, sampler overrides).
- *
- * Current backend proxy: a non-null `image.supported_tiers`. Only Aisha image
- * models expose this today. If the backend later adds a dedicated capability
- * flag, or another provider starts exposing tiers, this is the single place to
- * refine the rule (e.g. also require `provisioning_mode === 'on_demand'`).
- */
-export function supportsAishaImageParams(modelInfo: ModelInfo | null | undefined): boolean {
-  return modelInfo?.image?.supported_tiers != null;
 }

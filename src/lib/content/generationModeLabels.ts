@@ -3,7 +3,7 @@ import type { GenerationMode } from '$lib/utils/generationModes';
 
 /** Read at render time so the active Paraglide locale is always respected. */
 export function generationModeLabel(mode: GenerationMode): string {
-  const labels: Record<GenerationMode, () => string> = {
+  const labels: Partial<Record<GenerationMode, () => string>> = {
     t2i: m.model_guide_mode_t2i,
     i2i: m.model_guide_mode_i2i,
     t2v: m.model_guide_mode_t2v,
@@ -11,5 +11,5 @@ export function generationModeLabel(mode: GenerationMode): string {
     v2v: m.model_guide_mode_v2v,
     flf2v: m.model_guide_mode_flf2v,
   };
-  return labels[mode]();
+  return labels[mode]?.() ?? mode;
 }

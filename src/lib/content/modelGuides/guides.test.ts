@@ -14,12 +14,11 @@ vi.mock('$paraglide/messages', async (importOriginal) => {
 });
 
 import { KNOWN_ASPECT_RATIOS } from '$lib/utils/modelCapabilities';
-import { isGenerationMode, MODEL_TYPES } from '$lib/utils/generationModes';
+import { isGenerationMode } from '$lib/utils/generationModes';
 import { modelGuides } from './guides';
 
 describe('modelGuides', () => {
-  it('is exhaustive and keeps each registry key aligned with its guide', () => {
-    expect(Object.keys(modelGuides).sort()).toEqual([...MODEL_TYPES].sort());
+  it('keeps each optional guide registry key aligned with its guide', () => {
     for (const [key, guide] of Object.entries(modelGuides)) {
       expect(guide.modelKey).toBe(key);
     }

@@ -202,6 +202,14 @@ const mockProvidersResponse = {
           max_prompt_length: 4096,
           supports_negative_prompt: true,
           aspect_ratios: ['1:1', '16:9', '3:4'],
+          inputs: {
+            source_media: {
+              min: 1,
+              max: 1,
+              media_types: ['image'],
+              required_for: ['i2i'],
+            },
+          },
           image: null,
           video: null,
         },
@@ -498,11 +506,32 @@ test.describe('Library actions — Remix / Reproduce', () => {
     await expect(page.getByText('From generated')).toBeVisible();
   });
 
-  test('Reproduce button on a video asset navigates to Create without a source image', async ({
+  test('Reproduce button on a t2v video asset loads its group before navigating without source media', async ({
     authenticatedPage: page,
   }) => {
     await page.route((url) => url.pathname === '/v1/library', jsonRoute(mockLibraryPage));
     await page.route('**/v1/library/assets/**', jsonRoute(mockAssetDetailVideo));
+    await page.route(
+      '**/v1/library/groups/job_003',
+      jsonRoute({
+        job_id: 'job_003',
+        badge: 'video',
+        input_media: null,
+        source_media: [],
+        prompt: 'City lights at night timelapse',
+        negative_prompt: null,
+        outputs: [],
+        media_type: 'video',
+        model: 'grok-imagine-video',
+        provider: 'grok',
+        generation_type: 't2v',
+        aspect_ratio: '16:9',
+        token_cost: 20,
+        created_at: '2025-01-03T00:00:00Z',
+        completed_at: '2025-01-03T00:01:00Z',
+        lineage: null,
+      }),
+    );
 
     await page.goto('/app/library');
     await expect(page.getByText(/\d+\s*loaded/i)).toBeVisible({ timeout: 5000 });
@@ -516,7 +545,6 @@ test.describe('Library actions — Remix / Reproduce', () => {
     await page.getByRole('button', { name: 'Reproduce' }).click();
 
     await expect(page).toHaveURL(/\/app\/create/, { timeout: 5000 });
-
     const promptTextarea = page.locator('textarea').first();
     await expect(promptTextarea).toHaveValue(/City lights at night timelapse/i, { timeout: 3000 });
     await expect(page.getByText('From generated')).not.toBeVisible();

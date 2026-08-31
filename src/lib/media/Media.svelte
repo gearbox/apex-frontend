@@ -44,5 +44,14 @@
     class={className}
   />
 {:else}
-  <MediaImage {media} {alt} {sizes} class={className} {loading} />
+  {#if media.media_type === 'image'}
+    <MediaImage {media} {alt} {sizes} class={className} {loading} />
+  {:else}
+    <div
+      class="flex min-h-20 items-center justify-center rounded-lg border border-border bg-surface p-3 text-center text-xs text-text-muted {className}"
+      role="status"
+    >
+      Unsupported media type: {media.media_type}
+    </div>
+  {/if}
 {/if}

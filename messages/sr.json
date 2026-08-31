@@ -138,6 +138,8 @@
   "library_action_unfavorite": "Ukloni iz omiljenih",
   "library_action_rename": "Preimenuj",
   "library_reproduce_source_missing": "Originalna ulazna slika više nije dostupna, pa se ova generacija ne može tačno ponoviti. Koristite Remiks da započnete od trenutne slike.",
+  "library_reproduce_source_incompatible": "Originalni izvorni mediji više ne odgovaraju nijednom dostupnom modelu, pa se ova generacija ne može tačno ponoviti.",
+  "library_reproduce_v2v_unavailable": "Tačno ponovno generisanje nije dostupno za istorijske video-u-video zadatke jer originalni ulazni video ne može da se povrati.",
   "library_action_no_model": "Nijedan dostupan model trenutno ne podržava ovu radnju.",
   "library_share_preparing": "Priprema…",
   "library_search_placeholder": "Pretraži biblioteku",

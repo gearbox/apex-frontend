@@ -10,6 +10,9 @@ export function providersQueryOptions() {
       const { data } = await apiClient.GET('/v1/providers');
       return data ?? { providers: [], user_context: null };
     },
-    staleTime: 60 * 60 * 1000,
+    // A bundle can change capability semantics while retaining the same model_key.
+    // Keep discovery live; session mutations explicitly invalidate this query too.
+    staleTime: 0,
+    refetchOnWindowFocus: true,
   };
 }

@@ -1,4 +1,3 @@
-import { isModelType } from '$lib/utils/generationModes';
 import type { components } from '$lib/api/types';
 import { modelGuides } from './guides';
 import type { ModelGuide } from './types';
@@ -14,7 +13,7 @@ export function createStaticModelGuideSource(
 ): ModelGuideSource {
   return {
     get(modelKey) {
-      return isModelType(modelKey) ? (registry[modelKey] ?? null) : null;
+      return registry[modelKey as ModelType] ?? null;
     },
   };
 }

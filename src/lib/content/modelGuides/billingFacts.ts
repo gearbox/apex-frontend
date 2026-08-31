@@ -1,7 +1,7 @@
 import type { components } from '$lib/api/types';
 import type { GenerationMode } from '$lib/stores/generation';
 import { findPricingRule } from '$lib/utils/pricing';
-import { createSupportedModes, isModelType } from '$lib/utils/generationModes';
+import { createSupportedModes } from '$lib/utils/generationModes';
 import type { ProvisioningMode } from '$lib/utils/sessionState';
 
 type ModelInfo = components['schemas']['ModelInfo'];
@@ -29,13 +29,22 @@ export function deriveModelBillingFacts(params: {
 }): ModelBillingFacts {
   const { modelInfo, provider, provisioningMode, pricing, nowMs } = params;
   const modelKey = modelInfo?.model_key;
-  if (!modelInfo || !provider || !modelKey || !isModelType(modelKey)) {
+  if (!modelInfo || !provider || !modelKey) {
     return { costs: [], billedBySession: false };
   }
 
   return {
     costs: createSupportedModes(modelInfo).map((mode) => {
-      const rule = findPricingRule(pricing, provider, modelKey, mode, nowMs);
+      // The generated API type currently has a closed model enum, while
+      // discovery intentionally remains open-ended. This is only an external
+      // typing boundary, not a frontend model registry.
+      const rule = findPricingRule(
+        pricing,
+        provider,
+        modelKey as components['schemas']['ModelType'],
+        mode,
+        nowMs,
+      );
       return {
         mode,
         tokenCost: rule?.token_cost ?? null,

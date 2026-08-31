@@ -137,7 +137,13 @@
   }
 
   const menuItems = $derived(
-    (providersReady ? filterVisibleLibraryActions(item.available_actions, { availableModes }) : [])
+    (providersReady
+      ? filterVisibleLibraryActions(item.available_actions, {
+          availableModes,
+          generationType: item.generation_type,
+        })
+      : []
+    )
       .map((action) => {
         const handler = resolveLibraryAction(
           action,

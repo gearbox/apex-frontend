@@ -26,8 +26,17 @@ const GROK_PROVIDERS: ProvidersResponse = {
           max_images: 10,
           max_prompt_length: 4096,
           supports_negative_prompt: false,
+          unsupported_parameters: ['negative_prompt'],
           aspect_ratios: ['1:1', '16:9', '9:16'],
           requires_age_verification: false,
+          inputs: {
+            source_media: {
+              min: 1,
+              max: 4,
+              media_types: ['image'],
+              required_for: ['i2i'],
+            },
+          },
           image: { edit_aspect_ratios: [] },
           video: null,
         },
@@ -54,6 +63,7 @@ const GROK_VIDEO_PROVIDERS: ProvidersResponse = {
           max_images: 1,
           max_prompt_length: 4096,
           supports_negative_prompt: false,
+          unsupported_parameters: ['negative_prompt'],
           aspect_ratios: ['1:1', '16:9', '9:16'],
           requires_age_verification: false,
           image: null,
@@ -150,12 +160,38 @@ describe('/app/create page — generate gating during providers load', () => {
     }
   });
 
+  it('keeps a selected disabled model visible but makes the Create card unavailable', () => {
+    providersData = {
+      ...GROK_PROVIDERS,
+      providers: [
+        {
+          ...GROK_PROVIDERS.providers[0],
+          provisioning_mode: 'on_demand',
+          models: [
+            {
+              ...GROK_PROVIDERS.providers[0].models[0],
+              is_enabled: false,
+              session_state: 'none',
+            },
+          ],
+        },
+      ],
+    };
+
+    render(Page);
+
+    expect(screen.getByText('Grok Imagine (Unavailable)')).toBeTruthy();
+    expect(screen.getByText('Temporarily unavailable')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /start session/i })).toBeNull();
+    for (const btn of generateButtons()) expect(btn.disabled).toBe(true);
+  });
+
   it('shows the selected model summary and marks missing pricing as unavailable', () => {
     providersData = GROK_PROVIDERS;
 
     render(Page);
 
-    expect(screen.getByRole('button', { name: 'Learn more about this model' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Open model guide' })).toBeTruthy();
     expect(screen.getByText('Cost unavailable')).toBeTruthy();
   });
 
@@ -230,7 +266,15 @@ describe('/app/create page — generate gating during providers load', () => {
   it('includes the current input-image surcharge in the estimate', () => {
     providersData = GROK_PROVIDERS;
     generationStore.setMode('i2i');
-    generationStore.setUploadedImageId('image_001');
+    generationStore.setSourceMedia([
+      {
+        assetRef: 'upload:image_001',
+        mediaType: 'image',
+        previewUrl: null,
+        label: null,
+        available: true,
+      },
+    ]);
     pricingData = [
       {
         id: '00000000-0000-0000-0000-000000000001',
@@ -252,10 +296,18 @@ describe('/app/create page — generate gating during providers load', () => {
     expect(screen.getAllByText('◈ 9')).toHaveLength(2);
   });
 
-  it('does not charge a retained i2i source after switching back to t2i', () => {
+  it('prices a retained optional source after switching back to t2i when discovery accepts it', () => {
     providersData = GROK_PROVIDERS;
     generationStore.setMode('i2i');
-    generationStore.setUploadedImageId('image_001');
+    generationStore.setSourceMedia([
+      {
+        assetRef: 'upload:image_001',
+        mediaType: 'image',
+        previewUrl: null,
+        label: null,
+        available: true,
+      },
+    ]);
     generationStore.setMode('t2i');
     pricingData = [
       {
@@ -274,8 +326,8 @@ describe('/app/create page — generate gating during providers load', () => {
 
     render(Page);
 
-    expect(screen.getByText('Est. ◈ 7 tokens')).toBeTruthy();
-    expect(screen.getAllByText('◈ 7')).toHaveLength(2);
+    expect(screen.getByText('Est. ◈ 9 tokens')).toBeTruthy();
+    expect(screen.getAllByText('◈ 9')).toHaveLength(2);
   });
 
   it('uses one output in the estimate after switching from four images to video', () => {
@@ -308,7 +360,7 @@ describe('/app/create page — generate gating during providers load', () => {
     providersData = GROK_PROVIDERS;
     render(Page);
 
-    await fireEvent.click(screen.getByRole('button', { name: 'Learn more about this model' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Open model guide' }));
     expect(screen.getByRole('dialog')).toBeTruthy();
     await fireEvent.click(screen.getAllByRole('button', { name: 'Use this prompt' })[0]);
 
@@ -344,7 +396,7 @@ describe('/app/create page — generate gating during providers load', () => {
     render(Page);
     expect(screen.getByText('Est. ◈ 7 tokens')).toBeTruthy();
 
-    await fireEvent.click(screen.getByRole('button', { name: 'Learn more about this model' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Open model guide' }));
     expect(screen.getAllByText('Cost unavailable')).toHaveLength(1);
 
     await vi.advanceTimersByTimeAsync(60_000);

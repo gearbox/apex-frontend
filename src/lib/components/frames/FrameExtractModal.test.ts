@@ -5,11 +5,10 @@ import { server } from '../../../mocks/server';
 import { MOCK_BASE_URL as BASE } from '../../../mocks/config';
 import type { components } from '$lib/api/types';
 
-const { gotoMock, invalidateQueriesMock, setModeMock, setUploadedImageIdMock } = vi.hoisted(() => ({
+const { gotoMock, invalidateQueriesMock, prefillMock } = vi.hoisted(() => ({
   gotoMock: vi.fn(),
   invalidateQueriesMock: vi.fn(),
-  setModeMock: vi.fn(),
-  setUploadedImageIdMock: vi.fn(),
+  prefillMock: vi.fn(),
 }));
 
 const { desktopBreakpoint } = vi.hoisted(() => {
@@ -34,8 +33,11 @@ vi.mock('$app/navigation', () => ({ goto: gotoMock }));
 
 vi.mock('$lib/stores/generation', () => ({
   generationStore: {
-    setMode: setModeMock,
-    setUploadedImageId: setUploadedImageIdMock,
+    subscribe(run: (value: { model: string }) => void) {
+      run({ model: 'grok-imagine-image' });
+      return () => undefined;
+    },
+    prefill: prefillMock,
   },
 }));
 
@@ -51,6 +53,15 @@ vi.mock('@tanstack/svelte-query', () => ({
     }),
   ),
   useQueryClient: vi.fn(() => ({ invalidateQueries: invalidateQueriesMock })),
+  createQuery: vi.fn(() => ({
+    data: {
+      providers: [
+        {
+          models: [{ model_key: 'grok-imagine-image', is_enabled: true, capabilities: ['i2i'] }],
+        },
+      ],
+    },
+  })),
 }));
 
 vi.mock('$paraglide/messages', () => ({
@@ -478,10 +489,18 @@ describe('FrameExtractModal', () => {
     expect(invalidateQueriesMock).toHaveBeenCalledWith({ queryKey: ['storage'] });
 
     await fireEvent.click(screen.getAllByRole('button', { name: 'Use as input' })[0]);
-    expect(setModeMock).toHaveBeenCalledWith('i2i');
-    expect(setUploadedImageIdMock).toHaveBeenCalledWith(
-      'extracted-upload-1',
-      'http://localhost:8000/v1/content/uploads/extracted-upload-1',
+    expect(prefillMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: 'grok-imagine-image',
+        mode: 'i2i',
+        sourceMedia: [
+          expect.objectContaining({
+            assetRef: 'upload:extracted-upload-1',
+            mediaType: 'image',
+            available: true,
+          }),
+        ],
+      }),
     );
     expect(gotoMock).toHaveBeenCalledWith('/app/create');
     expect(onclose).toHaveBeenCalledOnce();

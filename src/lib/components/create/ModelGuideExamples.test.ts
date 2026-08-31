@@ -42,7 +42,7 @@ describe('ModelGuideExamples', () => {
   });
 
   it('renders the three configured Grok Imagine samples and preserves prompt actions', async () => {
-    const examples = modelGuides['grok-imagine-image'].examples;
+    const examples = modelGuides['grok-imagine-image']!.examples;
     const onuse = vi.fn();
     expect(examples.map((example) => example.image)).toEqual([
       '/model-guides/grok-imagine-image/gi-mug.webp',

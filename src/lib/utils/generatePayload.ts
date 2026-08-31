@@ -1,95 +1,191 @@
 import type { components } from '$lib/api/types';
-import type { GenerationState } from '$lib/stores/generation';
-import { modeRequiresImageInput } from '$lib/utils/generationModes';
-import { supportsAishaImageParams } from '$lib/utils/modelCapabilities';
+import {
+  normalizeSourceMedia,
+  type GenerationState,
+  type SourceMediaDraft,
+} from '$lib/stores/generation';
+import {
+  isGenerationParameterSupported,
+  sourceMediaPolicy,
+  type SourceMediaPolicy,
+} from '$lib/utils/modelCapabilities';
 import { normalizeVideoParams } from '$lib/utils/videoParams';
 
 type ModelInfo = components['schemas']['ModelInfo'];
 type UnifiedGenerationRequest = components['schemas']['UnifiedGenerationRequest'];
+type SourceMediaReference = components['schemas']['SourceMediaReference'];
+
+export interface SourceMediaValidation {
+  valid: boolean;
+  message: string | null;
+}
+
+function allowedSourceMedia(
+  sourceMedia: readonly SourceMediaDraft[],
+  policy: SourceMediaPolicy,
+): SourceMediaDraft[] {
+  if (!policy.accepted) return [];
+
+  const selected: SourceMediaDraft[] = [];
+  for (const source of normalizeSourceMedia(sourceMedia)) {
+    if (
+      source.available &&
+      source.mediaType !== null &&
+      policy.mediaTypes.includes(source.mediaType as never)
+    ) {
+      selected.push(source);
+    }
+  }
+  return selected.slice(0, policy.max);
+}
 
 /**
- * Normalize the current UI's output count to the backend request contract.
- * Image modes use the selected count within the live model limit; video modes
- * submit one output regardless of stale hidden image-count state.
+ * Validate the editable list against the latest discovery response. This is
+ * deliberately shared by UI gating and request projection so `required_for`
+ * remains the only requiredness authority.
+ */
+export function validateSourceMedia(
+  state: GenerationState,
+  modelInfo: ModelInfo | null,
+): SourceMediaValidation {
+  // v2v keeps its existing URL-based request path until the backend migrates it.
+  if (state.mode === 'v2v') return { valid: true, message: null };
+  const policy = sourceMediaPolicy(modelInfo, state.mode);
+  if (!policy.accepted) return { valid: true, message: null };
+
+  if (state.sourceMedia.some((source) => !source.available)) {
+    return { valid: false, message: 'Replace unavailable source media before generating.' };
+  }
+  const refs = state.sourceMedia.map((source) => source.assetRef);
+  if (new Set(refs).size !== refs.length) {
+    return { valid: false, message: 'Each source item must be selected only once.' };
+  }
+  if (
+    state.sourceMedia.some(
+      (source) =>
+        source.mediaType === null || !policy.mediaTypes.includes(source.mediaType as never),
+    )
+  ) {
+    return { valid: false, message: 'A selected source is not supported by this model.' };
+  }
+  if (state.sourceMedia.length > policy.max) {
+    return { valid: false, message: `This model accepts at most ${policy.max} source items.` };
+  }
+  if (policy.required && state.sourceMedia.length < policy.min) {
+    return {
+      valid: false,
+      message: `This generation type needs at least ${policy.min} source item${policy.min === 1 ? '' : 's'}.`,
+    };
+  }
+  return { valid: true, message: null };
+}
+
+/**
+ * Normalize a draft using the live capability response immediately before a
+ * request. The output contains no UI metadata and preserves source order.
+ */
+export function sourceMediaForRequest(
+  state: GenerationState,
+  modelInfo: ModelInfo | null,
+): SourceMediaReference[] | undefined {
+  if (state.mode === 'v2v') return undefined;
+  const policy = sourceMediaPolicy(modelInfo, state.mode);
+  if (!policy.accepted) return undefined;
+  const sourceMedia = allowedSourceMedia(state.sourceMedia ?? [], policy).map(({ assetRef }) => ({
+    asset_ref: assetRef,
+  }));
+  // `source_media`, when present, has a schema minimum of one item. Optional
+  // source-media modes therefore omit the field instead of sending an invalid
+  // empty array.
+  return sourceMedia.length > 0 ? sourceMedia : undefined;
+}
+
+/**
+ * Normalize output count from current batch support. The backend calls this
+ * parameter `batch_size` in discovery even though the request field is `n`.
  */
 export function outputCountForRequest(state: GenerationState, modelInfo: ModelInfo | null): number {
-  if (state.mode !== 't2i' && state.mode !== 'i2i') return 1;
-
+  if (!isGenerationParameterSupported(modelInfo, 'batch_size')) return 1;
   const requestedCount = Math.max(1, state.imageCount);
   return modelInfo ? Math.max(1, Math.min(requestedCount, modelInfo.max_images)) : requestedCount;
 }
 
-/**
- * Project retained image-source draft state onto the generation request contract.
- * Text-only modes intentionally omit a stale source so it cannot affect either
- * generation behavior or the backend's input-image pricing surcharge.
- */
-function imageSourceForRequest(
+/** Returns the normalized owned-media count used by the pricing quote. */
+export function sourceMediaCountForRequest(
   state: GenerationState,
-): Pick<UnifiedGenerationRequest, 'input_image_id' | 'source_output_id'> {
-  if (!modeRequiresImageInput(state.mode)) return {};
-
-  if (state.uploadedImageId) return { input_image_id: state.uploadedImageId };
-  if (state.sourceOutputId) return { source_output_id: state.sourceOutputId };
-  return {};
+  modelInfo: ModelInfo | null,
+): number {
+  return sourceMediaForRequest(state, modelInfo)?.length ?? 0;
 }
 
-/** Returns the number of image inputs serialized into the normalized request. */
-export function inputImageCountForRequest(state: GenerationState): number {
-  const source = imageSourceForRequest(state);
-  return source.input_image_id || source.source_output_id ? 1 : 0;
-}
-
+/**
+ * Projects every stale draft value through the currently selected ModelInfo.
+ * It intentionally never writes the deprecated input-image aliases.
+ */
 export function buildGeneratePayload(
   state: GenerationState,
   modelInfo: ModelInfo | null,
 ): UnifiedGenerationRequest {
-  const isAishaImage = supportsAishaImageParams(modelInfo);
   const videoParams = normalizeVideoParams(modelInfo, state.videoDuration, state.videoResolution);
+  const sourceMedia = sourceMediaForRequest(state, modelInfo);
 
-  // Aisha sizing block (only when gate is true)
-  const aishaSize: Partial<UnifiedGenerationRequest> = {};
-  if (isAishaImage) {
-    if (
-      state.sizingMode === 'custom' &&
-      state.customWidth !== null &&
-      state.customHeight !== null
-    ) {
-      aishaSize.width = state.customWidth;
-      aishaSize.height = state.customHeight;
-    } else if (state.sizingMode === 'tier' && state.imageTier !== null) {
-      aishaSize.image_resolution = state.imageTier;
-    }
-  }
-
-  // Aisha sampler overrides (only when gate is true)
-  const aishaSampler: Partial<UnifiedGenerationRequest> = {};
-  if (isAishaImage) {
-    if (state.seed !== null) aishaSampler.seed = state.seed;
-    if (state.steps !== null) aishaSampler.steps = state.steps;
-    if (state.cfg !== null) aishaSampler.cfg = state.cfg;
-    if (state.sampler !== null) aishaSampler.sampler = state.sampler;
-    if (state.scheduler !== null) aishaSampler.scheduler = state.scheduler;
-    if (state.denoise !== null) aishaSampler.denoise = state.denoise;
-  }
-
-  return {
+  const payload: UnifiedGenerationRequest = {
     prompt: state.prompt,
-    generation_type: state.mode,
+    generation_type: state.mode as UnifiedGenerationRequest['generation_type'],
     model: state.model,
-    ...(state.mode === 'i2i'
-      ? state.editAspectRatio !== null
-        ? { aspect_ratio: state.editAspectRatio }
-        : {}
-      : { aspect_ratio: state.aspectRatio }),
     n: outputCountForRequest(state, modelInfo),
     duration: videoParams.duration,
     resolution: videoParams.resolution,
-    ...imageSourceForRequest(state),
-    ...(modelInfo?.supports_negative_prompt === true && state.negativePrompt.trim().length > 0
+    ...(sourceMedia !== undefined ? { source_media: sourceMedia } : {}),
+    ...(state.mode === 'v2v' && state.inputVideoUrl
+      ? { input_video_url: state.inputVideoUrl }
+      : {}),
+    ...(isGenerationParameterSupported(modelInfo, 'aspect_ratio')
+      ? state.mode === 'i2i'
+        ? state.editAspectRatio !== null
+          ? { aspect_ratio: state.editAspectRatio }
+          : {}
+        : { aspect_ratio: state.aspectRatio }
+      : {}),
+    ...(isGenerationParameterSupported(modelInfo, 'negative_prompt') &&
+    state.negativePrompt.trim().length > 0
       ? { negative_prompt: state.negativePrompt.trim() }
       : {}),
-    ...aishaSize,
-    ...aishaSampler,
   };
+
+  if (
+    isGenerationParameterSupported(modelInfo, 'image_resolution') &&
+    state.sizingMode === 'tier' &&
+    state.imageTier !== null
+  ) {
+    payload.image_resolution = state.imageTier;
+  } else if (
+    state.sizingMode === 'custom' &&
+    state.customWidth !== null &&
+    state.customHeight !== null &&
+    isGenerationParameterSupported(modelInfo, 'width') &&
+    isGenerationParameterSupported(modelInfo, 'height')
+  ) {
+    payload.width = state.customWidth;
+    payload.height = state.customHeight;
+  }
+
+  if (state.seed !== null && isGenerationParameterSupported(modelInfo, 'seed'))
+    payload.seed = state.seed;
+  if (state.steps !== null && isGenerationParameterSupported(modelInfo, 'steps')) {
+    payload.steps = state.steps;
+  }
+  if (state.cfg !== null && isGenerationParameterSupported(modelInfo, 'cfg'))
+    payload.cfg = state.cfg;
+  if (state.sampler !== null && isGenerationParameterSupported(modelInfo, 'sampler')) {
+    payload.sampler = state.sampler;
+  }
+  if (state.scheduler !== null && isGenerationParameterSupported(modelInfo, 'scheduler')) {
+    payload.scheduler = state.scheduler;
+  }
+  if (state.denoise !== null && isGenerationParameterSupported(modelInfo, 'denoise')) {
+    payload.denoise = state.denoise;
+  }
+
+  return payload;
 }

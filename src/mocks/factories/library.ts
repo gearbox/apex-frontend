@@ -116,6 +116,7 @@ export function makeLibraryGroupDetail(
     job_id: 'job_mock_001',
     badge: 'prompt',
     input_media: null,
+    source_media: [],
     prompt: 'A beautiful sunset over mountains with golden light streaming through clouds',
     negative_prompt: null,
     outputs: [makeLibraryOutputItem()],

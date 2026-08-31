@@ -138,6 +138,8 @@
   "library_action_unfavorite": "Unfavorite",
   "library_action_rename": "Rename",
   "library_reproduce_source_missing": "The original input image is no longer available, so this generation can't be reproduced exactly. Use Remix to start from the current image instead.",
+  "library_reproduce_source_incompatible": "The original source media no longer fits any available model, so this generation can't be reproduced exactly.",
+  "library_reproduce_v2v_unavailable": "Exact Re-Generate is unavailable for historical video-to-video jobs because the original input video cannot be recovered.",
   "library_action_no_model": "No available model supports this action right now.",
   "library_share_preparing": "Preparing…",
   "library_search_placeholder": "Search library",
