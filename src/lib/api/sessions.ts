@@ -3,10 +3,12 @@ import type { components } from '$lib/api/types';
 import { throwApiError } from '$lib/api/errors';
 
 export type GpuSessionResponse = components['schemas']['GpuSessionResponse'];
+export type GpuSessionListItemResponse = components['schemas']['GpuSessionListItemResponse'];
 export type StopConfirmationResponse = components['schemas']['StopConfirmationResponse'];
+export type OperationResponse = components['schemas']['OperationResponse'];
 type ModelType = components['schemas']['ModelType'];
 
-export async function listSessions(includeTerminal = false): Promise<GpuSessionResponse[]> {
+export async function listSessions(includeTerminal = false): Promise<GpuSessionListItemResponse[]> {
   const { data, error } = await apiClient.GET('/v1/sessions', {
     params: { query: { include_terminal: includeTerminal } },
   });
@@ -20,6 +22,21 @@ export async function getSession(id: string): Promise<GpuSessionResponse> {
   });
   if (error || !data) throwApiError(error, 'Failed to load session');
   return data as GpuSessionResponse;
+}
+
+/** Reserved for the SSE-down operation fallback; normal hydration uses session snapshots. */
+export async function getOperation(
+  sessionId: string,
+  operationId: string,
+): Promise<OperationResponse> {
+  const { data, error } = await apiClient.GET(
+    '/v1/sessions/{session_id}/operations/{operation_id}',
+    {
+      params: { path: { session_id: sessionId, operation_id: operationId } },
+    },
+  );
+  if (error || !data) throwApiError(error, 'Failed to load operation');
+  return data as OperationResponse;
 }
 
 export async function startSession(model: ModelType): Promise<GpuSessionResponse> {

@@ -2,18 +2,15 @@
   import { onMount, onDestroy } from 'svelte';
   import { Square } from '@lucide/svelte';
   import StatusBadge from '$lib/components/shared/StatusBadge.svelte';
-  import SessionProgressBar from './SessionProgressBar.svelte';
-  import type { GpuSessionResponse } from '$lib/api/sessions';
-  import { isProvisioningStatus } from '$lib/utils/sessionState';
+  import type { GpuSessionListItemResponse } from '$lib/api/sessions';
   import * as m from '$paraglide/messages';
 
   interface Props {
-    session: GpuSessionResponse;
+    session: GpuSessionListItemResponse;
     onStop: (id: string) => void;
-    provisioningProgress?: number | null;
   }
 
-  let { session, onStop, provisioningProgress = null }: Props = $props();
+  let { session, onStop }: Props = $props();
 
   const SESSION_COLOR_MAP: Record<string, string> = {
     active: 'success',
@@ -72,60 +69,30 @@
       : `${min}m ${s.toString().padStart(2, '0')}s`;
   }
 
-  function microsToUsd(micros: number, seconds: number): string {
-    const hours = seconds / 3600;
-    const usd = (micros / 1_000_000) * hours;
-    return `$${usd.toFixed(4)}`;
-  }
-
-  const isProvisioning = $derived(isProvisioningStatus(session.status));
   const isTerminal = $derived(session.status === 'stopped' || session.status === 'failed');
-  const stopDisabled = $derived(
-    session.status === 'stopping' || isTerminal || session.in_flight_job_count > 0,
-  );
+  const stopDisabled = $derived(session.status === 'stopping' || isTerminal);
 </script>
 
 <div class="session-card">
   <div class="card-header">
     <div class="card-title-row">
       <div class="card-model">
-        <span class="model-name">{session.model_type}</span>
+        <span class="model-name"
+          >{session.deployments.map((deployment) => deployment.model_type).join(', ')}</span
+        >
       </div>
       <StatusBadge status={session.status} colorMap={SESSION_COLOR_MAP} />
     </div>
-
-    {#if session.vastai_gpu_name}
-      <div class="card-meta">{session.vastai_gpu_name}</div>
-    {/if}
   </div>
 
-  {#if isProvisioning}
-    <div class="card-provisioning">
-      <SessionProgressBar
-        status={session.status}
-        progress={provisioningProgress}
-        phase={session.provisioning_phase}
-      />
-    </div>
-  {:else if session.status === 'active' && session.started_at}
+  {#if session.status === 'active' && session.started_at}
     <div class="card-uptime">
       <span class="uptime-label">{m.session_uptime()}</span>
       <span class="uptime-value">{formatDuration(elapsed)}</span>
-      {#if session.vastai_cost_per_hour_micros}
-        <span class="cost-hint"
-          >{m.session_cost_so_far()}
-          {microsToUsd(session.vastai_cost_per_hour_micros, elapsed)}</span
-        >
-      {/if}
     </div>
   {/if}
 
   <div class="card-actions">
-    {#if session.in_flight_job_count > 0}
-      <span class="in-flight-hint"
-        >{m.session_in_flight({ count: session.in_flight_job_count })}</span
-      >
-    {/if}
     <button class="btn-stop" disabled={stopDisabled} onclick={() => onStop(session.id)}>
       <Square size={14} />
       {session.status === 'stopping' ? m.session_stopping() : m.session_stop()}
@@ -169,15 +136,6 @@
     color: var(--apex-text);
   }
 
-  .card-meta {
-    font-size: 12px;
-    color: var(--apex-text-dim);
-  }
-
-  .card-provisioning {
-    padding-bottom: 8px;
-  }
-
   .card-uptime {
     display: flex;
     align-items: center;
@@ -197,23 +155,11 @@
     font-variant-numeric: tabular-nums;
   }
 
-  .cost-hint {
-    font-size: 11px;
-    color: var(--apex-text-dim);
-    margin-left: auto;
-  }
-
   .card-actions {
     display: flex;
     align-items: center;
     gap: 10px;
     justify-content: flex-end;
-  }
-
-  .in-flight-hint {
-    font-size: 11px;
-    color: var(--apex-warning);
-    flex: 1;
   }
 
   .btn-stop {

@@ -2,7 +2,7 @@ import { test, expect } from '../fixtures/auth.fixture';
 import { test as anonTest, type Page } from '@playwright/test';
 
 // Shared providers helper
-function makeAishaProvider(session_state: string, available = true) {
+function makeAishaProvider(state: string, available = true) {
   return {
     providers: [
       {
@@ -23,7 +23,12 @@ function makeAishaProvider(session_state: string, available = true) {
             aspect_ratios: ['1:1'],
             image: null,
             video: null,
-            session_state,
+            runtime: {
+              state,
+              session_id: state === 'none' ? null : 'sess_mock',
+              deployment_id: state === 'none' ? null : 'deploy_mock',
+              operation_id: state === 'provisioning' ? 'op_mock' : null,
+            },
           },
         ],
       },
@@ -37,7 +42,6 @@ const makeSession = (status: string, id = 'sess_mock') => ({
   user_id: 'usr_001',
   product_id: 'prod_001',
   status,
-  model_type: 'aisha-image',
   tunnel_hostname: status === 'active' ? 'tunnel.example.com' : null,
   vastai_gpu_name: 'RTX 4090',
   vastai_cost_per_hour_micros: 50000,
@@ -48,8 +52,9 @@ const makeSession = (status: string, id = 'sess_mock') => ({
   stopped_at: null,
   error_message: null,
   in_flight_job_count: 0,
-  provisioning_phase: null,
-  provisioning_progress: null,
+  deployments: [
+    { id: 'deploy_mock', model_type: 'aisha-image', status: 'active', is_primary: true },
+  ],
 });
 
 function setupCommonRoutes(page: Page) {
@@ -266,6 +271,13 @@ test('READY (on_demand active session): Stop button visible and Generate enabled
         body: JSON.stringify({ sessions: [makeSession('active')] }),
       }),
   );
+  await page.route('**/v1/sessions/*', (r) =>
+    r.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(makeSession('active')),
+    }),
+  );
 
   await page.goto('/app/create?prompt=hello');
 
@@ -291,6 +303,13 @@ test('STALE session: Stop button visible and Generate disabled', async ({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({ sessions: [makeSession('stale')] }),
+    }),
+  );
+  await page.route('**/v1/sessions/*', (r) =>
+    r.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(makeSession('stale')),
     }),
   );
 
@@ -324,6 +343,13 @@ test('Stop button opens StopSessionModal; confirm calls stop endpoint', async ({
         });
       }
     },
+  );
+  await page.route('**/v1/sessions/*', (r) =>
+    r.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(makeSession('active')),
+    }),
   );
   await page.route('**/v1/sessions/*/stop', async (r) => {
     const body = (await r.request().postDataJSON()) as { confirmed: boolean };

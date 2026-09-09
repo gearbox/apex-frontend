@@ -17,9 +17,13 @@
     isGenerateEnabled,
     isProvisioningMode,
     isTerminalStatus,
-    type SessionState,
+    canStartSession,
   } from '$lib/utils/sessionState';
-  import { sessionsListQueryOptions, startSessionMutationOptions } from '$lib/queries/sessions';
+  import {
+    sessionDetailQueryOptions,
+    sessionsListQueryOptions,
+    startSessionMutationOptions,
+  } from '$lib/queries/sessions';
   import * as m from '$paraglide/messages';
   import ModelSelector from '$lib/components/create/ModelSelector.svelte';
   import AgeVerificationModal from '$lib/components/create/AgeVerificationModal.svelte';
@@ -47,7 +51,7 @@
     trackProjectForJob,
   } from '$lib/services/projectInheritance';
   import { libraryKeys, projectKeys } from '$lib/queries/library';
-  import { providersQueryOptions } from '$lib/queries/providers';
+  import { providerKeys, providersQueryOptions } from '$lib/queries/providers';
   import { billingPricingQueryOptions } from '$lib/queries/billing';
   import { defaultModelGuideSource } from '$lib/content/modelGuides/source';
   import { deriveModelBillingFacts } from '$lib/content/modelGuides/billingFacts';
@@ -132,25 +136,37 @@
     sessionsListQueryOptions(false, $isSSEFallback ? 8000 : false),
   );
 
-  const selectedSession = $derived(
-    (sessionsQuery.data ?? []).find(
-      (s) => s.model_type === currentModelInfo?.model_key && !isTerminalStatus(s.status),
-    ) ?? null,
+  const selectedSessionId = $derived(
+    currentModelInfo?.runtime?.session_id
+      ? ((sessionsQuery.data ?? []).find(
+          (session) =>
+            session.id === currentModelInfo.runtime?.session_id &&
+            !isTerminalStatus(session.status),
+        )?.id ?? null)
+      : null,
   );
+
+  // This is a normal snapshot read, not provisioning polling. It provides legacy Stop/timer
+  // compatibility while the provider runtime remains the sole card-state authority.
+  const selectedSessionQuery = createQuery(() =>
+    sessionDetailQueryOptions(queryClient, selectedSessionId ?? '', {
+      enabled: selectedSessionId !== null,
+    }),
+  );
+  const selectedSession = $derived(selectedSessionQuery.data ?? null);
 
   // ── Card state machine
   const cardState = $derived(
     currentModelInfo
-      ? currentModelInfo.is_enabled === false
-        ? 'UNAVAILABLE'
-        : currentProvisioningMode
-          ? deriveCardState({
-              provisioningMode: currentProvisioningMode,
-              available: currentModelInfo.providerAvailable,
-              sessionState: currentModelInfo.session_state as SessionState | null,
-              isAuthenticated: $isAuthenticated,
-            })
-          : 'UNAVAILABLE'
+      ? currentProvisioningMode
+        ? deriveCardState({
+            provisioningMode: currentProvisioningMode,
+            available: currentModelInfo.providerAvailable,
+            isEnabled: currentModelInfo.is_enabled,
+            runtime: currentModelInfo.runtime,
+            isAuthenticated: $isAuthenticated,
+          })
+        : 'UNAVAILABLE'
       : 'READY', // no model selected yet → don't block UI
   );
 
@@ -167,7 +183,14 @@
   const startMutation = createMutation(() => startSessionMutationOptions(queryClient));
 
   function handleStart() {
-    if (!currentModelInfo || currentModelInfo.is_enabled === false) return;
+    if (
+      !currentModelInfo ||
+      currentProvisioningMode !== 'on_demand' ||
+      !currentModelInfo.providerAvailable ||
+      !canStartSession(cardState)
+    ) {
+      return;
+    }
     startMutation.mutate(currentModelInfo.model_key as never, {
       onError: (err) => {
         const e = parseApiError(err, 0);
@@ -192,7 +215,7 @@
   function handleStopped() {
     stopModalSessionId = null;
     queryClient.invalidateQueries({ queryKey: ['sessions'] });
-    queryClient.invalidateQueries({ queryKey: ['providers'] });
+    queryClient.invalidateQueries({ queryKey: providerKeys.catalog() });
   }
 
   // Mirror the backend quote: a matching rule is priced against the exact

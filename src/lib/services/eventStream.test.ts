@@ -14,6 +14,10 @@ import { activeJobStore } from '$lib/stores/jobs';
 import { generationStore } from '$lib/stores/generation';
 import { toasts, removeToast } from '$lib/stores/toasts';
 import { sessionKeys } from '$lib/queries/sessions';
+import { operationKeys } from '$lib/queries/operations';
+import { providerKeys, fetchProviders } from '$lib/queries/providers';
+import { getSession } from '$lib/api/sessions';
+import { QueryClient } from '@tanstack/svelte-query';
 import { creditWarnings, dismissAllCreditWarnings } from '$lib/stores/creditWarnings';
 import { pushNudge } from '$lib/stores/pushNudge.svelte';
 import { fetchPendingPaymentTransactions } from './pendingPaymentReconciliation';
@@ -30,6 +34,16 @@ vi.mock('$lib/stores/pendingPayments', async (importOriginal) => {
     ...actual,
     getPendingPaymentScope: vi.fn(() => ({ userId: 'test-user', product: 'apex' })),
   };
+});
+
+vi.mock('$lib/api/sessions', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('$lib/api/sessions')>();
+  return { ...actual, getSession: vi.fn() };
+});
+
+vi.mock('$lib/queries/providers', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('$lib/queries/providers')>();
+  return { ...actual, fetchProviders: vi.fn() };
 });
 
 /* ─── Mock EventSource ─── */
@@ -95,6 +109,8 @@ beforeEach(() => {
   activeJobStore.clear();
   generationStore.reset();
   dismissAllCreditWarnings();
+  vi.mocked(getSession).mockReset();
+  vi.mocked(fetchProviders).mockReset().mockResolvedValue({ providers: [], user_context: null });
   // Drain any lingering toasts from previous tests
   get(toasts).forEach((t) => removeToast(t.id));
 });
@@ -117,6 +133,40 @@ function deferred<T>() {
     resolve = done;
   });
   return { promise, resolve };
+}
+
+function operationUpdated(revision: number, overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'op_001',
+    session_id: 'sess_001',
+    deployment_id: 'deploy_001',
+    kind: 'bundle_provision',
+    status: 'running',
+    phase: null,
+    revision,
+    target: null,
+    progress: null,
+    message: null,
+    error: null,
+    started_at: null,
+    updated_at: '2026-09-09T00:00:00Z',
+    finished_at: null,
+    ...overrides,
+  };
+}
+
+function sessionSnapshot(id: string, status = 'provisioning') {
+  return {
+    id,
+    user_id: 'user_001',
+    product_id: 'product_001',
+    status,
+    tunnel_hostname: null,
+    vastai_gpu_name: null,
+    vastai_cost_per_hour_micros: null,
+    created_at: '2026-09-09T00:00:00Z',
+    in_flight_job_count: 0,
+  } as never;
 }
 
 afterEach(() => {
@@ -528,7 +578,8 @@ describe('EventStreamService — job.progress dispatch', () => {
 });
 
 describe('EventStreamService — gpu_session.status_changed dispatch', () => {
-  it('patches detail cache and invalidates sessions + providers on provisioning→active', async () => {
+  it('does not optimistically patch detail scalars and debounces REST reconciliation', async () => {
+    vi.useFakeTimers();
     const queryClient = makeMockQueryClient();
     queryClient.getQueryData.mockReturnValue({
       id: 'sess_001',
@@ -543,16 +594,13 @@ describe('EventStreamService — gpu_session.status_changed dispatch', () => {
       session_id: 'sess_001',
       status: 'active',
       previous_status: 'provisioning',
-      model_type: 'aisha-image',
-
       tunnel_hostname: 'tunnel.example.com',
       error_message: null,
+      reason: null,
     });
 
-    expect(queryClient.setQueryData).toHaveBeenCalledWith(
-      sessionKeys.detail('sess_001'),
-      expect.any(Function),
-    );
+    expect(queryClient.setQueryData).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(250);
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: sessionKeys.all });
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['providers'] });
 
@@ -569,10 +617,9 @@ describe('EventStreamService — gpu_session.status_changed dispatch', () => {
       session_id: 'sess_003',
       status: 'active',
       previous_status: 'provisioning',
-      model_type: 'aisha-image',
-
       tunnel_hostname: 'tunnel.example.com',
       error_message: null,
+      reason: null,
     });
 
     const allToasts = get(toasts);
@@ -592,19 +639,15 @@ describe('EventStreamService — gpu_session.status_changed dispatch', () => {
       session_id: 'sess_002',
       status: 'failed',
       previous_status: 'provisioning',
-      model_type: 'aisha-image',
-
       tunnel_hostname: null,
       error_message: 'GPU out of memory',
+      reason: null,
     });
 
     const allToasts = get(toasts);
     expect(allToasts).toHaveLength(1);
     expect(allToasts[0].type).toBe('error');
     expect(allToasts[0].message).toBe('GPU out of memory');
-
-    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: sessionKeys.all });
-    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['providers'] });
 
     svc.dispose();
   });
@@ -619,15 +662,234 @@ describe('EventStreamService — gpu_session.status_changed dispatch', () => {
       session_id: 'sess_004',
       status: 'active',
       // previous_status intentionally omitted
-      model_type: 'aisha-image',
-
       tunnel_hostname: null,
       error_message: null,
+      reason: null,
     });
 
     expect(queryClient.setQueryData).not.toHaveBeenCalled();
     expect(get(toasts)).toHaveLength(0);
 
+    svc.dispose();
+  });
+});
+
+describe('EventStreamService — gpu_session.operation_updated dispatch', () => {
+  it('writes an unknown operation directly to the canonical cache without reconciliation', async () => {
+    const queryClient = makeMockQueryClient();
+    const svc = new EventStreamService({ queryClient: queryClient as never });
+    await svc.connect();
+
+    MockEventSource.instances[0]._emit(
+      'gpu_session.operation_updated',
+      operationUpdated(0, { id: 'op_unassociated', deployment_id: null, kind: 'comfyui_restart' }),
+    );
+
+    expect(queryClient.setQueryData).toHaveBeenCalledWith(
+      operationKeys.detail('op_unassociated'),
+      expect.objectContaining({ revision: 0, deployment_id: null }),
+    );
+    expect(queryClient.invalidateQueries).not.toHaveBeenCalled();
+    svc.dispose();
+  });
+
+  it('keeps a newer cached revision when an out-of-order frame arrives', async () => {
+    const queryClient = makeMockQueryClient();
+    queryClient.getQueryData.mockImplementation((key: readonly unknown[]) =>
+      key[0] === 'operations' ? operationUpdated(4) : null,
+    );
+    const svc = new EventStreamService({ queryClient: queryClient as never });
+    await svc.connect();
+
+    MockEventSource.instances[0]._emit('gpu_session.operation_updated', operationUpdated(3));
+
+    expect(queryClient.setQueryData).not.toHaveBeenCalledWith(
+      operationKeys.detail('op_001'),
+      expect.anything(),
+    );
+    expect(queryClient.invalidateQueries).not.toHaveBeenCalled();
+    svc.dispose();
+  });
+
+  it('accepts a newer operation revision even when deployment_id is null', async () => {
+    const queryClient = makeMockQueryClient();
+    queryClient.getQueryData.mockImplementation((key: readonly unknown[]) =>
+      key[0] === 'operations' ? operationUpdated(1) : null,
+    );
+    const svc = new EventStreamService({ queryClient: queryClient as never });
+    await svc.connect();
+
+    MockEventSource.instances[0]._emit(
+      'gpu_session.operation_updated',
+      operationUpdated(2, { deployment_id: null, kind: 'comfyui_restart' }),
+    );
+
+    expect(queryClient.setQueryData).toHaveBeenCalledWith(
+      operationKeys.detail('op_001'),
+      expect.objectContaining({ revision: 2, deployment_id: null }),
+    );
+    svc.dispose();
+  });
+});
+
+describe('EventStreamService — gpu_session.deployment_status_changed dispatch', () => {
+  it('is a debounced invalidation signal, not a progress/scalar patch', async () => {
+    vi.useFakeTimers();
+    const queryClient = makeMockQueryClient();
+    const svc = new EventStreamService({ queryClient: queryClient as never });
+    await svc.connect();
+
+    MockEventSource.instances[0]._emit('gpu_session.deployment_status_changed', {
+      deployment_id: 'deploy_001',
+      session_id: 'sess_001',
+      model_type: 'aisha-image',
+      status: 'deploying',
+      pending_restart: true,
+      routing_suspended: false,
+      operation_id: 'op_001',
+      error_message: null,
+    });
+
+    expect(queryClient.setQueryData).not.toHaveBeenCalled();
+    expect(queryClient.invalidateQueries).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(250);
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: sessionKeys.all });
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['providers'] });
+    svc.dispose();
+  });
+});
+
+describe('EventStreamService — GPU reconciliation races', () => {
+  it('coalesces a same-session invalidation burst and refreshes providers alongside it', async () => {
+    vi.useFakeTimers();
+    vi.mocked(getSession).mockResolvedValue(sessionSnapshot('sess_001'));
+    const client = new QueryClient();
+    const svc = new EventStreamService({ queryClient: client });
+    await svc.connect();
+    const source = MockEventSource.instances[0];
+
+    for (const event of ['gpu_session.status_changed', 'gpu_session.status_changed'] as const) {
+      source._emit(event, {
+        session_id: 'sess_001',
+        status: 'provisioning',
+        previous_status: 'pending',
+        tunnel_hostname: null,
+        error_message: null,
+        reason: null,
+      });
+    }
+    source._emit('gpu_session.deployment_status_changed', {
+      deployment_id: 'deploy_001',
+      session_id: 'sess_001',
+      model_type: 'aisha-image',
+      status: 'deploying',
+      pending_restart: false,
+      routing_suspended: false,
+      operation_id: 'op_001',
+      error_message: null,
+    });
+
+    await vi.advanceTimersByTimeAsync(250);
+    expect(getSession).toHaveBeenCalledTimes(1);
+    expect(fetchProviders).toHaveBeenCalledTimes(1);
+    svc.dispose();
+  });
+
+  it('debounces different session IDs independently', async () => {
+    vi.useFakeTimers();
+    vi.mocked(getSession).mockImplementation(async (id) => sessionSnapshot(id));
+    const svc = new EventStreamService({ queryClient: new QueryClient() });
+    await svc.connect();
+    const source = MockEventSource.instances[0];
+
+    for (const session_id of ['sess_001', 'sess_002']) {
+      source._emit('gpu_session.status_changed', {
+        session_id,
+        status: 'provisioning',
+        previous_status: 'pending',
+        tunnel_hostname: null,
+        error_message: null,
+        reason: null,
+      });
+    }
+
+    await vi.advanceTimersByTimeAsync(250);
+    expect(getSession).toHaveBeenCalledTimes(2);
+    svc.dispose();
+  });
+
+  it('queues a newer fetch while an older one is in flight and discards the older snapshot', async () => {
+    vi.useFakeTimers();
+    const first = deferred<ReturnType<typeof sessionSnapshot>>();
+    vi.mocked(getSession)
+      .mockImplementationOnce(() => first.promise)
+      .mockResolvedValueOnce(sessionSnapshot('sess_001', 'active'));
+    const client = new QueryClient();
+    const setQueryData = vi.spyOn(client, 'setQueryData');
+    const svc = new EventStreamService({ queryClient: client });
+    await svc.connect();
+    const source = MockEventSource.instances[0];
+    const statusEvent = () =>
+      source._emit('gpu_session.status_changed', {
+        session_id: 'sess_001',
+        status: 'provisioning',
+        previous_status: 'pending',
+        tunnel_hostname: null,
+        error_message: null,
+        reason: null,
+      });
+
+    statusEvent();
+    vi.advanceTimersByTime(250);
+    expect(getSession).toHaveBeenCalledTimes(1);
+    statusEvent();
+    vi.advanceTimersByTime(250);
+    expect(getSession).toHaveBeenCalledTimes(1);
+
+    first.resolve(sessionSnapshot('sess_001', 'stale'));
+    await vi.advanceTimersByTimeAsync(0);
+    for (let index = 0; index < 10; index += 1) await Promise.resolve();
+
+    expect(getSession).toHaveBeenCalledTimes(2);
+    expect(setQueryData).toHaveBeenCalledWith(
+      sessionKeys.detail('sess_001'),
+      expect.objectContaining({ status: 'active' }),
+    );
+    expect(client.getQueryData(sessionKeys.detail('sess_001'))).toMatchObject({ status: 'active' });
+    svc.dispose();
+  });
+
+  it('reconciles cached runtime session IDs after every successful connection', async () => {
+    vi.useFakeTimers();
+    vi.mocked(getSession).mockResolvedValue(sessionSnapshot('sess_reconnect'));
+    const client = new QueryClient();
+    client.setQueryData(providerKeys.catalog(), {
+      providers: [
+        {
+          provider: 'aisha',
+          name: 'Aisha',
+          available: true,
+          provisioning_mode: 'on_demand',
+          models: [
+            {
+              model_key: 'aisha-image',
+              runtime: {
+                state: 'provisioning',
+                session_id: 'sess_reconnect',
+                deployment_id: 'deploy_001',
+                operation_id: 'op_001',
+              },
+            },
+          ],
+        },
+      ],
+      user_context: null,
+    } as never);
+    const svc = new EventStreamService({ queryClient: client });
+
+    await svc.connect();
+    await vi.advanceTimersByTimeAsync(250);
+    expect(getSession).toHaveBeenCalledWith('sess_reconnect');
     svc.dispose();
   });
 });
@@ -775,8 +1037,6 @@ describe('EventStreamService — gpu_session.status_changed dismissal on termina
       session_id: 'sess_stop',
       status: 'stopped',
       previous_status: 'stopping',
-      model_type: 'aisha-image',
-
       tunnel_hostname: null,
       error_message: null,
       reason: 'insufficient_credits',
@@ -797,8 +1057,6 @@ describe('EventStreamService — gpu_session.status_changed dismissal on termina
       session_id: 'sess_ic',
       status: 'stopped',
       previous_status: 'stopping',
-      model_type: 'aisha-image',
-
       tunnel_hostname: null,
       error_message: null,
       reason: 'insufficient_credits',

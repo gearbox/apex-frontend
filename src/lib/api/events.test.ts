@@ -5,6 +5,8 @@ import {
   isBalanceUpdatedPayload,
   isSystemNotificationPayload,
   isGpuSessionStatusPayload,
+  isGpuDeploymentStatusPayload,
+  isOperationResponse,
   SSE_EVENTS,
   KNOWN_TRANSACTION_TYPES,
 } from './events';
@@ -16,6 +18,8 @@ describe('SSE_EVENTS', () => {
     expect(SSE_EVENTS.BALANCE_UPDATED).toBe('balance.updated');
     expect(SSE_EVENTS.SYSTEM_NOTIFICATION).toBe('system.notification');
     expect(SSE_EVENTS.GPU_SESSION_STATUS).toBe('gpu_session.status_changed');
+    expect(SSE_EVENTS.GPU_SESSION_DEPLOYMENT_STATUS).toBe('gpu_session.deployment_status_changed');
+    expect(SSE_EVENTS.GPU_SESSION_OPERATION_UPDATED).toBe('gpu_session.operation_updated');
   });
 });
 
@@ -157,37 +161,75 @@ describe('isGpuSessionStatusPayload()', () => {
         session_id: 'sess_001',
         status: 'active',
         previous_status: 'provisioning',
-        model_type: 'aisha-image',
         tunnel_hostname: null,
         error_message: null,
+        reason: null,
       }),
     ).toBe(true);
   });
 
-  it('returns true for payload without bundle_name (discriminator no longer requires it)', () => {
+  it('does not require model_type on the parent session event', () => {
     expect(
       isGpuSessionStatusPayload({
         session_id: 'sess_001',
         status: 'active',
         previous_status: 'provisioning',
-        model_type: 'aisha-image',
         tunnel_hostname: null,
         error_message: null,
+        reason: null,
       }),
     ).toBe(true);
   });
 
   it('returns false when missing required fields', () => {
     expect(isGpuSessionStatusPayload({ session_id: 'sess_001', status: 'active' })).toBe(false);
-    expect(isGpuSessionStatusPayload({ session_id: 'sess_001', model_type: 'aisha-image' })).toBe(
+    expect(isGpuSessionStatusPayload({ session_id: 'sess_001', previous_status: 'none' })).toBe(
       false,
     );
-    expect(isGpuSessionStatusPayload({ status: 'active', model_type: 'aisha-image' })).toBe(false);
+    expect(isGpuSessionStatusPayload({ status: 'active', previous_status: 'none' })).toBe(false);
   });
 
   it('returns false for non-object values', () => {
     expect(isGpuSessionStatusPayload(null)).toBe(false);
     expect(isGpuSessionStatusPayload('string')).toBe(false);
     expect(isGpuSessionStatusPayload(42)).toBe(false);
+  });
+});
+
+describe('GPU deployment and operation payloads', () => {
+  it('recognizes deployment status invalidations', () => {
+    expect(
+      isGpuDeploymentStatusPayload({
+        deployment_id: 'deploy_001',
+        session_id: 'sess_001',
+        model_type: 'aisha-image',
+        status: 'deploying',
+        pending_restart: false,
+        routing_suspended: false,
+        operation_id: 'op_001',
+        error_message: null,
+      }),
+    ).toBe(true);
+  });
+
+  it('recognizes a full operation_updated projection', () => {
+    expect(
+      isOperationResponse({
+        id: 'op_001',
+        session_id: 'sess_001',
+        deployment_id: null,
+        kind: 'comfyui_restart',
+        status: 'queued',
+        phase: null,
+        revision: 0,
+        target: null,
+        progress: null,
+        message: null,
+        error: null,
+        started_at: null,
+        updated_at: '2026-09-09T00:00:00Z',
+        finished_at: null,
+      }),
+    ).toBe(true);
   });
 });

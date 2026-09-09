@@ -8,7 +8,7 @@ export const sessionHandlers = [
     HttpResponse.json({ sessions: [makeGpuSessionResponse()] }),
   ),
 
-  // Get single session (with optional provisioning_progress for bar testing)
+  // Get a full session snapshot, including embedded operations when supplied by a test override.
   http.get(`${BASE}/v1/sessions/:session_id`, ({ params }) =>
     HttpResponse.json(makeGpuSessionResponse({ id: params.session_id as string })),
   ),
@@ -54,7 +54,7 @@ export const noSessionsHandler = http.get(`${BASE}/v1/sessions`, () =>
   HttpResponse.json({ sessions: [] }),
 );
 
-// Override: session in provisioning state with progress
+// Override: session in provisioning state
 export const sessionProvisioningHandler = http.get(
   `${BASE}/v1/sessions/:session_id`,
   ({ params }) =>
@@ -65,8 +65,6 @@ export const sessionProvisioningHandler = http.get(
         started_at: null,
         vastai_gpu_name: null,
         tunnel_hostname: null,
-        provisioning_phase: 'downloading',
-        provisioning_progress: { bytes_done: 5_000_000_000, bytes_total: 10_000_000_000 },
       }),
     ),
 );
@@ -86,7 +84,6 @@ export const sessionListProvisioningHandler = http.get(`${BASE}/v1/sessions`, ()
         started_at: null,
         tunnel_hostname: null,
         vastai_gpu_name: null,
-        provisioning_phase: 'downloading',
       }),
     ],
   }),

@@ -1,15 +1,22 @@
 import apiClient from '$lib/api/client';
 import type { components } from '$lib/api/types';
 
-type ProvidersResponse = components['schemas']['ProvidersResponse'];
+export type ProvidersResponse = components['schemas']['ProvidersResponse'];
+
+export const providerKeys = {
+  all: ['providers'] as const,
+  catalog: () => providerKeys.all,
+};
+
+export async function fetchProviders(): Promise<ProvidersResponse> {
+  const { data } = await apiClient.GET('/v1/providers');
+  return data ?? { providers: [], user_context: null };
+}
 
 export function providersQueryOptions() {
   return {
-    queryKey: ['providers'] as const,
-    queryFn: async (): Promise<ProvidersResponse> => {
-      const { data } = await apiClient.GET('/v1/providers');
-      return data ?? { providers: [], user_context: null };
-    },
+    queryKey: providerKeys.catalog(),
+    queryFn: fetchProviders,
     // A bundle can change capability semantics while retaining the same model_key.
     // Keep discovery live; session mutations explicitly invalidate this query too.
     staleTime: 0,

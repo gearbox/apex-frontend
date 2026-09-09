@@ -14,7 +14,6 @@ const mockSession: GpuSessionResponse = {
   user_id: 'usr_001',
   product_id: 'prod_001',
   status: 'active',
-  model_type: 'aisha-image',
   tunnel_hostname: null,
   vastai_gpu_name: 'RTX 4090',
   vastai_cost_per_hour_micros: 50000,
@@ -61,17 +60,16 @@ describe('sessionsListQueryOptions()', () => {
 
 describe('sessionDetailQueryOptions()', () => {
   it('returns correct queryKey and respects enabled flag', () => {
-    const opts = sessionDetailQueryOptions('sess_001', { enabled: true, refetchInterval: 3000 });
+    const opts = sessionDetailQueryOptions(new QueryClient(), 'sess_001', { enabled: true });
     expect(opts.queryKey).toEqual(['sessions', 'detail', 'sess_001']);
     expect(opts.enabled).toBe(true);
-    expect(opts.refetchInterval).toBe(3000);
     expect(opts.staleTime).toBe(0);
+    expect('refetchInterval' in opts).toBe(false);
   });
 
   it('can be disabled', () => {
-    const opts = sessionDetailQueryOptions('sess_001', { enabled: false, refetchInterval: false });
+    const opts = sessionDetailQueryOptions(new QueryClient(), 'sess_001', { enabled: false });
     expect(opts.enabled).toBe(false);
-    expect(opts.refetchInterval).toBe(false);
   });
 });
 
@@ -96,7 +94,7 @@ describe('stopSessionMutationOptions()', () => {
     const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
 
     const opts = stopSessionMutationOptions(queryClient);
-    await opts.onSuccess();
+    await opts.onSuccess(mockSession);
 
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: sessionKeys.all });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['providers'] });

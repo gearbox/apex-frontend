@@ -28,11 +28,15 @@
     READY: 'success',
     NEEDS_SESSION: 'info',
     PROVISIONING: 'warning',
+    RESTARTING: 'warning',
+    REMOVING: 'warning',
     STALE: 'warning',
     STOPPING: 'muted',
+    PAUSED: 'muted',
     SIGN_IN_REQUIRED: 'neutral',
     UNAVAILABLE: 'muted',
-    PAUSED_HIDDEN: 'muted',
+    DISABLED: 'muted',
+    RUNTIME_UNKNOWN: 'muted',
   };
 
   // Running uptime timer (active sessions only)
@@ -128,9 +132,6 @@
   <div class="panel">
     <div class="panel-header">
       <StatusBadge status={m.create_state_provisioning()} color={CARD_COLOR_BY_STATE[cardState]} />
-      {#if session?.provisioning_phase}
-        <span class="hint">{session.provisioning_phase}</span>
-      {/if}
     </div>
     <button class="btn-secondary" onclick={onStopRequest}>
       <X size={13} />
@@ -154,6 +155,13 @@
   <div class="panel">
     <StatusBadge status={m.create_state_stopping()} color={CARD_COLOR_BY_STATE[cardState]} />
   </div>
+{:else if cardState === 'RESTARTING' || cardState === 'REMOVING'}
+  <div class="panel">
+    <StatusBadge
+      status={cardState === 'RESTARTING' ? 'Restarting' : 'Removing'}
+      color={CARD_COLOR_BY_STATE[cardState]}
+    />
+  </div>
 {:else if cardState === 'SIGN_IN_REQUIRED'}
   <div class="panel">
     <div class="panel-header">
@@ -164,11 +172,11 @@
       {m.create_session_sign_in_cta()}
     </a>
   </div>
-{:else if cardState === 'UNAVAILABLE'}
+{:else if cardState === 'UNAVAILABLE' || cardState === 'DISABLED' || cardState === 'RUNTIME_UNKNOWN'}
   <div class="panel">
     <StatusBadge status={m.create_state_unavailable()} color={CARD_COLOR_BY_STATE[cardState]} />
   </div>
-{:else if cardState === 'PAUSED_HIDDEN'}
+{:else if cardState === 'PAUSED'}
   <div class="panel paused">
     <span class="paused-note">{m.create_session_paused_note()}</span>
     <a href="/app/sessions" class="escape-link">{m.create_session_manage_link()} →</a>

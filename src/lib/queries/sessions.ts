@@ -8,6 +8,8 @@ import {
   type GpuSessionResponse,
 } from '$lib/api/sessions';
 import type { components } from '$lib/api/types';
+import { providerKeys } from '$lib/queries/providers';
+import { ingestSessionSnapshot } from '$lib/queries/operations';
 
 type ModelType = components['schemas']['ModelType'];
 
@@ -34,20 +36,15 @@ export function sessionsListQueryOptions(
   };
 }
 
-/**
- * Single-session poll used ONLY while provisioning, to surface provisioning_progress.
- * The page enables this (and sets the interval) only when a session is in a provisioning
- * status, and disables it on active/terminal.
- */
 export function sessionDetailQueryOptions(
+  queryClient: QueryClient,
   id: string,
-  opts: { enabled: boolean; refetchInterval: number | false },
+  opts: { enabled: boolean },
 ) {
   return {
     queryKey: sessionKeys.detail(id),
-    queryFn: () => getSession(id),
+    queryFn: async () => ingestSessionSnapshot(queryClient, await getSession(id)),
     enabled: opts.enabled,
-    refetchInterval: opts.refetchInterval,
     staleTime: 0,
   };
 }
@@ -56,9 +53,12 @@ export function startSessionMutationOptions(queryClient: QueryClient) {
   return {
     mutationFn: (model: ModelType) => startSession(model),
     onSuccess: (session: GpuSessionResponse) => {
-      queryClient.setQueryData(sessionKeys.detail(session.id), session);
+      queryClient.setQueryData(
+        sessionKeys.detail(session.id),
+        ingestSessionSnapshot(queryClient, session),
+      );
       queryClient.invalidateQueries({ queryKey: sessionKeys.all });
-      queryClient.invalidateQueries({ queryKey: ['providers'] });
+      queryClient.invalidateQueries({ queryKey: providerKeys.catalog() });
     },
   };
 }
@@ -66,9 +66,13 @@ export function startSessionMutationOptions(queryClient: QueryClient) {
 export function stopSessionMutationOptions(queryClient: QueryClient) {
   return {
     mutationFn: (id: string) => stopSession(id),
-    onSuccess: () => {
+    onSuccess: (session: GpuSessionResponse) => {
+      queryClient.setQueryData(
+        sessionKeys.detail(session.id),
+        ingestSessionSnapshot(queryClient, session),
+      );
       queryClient.invalidateQueries({ queryKey: sessionKeys.all });
-      queryClient.invalidateQueries({ queryKey: ['providers'] });
+      queryClient.invalidateQueries({ queryKey: providerKeys.catalog() });
     },
   };
 }

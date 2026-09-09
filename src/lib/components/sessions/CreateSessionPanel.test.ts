@@ -56,7 +56,6 @@ const mockSession = {
   user_id: 'usr_001',
   product_id: 'prod_001',
   status: 'active' as const,
-  model_type: 'aisha-image',
   tunnel_hostname: 'tunnel.example.com',
   vastai_gpu_name: 'RTX 4090',
   vastai_cost_per_hour_micros: 50000,
@@ -67,8 +66,6 @@ const mockSession = {
   stopped_at: null,
   error_message: null,
   in_flight_job_count: 0,
-  provisioning_phase: null,
-  provisioning_progress: null,
 };
 
 function renderPanel(
@@ -124,17 +121,16 @@ describe('CreateSessionPanel', () => {
 
   it('PROVISIONING: shows badge + Cancel button', () => {
     const { onStopRequest } = renderPanel('PROVISIONING', {
-      session: { ...mockSession, status: 'provisioning', provisioning_phase: 'downloading' },
+      session: { ...mockSession, status: 'provisioning' },
     });
     expect(screen.getByText('Starting…')).toBeTruthy();
-    expect(screen.getByText('downloading')).toBeTruthy();
     const cancelBtn = screen.getByRole('button', { name: /Cancel/i });
     expect(cancelBtn).toBeTruthy();
     fireEvent.click(cancelBtn);
     expect(onStopRequest).toHaveBeenCalledOnce();
   });
 
-  it('PROVISIONING: no provisioning_phase renders fine without hint', () => {
+  it('PROVISIONING: renders without raw status telemetry', () => {
     renderPanel('PROVISIONING', { session: { ...mockSession, status: 'provisioning' } });
     expect(screen.getByText('Starting…')).toBeTruthy();
     expect(screen.getByRole('button', { name: /Cancel/i })).toBeTruthy();
@@ -171,8 +167,8 @@ describe('CreateSessionPanel', () => {
     expect(screen.queryByRole('button')).toBeNull();
   });
 
-  it('PAUSED_HIDDEN: shows paused note + escape link, no button', () => {
-    renderPanel('PAUSED_HIDDEN');
+  it('PAUSED: shows paused note + escape link, no button', () => {
+    renderPanel('PAUSED');
     expect(screen.getByText('Session is paused.')).toBeTruthy();
     const escapeLink = screen.getByRole('link', { name: /Manage in Sessions/i });
     expect(escapeLink).toBeTruthy();

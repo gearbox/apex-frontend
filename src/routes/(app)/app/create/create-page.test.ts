@@ -171,7 +171,12 @@ describe('/app/create page — generate gating during providers load', () => {
             {
               ...GROK_PROVIDERS.providers[0].models[0],
               is_enabled: false,
-              session_state: 'none',
+              runtime: {
+                state: 'none',
+                session_id: null,
+                deployment_id: null,
+                operation_id: null,
+              },
             },
           ],
         },
