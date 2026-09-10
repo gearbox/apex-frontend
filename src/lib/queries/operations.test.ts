@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { QueryClient } from '@tanstack/svelte-query';
 import type { components } from '$lib/api/types';
 import { ingestSessionSnapshot, operationKeys, upsertOperation } from './operations';
@@ -126,5 +126,35 @@ describe('canonical operation cache', () => {
     expect(
       client.getQueryData<OperationResponse>(operationKeys.detail('op_second'))?.revision,
     ).toBe(0);
+  });
+
+  it('retains revision watermarks beyond the ordinary inactive-query GC window', () => {
+    vi.useFakeTimers();
+    try {
+      const client = new QueryClient({
+        defaultOptions: { queries: { gcTime: 5 * 60_000 } },
+      });
+
+      upsertOperation(client, operation(5));
+      vi.advanceTimersByTime(5 * 60_000 + 1);
+      expect(client.getQueryData<OperationResponse>(operationKeys.detail('op_001'))?.revision).toBe(
+        5,
+      );
+
+      upsertOperation(client, operation(4));
+      expect(client.getQueryData<OperationResponse>(operationKeys.detail('op_001'))?.revision).toBe(
+        5,
+      );
+
+      upsertOperation(client, operation(6));
+      expect(client.getQueryData<OperationResponse>(operationKeys.detail('op_001'))?.revision).toBe(
+        6,
+      );
+
+      client.clear();
+      expect(client.getQueryData(operationKeys.detail('op_001'))).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

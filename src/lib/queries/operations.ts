@@ -11,6 +11,15 @@ export const operationKeys = {
 };
 
 /**
+ * Operations are an in-memory, revision-ordered lifecycle ledger. They are normally unobserved,
+ * so retain their watermarks for the authenticated tab lifetime instead of the default 5 minutes.
+ * resetQueryCache()/QueryClient.clear() still clears this namespace on logout or account change.
+ */
+export function configureOperationCache(queryClient: QueryClient): void {
+  queryClient.setQueryDefaults(operationKeys.all, { gcTime: Infinity });
+}
+
+/**
  * Stores an operation only when it advances its server-assigned revision.
  * Timestamps and lifecycle labels intentionally play no part in ordering.
  */
@@ -18,6 +27,7 @@ export function upsertOperation(
   queryClient: QueryClient,
   incoming: OperationResponse,
 ): OperationResponse {
+  configureOperationCache(queryClient);
   const key = operationKeys.detail(incoming.id);
   const cached = queryClient.getQueryData<OperationResponse>(key);
 

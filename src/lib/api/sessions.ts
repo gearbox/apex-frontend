@@ -16,9 +16,10 @@ export async function listSessions(includeTerminal = false): Promise<GpuSessionL
   return data.sessions;
 }
 
-export async function getSession(id: string): Promise<GpuSessionResponse> {
+export async function getSession(id: string, signal?: AbortSignal): Promise<GpuSessionResponse> {
   const { data, error } = await apiClient.GET('/v1/sessions/{session_id}', {
     params: { path: { session_id: id } },
+    signal,
   });
   if (error || !data) throwApiError(error, 'Failed to load session');
   return data as GpuSessionResponse;

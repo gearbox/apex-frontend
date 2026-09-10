@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/svelte';
 import { get } from 'svelte/store';
 import type { components } from '$lib/api/types';
 import { generationStore } from '$lib/stores/generation';
+import { setEventStreamStatus } from '$lib/stores/eventStream';
 
 type ProvidersResponse = components['schemas']['ProvidersResponse'];
 type PricingRuleResponse = components['schemas']['PricingRuleResponse'];
@@ -80,6 +81,7 @@ let pricingData: PricingRuleResponse[] | undefined;
 let pricingPending: boolean;
 let queryKeys: unknown[][];
 let pricingQueryIntervals: Array<number | false | undefined>;
+let providerQueryIntervals: Array<number | false | undefined>;
 
 vi.mock('@tanstack/svelte-query', () => ({
   useQueryClient: vi.fn(() => ({ invalidateQueries: vi.fn() })),
@@ -89,6 +91,7 @@ vi.mock('@tanstack/svelte-query', () => ({
       queryKeys.push([...queryKey]);
       const key = queryKey[0];
       if (key === 'providers') {
+        providerQueryIntervals.push(refetchInterval);
         return {
           get data() {
             return providersData;
@@ -126,6 +129,8 @@ beforeEach(() => {
   pricingPending = false;
   queryKeys = [];
   pricingQueryIntervals = [];
+  providerQueryIntervals = [];
+  setEventStreamStatus('disconnected');
 });
 
 afterEach(() => {
@@ -208,6 +213,24 @@ describe('/app/create page — generate gating during providers load', () => {
     expect(queryKeys).toContainEqual(['billing', 'pricing']);
     expect(queryKeys).not.toContainEqual(['pricing']);
     expect(pricingQueryIntervals).toEqual([60_000]);
+  });
+
+  it('polls authoritative provider runtime only while SSE is in fallback mode', () => {
+    providersData = GROK_PROVIDERS;
+    setEventStreamStatus('fallback');
+
+    render(Page);
+
+    expect(providerQueryIntervals).toEqual([8000]);
+  });
+
+  it('does not poll provider runtime while SSE is healthy', () => {
+    providersData = GROK_PROVIDERS;
+    setEventStreamStatus('connected');
+
+    render(Page);
+
+    expect(providerQueryIntervals).toEqual([false]);
   });
 
   it('shows a loading price while pricing is pending', () => {

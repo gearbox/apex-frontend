@@ -17,7 +17,7 @@
   let appTitle = $derived($productInfo?.display_name ?? 'Apex');
 
   // ── Providers query (to derive on-demand models + availability)
-  const providerQuery = createQuery(() => providersQueryOptions());
+  const providerQuery = createQuery(() => providersQueryOptions($isSSEFallback ? 8000 : false));
 
   const onDemandModels = $derived(
     (providerQuery.data?.providers ?? []).flatMap((provider) =>

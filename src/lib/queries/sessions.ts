@@ -1,4 +1,4 @@
-import type { QueryClient } from '@tanstack/svelte-query';
+import type { QueryClient, QueryFunctionContext } from '@tanstack/svelte-query';
 import {
   listSessions,
   getSession,
@@ -43,7 +43,8 @@ export function sessionDetailQueryOptions(
 ) {
   return {
     queryKey: sessionKeys.detail(id),
-    queryFn: async () => ingestSessionSnapshot(queryClient, await getSession(id)),
+    queryFn: async ({ signal }: QueryFunctionContext<ReturnType<typeof sessionKeys.detail>>) =>
+      ingestSessionSnapshot(queryClient, await getSession(id, signal)),
     enabled: opts.enabled,
     staleTime: 0,
   };

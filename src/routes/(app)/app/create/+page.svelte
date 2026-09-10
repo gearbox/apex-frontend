@@ -16,14 +16,9 @@
     deriveCardState,
     isGenerateEnabled,
     isProvisioningMode,
-    isTerminalStatus,
     canStartSession,
   } from '$lib/utils/sessionState';
-  import {
-    sessionDetailQueryOptions,
-    sessionsListQueryOptions,
-    startSessionMutationOptions,
-  } from '$lib/queries/sessions';
+  import { sessionDetailQueryOptions, startSessionMutationOptions } from '$lib/queries/sessions';
   import * as m from '$paraglide/messages';
   import ModelSelector from '$lib/components/create/ModelSelector.svelte';
   import AgeVerificationModal from '$lib/components/create/AgeVerificationModal.svelte';
@@ -79,7 +74,7 @@
   });
 
   // ── Provider info (model capabilities)
-  const providerQuery = createQuery(() => providersQueryOptions());
+  const providerQuery = createQuery(() => providersQueryOptions($isSSEFallback ? 8000 : false));
 
   // ── Pricing
   const pricingQuery = createQuery(() => billingPricingQueryOptions(60_000));
@@ -131,20 +126,9 @@
     }
   });
 
-  // ── Sessions query (to resolve session id/timer/cost for the selected model)
-  const sessionsQuery = createQuery(() =>
-    sessionsListQueryOptions(false, $isSSEFallback ? 8000 : false),
-  );
-
-  const selectedSessionId = $derived(
-    currentModelInfo?.runtime?.session_id
-      ? ((sessionsQuery.data ?? []).find(
-          (session) =>
-            session.id === currentModelInfo.runtime?.session_id &&
-            !isTerminalStatus(session.status),
-        )?.id ?? null)
-      : null,
-  );
+  // Runtime owns the selected model/session association. Session-list and runtime snapshots can
+  // legitimately disagree, so the list must never veto a Cancel/Stop target.
+  const selectedSessionId = $derived(currentModelInfo?.runtime?.session_id ?? null);
 
   // This is a normal snapshot read, not provisioning polling. It provides legacy Stop/timer
   // compatibility while the provider runtime remains the sole card-state authority.
@@ -209,7 +193,7 @@
   let stopModalSessionId = $state<string | null>(null);
 
   function handleStopRequest() {
-    if (selectedSession) stopModalSessionId = selectedSession.id;
+    if (selectedSessionId) stopModalSessionId = selectedSessionId;
   }
 
   function handleStopped() {

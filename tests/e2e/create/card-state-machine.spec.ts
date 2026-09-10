@@ -194,6 +194,65 @@ test('NEEDS_SESSION: Start triggers mutation and shows Cancel during provisionin
   await expect(page.getByRole('button', { name: /Generate/i }).first()).toBeDisabled();
 });
 
+test('runtime session ID drives Cancel while the sessions-list snapshot is empty', async ({
+  authenticatedPage: page,
+}) => {
+  await setupCommonRoutes(page);
+  await page.route('**/v1/providers', (r) =>
+    r.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(makeAishaProvider('provisioning')),
+    }),
+  );
+  // Deliberately disagree with the authoritative runtime association.
+  await page.route(
+    (url) => url.pathname === '/v1/sessions',
+    (r) =>
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ sessions: [] }),
+      }),
+  );
+  await page.route('**/v1/sessions/sess_mock', (r) =>
+    r.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(makeSession('provisioning')),
+    }),
+  );
+  let previewTarget: string | null = null;
+  await page.route('**/v1/sessions/*/stop', async (r) => {
+    previewTarget = new URL(r.request().url()).pathname;
+    await r.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        session_id: 'sess_mock',
+        model_type: 'aisha-image',
+        vastai_gpu_name: 'RTX 4090',
+        vastai_cost_per_hour_micros: 50000,
+        active_duration_seconds: 0,
+        paused_duration_seconds: 0,
+        estimated_final_tokens: 0,
+        message: 'Cancel this session.',
+      }),
+    });
+  });
+
+  await page.goto('/app/create');
+
+  await expect(page.getByText(/Starting…/i)).toBeVisible();
+  await expect(page.getByRole('button', { name: /Cancel/i })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Start session/i })).not.toBeVisible();
+  await expect(page.getByRole('button', { name: /Generate/i }).first()).toBeDisabled();
+
+  await page.getByRole('button', { name: /Cancel/i }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect.poll(() => previewTarget).toBe('/v1/sessions/sess_mock/stop');
+});
+
 // ── 4. READY (always_on): Generate enabled, no session chrome ─────────────────
 test('always_on model is READY — Generate enabled, no session panel chrome', async ({
   authenticatedPage: page,

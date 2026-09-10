@@ -13,16 +13,19 @@ import { notifications, clearNotifications } from '$lib/stores/notifications';
 import { activeJobStore } from '$lib/stores/jobs';
 import { generationStore } from '$lib/stores/generation';
 import { toasts, removeToast } from '$lib/stores/toasts';
-import { sessionKeys } from '$lib/queries/sessions';
+import { sessionDetailQueryOptions, sessionKeys } from '$lib/queries/sessions';
 import { operationKeys } from '$lib/queries/operations';
-import { providerKeys, fetchProviders } from '$lib/queries/providers';
-import { getSession } from '$lib/api/sessions';
-import { QueryClient } from '@tanstack/svelte-query';
+import { providerKeys, fetchProviders, providersQueryOptions } from '$lib/queries/providers';
+import { getSession, type GpuSessionResponse } from '$lib/api/sessions';
+import { QueryClient, QueryObserver } from '@tanstack/svelte-query';
 import { creditWarnings, dismissAllCreditWarnings } from '$lib/stores/creditWarnings';
 import { pushNudge } from '$lib/stores/pushNudge.svelte';
 import { fetchPendingPaymentTransactions } from './pendingPaymentReconciliation';
 import { clearAuth, setAuth } from '$lib/stores/auth';
 import { makeUserProfile } from '../../mocks/factories/user';
+import type { components } from '$lib/api/types';
+
+type OperationResponse = components['schemas']['OperationResponse'];
 
 vi.mock('./pendingPaymentReconciliation', () => ({
   fetchPendingPaymentTransactions: vi.fn().mockResolvedValue([]),
@@ -41,9 +44,37 @@ vi.mock('$lib/api/sessions', async (importOriginal) => {
   return { ...actual, getSession: vi.fn() };
 });
 
+vi.mock('$lib/queries/sessions', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('$lib/queries/sessions')>();
+  const api = await import('$lib/api/sessions');
+  const operations = await import('$lib/queries/operations');
+  return {
+    ...actual,
+    sessionDetailQueryOptions: (
+      queryClient: QueryClient,
+      id: string,
+      opts: { enabled: boolean },
+    ) => ({
+      queryKey: actual.sessionKeys.detail(id),
+      queryFn: async ({ signal }: { signal: AbortSignal }) =>
+        operations.ingestSessionSnapshot(queryClient, await api.getSession(id, signal)),
+      enabled: opts.enabled,
+      staleTime: 0,
+    }),
+  };
+});
+
 vi.mock('$lib/queries/providers', async (importOriginal) => {
   const actual = await importOriginal<typeof import('$lib/queries/providers')>();
-  return { ...actual, fetchProviders: vi.fn() };
+  const fetchProviders = vi.fn();
+  return {
+    ...actual,
+    fetchProviders,
+    providersQueryOptions: (refetchInterval: number | false = false) => ({
+      ...actual.providersQueryOptions(refetchInterval),
+      queryFn: ({ signal }: { signal: AbortSignal }) => fetchProviders(signal),
+    }),
+  };
 });
 
 /* ─── Mock EventSource ─── */
@@ -93,8 +124,11 @@ class MockEventSource {
 function makeMockQueryClient() {
   return {
     invalidateQueries: vi.fn(),
+    cancelQueries: vi.fn(),
+    fetchQuery: vi.fn().mockResolvedValue(null),
     setQueryData: vi.fn(),
     getQueryData: vi.fn().mockReturnValue(null),
+    setQueryDefaults: vi.fn(),
   };
 }
 
@@ -135,7 +169,10 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-function operationUpdated(revision: number, overrides: Record<string, unknown> = {}) {
+function operationUpdated(
+  revision: number,
+  overrides: Partial<OperationResponse> = {},
+): OperationResponse {
   return {
     id: 'op_001',
     session_id: 'sess_001',
@@ -155,7 +192,7 @@ function operationUpdated(revision: number, overrides: Record<string, unknown> =
   };
 }
 
-function sessionSnapshot(id: string, status = 'provisioning') {
+function sessionSnapshot(id: string, status = 'provisioning'): GpuSessionResponse {
   return {
     id,
     user_id: 'user_001',
@@ -166,7 +203,7 @@ function sessionSnapshot(id: string, status = 'provisioning') {
     vastai_cost_per_hour_micros: null,
     created_at: '2026-09-09T00:00:00Z',
     in_flight_job_count: 0,
-  } as never;
+  } as unknown as GpuSessionResponse;
 }
 
 afterEach(() => {
@@ -601,8 +638,16 @@ describe('EventStreamService — gpu_session.status_changed dispatch', () => {
 
     expect(queryClient.setQueryData).not.toHaveBeenCalled();
     vi.advanceTimersByTime(250);
-    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: sessionKeys.all });
-    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['providers'] });
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
+      queryKey: sessionKeys.detail('sess_001'),
+      exact: true,
+      refetchType: 'none',
+    });
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
+      queryKey: providerKeys.catalog(),
+      exact: true,
+      refetchType: 'none',
+    });
 
     svc.dispose();
   });
@@ -753,8 +798,16 @@ describe('EventStreamService — gpu_session.deployment_status_changed dispatch'
     expect(queryClient.setQueryData).not.toHaveBeenCalled();
     expect(queryClient.invalidateQueries).not.toHaveBeenCalled();
     vi.advanceTimersByTime(250);
-    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: sessionKeys.all });
-    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['providers'] });
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
+      queryKey: sessionKeys.detail('sess_001'),
+      exact: true,
+      refetchType: 'none',
+    });
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
+      queryKey: providerKeys.catalog(),
+      exact: true,
+      refetchType: 'none',
+    });
     svc.dispose();
   });
 });
@@ -795,6 +848,75 @@ describe('EventStreamService — GPU reconciliation races', () => {
     svc.dispose();
   });
 
+  it('does not start hidden duplicate refetches when detail and providers have active observers', async () => {
+    vi.useFakeTimers();
+    vi.mocked(getSession).mockImplementation(async (id) => sessionSnapshot(id, 'active'));
+    vi.mocked(fetchProviders).mockResolvedValue({ providers: [], user_context: null });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(sessionKeys.detail('sess_001'), sessionSnapshot('sess_001'));
+    client.setQueryData(sessionKeys.detail('sess_unaffected'), sessionSnapshot('sess_unaffected'));
+    client.setQueryData(providerKeys.catalog(), { providers: [], user_context: null });
+    const detailObserver = new QueryObserver(
+      client,
+      sessionDetailQueryOptions(client, 'sess_001', { enabled: true }),
+    );
+    const unrelatedDetailObserver = new QueryObserver(
+      client,
+      sessionDetailQueryOptions(client, 'sess_unaffected', { enabled: true }),
+    );
+    const providerObserver = new QueryObserver(client, providersQueryOptions());
+    const unsubscribeDetail = detailObserver.subscribe(() => {});
+    const unsubscribeUnrelatedDetail = unrelatedDetailObserver.subscribe(() => {});
+    const unsubscribeProviders = providerObserver.subscribe(() => {});
+    await vi.advanceTimersByTimeAsync(0);
+    vi.mocked(getSession).mockClear();
+    vi.mocked(fetchProviders).mockClear();
+
+    const svc = new EventStreamService({ queryClient: client });
+    await svc.connect();
+    // Drain reconnect hydration first; the assertions below isolate the subsequent SSE burst.
+    await vi.advanceTimersByTimeAsync(250);
+    vi.mocked(getSession).mockClear();
+    vi.mocked(fetchProviders).mockClear();
+    const source = MockEventSource.instances[0];
+    source._emit('gpu_session.status_changed', {
+      session_id: 'sess_001',
+      status: 'active',
+      previous_status: 'provisioning',
+      tunnel_hostname: null,
+      error_message: null,
+      reason: null,
+    });
+    source._emit('gpu_session.deployment_status_changed', {
+      deployment_id: 'deploy_001',
+      session_id: 'sess_001',
+      model_type: 'aisha-image',
+      status: 'active',
+      pending_restart: false,
+      routing_suspended: false,
+      operation_id: null,
+      error_message: null,
+    });
+
+    await vi.advanceTimersByTimeAsync(250);
+
+    expect(vi.mocked(getSession).mock.calls.map(([sessionId]) => sessionId)).toEqual(['sess_001']);
+    expect(fetchProviders).toHaveBeenCalledTimes(1);
+    expect(
+      client
+        .getQueryCache()
+        .getAll()
+        .filter(
+          (query) => query.queryKey[0] === sessionKeys.all[0] && query.queryKey[1] === 'detail',
+        ),
+    ).toHaveLength(2);
+
+    unsubscribeDetail();
+    unsubscribeUnrelatedDetail();
+    unsubscribeProviders();
+    svc.dispose();
+  });
+
   it('debounces different session IDs independently', async () => {
     vi.useFakeTimers();
     vi.mocked(getSession).mockImplementation(async (id) => sessionSnapshot(id));
@@ -825,7 +947,6 @@ describe('EventStreamService — GPU reconciliation races', () => {
       .mockImplementationOnce(() => first.promise)
       .mockResolvedValueOnce(sessionSnapshot('sess_001', 'active'));
     const client = new QueryClient();
-    const setQueryData = vi.spyOn(client, 'setQueryData');
     const svc = new EventStreamService({ queryClient: client });
     await svc.connect();
     const source = MockEventSource.instances[0];
@@ -851,11 +972,83 @@ describe('EventStreamService — GPU reconciliation races', () => {
     for (let index = 0; index < 10; index += 1) await Promise.resolve();
 
     expect(getSession).toHaveBeenCalledTimes(2);
-    expect(setQueryData).toHaveBeenCalledWith(
-      sessionKeys.detail('sess_001'),
-      expect.objectContaining({ status: 'active' }),
-    );
     expect(client.getQueryData(sessionKeys.detail('sess_001'))).toMatchObject({ status: 'active' });
+    svc.dispose();
+  });
+
+  it('preserves the last provider catalog after a failed reconciliation, then accepts recovery', async () => {
+    vi.useFakeTimers();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(providerKeys.catalog(), {
+      providers: [{ provider: 'old', models: [] }],
+      user_context: null,
+    });
+    vi.mocked(fetchProviders).mockRejectedValueOnce(new Error('provider unavailable'));
+    const svc = new EventStreamService({ queryClient: client });
+    await svc.connect();
+    await vi.advanceTimersByTimeAsync(250);
+
+    expect(client.getQueryData(providerKeys.catalog())).toMatchObject({
+      providers: [{ provider: 'old' }],
+    });
+
+    vi.mocked(fetchProviders).mockResolvedValueOnce({
+      providers: [{ provider: 'recovered', models: [] }],
+      user_context: null,
+    } as never);
+    MockEventSource.instances[0]._emit('gpu_session.status_changed', {
+      session_id: 'sess_001',
+      status: 'provisioning',
+      previous_status: 'pending',
+      tunnel_hostname: null,
+      error_message: null,
+      reason: null,
+    });
+    await vi.advanceTimersByTimeAsync(250);
+
+    expect(client.getQueryData(providerKeys.catalog())).toMatchObject({
+      providers: [{ provider: 'recovered' }],
+    });
+    svc.dispose();
+  });
+
+  it('hydrates an operation from a runtime session newly discovered by provider reconciliation', async () => {
+    vi.useFakeTimers();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    vi.mocked(fetchProviders).mockResolvedValue({
+      providers: [
+        {
+          provider: 'aisha',
+          models: [
+            {
+              model_key: 'aisha-image',
+              runtime: {
+                state: 'provisioning',
+                session_id: 'sess_discovered',
+                deployment_id: 'deploy_001',
+                operation_id: 'op_discovered',
+              },
+            },
+          ],
+        },
+      ],
+      user_context: null,
+    } as never);
+    vi.mocked(getSession).mockResolvedValue({
+      ...sessionSnapshot('sess_discovered'),
+      bootstrap_operation: operationUpdated(3, { id: 'op_discovered' }),
+    });
+    const svc = new EventStreamService({ queryClient: client });
+
+    await svc.connect();
+    await vi.advanceTimersByTimeAsync(250);
+    await vi.advanceTimersByTimeAsync(250);
+
+    expect(getSession).toHaveBeenCalledWith('sess_discovered', expect.any(AbortSignal));
+    expect(client.getQueryData(operationKeys.detail('op_discovered'))).toMatchObject({
+      revision: 3,
+    });
+    expect(fetchProviders).toHaveBeenCalledTimes(1);
     svc.dispose();
   });
 
@@ -889,7 +1082,8 @@ describe('EventStreamService — GPU reconciliation races', () => {
 
     await svc.connect();
     await vi.advanceTimersByTimeAsync(250);
-    expect(getSession).toHaveBeenCalledWith('sess_reconnect');
+    expect(vi.mocked(getSession).mock.calls[0]?.[0]).toBe('sess_reconnect');
+    expect(vi.mocked(getSession).mock.calls[0]?.[1]).toBeDefined();
     svc.dispose();
   });
 });

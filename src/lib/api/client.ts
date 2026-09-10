@@ -86,9 +86,10 @@ const authMiddleware: Middleware = {
     if (auth.initialToken) {
       request.headers.set('Authorization', `Bearer ${auth.initialToken}`);
     }
-    // Request signals are immutable, so bind the auth-operation signal on a reconstructed request.
+    // Request signals are immutable, so bind both the auth-operation and caller (TanStack query)
+    // signals on a reconstructed request. Reconciliation cancellation must reach openapi-fetch.
     // The metadata must follow that returned instance because it is what onResponse/onError receive.
-    const bound = new Request(request, { signal: auth.signal });
+    const bound = new Request(request, { signal: AbortSignal.any([request.signal, auth.signal]) });
     retryMetadata.set(bound, metadata);
     return bound;
   },
