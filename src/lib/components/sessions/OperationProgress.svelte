@@ -15,10 +15,21 @@
     sessionId: string;
     operationId: string;
     compact?: boolean;
-    typicalSeconds?: number | null;
+    /** The bootstrap operation ID is retained because a snapshot can establish context before it
+     * has reached the canonical operation cache. */
+    bootstrapOperationId?: string | null;
+    typicalBootstrapSeconds?: number | null;
+    typicalAttachSeconds?: number | null;
   }
 
-  let { sessionId, operationId, compact = false, typicalSeconds = null }: Props = $props();
+  let {
+    sessionId,
+    operationId,
+    compact = false,
+    bootstrapOperationId = null,
+    typicalBootstrapSeconds = null,
+    typicalAttachSeconds = null,
+  }: Props = $props();
   const queryClient = useQueryClient();
   const operationQuery = createQuery(() =>
     operationQueryOptions(queryClient, sessionId, operationId, {
@@ -32,6 +43,44 @@
   const percentage = $derived(
     progress?.progress_pct != null ? clampProgress(progress.progress_pct) : null,
   );
+  const typicalSeconds = $derived(
+    operation?.kind === 'session_bootstrap' || operation?.id === bootstrapOperationId
+      ? typicalBootstrapSeconds
+      : operation?.kind === 'bundle_provision'
+        ? typicalAttachSeconds
+        : null,
+  );
+
+  let elapsedNow = $state(Date.now());
+
+  function timestampMs(value: string | null | undefined): number | null {
+    if (!value) return null;
+    const parsed = new Date(value).getTime();
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  const elapsedSeconds = $derived.by(() => {
+    const startedAt = timestampMs(operation?.started_at);
+    if (startedAt === null) return null;
+    const finishedAt = timestampMs(operation?.finished_at);
+    const endAt = finishedAt ?? elapsedNow;
+    return Math.max(0, Math.floor((endAt - startedAt) / 1000));
+  });
+
+  // This display-only clock intentionally does not refetch the operation. It is scoped to one
+  // non-terminal operation and is disposed whenever the operation changes or the component dies.
+  $effect(() => {
+    const startedAt = timestampMs(operation?.started_at);
+    if (startedAt === null || operation?.status === 'succeeded' || operation?.status === 'failed') {
+      return;
+    }
+
+    elapsedNow = Date.now();
+    const timer = window.setInterval(() => {
+      elapsedNow = Date.now();
+    }, 1000);
+    return () => window.clearInterval(timer);
+  });
 
   function phaseLabel(phase: string | null | undefined): string | null {
     if (!phase) return null;
@@ -101,15 +150,20 @@
       <span class="waiting">{m.operation_waiting_for_progress()}</span>
     {/if}
 
-    {#if !compact && progress}
+    {#if (!compact && progress) || elapsedSeconds !== null}
       <div class="details">
-        {#if workLabel(progress.work)}<span>{workLabel(progress.work)}</span>{/if}
-        {#if workLabel(progress.items)}<span>{workLabel(progress.items)}</span>{/if}
-        {#if progress.rate}<span
-            >{m.operation_rate({ rate: formatOperationRate(progress.rate) })}</span
-          >{/if}
-        {#if progress.eta_seconds !== null}<span
-            >{m.operation_eta({ time: formatDuration(progress.eta_seconds) })}</span
+        {#if !compact && progress}
+          {#if workLabel(progress.work)}<span>{workLabel(progress.work)}</span>{/if}
+          {#if workLabel(progress.items)}<span>{workLabel(progress.items)}</span>{/if}
+          {#if progress.rate}<span
+              >{m.operation_rate({ rate: formatOperationRate(progress.rate) })}</span
+            >{/if}
+          {#if progress.eta_seconds !== null}<span
+              >{m.operation_eta({ time: formatDuration(progress.eta_seconds) })}</span
+            >{/if}
+        {/if}
+        {#if elapsedSeconds !== null}<span
+            >{m.operation_elapsed({ time: formatDuration(elapsedSeconds) })}</span
           >{/if}
       </div>
     {/if}

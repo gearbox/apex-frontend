@@ -148,6 +148,7 @@
   );
   const selectedSession = $derived(selectedSessionQuery.data ?? null);
   const selectedOperationId = $derived(currentModelInfo?.runtime?.operation_id ?? null);
+  const selectedBootstrapOperationId = $derived(selectedSession?.bootstrap_operation?.id ?? null);
 
   // ── Card state machine
   const cardState = $derived(
@@ -540,9 +541,9 @@
       <OperationProgress
         sessionId={selectedSessionId}
         operationId={selectedOperationId}
-        typicalSeconds={cardState === 'PROVISIONING'
-          ? currentModelInfo?.provisioning?.typical_bootstrap_seconds
-          : null}
+        bootstrapOperationId={selectedBootstrapOperationId}
+        typicalBootstrapSeconds={currentModelInfo?.provisioning?.typical_bootstrap_seconds}
+        typicalAttachSeconds={currentModelInfo?.provisioning?.typical_attach_seconds}
       />
     {/if}
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount, tick } from 'svelte';
   import type { AttachModelOption } from '$lib/utils/deploymentEligibility';
   import type { ModelType } from '$lib/api/sessions';
   import * as m from '$paraglide/messages';
@@ -10,51 +11,80 @@
     onClose: () => void;
   }
   let { models, pending = false, onAttach, onClose }: Props = $props();
+
+  let dialog = $state<HTMLDialogElement>();
+  let closeButton = $state<HTMLButtonElement>();
+  let previousFocus: HTMLElement | null = null;
+
+  function requestClose(): void {
+    if (!pending) onClose();
+  }
+
+  function handleCancel(event: Event): void {
+    event.preventDefault();
+    requestClose();
+  }
+
+  function handleBackdropClick(event: MouseEvent): void {
+    if (event.target === event.currentTarget) requestClose();
+  }
+
+  onMount(() => {
+    previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    if (dialog?.showModal) dialog.showModal();
+    else if (dialog) dialog.open = true;
+    void tick().then(() => closeButton?.focus({ preventScroll: true }));
+
+    return () => {
+      if (dialog?.open) dialog.close?.();
+      previousFocus?.focus({ preventScroll: true });
+    };
+  });
 </script>
 
-<div
-  class="overlay"
-  role="presentation"
-  onclick={(event) => event.target === event.currentTarget && onClose()}
+<dialog
+  bind:this={dialog}
+  class="sheet"
+  aria-labelledby="attach-deployment-title"
+  oncancel={handleCancel}
+  onclick={handleBackdropClick}
 >
-  <dialog open class="sheet" aria-label={m.session_attach_title()}>
-    <div class="heading">
-      <h2>{m.session_attach_title()}</h2>
-      <button aria-label={m.common_close()} onclick={onClose}>×</button>
+  <div class="heading">
+    <h2 id="attach-deployment-title">{m.session_attach_title()}</h2>
+    <button
+      bind:this={closeButton}
+      aria-label={m.common_close()}
+      disabled={pending}
+      onclick={requestClose}>×</button
+    >
+  </div>
+  {#if models.length === 0}
+    <p>{m.session_attach_empty()}</p>
+  {:else}
+    <div class="models">
+      {#each models as model (model.model)}
+        <button disabled={pending} onclick={() => onAttach(model.model)}>
+          <span>{model.name}</span><small>{model.model}</small>
+        </button>
+      {/each}
     </div>
-    {#if models.length === 0}
-      <p>{m.session_attach_empty()}</p>
-    {:else}
-      <div class="models">
-        {#each models as model (model.model)}
-          <button disabled={pending} onclick={() => onAttach(model.model)}>
-            <span>{model.name}</span><small>{model.model}</small>
-          </button>
-        {/each}
-      </div>
-    {/if}
-  </dialog>
-</div>
+  {/if}
+</dialog>
 
 <style>
-  .overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 210;
-    display: flex;
-    align-items: end;
-    background: rgb(0 0 0 / 0.5);
-    padding: 16px;
-  }
   .sheet {
     width: min(100%, 560px);
+    max-width: calc(100% - 32px);
     max-height: min(75dvh, 640px);
     overflow: auto;
-    margin: auto auto 0;
+    margin: auto auto 16px;
     padding: 18px 18px calc(18px + env(safe-area-inset-bottom));
     border: 0;
     border-radius: 16px;
     background: var(--apex-surface);
+  }
+  .sheet::backdrop {
+    background: rgb(0 0 0 / 0.5);
   }
   .heading {
     display: flex;
@@ -73,6 +103,10 @@
     color: var(--apex-text-muted);
     background: transparent;
     cursor: pointer;
+  }
+  .heading button:disabled {
+    opacity: 0.55;
+    cursor: wait;
   }
   p {
     font-size: 13px;

@@ -1,5 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/svelte';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, render, screen } from '@testing-library/svelte';
+import { tick } from 'svelte';
 
 let operation: Record<string, unknown> | undefined;
 
@@ -49,6 +50,7 @@ vi.mock('$paraglide/messages', () => ({
     `Processed ${completed} items`,
   operation_rate: ({ rate }: { rate: string }) => rate,
   operation_eta: ({ time }: { time: string }) => `${time} remaining`,
+  operation_elapsed: ({ time }: { time: string }) => `Elapsed ${time}`,
   operation_typical_duration: ({ time }: { time: string }) => `Usually around ${time}`,
 }));
 
@@ -69,10 +71,15 @@ const baseOperation = {
 };
 
 describe('OperationProgress', () => {
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
+
   it('renders queued revision zero as a valid operation without a synthetic ETA', () => {
     operation = { ...baseOperation, status: 'queued', phase: null, progress: null };
     render(OperationProgress, {
-      props: { sessionId: 'sess_001', operationId: 'op_001', typicalSeconds: 120 },
+      props: { sessionId: 'sess_001', operationId: 'op_001', typicalAttachSeconds: 120 },
     });
     expect(screen.getByText('Queued')).toBeTruthy();
     expect(screen.getByText('Waiting for progress…')).toBeTruthy();
@@ -114,5 +121,83 @@ describe('OperationProgress', () => {
     render(OperationProgress, { props: { sessionId: 'sess_001', operationId: 'op_001' } });
     expect(screen.getByText('Failed')).toBeTruthy();
     expect(screen.getByText('Bundle download failed')).toBeTruthy();
+  });
+
+  it('advances a local elapsed display without deriving an ETA', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-10T00:00:42Z'));
+    operation = {
+      ...baseOperation,
+      status: 'running',
+      phase: null,
+      progress: null,
+      started_at: '2026-09-10T00:00:00Z',
+    };
+
+    render(OperationProgress, { props: { sessionId: 'sess_001', operationId: 'op_001' } });
+    expect(screen.getByText('Elapsed 42s')).toBeTruthy();
+
+    await tick();
+    vi.advanceTimersByTime(1000);
+    await tick();
+    expect(screen.getByText('Elapsed 43s')).toBeTruthy();
+    expect(screen.queryByText(/remaining/)).toBeNull();
+  });
+
+  it('selects bootstrap and attach hints from the operation context', () => {
+    operation = {
+      ...baseOperation,
+      kind: 'session_bootstrap',
+      status: 'queued',
+      phase: null,
+      progress: null,
+    };
+    const bootstrap = render(OperationProgress, {
+      props: {
+        sessionId: 'sess_001',
+        operationId: 'op_001',
+        typicalBootstrapSeconds: 180,
+        typicalAttachSeconds: 60,
+      },
+    });
+    expect(screen.getByText('Usually around 3m')).toBeTruthy();
+    bootstrap.unmount();
+
+    operation = {
+      ...baseOperation,
+      kind: 'bundle_provision',
+      status: 'queued',
+      phase: null,
+      progress: null,
+    };
+    render(OperationProgress, {
+      props: {
+        sessionId: 'sess_001',
+        operationId: 'op_001',
+        typicalBootstrapSeconds: 180,
+        typicalAttachSeconds: 60,
+      },
+    });
+    expect(screen.getByText('Usually around 1m')).toBeTruthy();
+  });
+
+  it('freezes elapsed time for terminal operations', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-10T00:02:00Z'));
+    operation = {
+      ...baseOperation,
+      status: 'succeeded',
+      phase: null,
+      progress: null,
+      started_at: '2026-09-10T00:00:00Z',
+      finished_at: '2026-09-10T00:00:42Z',
+    };
+
+    render(OperationProgress, { props: { sessionId: 'sess_001', operationId: 'op_001' } });
+    expect(screen.getByText('Elapsed 42s')).toBeTruthy();
+    await tick();
+    vi.advanceTimersByTime(60_000);
+    await tick();
+    expect(screen.getByText('Elapsed 42s')).toBeTruthy();
   });
 });

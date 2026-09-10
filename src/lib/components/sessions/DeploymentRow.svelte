@@ -1,25 +1,31 @@
 <script lang="ts">
   import type { DeploymentResponse } from '$lib/api/sessions';
+  import type { components } from '$lib/api/types';
+  import { canRemoveDeployment } from '$lib/utils/deploymentEligibility';
   import OperationProgress from './OperationProgress.svelte';
   import * as m from '$paraglide/messages';
 
   interface Props {
     sessionId: string;
+    sessionStatus: components['schemas']['GpuSessionStatus'];
     deployment: DeploymentResponse;
     modelName: string;
     typicalAttachSeconds?: number | null;
-    removing?: boolean;
+    removePending?: boolean;
+    removingTarget?: boolean;
     onRemove: (deployment: DeploymentResponse) => void;
   }
   let {
     sessionId,
+    sessionStatus,
     deployment,
     modelName,
     typicalAttachSeconds = null,
-    removing = false,
+    removePending = false,
+    removingTarget = false,
     onRemove,
   }: Props = $props();
-  const canRemove = $derived(deployment.status !== 'removed' && deployment.status !== 'removing');
+  const canRemove = $derived(canRemoveDeployment(sessionStatus, deployment.status));
 </script>
 
 <article class="deployment" class:failed={deployment.status === 'failed'}>
@@ -50,12 +56,12 @@
       {sessionId}
       operationId={deployment.current_operation.id}
       compact={deployment.status === 'active'}
-      typicalSeconds={typicalAttachSeconds}
+      {typicalAttachSeconds}
     />
   {/if}
   {#if canRemove}
-    <button class="remove" disabled={removing} onclick={() => onRemove(deployment)}
-      >{removing ? m.common_loading() : m.deployment_remove()}</button
+    <button class="remove" disabled={removePending} onclick={() => onRemove(deployment)}
+      >{removingTarget ? m.common_loading() : m.deployment_remove()}</button
     >
   {/if}
 </article>

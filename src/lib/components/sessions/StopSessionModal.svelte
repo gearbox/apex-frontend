@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { AlertTriangle } from '@lucide/svelte';
   import { previewStop, stopSession } from '$lib/api/sessions';
   import type { GpuSessionResponse, StopConfirmationResponse } from '$lib/api/sessions';
@@ -19,6 +19,9 @@
   let loading = $state(true);
   let confirming = $state(false);
   let confirmError = $state('');
+  let dialog = $state<HTMLDialogElement>();
+  let cancelButton = $state<HTMLButtonElement>();
+  let previousFocus: HTMLElement | null = null;
 
   function formatActiveDuration(seconds: number): string {
     const h = Math.floor(seconds / 3600);
@@ -27,7 +30,7 @@
     return `${h}h ${min.toString().padStart(2, '0')}m ${s.toString().padStart(2, '0')}s`;
   }
 
-  onMount(async () => {
+  async function loadPreview(): Promise<void> {
     try {
       preview = await previewStop(sessionId);
     } catch (e) {
@@ -35,6 +38,18 @@
     } finally {
       loading = false;
     }
+    void tick().then(() => cancelButton?.focus({ preventScroll: true }));
+  }
+
+  onMount(() => {
+    previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    if (dialog?.showModal) dialog.showModal();
+    else if (dialog) dialog.open = true;
+    void loadPreview();
+    return () => {
+      if (dialog?.open) dialog.close?.();
+      previousFocus?.focus({ preventScroll: true });
+    };
   });
 
   async function handleConfirm() {
@@ -52,93 +67,86 @@
   }
 
   function handleBackdropClick(e: MouseEvent) {
-    if (e.target === e.currentTarget) onClose();
+    if (e.target === e.currentTarget && !confirming) onClose();
   }
 
-  function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape') onClose();
+  function handleCancel(e: Event) {
+    e.preventDefault();
+    if (!confirming) onClose();
   }
 </script>
 
-<div
-  class="modal-overlay"
+<dialog
+  bind:this={dialog}
+  class="modal-card"
   onclick={handleBackdropClick}
-  onkeydown={handleKeydown}
-  role="dialog"
-  tabindex="-1"
-  aria-modal="true"
-  aria-label={m.session_stop_title()}
+  oncancel={handleCancel}
+  aria-labelledby="stop-session-title"
 >
-  <div class="modal-card">
-    <div class="modal-header">
-      <div class="warning-icon"><AlertTriangle size={20} /></div>
-      <h2 class="modal-title">{m.session_stop_title()}</h2>
+  <div class="modal-header">
+    <div class="warning-icon"><AlertTriangle size={20} /></div>
+    <h2 id="stop-session-title" class="modal-title">{m.session_stop_title()}</h2>
+  </div>
+
+  {#if loading}
+    <p class="modal-message">{m.common_loading()}</p>
+  {:else if loadError}
+    <p class="modal-error">{loadError}</p>
+    <div class="modal-actions">
+      <button bind:this={cancelButton} class="btn-cancel" onclick={onClose}
+        >{m.common_close()}</button
+      >
+    </div>
+  {:else if preview}
+    <div class="preview-details">
+      <div class="preview-row">
+        <span class="preview-label">{m.session_stop_preview_tokens()}</span>
+        <span class="preview-value">{preview.estimated_final_tokens.toLocaleString()}</span>
+      </div>
+      <div class="preview-row">
+        <span class="preview-label">{m.session_stop_preview_duration()}</span>
+        <span class="preview-value">{formatActiveDuration(preview.active_duration_seconds)}</span>
+      </div>
+      {#if preview.vastai_gpu_name}
+        <div class="preview-row">
+          <span class="preview-label">GPU</span>
+          <span class="preview-value">{preview.vastai_gpu_name}</span>
+        </div>
+      {/if}
     </div>
 
-    {#if loading}
-      <p class="modal-message">{m.common_loading()}</p>
-    {:else if loadError}
-      <p class="modal-error">{loadError}</p>
-      <div class="modal-actions">
-        <button class="btn-cancel" onclick={onClose}>{m.common_close()}</button>
-      </div>
-    {:else if preview}
-      <div class="preview-details">
-        <div class="preview-row">
-          <span class="preview-label">{m.session_stop_preview_tokens()}</span>
-          <span class="preview-value">{preview.estimated_final_tokens.toLocaleString()}</span>
-        </div>
-        <div class="preview-row">
-          <span class="preview-label">{m.session_stop_preview_duration()}</span>
-          <span class="preview-value">{formatActiveDuration(preview.active_duration_seconds)}</span>
-        </div>
-        {#if preview.vastai_gpu_name}
-          <div class="preview-row">
-            <span class="preview-label">GPU</span>
-            <span class="preview-value">{preview.vastai_gpu_name}</span>
-          </div>
-        {/if}
-      </div>
-
-      {#if confirmError}
-        <p class="modal-error">{confirmError}</p>
-      {/if}
-
-      <div class="modal-actions">
-        <button class="btn-cancel" onclick={onClose} disabled={confirming}>
-          {m.session_stop_cancel()}
-        </button>
-        <button class="btn-confirm" onclick={handleConfirm} disabled={confirming}>
-          {confirming ? m.session_stopping() : m.session_stop_confirm()}
-        </button>
-      </div>
+    {#if confirmError}
+      <p class="modal-error">{confirmError}</p>
     {/if}
-  </div>
-</div>
+
+    <div class="modal-actions">
+      <button bind:this={cancelButton} class="btn-cancel" onclick={onClose} disabled={confirming}>
+        {m.session_stop_cancel()}
+      </button>
+      <button class="btn-confirm" onclick={handleConfirm} disabled={confirming}>
+        {confirming ? m.session_stopping() : m.session_stop_confirm()}
+      </button>
+    </div>
+  {/if}
+</dialog>
 
 <style>
-  .modal-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.5);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
-    z-index: 200;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 16px;
-  }
-
   .modal-card {
     background: var(--apex-surface);
     border-radius: 16px;
     max-width: 400px;
-    width: calc(100% - 32px);
+    width: min(400px, calc(100% - 32px));
+    margin: auto;
     padding: 24px;
+    border: 0;
     display: flex;
     flex-direction: column;
     gap: 16px;
+  }
+  .modal-card::backdrop {
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
   }
 
   .modal-header {

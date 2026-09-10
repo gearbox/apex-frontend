@@ -49,13 +49,3 @@ export function formatTypicalDuration(seconds: number): string {
   if (minutes > 0) return `${minutes}m`;
   return `${rounded}s`;
 }
-
-export function isLastLiveDeployment(
-  deployments: components['schemas']['DeploymentResponse'][],
-  targetId: string,
-): boolean {
-  const live = deployments.filter(
-    (deployment) => deployment.status !== 'removed' && deployment.status !== 'failed',
-  );
-  return live.length === 1 && live[0]?.id === targetId;
-}

@@ -271,6 +271,164 @@ test.describe('Sessions page', () => {
       timeout: 5000,
     });
   });
+
+  test(
+    '7. Final-active removal warns about billing and sends force only after confirmation',
+    { tag: '@cross-browser' },
+    async ({ authenticatedPage: page }) => {
+      const activeDeployment = {
+        id: 'deploy_active',
+        model_type: 'aisha-image',
+        bundle_name: 'aisha',
+        bundle_version: null,
+        status: 'active',
+        pending_restart: false,
+        routing_suspended: false,
+        is_primary: true,
+        created_at: '2026-06-20T00:00:00Z',
+        activated_at: '2026-06-20T00:01:00Z',
+      };
+      const deployingSibling = {
+        ...activeDeployment,
+        id: 'deploy_deploying',
+        model_type: 'aisha-image-lite',
+        status: 'deploying',
+        is_primary: false,
+      };
+      const detail = { ...mockActiveSession, deployments: [activeDeployment, deployingSibling] };
+      const list = [
+        {
+          id: detail.id,
+          product_id: detail.product_id,
+          status: detail.status,
+          created_at: detail.created_at,
+          started_at: detail.started_at,
+          deployments: detail.deployments.map(({ id, model_type, status, is_primary }) => ({
+            id,
+            model_type,
+            status,
+            is_primary,
+          })),
+        },
+      ];
+      const deleteUrls: string[] = [];
+
+      await page.route(
+        (url) => url.pathname.startsWith('/v1/sessions'),
+        async (route) => {
+          const url = new URL(route.request().url());
+          if (route.request().method() === 'DELETE') {
+            deleteUrls.push(url.toString());
+            return route.fulfill({
+              status: 202,
+              contentType: 'application/json',
+              body: JSON.stringify({
+                deployment: { ...activeDeployment, status: 'removing' },
+                operation: {
+                  id: 'op_remove',
+                  session_id: detail.id,
+                  deployment_id: activeDeployment.id,
+                  kind: 'bundle_remove',
+                  status: 'queued',
+                  phase: null,
+                  revision: 0,
+                  target: null,
+                  progress: null,
+                  message: null,
+                  error: null,
+                  started_at: null,
+                  updated_at: '2026-06-20T00:02:00Z',
+                  finished_at: null,
+                },
+              }),
+            });
+          }
+          if (url.pathname === `/v1/sessions/${detail.id}`) {
+            return route.fulfill({
+              status: 200,
+              contentType: 'application/json',
+              body: JSON.stringify(detail),
+            });
+          }
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ sessions: list }),
+          });
+        },
+      );
+
+      await page.goto('/app/sessions');
+      const remove = page.getByRole('button', { name: 'Remove' });
+      await expect(remove).toBeVisible({ timeout: 5000 });
+      await remove.focus();
+      await remove.click();
+
+      const dialog = page.getByRole('dialog');
+      await expect(dialog.getByText(/keep running and billing until you stop it/i)).toBeVisible();
+      await expect(dialog.getByRole('button', { name: 'Remove last model anyway' })).toBeVisible();
+      expect(deleteUrls).toHaveLength(0);
+
+      await page.getByRole('button', { name: 'Remove last model anyway' }).click();
+      await expect.poll(() => deleteUrls.length).toBe(1);
+      expect(deleteUrls[0]).toContain('force=true');
+    },
+  );
+
+  test(
+    '8. Invalid session and deployment states do not expose Remove',
+    { tag: '@cross-browser' },
+    async ({ authenticatedPage: page }) => {
+      const paused = {
+        ...mockActiveSession,
+        id: 'sess_paused',
+        status: 'paused',
+        deployments: [
+          { ...mockActiveSession.deployments[0], id: 'paused_active', status: 'active' },
+        ],
+      };
+      const activeWithInvalidDeployments = {
+        ...mockActiveSession,
+        id: 'sess_invalid_deployments',
+        deployments: [
+          { ...mockActiveSession.deployments[0], id: 'deploying', status: 'deploying' },
+          { ...mockActiveSession.deployments[0], id: 'failed', status: 'failed' },
+          { ...mockActiveSession.deployments[0], id: 'removing', status: 'removing' },
+        ],
+      };
+      const details = new Map([
+        [paused.id, paused],
+        [activeWithInvalidDeployments.id, activeWithInvalidDeployments],
+      ]);
+      const list = [...details.values()].map((session) => ({
+        id: session.id,
+        product_id: session.product_id,
+        status: session.status,
+        created_at: session.created_at,
+        started_at: session.started_at,
+        deployments: session.deployments,
+      }));
+
+      await page.route(
+        (url) => url.pathname.startsWith('/v1/sessions'),
+        async (route) => {
+          const path = new URL(route.request().url()).pathname;
+          const detail = [...details.entries()].find(([id]) => path === `/v1/sessions/${id}`)?.[1];
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify(detail ?? { sessions: list }),
+          });
+        },
+      );
+
+      await page.goto('/app/sessions');
+      await expect(page.getByRole('button', { name: 'Stop' }).first()).toBeVisible({
+        timeout: 5000,
+      });
+      await expect(page.getByRole('button', { name: 'Remove' })).toHaveCount(0);
+    },
+  );
 });
 
 // ── Create page hook tests ────────────────────────────────────────────────────

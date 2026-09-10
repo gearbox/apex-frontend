@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { eligibleAttachModels } from './deploymentEligibility';
+import {
+  canRemoveDeployment,
+  eligibleAttachModels,
+  requiresForceToRemoveDeployment,
+} from './deploymentEligibility';
 
 describe('eligibleAttachModels', () => {
   it('offers only enabled, available, unoccupied on-demand models in the known provider family', () => {
@@ -70,5 +74,47 @@ describe('eligibleAttachModels', () => {
     expect(eligibleAttachModels(providers, deployments)).toEqual([
       { model: 'aisha-image-lite', name: 'Aisha Lite' },
     ]);
+  });
+});
+
+describe('deployment removal eligibility', () => {
+  const deployment = (id: string, status: string) => ({ id, status }) as never;
+
+  it.each([
+    ['active', 'active', true],
+    ['active', 'deploying', false],
+    ['active', 'removing', false],
+    ['active', 'removed', false],
+    ['active', 'failed', false],
+    ['paused', 'active', false],
+    ['stale', 'active', false],
+    ['resuming', 'active', false],
+    ['stopping', 'active', false],
+  ] as const)(
+    'allows Remove for session %s and deployment %s: %s',
+    (session, deployment, expected) => {
+      expect(canRemoveDeployment(session, deployment)).toBe(expected);
+    },
+  );
+
+  it.each([
+    ['active sibling', [deployment('target', 'active'), deployment('other', 'active')], false],
+    ['deploying sibling', [deployment('target', 'active'), deployment('other', 'deploying')], true],
+    ['removing sibling', [deployment('target', 'active'), deployment('other', 'removing')], true],
+    ['failed sibling', [deployment('target', 'active'), deployment('other', 'failed')], true],
+    ['removed sibling', [deployment('target', 'active'), deployment('other', 'removed')], true],
+    ['single active target', [deployment('target', 'active')], true],
+  ])('requires force with %s', (_description, deployments, expected) => {
+    expect(requiresForceToRemoveDeployment(deployments, 'target')).toBe(expected);
+  });
+
+  it('does not decide force for a missing or non-active target', () => {
+    expect(requiresForceToRemoveDeployment([deployment('other', 'active')], 'missing')).toBe(false);
+    expect(
+      requiresForceToRemoveDeployment(
+        [deployment('target', 'deploying'), deployment('other', 'active')],
+        'target',
+      ),
+    ).toBe(false);
   });
 });

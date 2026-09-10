@@ -7,14 +7,17 @@
     GpuSessionResponse,
     DeploymentResponse,
   } from '$lib/api/sessions';
-  import type { AttachModelOption } from '$lib/utils/deploymentEligibility';
+  import type { AttachModelOption, ModelProvisioningHints } from '$lib/utils/deploymentEligibility';
+  import {
+    canRemoveDeployment,
+    requiresForceToRemoveDeployment,
+  } from '$lib/utils/deploymentEligibility';
   import {
     attachDeploymentMutationOptions,
     pauseSessionMutationOptions,
     removeDeploymentMutationOptions,
     resumeSessionMutationOptions,
   } from '$lib/queries/sessions';
-  import { isLastLiveDeployment } from '$lib/utils/operationDisplay';
   import { addToast } from '$lib/stores/toasts';
   import { parseApiError } from '$lib/api/errors';
   import OperationProgress from './OperationProgress.svelte';
@@ -27,10 +30,21 @@
     session: GpuSessionResponse | GpuSessionListItemResponse;
     modelNames?: Record<string, string>;
     attachableModels?: AttachModelOption[];
+    provisioningHints?: Map<string, ModelProvisioningHints>;
+    detailState?: 'loading' | 'error' | 'loaded';
+    onDetailRetry?: (() => void) | null;
     onStop: (id: string) => void;
   }
 
-  let { session, modelNames = {}, attachableModels = [], onStop }: Props = $props();
+  let {
+    session,
+    modelNames = {},
+    attachableModels = [],
+    provisioningHints = new Map(),
+    detailState = undefined,
+    onDetailRetry = null,
+    onStop,
+  }: Props = $props();
   const queryClient = useQueryClient();
   const pauseMutation = createMutation(() => pauseSessionMutationOptions(queryClient));
   const resumeMutation = createMutation(() => resumeSessionMutationOptions(queryClient));
@@ -39,16 +53,81 @@
 
   let attachOpen = $state(false);
   let removalTarget = $state<DeploymentResponse | null>(null);
+  let attachSubmitting = $state(false);
+  let removalSubmitting = $state(false);
 
-  const isDetailed = $derived('user_id' in session);
-  const detail = $derived(isDetailed ? (session as GpuSessionResponse) : null);
+  const inferredDetailState = $derived('user_id' in session ? 'loaded' : 'loading');
+  const resolvedDetailState = $derived(detailState ?? inferredDetailState);
+  const detail = $derived(
+    resolvedDetailState === 'loaded' ? (session as GpuSessionResponse) : null,
+  );
   const deployments = $derived(detail?.deployments ?? []);
   const terminal = $derived(session.status === 'stopped' || session.status === 'failed');
   const lifecyclePending = $derived(pauseMutation.isPending || resumeMutation.isPending);
-  const actionDisabled = $derived(lifecyclePending || session.status === 'stopping' || terminal);
-  const selectedRemovalIsLastLive = $derived(
-    removalTarget ? isLastLiveDeployment(deployments, removalTarget.id) : false,
+  const attachPending = $derived(attachSubmitting || attachMutation.isPending);
+  const removePending = $derived(removalSubmitting || removeMutation.isPending);
+  const actionDisabled = $derived(
+    lifecyclePending ||
+      removePending ||
+      session.status === 'resuming' ||
+      session.status === 'stopping' ||
+      terminal,
   );
+  const currentRemovalTarget = $derived(
+    removalTarget
+      ? (deployments.find((deployment) => deployment.id === removalTarget?.id) ?? null)
+      : null,
+  );
+  const selectedRemovalRequiresForce = $derived(
+    currentRemovalTarget
+      ? requiresForceToRemoveDeployment(deployments, currentRemovalTarget.id)
+      : false,
+  );
+  const currentDeployments = $derived(
+    (session.deployments ?? []).filter(
+      (deployment) =>
+        deployment.status === 'active' ||
+        deployment.status === 'deploying' ||
+        deployment.status === 'removing',
+    ),
+  );
+  const headerModelNames = $derived(
+    Array.from(new Set(currentDeployments.map((deployment) => modelName(deployment)))).join(', '),
+  );
+  const bootstrapDeployment = $derived(
+    deployments.find((deployment) => deployment.is_primary) ?? currentDeployments[0] ?? null,
+  );
+  const typicalBootstrapSeconds = $derived(
+    bootstrapDeployment
+      ? (provisioningHints.get(bootstrapDeployment.model_type)?.typicalBootstrapSeconds ?? null)
+      : null,
+  );
+
+  let uptimeNow = $state(Date.now());
+
+  function timestampMs(value: string | null | undefined): number | null {
+    if (!value) return null;
+    const parsed = new Date(value).getTime();
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  const uptimeSeconds = $derived.by(() => {
+    const startedAt = timestampMs(detail?.started_at);
+    return startedAt === null ? null : Math.max(0, Math.floor((uptimeNow - startedAt) / 1000));
+  });
+
+  // Detailed active sessions get a local, minute-granularity clock. It never fetches and the
+  // effect cleanup prevents duplicate intervals as lifecycle snapshots change.
+  $effect(() => {
+    const startedAt = timestampMs(detail?.started_at);
+    if (detail?.status !== 'active' || startedAt === null) return;
+
+    uptimeNow = Date.now();
+    const timer = window.setInterval(() => {
+      uptimeNow = Date.now();
+    }, 60_000);
+    return () => window.clearInterval(timer);
+  });
 
   const SESSION_COLOR_MAP: Record<string, string> = {
     active: 'success',
@@ -69,27 +148,59 @@
     });
   }
   function handleAttach(model: AttachModelOption['model']): void {
+    if (!detail || attachPending) return;
+    attachSubmitting = true;
     attachMutation.mutate(
       { sessionId: session.id, model },
       {
         onSuccess: () => {
+          attachSubmitting = false;
           attachOpen = false;
         },
-        onError: operationError,
+        onError: (error) => {
+          attachSubmitting = false;
+          operationError(error);
+        },
       },
     );
   }
   function handleRemove(): void {
-    if (!removalTarget) return;
+    if (!currentRemovalTarget || removePending) return;
+    // A dialog may have opened before an SSE/REST update changed either status. Re-read the
+    // current detailed snapshot immediately before issuing DELETE.
+    if (!canRemoveDeployment(session.status, currentRemovalTarget.status)) {
+      removalTarget = null;
+      return;
+    }
+    removalSubmitting = true;
     removeMutation.mutate(
-      { sessionId: session.id, deploymentId: removalTarget.id, force: selectedRemovalIsLastLive },
+      {
+        sessionId: session.id,
+        deploymentId: currentRemovalTarget.id,
+        force: requiresForceToRemoveDeployment(deployments, currentRemovalTarget.id),
+      },
       {
         onSuccess: () => {
+          removalSubmitting = false;
           removalTarget = null;
         },
-        onError: operationError,
+        onError: (error) => {
+          removalSubmitting = false;
+          operationError(error);
+        },
       },
     );
+  }
+  function openRemoval(target: DeploymentResponse): void {
+    if (!removePending && canRemoveDeployment(session.status, target.status)) {
+      removalTarget = target;
+    }
+  }
+  function closeRemoval(): void {
+    if (!removePending) removalTarget = null;
+  }
+  function closeAttach(): void {
+    if (!attachPending) attachOpen = false;
   }
   function modelName(deployment: { model_type: string }): string {
     return modelNames[deployment.model_type] ?? deployment.model_type;
@@ -108,8 +219,7 @@
     };
     return labels[status]?.() ?? status;
   }
-  function formatUptime(startedAt: string): string {
-    const seconds = Math.max(0, Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000));
+  function formatUptime(seconds: number): string {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
@@ -120,7 +230,7 @@
   <header class="card-header">
     <div class="card-title-row">
       <div class="card-model">
-        <strong>{(session.deployments ?? []).map(modelName).join(', ')}</strong>
+        <strong>{headerModelNames || m.session_no_current_deployments()}</strong>
       </div>
       <StatusBadge
         status={sessionStatusLabel(session.status)}
@@ -128,14 +238,19 @@
       />
     </div>
     {#if detail?.vastai_gpu_name}<small>{detail.vastai_gpu_name}</small>{/if}
-    {#if detail?.status === 'active' && detail.started_at}<small
-        >{m.session_uptime()}: {formatUptime(detail.started_at)}</small
+    {#if detail?.status === 'active' && uptimeSeconds !== null}<small
+        >{m.session_uptime()}: {formatUptime(uptimeSeconds)}</small
       >{/if}
     {#if detail?.error_message}<p class="session-error">{detail.error_message}</p>{/if}
   </header>
 
   {#if detail?.bootstrap_operation?.id}
-    <OperationProgress sessionId={session.id} operationId={detail.bootstrap_operation.id} />
+    <OperationProgress
+      sessionId={session.id}
+      operationId={detail.bootstrap_operation.id}
+      bootstrapOperationId={detail.bootstrap_operation.id}
+      {typicalBootstrapSeconds}
+    />
   {/if}
 
   {#if detail}
@@ -143,30 +258,41 @@
       {#each deployments as deployment (deployment.id)}
         <DeploymentRow
           sessionId={session.id}
+          sessionStatus={session.status}
           {deployment}
           modelName={modelName(deployment)}
-          typicalAttachSeconds={null}
-          removing={removeMutation.isPending && removalTarget?.id === deployment.id}
-          onRemove={(target) => (removalTarget = target)}
+          typicalAttachSeconds={provisioningHints.get(deployment.model_type)
+            ?.typicalAttachSeconds ?? null}
+          {removePending}
+          removingTarget={removePending && currentRemovalTarget?.id === deployment.id}
+          onRemove={openRemoval}
         />
       {/each}
+    </div>
+  {:else if resolvedDetailState === 'error'}
+    <div class="detail-error">
+      <p class="session-error">{m.session_detail_error()}</p>
+      {#if onDetailRetry}
+        <button class="retry" onclick={onDetailRetry}>{m.session_detail_retry()}</button>
+      {/if}
     </div>
   {:else}
     <p class="loading">{m.session_detail_loading()}</p>
   {/if}
 
   <div class="card-actions">
-    {#if session.status === 'active'}
+    {#if detail && session.status === 'active'}
       <button
         disabled={actionDisabled}
         onclick={() => pauseMutation.mutate(session.id, { onError: operationError })}
       >
         <Pause size={14} />{pauseMutation.isPending ? m.session_pausing() : m.session_pause()}
       </button>
-      {#if detail}<button disabled={attachMutation.isPending} onclick={() => (attachOpen = true)}
-          ><Plus size={14} />{m.session_add_model()}</button
+      {#if detail}<button
+          disabled={actionDisabled || attachPending}
+          onclick={() => (attachOpen = true)}><Plus size={14} />{m.session_add_model()}</button
         >{/if}
-    {:else if session.status === 'paused'}
+    {:else if detail && session.status === 'paused'}
       <button
         disabled={actionDisabled}
         onclick={() => resumeMutation.mutate(session.id, { onError: operationError })}
@@ -175,8 +301,10 @@
       </button>
     {/if}
     {#if !terminal && session.status !== 'stopping'}
-      <button class="stop" disabled={lifecyclePending} onclick={() => onStop(session.id)}
-        ><Square size={14} />{m.session_stop()}</button
+      <button
+        class="stop"
+        disabled={actionDisabled || attachPending}
+        onclick={() => onStop(session.id)}><Square size={14} />{m.session_stop()}</button
       >
     {:else}
       <button class="stop" disabled
@@ -191,18 +319,18 @@
 {#if attachOpen}
   <AttachDeploymentSheet
     models={attachableModels}
-    pending={attachMutation.isPending}
+    pending={attachPending}
     onAttach={handleAttach}
-    onClose={() => (attachOpen = false)}
+    onClose={closeAttach}
   />
 {/if}
-{#if removalTarget}
+{#if currentRemovalTarget}
   <RemoveDeploymentModal
-    modelName={modelName(removalTarget)}
-    finalLive={selectedRemovalIsLastLive}
-    pending={removeMutation.isPending}
+    modelName={modelName(currentRemovalTarget)}
+    finalLive={selectedRemovalRequiresForce}
+    pending={removePending}
     onConfirm={handleRemove}
-    onClose={() => (removalTarget = null)}
+    onClose={closeRemoval}
   />
 {/if}
 
@@ -245,6 +373,22 @@
     font-size: 13px;
     color: var(--apex-danger);
     overflow-wrap: anywhere;
+  }
+  .detail-error {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .retry {
+    border: 1px solid var(--apex-border);
+    border-radius: 7px;
+    padding: 6px 10px;
+    background: transparent;
+    color: var(--apex-text);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
   }
   .deployments {
     display: grid;

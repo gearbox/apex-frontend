@@ -5,7 +5,6 @@ import {
   formatDuration,
   formatTypicalDuration,
   formatOperationRate,
-  isLastLiveDeployment,
 } from './operationDisplay';
 
 describe('operation display helpers', () => {
@@ -25,14 +24,5 @@ describe('operation display helpers', () => {
   it('formats durations without creating an ETA', () => {
     expect(formatDuration(103)).toBe('1m 43s');
     expect(formatTypicalDuration(120)).toBe('2m');
-  });
-
-  it('requires force only for the final live deployment', () => {
-    const deployment = (id: string, status: string) => ({ id, status }) as never;
-    const deployments = [deployment('first', 'active'), deployment('second', 'failed')];
-    expect(isLastLiveDeployment(deployments, 'first')).toBe(true);
-    expect(isLastLiveDeployment([...deployments, deployment('third', 'deploying')], 'first')).toBe(
-      false,
-    );
   });
 });

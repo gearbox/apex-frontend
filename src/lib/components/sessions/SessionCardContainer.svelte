@@ -4,7 +4,11 @@
   import type { ProvidersResponse } from '$lib/queries/providers';
   import { isSSEFallback } from '$lib/stores/eventStream';
   import { sessionDetailQueryOptions } from '$lib/queries/sessions';
-  import { eligibleAttachModels, modelNameByType } from '$lib/utils/deploymentEligibility';
+  import {
+    eligibleAttachModels,
+    modelNameByType,
+    provisioningHintsByModelType,
+  } from '$lib/utils/deploymentEligibility';
   import SessionCard from './SessionCard.svelte';
 
   interface Props {
@@ -21,8 +25,10 @@
     }),
   );
   const detail = $derived(detailQuery.data);
+  const detailState = $derived(detailQuery.isError ? 'error' : detail ? 'loaded' : 'loading');
   const providerList = $derived(providers?.providers ?? []);
   const names = $derived(Object.fromEntries(modelNameByType(providerList)));
+  const provisioningHints = $derived(provisioningHintsByModelType(providerList));
   const attachable = $derived(
     detail ? eligibleAttachModels(providerList, detail.deployments ?? []) : [],
   );
@@ -32,5 +38,8 @@
   session={detail ?? session}
   modelNames={names}
   attachableModels={attachable}
+  {provisioningHints}
+  {detailState}
+  onDetailRetry={() => detailQuery.refetch()}
   {onStop}
 />
