@@ -694,9 +694,7 @@ test.describe('Sessions page', () => {
       await expect(page.getByText('Paused').first()).toBeVisible({ timeout: 15_000 });
 
       await page.getByRole('dialog').getByText('Aisha Lite').click();
-
-      // Give any accidental request a moment to land before asserting it never did.
-      await page.waitForTimeout(300);
+      await expect(page.getByRole('dialog')).toHaveCount(0);
       expect(attachPosted).toBe(false);
     },
   );

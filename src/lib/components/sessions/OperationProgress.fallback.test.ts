@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { QueryClient } from '@tanstack/svelte-query';
 import { cleanup, render, screen, waitFor } from '@testing-library/svelte';
+import { tick } from 'svelte';
 import { http, HttpResponse } from 'msw';
 import { server } from '../../../mocks/server';
 import { MOCK_BASE_URL as BASE } from '../../../mocks/config';
@@ -46,6 +47,30 @@ afterEach(() => {
 });
 
 describe('OperationProgress — SSE healthy vs. fallback operation polling', () => {
+  it('does not recovery-fetch an operation already terminal in the canonical cache', async () => {
+    let requestCount = 0;
+    server.use(
+      http.get(`${BASE}/v1/sessions/sess_001/operations/op_001`, () => {
+        requestCount += 1;
+        return HttpResponse.json(makeOperation({ status: 'succeeded' }));
+      }),
+    );
+
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    upsertOperation(queryClient, makeOperation({ status: 'succeeded' }));
+    setEventStreamStatus('connected');
+
+    render(OperationProgressQueryHost, {
+      props: { queryClient, sessionId: 'sess_001', operationId: 'op_001' },
+    });
+    await tick();
+    expect(requestCount).toBe(0);
+
+    setEventStreamStatus('fallback');
+    await tick();
+    expect(requestCount).toBe(0);
+  });
+
   it('fetches nothing while SSE is healthy, polls bounded in fallback, never regresses on a stale REST revision, and stops at terminal', async () => {
     let requestCount = 0;
     let currentResponse = makeOperation({ revision: 2, progress: withProgress(60) });

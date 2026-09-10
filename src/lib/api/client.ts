@@ -86,17 +86,17 @@ function assertRetryLive(metadata: RetryMetadata): void {
   if (metadata.signal.aborted) throw new DOMException('Aborted', 'AbortError');
 }
 
-/** Resolves false when logout/session replacement aborts the wait. */
-function waitForRetryDelay(delay: number, signal: AbortSignal): Promise<boolean> {
-  if (signal.aborted) return Promise.resolve(false);
+/** Resolves when the retry delay finishes or the owning request is canceled. */
+function waitForRetryDelay(delay: number, signal: AbortSignal): Promise<void> {
+  if (signal.aborted) return Promise.resolve();
   return new Promise((resolve) => {
     const timer = setTimeout(() => {
       signal.removeEventListener('abort', onAbort);
-      resolve(true);
+      resolve();
     }, delay);
     const onAbort = () => {
       clearTimeout(timer);
-      resolve(false);
+      resolve();
     };
     signal.addEventListener('abort', onAbort, { once: true });
   });
@@ -161,10 +161,7 @@ const authMiddleware: Middleware = {
             break;
           }
           const delay = getRetryDelay(currentHeaders.retryAfter, attempt);
-          if (!(await waitForRetryDelay(delay, metadata.signal))) {
-            assertRetryLive(metadata);
-            break; // unreachable with today's helper contract, explicit future-safe exit
-          }
+          await waitForRetryDelay(delay, metadata.signal);
           assertRetryLive(metadata);
           const retryReq = buildRetryRequest(request, metadata);
           // A retry may only ever use a credential from the original auth epoch; within that

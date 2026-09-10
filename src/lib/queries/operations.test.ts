@@ -234,5 +234,11 @@ describe('operationQueryOptions()', () => {
     expect(fallback.refetchInterval()).toBe(3000);
     upsertOperation(client, operation(1, { status: 'succeeded' }));
     expect(fallback.refetchInterval()).toBe(false);
+
+    const terminalFallback = operationQueryOptions(client, 'sess_001', 'op_001', {
+      fallback: true,
+      enabled: true,
+    });
+    expect(terminalFallback.enabled).toBe(false);
   });
 });

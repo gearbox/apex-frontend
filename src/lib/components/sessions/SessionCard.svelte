@@ -136,6 +136,21 @@
       ? (provisioningHints.get(bootstrapDeployment.model_type)?.typicalBootstrapSeconds ?? null)
       : null,
   );
+  // A bootstrap operation is normally also the primary deployment's current operation. The
+  // deployment row owns that presentation when it is available; keep this card-level instance
+  // only for operation associations that are not represented by a deployment snapshot.
+  const deploymentOperationIds = $derived(
+    new Set(
+      deployments
+        .map((deployment) => deployment.current_operation?.id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  );
+  const standaloneBootstrapOperation = $derived(
+    detail?.bootstrap_operation && !deploymentOperationIds.has(detail.bootstrap_operation.id)
+      ? detail.bootstrap_operation
+      : null,
+  );
 
   let uptimeNow = $state(Date.now());
 
@@ -301,11 +316,11 @@
     {#if detail?.error_message}<p class="session-error">{detail.error_message}</p>{/if}
   </header>
 
-  {#if detail?.bootstrap_operation?.id}
+  {#if standaloneBootstrapOperation}
     <OperationProgress
       sessionId={session.id}
-      operationId={detail.bootstrap_operation.id}
-      bootstrapOperationId={detail.bootstrap_operation.id}
+      operationId={standaloneBootstrapOperation.id}
+      bootstrapOperationId={standaloneBootstrapOperation.id}
       {typicalBootstrapSeconds}
     />
   {/if}

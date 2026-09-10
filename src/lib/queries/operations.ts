@@ -54,7 +54,13 @@ export function operationQueryOptions(
   opts: { fallback: boolean; enabled: boolean },
 ) {
   const queryKey = operationKeys.detail(operationId);
-  const enabled = opts.enabled && Boolean(sessionId) && Boolean(operationId) && opts.fallback;
+  const cached = queryClient.getQueryData<OperationResponse>(queryKey);
+  const enabled =
+    opts.enabled &&
+    Boolean(sessionId) &&
+    Boolean(operationId) &&
+    opts.fallback &&
+    !isTerminalOperation(cached);
   return {
     queryKey,
     queryFn: async ({ signal }: { signal: AbortSignal }) =>

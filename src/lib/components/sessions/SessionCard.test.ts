@@ -10,6 +10,7 @@ const { mutations } = vi.hoisted(() => ({
 
 vi.mock('@tanstack/svelte-query', () => ({
   useQueryClient: () => ({}),
+  createQuery: () => ({ data: null }),
   createMutation: () => {
     const mutation = { isPending: false, mutate: vi.fn() };
     mutations.push(mutation);
@@ -119,6 +120,51 @@ describe('SessionCard — deployment identity', () => {
 });
 
 describe('SessionCard — detailed deployment operations', () => {
+  it('renders a bootstrap operation only in its deployment row when both reference the same ID', () => {
+    const operation = { id: 'op_bootstrap' } as never;
+    const { container } = render(SessionCard, {
+      props: {
+        session: makeDetailedSession({
+          bootstrap_operation: operation,
+          deployments: [{ ...makeDetailedSession().deployments![0], current_operation: operation }],
+        }),
+        onStop: vi.fn(),
+      },
+    });
+
+    expect(container.querySelectorAll('.operation')).toHaveLength(1);
+  });
+
+  it('renders a standalone bootstrap operation when no deployment references it', () => {
+    const { container } = render(SessionCard, {
+      props: {
+        session: makeDetailedSession({ bootstrap_operation: { id: 'op_bootstrap' } as never }),
+        onStop: vi.fn(),
+      },
+    });
+
+    expect(container.querySelectorAll('.operation')).toHaveLength(1);
+  });
+
+  it('renders distinct bootstrap and deployment operations independently', () => {
+    const { container } = render(SessionCard, {
+      props: {
+        session: makeDetailedSession({
+          bootstrap_operation: { id: 'op_bootstrap' } as never,
+          deployments: [
+            {
+              ...makeDetailedSession().deployments![0],
+              current_operation: { id: 'op_deployment' } as never,
+            },
+          ],
+        }),
+        onStop: vi.fn(),
+      },
+    });
+
+    expect(container.querySelectorAll('.operation')).toHaveLength(2);
+  });
+
   it('offers Remove only for active deployments on an active session', () => {
     const session = makeDetailedSession({
       deployments: [
