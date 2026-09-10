@@ -181,6 +181,43 @@ describe('OperationProgress', () => {
     expect(screen.getByText('Usually around 1m')).toBeTruthy();
   });
 
+  it('never places the ticking elapsed value inside a live region', () => {
+    operation = {
+      ...baseOperation,
+      status: 'running',
+      phase: 'models',
+      progress: null,
+      started_at: '2026-09-10T00:00:00Z',
+    };
+    const { container } = render(OperationProgress, {
+      props: { sessionId: 'sess_001', operationId: 'op_001' },
+    });
+
+    for (const liveRegion of container.querySelectorAll('[aria-live]')) {
+      expect(liveRegion.textContent).not.toMatch(/Elapsed/);
+    }
+  });
+
+  it('announces a failure message through an alert region, not the elapsed live region', () => {
+    operation = {
+      ...baseOperation,
+      status: 'failed',
+      phase: null,
+      progress: null,
+      error: { message: 'Bundle download failed' },
+    };
+    const { container } = render(OperationProgress, {
+      props: { sessionId: 'sess_001', operationId: 'op_001' },
+    });
+
+    const alert = container.querySelector('[role="alert"]');
+    expect(alert?.textContent).toBe('Bundle download failed');
+    for (const liveRegion of container.querySelectorAll('[aria-live]')) {
+      expect(liveRegion).not.toBe(alert);
+      expect(liveRegion.contains(alert)).toBe(false);
+    }
+  });
+
   it('freezes elapsed time for terminal operations', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-09-10T00:02:00Z'));

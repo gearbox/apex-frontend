@@ -132,13 +132,13 @@ describe('SessionCard — detailed deployment operations', () => {
       ],
     });
     render(SessionCard, { props: { session, onStop: vi.fn() } });
-    expect(screen.getAllByRole('button', { name: 'Remove' })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'Remove aisha-image' })).toHaveLength(1);
   });
 
   it('uses force only after the final-active warning confirmation', async () => {
     render(SessionCard, { props: { session: makeDetailedSession(), onStop: vi.fn() } });
 
-    await fireEvent.click(screen.getByRole('button', { name: 'Remove' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Remove aisha-image' }));
     expect(
       screen.getByText(/GPU session will keep running and billing until you stop it/i),
     ).toBeTruthy();
@@ -154,7 +154,7 @@ describe('SessionCard — detailed deployment operations', () => {
   it('does not send DELETE when the current snapshot changes before confirmation', async () => {
     const current = makeDetailedSession();
     const rendered = render(SessionCard, { props: { session: current, onStop: vi.fn() } });
-    await fireEvent.click(screen.getByRole('button', { name: 'Remove' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Remove aisha-image' }));
 
     await rendered.rerender({
       session: makeDetailedSession({ status: 'paused' }),
@@ -212,5 +212,113 @@ describe('SessionCard — detailed deployment operations', () => {
     vi.advanceTimersByTime(60_000);
     await tick();
     expect(screen.getByText('Uptime: 2m')).toBeTruthy();
+  });
+});
+
+describe('SessionCard — Pause gated by in-flight jobs', () => {
+  it('enables Pause when in_flight_job_count is 0', () => {
+    render(SessionCard, {
+      props: { session: makeDetailedSession({ in_flight_job_count: 0 }), onStop: vi.fn() },
+    });
+    const pause = screen.getByRole('button', { name: /pause/i }) as HTMLButtonElement;
+    expect(pause.disabled).toBe(false);
+  });
+
+  it('disables Pause when in_flight_job_count > 0 and explains why', () => {
+    render(SessionCard, {
+      props: { session: makeDetailedSession({ in_flight_job_count: 2 }), onStop: vi.fn() },
+    });
+    const pause = screen.getByRole('button', { name: /pause/i }) as HTMLButtonElement;
+    expect(pause.disabled).toBe(true);
+    expect(pause.title).toBe('Pause is available after active generations finish.');
+    expect(screen.getByText('Pause is available after active generations finish.')).toBeTruthy();
+  });
+
+  it('disables Pause reactively when detail reconciliation raises the count from 0', async () => {
+    const rendered = render(SessionCard, {
+      props: { session: makeDetailedSession({ in_flight_job_count: 0 }), onStop: vi.fn() },
+    });
+    expect((screen.getByRole('button', { name: /pause/i }) as HTMLButtonElement).disabled).toBe(
+      false,
+    );
+
+    await rendered.rerender({
+      session: makeDetailedSession({ in_flight_job_count: 1 }),
+      onStop: vi.fn(),
+    });
+    expect((screen.getByRole('button', { name: /pause/i }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+  });
+
+  it('does not hide the session or its other actions while Pause is blocked', () => {
+    render(SessionCard, {
+      props: { session: makeDetailedSession({ in_flight_job_count: 1 }), onStop: vi.fn() },
+    });
+    expect(screen.getByRole('button', { name: /stop/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /add model/i })).toBeTruthy();
+  });
+});
+
+describe('SessionCard — same-session command lock', () => {
+  it('disables Add model and deployment Remove once Pause is submitted', async () => {
+    render(SessionCard, { props: { session: makeDetailedSession(), onStop: vi.fn() } });
+
+    await fireEvent.click(screen.getByRole('button', { name: /^pause$/i }));
+
+    expect((screen.getByRole('button', { name: /add model/i }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+    expect(
+      (screen.getByRole('button', { name: 'Remove aisha-image' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    expect((screen.getByRole('button', { name: /stop/i }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+  });
+
+  it('does not submit attach when the session leaves active while the sheet is open', async () => {
+    const rendered = render(SessionCard, {
+      props: {
+        session: makeDetailedSession(),
+        attachableModels: [{ model: 'aisha-image-lite', name: 'Aisha Lite' }],
+        onStop: vi.fn(),
+      },
+    });
+    await fireEvent.click(screen.getByRole('button', { name: /add model/i }));
+    expect(screen.getByText('Aisha Lite')).toBeTruthy();
+
+    // The sheet's own model list is unaffected by session status, so the stale button is still
+    // on screen — exactly the race `handleAttach` must catch at submit time.
+    await rendered.rerender({
+      session: makeDetailedSession({ status: 'paused' }),
+      attachableModels: [{ model: 'aisha-image-lite', name: 'Aisha Lite' }],
+      onStop: vi.fn(),
+    });
+    await fireEvent.click(screen.getByText('Aisha Lite'));
+
+    expect(mutations[2]?.mutate).not.toHaveBeenCalled();
+  });
+});
+
+describe('SessionCard — Add model dead end', () => {
+  it('disables Add model when there are no attachable models', () => {
+    render(SessionCard, {
+      props: { session: makeDetailedSession(), attachableModels: [], onStop: vi.fn() },
+    });
+    const addModel = screen.getByRole('button', { name: /add model/i }) as HTMLButtonElement;
+    expect(addModel.disabled).toBe(true);
+  });
+
+  it('enables Add model when at least one model is attachable', () => {
+    render(SessionCard, {
+      props: {
+        session: makeDetailedSession(),
+        attachableModels: [{ model: 'aisha-image-lite', name: 'Aisha Lite' }],
+        onStop: vi.fn(),
+      },
+    });
+    const addModel = screen.getByRole('button', { name: /add model/i }) as HTMLButtonElement;
+    expect(addModel.disabled).toBe(false);
   });
 });

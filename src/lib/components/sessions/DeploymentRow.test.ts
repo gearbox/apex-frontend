@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import DeploymentRow from './DeploymentRow.svelte';
 
-const deployment = (status: string) =>
+const deployment = (status: string, overrides: Record<string, unknown> = {}) =>
   ({
     id: 'deploy_001',
     model_type: 'aisha-image',
@@ -14,6 +14,7 @@ const deployment = (status: string) =>
     is_primary: true,
     created_at: '2026-06-20T00:00:00Z',
     activated_at: null,
+    ...overrides,
   }) as never;
 
 describe('DeploymentRow removal controls', () => {
@@ -37,6 +38,33 @@ describe('DeploymentRow removal controls', () => {
         onRemove: vi.fn(),
       },
     });
-    expect(screen.queryByRole('button', { name: 'Remove' }) !== null).toBe(expected);
+    expect(screen.queryByRole('button', { name: 'Remove Aisha' }) !== null).toBe(expected);
+  });
+
+  it('gives each row a model-specific accessible name while keeping visible text unchanged', () => {
+    const { container } = render(DeploymentRow, {
+      props: {
+        sessionId: 'sess_001',
+        sessionStatus: 'active' as never,
+        deployment: deployment('active', { model_type: 'aisha-image' }),
+        modelName: 'Aisha Image',
+        onRemove: vi.fn(),
+      },
+    });
+    render(DeploymentRow, {
+      props: {
+        sessionId: 'sess_001',
+        sessionStatus: 'active' as never,
+        deployment: deployment('active', { id: 'deploy_002', model_type: 'aisha-image-lite' }),
+        modelName: 'Aisha Lite',
+        onRemove: vi.fn(),
+      },
+    });
+
+    const first = screen.getByRole('button', { name: 'Remove Aisha Image' });
+    const second = screen.getByRole('button', { name: 'Remove Aisha Lite' });
+    expect(first).not.toBe(second);
+    // Visible text is unchanged even though the accessible name is now model-specific.
+    expect(container.querySelector('.remove')?.textContent).toBe('Remove');
   });
 });

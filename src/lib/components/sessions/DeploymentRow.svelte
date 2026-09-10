@@ -11,7 +11,8 @@
     deployment: DeploymentResponse;
     modelName: string;
     typicalAttachSeconds?: number | null;
-    removePending?: boolean;
+    /** True while this session has any incompatible command in flight (not only removal). */
+    actionLocked?: boolean;
     removingTarget?: boolean;
     onRemove: (deployment: DeploymentResponse) => void;
   }
@@ -21,7 +22,7 @@
     deployment,
     modelName,
     typicalAttachSeconds = null,
-    removePending = false,
+    actionLocked = false,
     removingTarget = false,
     onRemove,
   }: Props = $props();
@@ -60,7 +61,11 @@
     />
   {/if}
   {#if canRemove}
-    <button class="remove" disabled={removePending} onclick={() => onRemove(deployment)}
+    <button
+      class="remove"
+      disabled={actionLocked}
+      aria-label={m.deployment_remove_for({ model: modelName })}
+      onclick={() => onRemove(deployment)}
       >{removingTarget ? m.common_loading() : m.deployment_remove()}</button
     >
   {/if}

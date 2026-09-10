@@ -5,7 +5,8 @@ import { http, HttpResponse } from 'msw';
 import { server } from '../../../mocks/server';
 import { MOCK_BASE_URL as BASE } from '../../../mocks/config';
 import type { GpuSessionListItemResponse } from '$lib/api/sessions';
-import SessionCardContainerQueryHost from './SessionCardContainerQueryHost.svelte';
+import { sessionKeys } from '$lib/queries/sessions';
+import SessionCardContainerQueryHost from './testing/SessionCardContainerQueryHost.svelte';
 
 const listSession = {
   id: 'sess_001',
@@ -66,5 +67,42 @@ describe('SessionCardContainer detail query', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Pause' })).toBeTruthy());
     expect(screen.queryByText("Couldn't load session details.")).toBeNull();
     expect(attempts).toBe(2);
+  });
+
+  it('keeps cached detail rendered through a background refetch error, then updates on the next success', async () => {
+    let attempts = 0;
+    server.use(
+      http.get(`${BASE}/v1/sessions/sess_001`, () => {
+        attempts += 1;
+        if (attempts === 2) {
+          return HttpResponse.json(
+            { error: 'unavailable', message: 'Temporary failure' },
+            { status: 503 },
+          );
+        }
+        return HttpResponse.json(
+          attempts === 3 ? { ...detailedSession, vastai_gpu_name: 'RTX 5090' } : detailedSession,
+        );
+      }),
+    );
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(SessionCardContainerQueryHost, { props: { queryClient, session: listSession } });
+
+    // Initial request succeeds — deployments/actions render.
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Pause' })).toBeTruthy());
+    expect(screen.getByLabelText('Deployed models')).toBeTruthy();
+
+    // A background refetch fails while cached data is still present. The card must keep rendering
+    // from the retained data — no "couldn't load details" replacement, no action disappearance.
+    const detailKey = sessionKeys.detail('sess_001');
+    await queryClient.refetchQueries({ queryKey: detailKey, exact: true });
+    await waitFor(() => expect(attempts).toBe(2));
+    expect(screen.queryByText("Couldn't load session details.")).toBeNull();
+    expect(screen.getByRole('button', { name: 'Pause' })).toBeTruthy();
+    expect(screen.getByLabelText('Deployed models')).toBeTruthy();
+
+    // The next refetch succeeds — new detail replaces the old data normally.
+    await queryClient.refetchQueries({ queryKey: detailKey, exact: true });
+    await waitFor(() => expect(screen.getByText('RTX 5090')).toBeTruthy());
   });
 });

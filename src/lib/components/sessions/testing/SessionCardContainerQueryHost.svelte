@@ -2,7 +2,7 @@
   import { QueryClient, QueryClientProvider } from '@tanstack/svelte-query';
   import type { GpuSessionListItemResponse } from '$lib/api/sessions';
   import type { ProvidersResponse } from '$lib/queries/providers';
-  import SessionCardContainer from './SessionCardContainer.svelte';
+  import SessionCardContainer from '../SessionCardContainer.svelte';
 
   let {
     queryClient,

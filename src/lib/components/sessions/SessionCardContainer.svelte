@@ -6,17 +6,24 @@
   import { sessionDetailQueryOptions } from '$lib/queries/sessions';
   import {
     eligibleAttachModels,
-    modelNameByType,
-    provisioningHintsByModelType,
+    type ModelProvisioningHints,
   } from '$lib/utils/deploymentEligibility';
   import SessionCard from './SessionCard.svelte';
 
   interface Props {
     session: GpuSessionListItemResponse;
     providers: ProvidersResponse | undefined;
+    modelNames?: Record<string, string>;
+    provisioningHints?: Map<string, ModelProvisioningHints>;
     onStop: (id: string) => void;
   }
-  let { session, providers, onStop }: Props = $props();
+  let {
+    session,
+    providers,
+    modelNames = {},
+    provisioningHints = new Map(),
+    onStop,
+  }: Props = $props();
   const queryClient = useQueryClient();
   const detailQuery = createQuery(() =>
     sessionDetailQueryOptions(queryClient, session.id, {
@@ -25,10 +32,12 @@
     }),
   );
   const detail = $derived(detailQuery.data);
-  const detailState = $derived(detailQuery.isError ? 'error' : detail ? 'loaded' : 'loading');
+  // A query retains its last good `data` while a background refetch fails — `isError` can be true
+  // at the same time as usable cached data. Cached data must win: a transient poll/refetch failure
+  // must not blank out an already-rendered card. The error state is reserved for "no usable detail
+  // data was ever obtained".
+  const detailState = $derived(detail ? 'loaded' : detailQuery.isError ? 'error' : 'loading');
   const providerList = $derived(providers?.providers ?? []);
-  const names = $derived(Object.fromEntries(modelNameByType(providerList)));
-  const provisioningHints = $derived(provisioningHintsByModelType(providerList));
   const attachable = $derived(
     detail ? eligibleAttachModels(providerList, detail.deployments ?? []) : [],
   );
@@ -36,7 +45,7 @@
 
 <SessionCard
   session={detail ?? session}
-  modelNames={names}
+  {modelNames}
   attachableModels={attachable}
   {provisioningHints}
   {detailState}

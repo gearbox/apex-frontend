@@ -27,7 +27,6 @@ export function upsertOperation(
   queryClient: QueryClient,
   incoming: OperationResponse,
 ): OperationResponse {
-  configureOperationCache(queryClient);
   const key = operationKeys.detail(incoming.id);
   const cached = queryClient.getQueryData<OperationResponse>(key);
 

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
   import { createQuery, createMutation, useQueryClient } from '@tanstack/svelte-query';
-  import apiClient from '$lib/api/client';
+  import apiClient, { isRequestCancellation } from '$lib/api/client';
   import { parseApiError } from '$lib/api/errors';
   import { generateIdempotencyKey } from '$lib/utils/idempotency';
   import { generationStore, isGenerating, markGenerationDraftSaved } from '$lib/stores/generation';
@@ -20,11 +20,9 @@
   } from '$lib/utils/sessionState';
   import {
     sessionDetailQueryOptions,
-    sessionKeys,
     startSessionMutationOptions,
     resumeSessionMutationOptions,
   } from '$lib/queries/sessions';
-  import { ingestSessionSnapshot } from '$lib/queries/operations';
   import * as m from '$paraglide/messages';
   import ModelSelector from '$lib/components/create/ModelSelector.svelte';
   import AgeVerificationModal from '$lib/components/create/AgeVerificationModal.svelte';
@@ -54,7 +52,7 @@
     trackProjectForJob,
   } from '$lib/services/projectInheritance';
   import { libraryKeys, projectKeys } from '$lib/queries/library';
-  import { providerKeys, providersQueryOptions } from '$lib/queries/providers';
+  import { providersQueryOptions } from '$lib/queries/providers';
   import { billingPricingQueryOptions } from '$lib/queries/billing';
   import { defaultModelGuideSource } from '$lib/content/modelGuides/source';
   import { deriveModelBillingFacts } from '$lib/content/modelGuides/billingFacts';
@@ -188,6 +186,7 @@
     }
     startMutation.mutate(currentModelInfo.model_key as ModelType, {
       onError: (err) => {
+        if (isRequestCancellation(err)) return;
         const e = parseApiError(err, 0);
         addToast({
           type: e.error === 'session_already_exists' ? 'warning' : 'error',
@@ -205,7 +204,10 @@
   function handleResume() {
     if (!selectedSessionId || cardState !== 'PAUSED' || resumeMutation.isPending) return;
     resumeMutation.mutate(selectedSessionId, {
-      onError: (err) => addToast({ type: 'error', message: parseApiError(err, 0).message }),
+      onError: (err) => {
+        if (isRequestCancellation(err)) return;
+        addToast({ type: 'error', message: parseApiError(err, 0).message });
+      },
     });
   }
 
@@ -216,14 +218,10 @@
     if (selectedSessionId) stopModalSessionId = selectedSessionId;
   }
 
-  function handleStopped(session: GpuSessionResponse) {
+  // Cache reconciliation for a confirmed stop is owned by `confirmedStopMutationOptions` itself;
+  // this callback is UI-only.
+  function handleStopped(_session: GpuSessionResponse) {
     stopModalSessionId = null;
-    queryClient.setQueryData(
-      sessionKeys.detail(session.id),
-      ingestSessionSnapshot(queryClient, session),
-    );
-    queryClient.invalidateQueries({ queryKey: sessionKeys.list(false), exact: true });
-    queryClient.invalidateQueries({ queryKey: providerKeys.catalog() });
   }
 
   // Mirror the backend quote: a matching rule is priced against the exact

@@ -1,3 +1,19 @@
+<script module lang="ts">
+  import * as m from '$paraglide/messages';
+
+  const PHASE_LABELS: Record<string, () => string> = {
+    preflight: m.operation_phase_preflight,
+    comfyui: m.operation_phase_comfyui,
+    requirements_base: m.operation_phase_requirements_base,
+    requirements_locked: m.operation_phase_requirements_locked,
+    custom_nodes: m.operation_phase_custom_nodes,
+    models: m.operation_phase_models,
+    workflow: m.operation_phase_workflow,
+    verifying: m.operation_phase_verifying,
+    restart: m.operation_phase_restart,
+  };
+</script>
+
 <script lang="ts">
   import { createQuery, useQueryClient } from '@tanstack/svelte-query';
   import { isSSEFallback } from '$lib/stores/eventStream';
@@ -8,8 +24,8 @@
     formatOperationRate,
     formatOperationValue,
     formatTypicalDuration,
+    timestampMs,
   } from '$lib/utils/operationDisplay';
-  import * as m from '$paraglide/messages';
 
   interface Props {
     sessionId: string;
@@ -53,12 +69,6 @@
 
   let elapsedNow = $state(Date.now());
 
-  function timestampMs(value: string | null | undefined): number | null {
-    if (!value) return null;
-    const parsed = new Date(value).getTime();
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-
   const elapsedSeconds = $derived.by(() => {
     const startedAt = timestampMs(operation?.started_at);
     if (startedAt === null) return null;
@@ -84,18 +94,7 @@
 
   function phaseLabel(phase: string | null | undefined): string | null {
     if (!phase) return null;
-    const labels: Record<string, () => string> = {
-      preflight: m.operation_phase_preflight,
-      comfyui: m.operation_phase_comfyui,
-      requirements_base: m.operation_phase_requirements_base,
-      requirements_locked: m.operation_phase_requirements_locked,
-      custom_nodes: m.operation_phase_custom_nodes,
-      models: m.operation_phase_models,
-      workflow: m.operation_phase_workflow,
-      verifying: m.operation_phase_verifying,
-      restart: m.operation_phase_restart,
-    };
-    return labels[phase]?.() ?? null;
+    return PHASE_LABELS[phase]?.() ?? null;
   }
 
   function workLabel(work: NonNullable<typeof progress>['work' | 'items']): string | null {
@@ -118,9 +117,9 @@
   }
 </script>
 
-<section class:compact class="operation" aria-live="polite" aria-busy={!operation}>
+<section class:compact class="operation" aria-busy={!operation}>
   {#if operation}
-    <div class="operation-head">
+    <div class="operation-head" aria-live="polite">
       <strong
         >{operation.status === 'queued'
           ? m.operation_status_queued()
@@ -169,7 +168,7 @@
     {/if}
 
     {#if operation.status === 'failed' && operation.error?.message}
-      <p class="error">{operation.error.message}</p>
+      <p class="error" role="alert">{operation.error.message}</p>
     {:else if operation.message}
       <p class="message">{operation.message}</p>
     {:else if typicalSeconds !== null && (operation.status === 'queued' || operation.status === 'running') && progress?.eta_seconds == null}

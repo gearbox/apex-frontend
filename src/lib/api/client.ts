@@ -45,6 +45,20 @@ export class StaleSessionError extends Error {
 }
 
 /**
+ * True for a rejection that reflects the caller/session lifecycle rather than a genuine API
+ * failure — a canceled request or one that outlived its auth epoch. User-facing action handlers
+ * should treat these as non-actionable and skip the "action failed" toast; a real 4xx/5xx must
+ * still surface normally.
+ */
+export function isRequestCancellation(error: unknown): boolean {
+  return (
+    error instanceof StaleSessionError ||
+    (error instanceof DOMException && error.name === 'AbortError') ||
+    (error instanceof Error && error.name === 'AbortError')
+  );
+}
+
+/**
  * Builds a fresh, abort-bound Request for a retry attempt from the pre-dispatch clone.
  *
  * Retry templates intentionally contain no bearer. A retry may only use a credential from the
@@ -147,7 +161,10 @@ const authMiddleware: Middleware = {
             break;
           }
           const delay = getRetryDelay(currentHeaders.retryAfter, attempt);
-          if (!(await waitForRetryDelay(delay, metadata.signal))) assertRetryLive(metadata);
+          if (!(await waitForRetryDelay(delay, metadata.signal))) {
+            assertRetryLive(metadata);
+            break; // unreachable with today's helper contract, explicit future-safe exit
+          }
           assertRetryLive(metadata);
           const retryReq = buildRetryRequest(request, metadata);
           // A retry may only ever use a credential from the original auth epoch; within that

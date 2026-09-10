@@ -10,6 +10,7 @@ vi.mock('$lib/api/sessions', async (importOriginal) => ({
 }));
 
 import {
+  configureOperationCache,
   ingestSessionSnapshot,
   operationKeys,
   operationQueryOptions,
@@ -147,6 +148,9 @@ describe('canonical operation cache', () => {
       const client = new QueryClient({
         defaultOptions: { queries: { gcTime: 5 * 60_000 } },
       });
+      // upsertOperation() no longer configures the cache as a side effect (that now happens once,
+      // at QueryClient construction) — an ad-hoc test client must opt in explicitly.
+      configureOperationCache(client);
 
       upsertOperation(client, operation(5));
       vi.advanceTimersByTime(5 * 60_000 + 1);

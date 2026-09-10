@@ -5,6 +5,7 @@ import {
   formatDuration,
   formatTypicalDuration,
   formatOperationRate,
+  timestampMs,
 } from './operationDisplay';
 
 describe('operation display helpers', () => {
@@ -12,6 +13,13 @@ describe('operation display helpers', () => {
     expect(clampProgress(100)).toBe(100);
     expect(clampProgress(120)).toBe(100);
     expect(clampProgress(-5)).toBe(0);
+  });
+
+  it('parses a valid ISO timestamp and rejects missing or invalid ones', () => {
+    expect(timestampMs('2026-06-20T00:01:00Z')).toBe(Date.parse('2026-06-20T00:01:00Z'));
+    expect(timestampMs(null)).toBeNull();
+    expect(timestampMs(undefined)).toBeNull();
+    expect(timestampMs('not-a-date')).toBeNull();
   });
 
   it('formats byte counters and server-supplied rates', () => {

@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { onMount, tick } from 'svelte';
+  import { onMount } from 'svelte';
+  import { createDialogController } from '$lib/components/shared/dialogController.svelte';
   import * as m from '$paraglide/messages';
 
   interface Props {
@@ -11,52 +12,34 @@
   }
   let { modelName, finalLive, pending = false, onConfirm, onClose }: Props = $props();
 
-  let dialog = $state<HTMLDialogElement>();
   let cancelButton = $state<HTMLButtonElement>();
-  let previousFocus: HTMLElement | null = null;
 
-  function requestClose(): void {
-    if (!pending) onClose();
-  }
-
-  function handleCancel(event: Event): void {
-    event.preventDefault();
-    requestClose();
-  }
-
-  function handleBackdropClick(event: MouseEvent): void {
-    if (event.target === event.currentTarget) requestClose();
-  }
-
-  onMount(() => {
-    previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    // `showModal()` supplies the top-layer, inert background, and native focus behavior. jsdom
-    // does not implement it, so the open fallback only keeps component tests representable.
-    if (dialog?.showModal) dialog.showModal();
-    else if (dialog) dialog.open = true;
-    void tick().then(() => cancelButton?.focus({ preventScroll: true }));
-
-    return () => {
-      if (dialog?.open) dialog.close?.();
-      previousFocus?.focus({ preventScroll: true });
-    };
+  const dialogController = createDialogController({
+    canClose: () => !pending,
+    initialFocus: () => cancelButton,
+    onClose: () => onClose(),
   });
+
+  onMount(() => dialogController.open());
 </script>
 
 <dialog
-  bind:this={dialog}
+  bind:this={dialogController.dialog}
   class="modal"
   aria-labelledby="remove-deployment-title"
   aria-describedby="remove-deployment-description"
-  oncancel={handleCancel}
-  onclick={handleBackdropClick}
+  oncancel={dialogController.handleCancel}
+  onclick={dialogController.handleBackdropClick}
 >
   <h2 id="remove-deployment-title">{m.deployment_remove_title()}</h2>
   <p id="remove-deployment-description">{m.deployment_remove_description({ model: modelName })}</p>
   {#if finalLive}<p class="warning">{m.deployment_remove_last_live_warning()}</p>{/if}
   <div class="actions">
-    <button bind:this={cancelButton} class="cancel" disabled={pending} onclick={requestClose}
-      >{m.common_cancel()}</button
+    <button
+      bind:this={cancelButton}
+      class="cancel"
+      disabled={pending}
+      onclick={dialogController.requestClose}>{m.common_cancel()}</button
     >
     <button class="remove" disabled={pending} onclick={onConfirm}
       >{pending

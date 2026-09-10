@@ -1,13 +1,17 @@
 import { describe, it, expect, vi } from 'vitest';
 import { QueryClient } from '@tanstack/svelte-query';
+import { http, HttpResponse } from 'msw';
+import { server } from '../../mocks/server';
+import { MOCK_BASE_URL as BASE } from '../../mocks/config';
 import {
   sessionKeys,
   sessionsListQueryOptions,
   sessionDetailQueryOptions,
   startSessionMutationOptions,
-  stopSessionMutationOptions,
   attachDeploymentMutationOptions,
   removeDeploymentMutationOptions,
+  stopPreviewMutationOptions,
+  confirmedStopMutationOptions,
 } from './sessions';
 import type { GpuSessionResponse } from '$lib/api/sessions';
 import { operationKeys } from './operations';
@@ -106,19 +110,60 @@ describe('startSessionMutationOptions()', () => {
   });
 });
 
-describe('stopSessionMutationOptions()', () => {
-  it('onSuccess invalidates sessions + providers', async () => {
+describe('stopPreviewMutationOptions()', () => {
+  it('calls the preview (confirmed:false) stop endpoint without touching the cache', async () => {
+    let capturedBody: unknown;
+    server.use(
+      http.post(`${BASE}/v1/sessions/:session_id/stop`, async ({ request }) => {
+        capturedBody = await request.json();
+        return HttpResponse.json({
+          session_id: 'sess_001',
+          model_type: 'aisha-image',
+          vastai_gpu_name: null,
+          vastai_cost_per_hour_micros: null,
+          active_duration_seconds: 60,
+          paused_duration_seconds: 0,
+          estimated_final_tokens: 10,
+          message: 'preview',
+        });
+      }),
+    );
+    const opts = stopPreviewMutationOptions();
+    const result = await opts.mutationFn('sess_001');
+    expect(capturedBody).toEqual({ confirmed: false });
+    expect(result.estimated_final_tokens).toBe(10);
+  });
+});
+
+describe('confirmedStopMutationOptions()', () => {
+  it('onSuccess writes the detail cache and invalidates sessions + providers', async () => {
     const queryClient = new QueryClient();
     const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+    const setDataSpy = vi.spyOn(queryClient, 'setQueryData');
 
-    const opts = stopSessionMutationOptions(queryClient);
+    const opts = confirmedStopMutationOptions(queryClient);
     await opts.onSuccess(mockSession);
 
+    expect(setDataSpy).toHaveBeenCalledWith(sessionKeys.detail('sess_001'), mockSession);
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: sessionKeys.list(false),
       exact: true,
     });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['providers'] });
+  });
+
+  it('sends confirmed:true to the stop endpoint', async () => {
+    let capturedBody: unknown;
+    server.use(
+      http.post(`${BASE}/v1/sessions/:session_id/stop`, async ({ request }) => {
+        capturedBody = await request.json();
+        return HttpResponse.json({ ...mockSession, status: 'stopping' });
+      }),
+    );
+    const opts = confirmedStopMutationOptions(new QueryClient());
+    const result = await opts.mutationFn('sess_001');
+    expect(capturedBody).toEqual({ confirmed: true });
+    expect(result.status).toBe('stopping');
   });
 });
 

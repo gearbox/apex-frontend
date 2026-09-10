@@ -62,26 +62,15 @@ export function sessionDetailQueryOptions(
     enabled: opts.enabled && id !== null,
     staleTime: 0,
     refetchInterval: opts.refetchInterval ?? false,
+    // The QueryClient's global default is already false; repeated here so the no-focus-refetch
+    // contract for session detail is local and obvious rather than implicit.
+    refetchOnWindowFocus: false,
   };
 }
 
 export function startSessionMutationOptions(queryClient: QueryClient) {
   return {
     mutationFn: (model: ModelType) => startSession(model),
-    onSuccess: (session: GpuSessionResponse) => {
-      queryClient.setQueryData(
-        sessionKeys.detail(session.id),
-        ingestSessionSnapshot(queryClient, session),
-      );
-      queryClient.invalidateQueries({ queryKey: sessionKeys.list(false), exact: true });
-      queryClient.invalidateQueries({ queryKey: providerKeys.catalog() });
-    },
-  };
-}
-
-export function stopSessionMutationOptions(queryClient: QueryClient) {
-  return {
-    mutationFn: (id: string) => stopSession(id),
     onSuccess: (session: GpuSessionResponse) => {
       queryClient.setQueryData(
         sessionKeys.detail(session.id),
@@ -122,15 +111,15 @@ export interface DeploymentMutationVariables {
   force?: boolean;
 }
 
-function reconcileDeploymentMutation(queryClient: QueryClient, sessionId: string) {
-  return {
-    onSuccess: (result: Awaited<ReturnType<typeof attachDeployment>>) => {
-      upsertOperation(queryClient, result.operation);
-      queryClient.invalidateQueries({ queryKey: sessionKeys.detail(sessionId), exact: true });
-      queryClient.invalidateQueries({ queryKey: sessionKeys.list(false), exact: true });
-      queryClient.invalidateQueries({ queryKey: providerKeys.catalog() });
-    },
-  };
+function reconcileDeploymentMutation(
+  queryClient: QueryClient,
+  sessionId: string,
+  result: Awaited<ReturnType<typeof attachDeployment>>,
+): void {
+  upsertOperation(queryClient, result.operation);
+  queryClient.invalidateQueries({ queryKey: sessionKeys.detail(sessionId), exact: true });
+  queryClient.invalidateQueries({ queryKey: sessionKeys.list(false), exact: true });
+  queryClient.invalidateQueries({ queryKey: providerKeys.catalog() });
 }
 
 export function attachDeploymentMutationOptions(queryClient: QueryClient) {
@@ -140,7 +129,7 @@ export function attachDeploymentMutationOptions(queryClient: QueryClient) {
     onSuccess: (
       result: Awaited<ReturnType<typeof attachDeployment>>,
       variables: { sessionId: string },
-    ) => reconcileDeploymentMutation(queryClient, variables.sessionId).onSuccess(result),
+    ) => reconcileDeploymentMutation(queryClient, variables.sessionId, result),
   };
 }
 
@@ -151,8 +140,25 @@ export function removeDeploymentMutationOptions(queryClient: QueryClient) {
     onSuccess: (
       result: Awaited<ReturnType<typeof removeDeployment>>,
       variables: DeploymentMutationVariables,
-    ) => reconcileDeploymentMutation(queryClient, variables.sessionId).onSuccess(result),
+    ) => reconcileDeploymentMutation(queryClient, variables.sessionId, result),
   };
 }
 
-export { previewStop };
+/** First stop call (confirmed:false) — quote/preview only, no cache reconciliation needed. */
+export function stopPreviewMutationOptions() {
+  return {
+    mutationFn: (sessionId: string) => previewStop(sessionId),
+  };
+}
+
+/**
+ * Second stop call (confirmed:true) — executes teardown. Owns the canonical success
+ * reconciliation so Create and Sessions pages don't each duplicate it; callers only need a UI
+ * callback (e.g. closing the modal) passed to `.mutate()`'s own `onSuccess`.
+ */
+export function confirmedStopMutationOptions(queryClient: QueryClient) {
+  return {
+    mutationFn: (sessionId: string) => stopSession(sessionId),
+    onSuccess: (session: GpuSessionResponse) => writeSessionMutationSnapshot(queryClient, session),
+  };
+}

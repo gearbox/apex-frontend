@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { onMount, tick } from 'svelte';
+  import { onMount } from 'svelte';
+  import { createDialogController } from '$lib/components/shared/dialogController.svelte';
   import type { AttachModelOption } from '$lib/utils/deploymentEligibility';
   import type { ModelType } from '$lib/api/sessions';
   import * as m from '$paraglide/messages';
@@ -12,42 +13,23 @@
   }
   let { models, pending = false, onAttach, onClose }: Props = $props();
 
-  let dialog = $state<HTMLDialogElement>();
   let closeButton = $state<HTMLButtonElement>();
-  let previousFocus: HTMLElement | null = null;
 
-  function requestClose(): void {
-    if (!pending) onClose();
-  }
-
-  function handleCancel(event: Event): void {
-    event.preventDefault();
-    requestClose();
-  }
-
-  function handleBackdropClick(event: MouseEvent): void {
-    if (event.target === event.currentTarget) requestClose();
-  }
-
-  onMount(() => {
-    previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    if (dialog?.showModal) dialog.showModal();
-    else if (dialog) dialog.open = true;
-    void tick().then(() => closeButton?.focus({ preventScroll: true }));
-
-    return () => {
-      if (dialog?.open) dialog.close?.();
-      previousFocus?.focus({ preventScroll: true });
-    };
+  const dialogController = createDialogController({
+    canClose: () => !pending,
+    initialFocus: () => closeButton,
+    onClose: () => onClose(),
   });
+
+  onMount(() => dialogController.open());
 </script>
 
 <dialog
-  bind:this={dialog}
+  bind:this={dialogController.dialog}
   class="sheet"
   aria-labelledby="attach-deployment-title"
-  oncancel={handleCancel}
-  onclick={handleBackdropClick}
+  oncancel={dialogController.handleCancel}
+  onclick={dialogController.handleBackdropClick}
 >
   <div class="heading">
     <h2 id="attach-deployment-title">{m.session_attach_title()}</h2>
@@ -55,7 +37,7 @@
       bind:this={closeButton}
       aria-label={m.common_close()}
       disabled={pending}
-      onclick={requestClose}>×</button
+      onclick={dialogController.requestClose}>×</button
     >
   </div>
   {#if models.length === 0}

@@ -1,3 +1,31 @@
+<script module lang="ts">
+  import * as m from '$paraglide/messages';
+
+  const SESSION_COLOR_MAP: Record<string, string> = {
+    active: 'success',
+    pending: 'warning',
+    provisioning: 'warning',
+    resuming: 'warning',
+    stale: 'warning',
+    paused: 'muted',
+    stopping: 'muted',
+    stopped: 'muted',
+    failed: 'danger',
+  };
+
+  const SESSION_STATUS_LABELS: Record<string, () => string> = {
+    pending: m.session_status_pending,
+    provisioning: m.session_status_provisioning,
+    active: m.session_status_active,
+    stale: m.session_status_stale,
+    paused: m.session_status_paused,
+    resuming: m.session_status_resuming,
+    stopping: m.session_status_stopping,
+    stopped: m.session_status_stopped,
+    failed: m.session_status_failed,
+  };
+</script>
+
 <script lang="ts">
   import { createMutation, useQueryClient } from '@tanstack/svelte-query';
   import { Pause, Play, Plus, Square } from '@lucide/svelte';
@@ -12,6 +40,7 @@
     canRemoveDeployment,
     requiresForceToRemoveDeployment,
   } from '$lib/utils/deploymentEligibility';
+  import { timestampMs } from '$lib/utils/operationDisplay';
   import {
     attachDeploymentMutationOptions,
     pauseSessionMutationOptions,
@@ -20,11 +49,11 @@
   } from '$lib/queries/sessions';
   import { addToast } from '$lib/stores/toasts';
   import { parseApiError } from '$lib/api/errors';
+  import { isRequestCancellation } from '$lib/api/client';
   import OperationProgress from './OperationProgress.svelte';
   import DeploymentRow from './DeploymentRow.svelte';
   import AttachDeploymentSheet from './AttachDeploymentSheet.svelte';
   import RemoveDeploymentModal from './RemoveDeploymentModal.svelte';
-  import * as m from '$paraglide/messages';
 
   interface Props {
     session: GpuSessionResponse | GpuSessionListItemResponse;
@@ -53,8 +82,11 @@
 
   let attachOpen = $state(false);
   let removalTarget = $state<DeploymentResponse | null>(null);
-  let attachSubmitting = $state(false);
-  let removalSubmitting = $state(false);
+  // TanStack mutation state flushes on a scheduled tick, not synchronously with `.mutate()`. This
+  // single latch — set the instant a command starts, cleared in its onSuccess/onError — is what
+  // actually prevents a same-tick double submission and lets every entry point derive one
+  // session-level "command in flight" state instead of juggling per-action duplicate booleans.
+  let pendingCommand = $state<'pause' | 'resume' | 'attach' | 'remove' | null>(null);
 
   const inferredDetailState = $derived('user_id' in session ? 'loaded' : 'loading');
   const resolvedDetailState = $derived(detailState ?? inferredDetailState);
@@ -63,15 +95,17 @@
   );
   const deployments = $derived(detail?.deployments ?? []);
   const terminal = $derived(session.status === 'stopped' || session.status === 'failed');
-  const lifecyclePending = $derived(pauseMutation.isPending || resumeMutation.isPending);
-  const attachPending = $derived(attachSubmitting || attachMutation.isPending);
-  const removePending = $derived(removalSubmitting || removeMutation.isPending);
+  const commandInFlight = $derived(
+    pendingCommand !== null ||
+      pauseMutation.isPending ||
+      resumeMutation.isPending ||
+      attachMutation.isPending ||
+      removeMutation.isPending,
+  );
+  const inFlightJobCount = $derived(detail?.in_flight_job_count ?? 0);
+  const pauseBlockedByJobs = $derived(inFlightJobCount > 0);
   const actionDisabled = $derived(
-    lifecyclePending ||
-      removePending ||
-      session.status === 'resuming' ||
-      session.status === 'stopping' ||
-      terminal,
+    commandInFlight || session.status === 'resuming' || session.status === 'stopping' || terminal,
   );
   const currentRemovalTarget = $derived(
     removalTarget
@@ -105,12 +139,6 @@
 
   let uptimeNow = $state(Date.now());
 
-  function timestampMs(value: string | null | undefined): number | null {
-    if (!value) return null;
-    const parsed = new Date(value).getTime();
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-
   const uptimeSeconds = $derived.by(() => {
     const startedAt = timestampMs(detail?.started_at);
     return startedAt === null ? null : Math.max(0, Math.floor((uptimeNow - startedAt) / 1000));
@@ -129,50 +157,90 @@
     return () => window.clearInterval(timer);
   });
 
-  const SESSION_COLOR_MAP: Record<string, string> = {
-    active: 'success',
-    pending: 'warning',
-    provisioning: 'warning',
-    resuming: 'warning',
-    stale: 'warning',
-    paused: 'muted',
-    stopping: 'muted',
-    stopped: 'muted',
-    failed: 'danger',
-  };
-
   function operationError(error: unknown): void {
+    if (isRequestCancellation(error)) return;
     addToast({
       type: 'error',
       message: parseApiError(error, 0).message || m.session_action_failed(),
     });
   }
+
+  function handlePauseError(error: unknown): void {
+    if (isRequestCancellation(error)) return;
+    // The count can race between the read that enabled this button and the command itself; the
+    // backend remains authoritative and rejects with this code when jobs started in between.
+    if (parseApiError(error, 0).error === 'jobs_in_flight') {
+      addToast({ type: 'warning', message: m.session_pause_blocked_hint() });
+      return;
+    }
+    operationError(error);
+  }
+
+  function handlePause(): void {
+    if (commandInFlight || pauseBlockedByJobs) return;
+    pendingCommand = 'pause';
+    pauseMutation.mutate(session.id, {
+      onSuccess: () => {
+        pendingCommand = null;
+      },
+      onError: (error) => {
+        pendingCommand = null;
+        handlePauseError(error);
+      },
+    });
+  }
+
+  function handleResume(): void {
+    if (commandInFlight) return;
+    pendingCommand = 'resume';
+    resumeMutation.mutate(session.id, {
+      onSuccess: () => {
+        pendingCommand = null;
+      },
+      onError: (error) => {
+        pendingCommand = null;
+        operationError(error);
+      },
+    });
+  }
+
   function handleAttach(model: AttachModelOption['model']): void {
-    if (!detail || attachPending) return;
-    attachSubmitting = true;
+    if (!detail || commandInFlight) return;
+    // The sheet can stay open while SSE/REST updates change eligibility underneath it — the
+    // session can leave 'active', or the selected model can stop being attachable. Revalidate
+    // against current reactive state immediately before sending the request.
+    const stillEligible =
+      detail.status === 'active' && attachableModels.some((option) => option.model === model);
+    if (!stillEligible) {
+      attachOpen = false;
+      addToast({ type: 'warning', message: m.session_attach_state_changed() });
+      return;
+    }
+    pendingCommand = 'attach';
     attachMutation.mutate(
       { sessionId: session.id, model },
       {
         onSuccess: () => {
-          attachSubmitting = false;
+          pendingCommand = null;
           attachOpen = false;
         },
         onError: (error) => {
-          attachSubmitting = false;
+          pendingCommand = null;
           operationError(error);
         },
       },
     );
   }
+
   function handleRemove(): void {
-    if (!currentRemovalTarget || removePending) return;
+    if (!currentRemovalTarget || commandInFlight) return;
     // A dialog may have opened before an SSE/REST update changed either status. Re-read the
     // current detailed snapshot immediately before issuing DELETE.
     if (!canRemoveDeployment(session.status, currentRemovalTarget.status)) {
       removalTarget = null;
       return;
     }
-    removalSubmitting = true;
+    pendingCommand = 'remove';
     removeMutation.mutate(
       {
         sessionId: session.id,
@@ -181,43 +249,32 @@
       },
       {
         onSuccess: () => {
-          removalSubmitting = false;
+          pendingCommand = null;
           removalTarget = null;
         },
         onError: (error) => {
-          removalSubmitting = false;
+          pendingCommand = null;
           operationError(error);
         },
       },
     );
   }
   function openRemoval(target: DeploymentResponse): void {
-    if (!removePending && canRemoveDeployment(session.status, target.status)) {
+    if (!commandInFlight && canRemoveDeployment(session.status, target.status)) {
       removalTarget = target;
     }
   }
   function closeRemoval(): void {
-    if (!removePending) removalTarget = null;
+    if (!commandInFlight) removalTarget = null;
   }
   function closeAttach(): void {
-    if (!attachPending) attachOpen = false;
+    if (!commandInFlight) attachOpen = false;
   }
   function modelName(deployment: { model_type: string }): string {
     return modelNames[deployment.model_type] ?? deployment.model_type;
   }
   function sessionStatusLabel(status: string): string {
-    const labels: Record<string, () => string> = {
-      pending: m.session_status_pending,
-      provisioning: m.session_status_provisioning,
-      active: m.session_status_active,
-      stale: m.session_status_stale,
-      paused: m.session_status_paused,
-      resuming: m.session_status_resuming,
-      stopping: m.session_status_stopping,
-      stopped: m.session_status_stopped,
-      failed: m.session_status_failed,
-    };
-    return labels[status]?.() ?? status;
+    return SESSION_STATUS_LABELS[status]?.() ?? status;
   }
   function formatUptime(seconds: number): string {
     const hours = Math.floor(seconds / 3600);
@@ -263,8 +320,8 @@
           modelName={modelName(deployment)}
           typicalAttachSeconds={provisioningHints.get(deployment.model_type)
             ?.typicalAttachSeconds ?? null}
-          {removePending}
-          removingTarget={removePending && currentRemovalTarget?.id === deployment.id}
+          actionLocked={commandInFlight}
+          removingTarget={pendingCommand === 'remove' && currentRemovalTarget?.id === deployment.id}
           onRemove={openRemoval}
         />
       {/each}
@@ -283,28 +340,25 @@
   <div class="card-actions">
     {#if detail && session.status === 'active'}
       <button
-        disabled={actionDisabled}
-        onclick={() => pauseMutation.mutate(session.id, { onError: operationError })}
+        disabled={actionDisabled || pauseBlockedByJobs}
+        title={pauseBlockedByJobs ? m.session_pause_blocked_hint() : undefined}
+        onclick={handlePause}
       >
-        <Pause size={14} />{pauseMutation.isPending ? m.session_pausing() : m.session_pause()}
+        <Pause size={14} />{pendingCommand === 'pause' ? m.session_pausing() : m.session_pause()}
       </button>
-      {#if detail}<button
-          disabled={actionDisabled || attachPending}
-          onclick={() => (attachOpen = true)}><Plus size={14} />{m.session_add_model()}</button
-        >{/if}
-    {:else if detail && session.status === 'paused'}
       <button
-        disabled={actionDisabled}
-        onclick={() => resumeMutation.mutate(session.id, { onError: operationError })}
+        disabled={actionDisabled || attachableModels.length === 0}
+        title={attachableModels.length === 0 ? m.session_attach_empty() : undefined}
+        onclick={() => (attachOpen = true)}><Plus size={14} />{m.session_add_model()}</button
       >
-        <Play size={14} />{resumeMutation.isPending ? m.session_resuming() : m.session_resume()}
+    {:else if detail && session.status === 'paused'}
+      <button disabled={actionDisabled} onclick={handleResume}>
+        <Play size={14} />{pendingCommand === 'resume' ? m.session_resuming() : m.session_resume()}
       </button>
     {/if}
     {#if !terminal && session.status !== 'stopping'}
-      <button
-        class="stop"
-        disabled={actionDisabled || attachPending}
-        onclick={() => onStop(session.id)}><Square size={14} />{m.session_stop()}</button
+      <button class="stop" disabled={actionDisabled} onclick={() => onStop(session.id)}
+        ><Square size={14} />{m.session_stop()}</button
       >
     {:else}
       <button class="stop" disabled
@@ -314,12 +368,15 @@
       >
     {/if}
   </div>
+  {#if pauseBlockedByJobs}
+    <small class="pause-hint">{m.session_pause_blocked_hint()}</small>
+  {/if}
 </article>
 
 {#if attachOpen}
   <AttachDeploymentSheet
     models={attachableModels}
-    pending={attachPending}
+    pending={pendingCommand === 'attach'}
     onAttach={handleAttach}
     onClose={closeAttach}
   />
@@ -328,7 +385,7 @@
   <RemoveDeploymentModal
     modelName={modelName(currentRemovalTarget)}
     finalLive={selectedRemovalRequiresForce}
-    pending={removePending}
+    pending={pendingCommand === 'remove'}
     onConfirm={handleRemove}
     onClose={closeRemoval}
   />
@@ -419,5 +476,10 @@
   .card-actions button:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+  .pause-hint {
+    margin: 0;
+    font-size: 12px;
+    color: var(--apex-text-muted);
   }
 </style>

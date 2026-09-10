@@ -6,7 +6,7 @@ import {
 } from './deploymentEligibility';
 
 describe('eligibleAttachModels', () => {
-  it('offers only enabled, available, unoccupied on-demand models in the known provider family', () => {
+  it('offers only enabled, available, unoccupied on-demand models, regardless of provider family', () => {
     const providers = [
       {
         provider: 'aisha',
@@ -49,8 +49,11 @@ describe('eligibleAttachModels', () => {
     ] as never;
     const deployments = [{ model_type: 'aisha-image', status: 'active' }] as never;
 
+    // A model from a different provider than the session's existing deployment is still
+    // eligible — the backend attach service enforces no same-provider-family rule.
     expect(eligibleAttachModels(providers, deployments)).toEqual([
       { model: 'aisha-image-lite', name: 'Aisha Lite' },
+      { model: 'grok-imagine-image', name: 'Grok' },
     ]);
   });
 

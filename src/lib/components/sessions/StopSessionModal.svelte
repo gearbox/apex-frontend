@@ -1,9 +1,12 @@
 <script lang="ts">
-  import { onMount, tick } from 'svelte';
+  import { onMount } from 'svelte';
+  import { createMutation, useQueryClient } from '@tanstack/svelte-query';
   import { AlertTriangle } from '@lucide/svelte';
-  import { previewStop, stopSession } from '$lib/api/sessions';
+  import { createDialogController } from '$lib/components/shared/dialogController.svelte';
+  import { isRequestCancellation } from '$lib/api/client';
   import type { GpuSessionResponse, StopConfirmationResponse } from '$lib/api/sessions';
   import { ApiRequestError } from '$lib/api/errors';
+  import { stopPreviewMutationOptions, confirmedStopMutationOptions } from '$lib/queries/sessions';
   import * as m from '$paraglide/messages';
 
   interface Props {
@@ -13,15 +16,26 @@
   }
 
   let { sessionId, onStopped, onClose }: Props = $props();
+  const queryClient = useQueryClient();
 
   let preview = $state<StopConfirmationResponse | null>(null);
   let loadError = $state('');
-  let loading = $state(true);
-  let confirming = $state(false);
   let confirmError = $state('');
-  let dialog = $state<HTMLDialogElement>();
+  // TanStack mutation state updates are flushed on a scheduled microtask, not synchronously with
+  // `.mutate()`. A plain local latch — set the instant the action starts — is what actually gates
+  // the confirm button against a same-tick double click; `confirmMutation.isPending` alone lags by
+  // a tick and would let a second click slip through.
+  let confirming = $state(false);
   let cancelButton = $state<HTMLButtonElement>();
-  let previousFocus: HTMLElement | null = null;
+
+  const previewMutation = createMutation(() => stopPreviewMutationOptions());
+  const confirmMutation = createMutation(() => confirmedStopMutationOptions(queryClient));
+
+  const dialogController = createDialogController({
+    canClose: () => !confirming,
+    initialFocus: () => cancelButton,
+    onClose: () => onClose(),
+  });
 
   function formatActiveDuration(seconds: number): string {
     const h = Math.floor(seconds / 3600);
@@ -30,57 +44,44 @@
     return `${h}h ${min.toString().padStart(2, '0')}m ${s.toString().padStart(2, '0')}s`;
   }
 
-  async function loadPreview(): Promise<void> {
-    try {
-      preview = await previewStop(sessionId);
-    } catch (e) {
-      loadError = e instanceof ApiRequestError ? e.message : 'Failed to load session info.';
-    } finally {
-      loading = false;
-    }
-    void tick().then(() => cancelButton?.focus({ preventScroll: true }));
-  }
-
   onMount(() => {
-    previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    if (dialog?.showModal) dialog.showModal();
-    else if (dialog) dialog.open = true;
-    void loadPreview();
-    return () => {
-      if (dialog?.open) dialog.close?.();
-      previousFocus?.focus({ preventScroll: true });
-    };
+    const closeDialog = dialogController.open();
+    previewMutation.mutate(sessionId, {
+      onSuccess: (data) => {
+        preview = data;
+      },
+      onError: (error) => {
+        if (isRequestCancellation(error)) return;
+        loadError = error instanceof ApiRequestError ? error.message : m.session_stop_load_failed();
+      },
+    });
+    return closeDialog;
   });
 
-  async function handleConfirm() {
+  function handleConfirm(): void {
     if (confirming) return;
     confirming = true;
     confirmError = '';
-    try {
-      const session = await stopSession(sessionId);
-      onStopped(session);
-    } catch (e) {
-      confirmError = e instanceof ApiRequestError ? e.message : 'Failed to stop session.';
-    } finally {
-      confirming = false;
-    }
-  }
-
-  function handleBackdropClick(e: MouseEvent) {
-    if (e.target === e.currentTarget && !confirming) onClose();
-  }
-
-  function handleCancel(e: Event) {
-    e.preventDefault();
-    if (!confirming) onClose();
+    confirmMutation.mutate(sessionId, {
+      onSuccess: (session) => {
+        confirming = false;
+        onStopped(session);
+      },
+      onError: (error) => {
+        confirming = false;
+        if (isRequestCancellation(error)) return;
+        confirmError =
+          error instanceof ApiRequestError ? error.message : m.session_stop_confirm_failed();
+      },
+    });
   }
 </script>
 
 <dialog
-  bind:this={dialog}
+  bind:this={dialogController.dialog}
   class="modal-card"
-  onclick={handleBackdropClick}
-  oncancel={handleCancel}
+  onclick={dialogController.handleBackdropClick}
+  oncancel={dialogController.handleCancel}
   aria-labelledby="stop-session-title"
 >
   <div class="modal-header">
@@ -88,12 +89,12 @@
     <h2 id="stop-session-title" class="modal-title">{m.session_stop_title()}</h2>
   </div>
 
-  {#if loading}
+  {#if !preview && !loadError}
     <p class="modal-message">{m.common_loading()}</p>
   {:else if loadError}
     <p class="modal-error">{loadError}</p>
     <div class="modal-actions">
-      <button bind:this={cancelButton} class="btn-cancel" onclick={onClose}
+      <button bind:this={cancelButton} class="btn-cancel" onclick={dialogController.requestClose}
         >{m.common_close()}</button
       >
     </div>
@@ -109,7 +110,7 @@
       </div>
       {#if preview.vastai_gpu_name}
         <div class="preview-row">
-          <span class="preview-label">GPU</span>
+          <span class="preview-label">{m.session_stop_preview_gpu()}</span>
           <span class="preview-value">{preview.vastai_gpu_name}</span>
         </div>
       {/if}
@@ -120,7 +121,12 @@
     {/if}
 
     <div class="modal-actions">
-      <button bind:this={cancelButton} class="btn-cancel" onclick={onClose} disabled={confirming}>
+      <button
+        bind:this={cancelButton}
+        class="btn-cancel"
+        onclick={dialogController.requestClose}
+        disabled={confirming}
+      >
         {m.session_stop_cancel()}
       </button>
       <button class="btn-confirm" onclick={handleConfirm} disabled={confirming}>

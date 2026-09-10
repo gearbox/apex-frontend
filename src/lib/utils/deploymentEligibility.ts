@@ -46,24 +46,15 @@ export function requiresForceToRemoveDeployment(
 }
 
 /**
- * Filters only against metadata the API exposes. Compatibility remains backend-authoritative.
- * When a deployment's provider cannot be discovered, keeping all otherwise eligible providers is
- * safer than inventing a family rule.
+ * Filters only against metadata the API exposes: provider availability/mode, model enablement,
+ * and runtime occupancy. Compatibility across providers (e.g. bundle/model resolution) remains
+ * entirely backend-authoritative — the attach service enforces no same-provider-family rule, so
+ * this must not invent one either. See R2 review item 8.
  */
 export function eligibleAttachModels(
   providers: Provider[],
   deployments: Deployment[],
 ): AttachModelOption[] {
-  const providerByModel = new Map(
-    providers.flatMap((provider) =>
-      provider.models.map((model) => [model.model_key, provider.provider]),
-    ),
-  );
-  const knownFamilies = new Set(
-    deployments
-      .map((deployment) => providerByModel.get(deployment.model_type))
-      .filter((provider): provider is string => Boolean(provider)),
-  );
   const modelInSession = new Set(
     deployments
       .filter((deployment) => deployment.status !== 'removed' && deployment.status !== 'failed')
@@ -71,11 +62,7 @@ export function eligibleAttachModels(
   );
 
   return providers.flatMap((provider) => {
-    if (
-      !provider.available ||
-      provider.provisioning_mode !== 'on_demand' ||
-      (knownFamilies.size > 0 && !knownFamilies.has(provider.provider))
-    ) {
+    if (!provider.available || provider.provisioning_mode !== 'on_demand') {
       return [];
     }
     return provider.models.flatMap((model) =>

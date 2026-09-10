@@ -1,7 +1,10 @@
 import type { components } from '$lib/api/types';
 
 type GpuSessionResponse = components['schemas']['GpuSessionResponse'];
+type GpuSessionListItemResponse = components['schemas']['GpuSessionListItemResponse'];
 type StopConfirmationResponse = components['schemas']['StopConfirmationResponse'];
+type OperationResponse = components['schemas']['OperationResponse'];
+type DeploymentMutationResponse = components['schemas']['DeploymentMutationResponse'];
 
 export function makeGpuSessionResponse(
   overrides: Partial<GpuSessionResponse> = {},
@@ -40,6 +43,23 @@ export function makeGpuSessionResponse(
   };
 }
 
+/** Matches the thin `GET /v1/sessions` list projection — deliberately free of operation bodies. */
+export function makeGpuSessionListItemResponse(
+  overrides: Partial<GpuSessionListItemResponse> = {},
+): GpuSessionListItemResponse {
+  return {
+    id: 'sess_mock_001',
+    status: 'active',
+    product_id: 'prod_mock_001',
+    created_at: '2026-06-20T00:00:00Z',
+    started_at: '2026-06-20T00:01:00Z',
+    deployments: [
+      { id: 'deploy_mock_001', model_type: 'aisha-image', status: 'active', is_primary: true },
+    ],
+    ...overrides,
+  };
+}
+
 export function makeStopConfirmationResponse(
   overrides: Partial<StopConfirmationResponse> = {},
 ): StopConfirmationResponse {
@@ -52,6 +72,50 @@ export function makeStopConfirmationResponse(
     paused_duration_seconds: 0,
     estimated_final_tokens: 500,
     message: 'Stopping this session will finalize billing.',
+    ...overrides,
+  };
+}
+
+export function makeOperationResponse(
+  overrides: Partial<OperationResponse> = {},
+): OperationResponse {
+  return {
+    id: 'op_mock_001',
+    session_id: 'sess_mock_001',
+    deployment_id: null,
+    kind: 'bundle_provision',
+    status: 'queued',
+    phase: null,
+    revision: 0,
+    target: null,
+    progress: null,
+    message: null,
+    error: null,
+    started_at: null,
+    updated_at: '2026-06-20T00:02:00Z',
+    finished_at: null,
+    ...overrides,
+  };
+}
+
+export function makeDeploymentMutationResponse(
+  overrides: Partial<DeploymentMutationResponse> = {},
+): DeploymentMutationResponse {
+  return {
+    deployment: {
+      id: 'deploy_mock_002',
+      model_type: 'aisha-image-lite',
+      bundle_name: 'aisha',
+      bundle_version: null,
+      status: 'deploying',
+      pending_restart: false,
+      routing_suspended: false,
+      is_primary: false,
+      created_at: '2026-06-20T00:02:00Z',
+      activated_at: null,
+      current_operation: makeOperationResponse(),
+    },
+    operation: makeOperationResponse(),
     ...overrides,
   };
 }

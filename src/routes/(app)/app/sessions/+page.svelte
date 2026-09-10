@@ -3,13 +3,10 @@
   import { isSSEFallback } from '$lib/stores/eventStream';
   import { addToast } from '$lib/stores/toasts';
   import { parseApiError } from '$lib/api/errors';
-  import {
-    sessionKeys,
-    sessionsListQueryOptions,
-    startSessionMutationOptions,
-  } from '$lib/queries/sessions';
-  import { ingestSessionSnapshot } from '$lib/queries/operations';
-  import { providerKeys, providersQueryOptions } from '$lib/queries/providers';
+  import { isRequestCancellation } from '$lib/api/client';
+  import { sessionsListQueryOptions, startSessionMutationOptions } from '$lib/queries/sessions';
+  import { providersQueryOptions } from '$lib/queries/providers';
+  import { modelNameByType, provisioningHintsByModelType } from '$lib/utils/deploymentEligibility';
   import StartSessionPanel from '$lib/components/sessions/StartSessionPanel.svelte';
   import SessionCardContainer from '$lib/components/sessions/SessionCardContainer.svelte';
   import StopSessionModal from '$lib/components/sessions/StopSessionModal.svelte';
@@ -24,6 +21,12 @@
 
   // ── Providers query (to derive on-demand models + availability)
   const providerQuery = createQuery(() => providersQueryOptions($isSSEFallback ? 8000 : false));
+
+  // Provider-only lookups don't depend on any individual session, so they're computed once here
+  // rather than redundantly inside every SessionCardContainer sharing this same provider snapshot.
+  const providerList = $derived(providerQuery.data?.providers ?? []);
+  const modelNames = $derived(Object.fromEntries(modelNameByType(providerList)));
+  const provisioningHints = $derived(provisioningHintsByModelType(providerList));
 
   const onDemandModels = $derived(
     (providerQuery.data?.providers ?? []).flatMap((provider) =>
@@ -54,6 +57,7 @@
   function handleStart(model: string) {
     startMutation.mutate(model as ModelType, {
       onError: (err) => {
+        if (isRequestCancellation(err)) return;
         const apiErr = parseApiError(err, 0);
         if (apiErr.error === 'session_already_exists') {
           addToast({ type: 'warning', message: m.session_already_exists() });
@@ -71,14 +75,10 @@
     stopModalSessionId = id;
   }
 
-  function handleStopped(session: GpuSessionResponse) {
+  // Cache reconciliation for a confirmed stop is owned by `confirmedStopMutationOptions` itself;
+  // this callback is UI-only.
+  function handleStopped(_session: GpuSessionResponse) {
     stopModalSessionId = null;
-    queryClient.setQueryData(
-      sessionKeys.detail(session.id),
-      ingestSessionSnapshot(queryClient, session),
-    );
-    queryClient.invalidateQueries({ queryKey: sessionKeys.list(false), exact: true });
-    queryClient.invalidateQueries({ queryKey: providerKeys.catalog() });
   }
 
   function closeStopModal() {
@@ -101,7 +101,13 @@
   {#if sessions.length > 0}
     <div class="sessions-list">
       {#each sessions as session (session.id)}
-        <SessionCardContainer {session} providers={providerQuery.data} onStop={openStopModal} />
+        <SessionCardContainer
+          {session}
+          providers={providerQuery.data}
+          {modelNames}
+          {provisioningHints}
+          onStop={openStopModal}
+        />
       {/each}
     </div>
   {:else if !sessionsQuery.isPending}

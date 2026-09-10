@@ -6,6 +6,13 @@ export function clampProgress(progress: number): number {
   return Math.min(100, Math.max(0, progress));
 }
 
+/** Shared by session uptime and operation elapsed/ETA display — an invalid timestamp yields null. */
+export function timestampMs(value: string | null | undefined): number | null {
+  if (!value) return null;
+  const parsed = new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 export function formatBytes(bytes: number): string {
   if (!Number.isFinite(bytes)) return '0 B';
   const absolute = Math.abs(bytes);
