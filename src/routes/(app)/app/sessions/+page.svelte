@@ -3,7 +3,11 @@
   import { isSSEFallback } from '$lib/stores/eventStream';
   import { addToast } from '$lib/stores/toasts';
   import { parseApiError } from '$lib/api/errors';
-  import { sessionsListQueryOptions, startSessionMutationOptions } from '$lib/queries/sessions';
+  import {
+    sessionKeys,
+    sessionsListQueryOptions,
+    startSessionMutationOptions,
+  } from '$lib/queries/sessions';
   import { providerKeys, providersQueryOptions } from '$lib/queries/providers';
   import StartSessionPanel from '$lib/components/sessions/StartSessionPanel.svelte';
   import SessionCard from '$lib/components/sessions/SessionCard.svelte';
@@ -67,7 +71,7 @@
 
   function handleStopped() {
     stopModalSessionId = null;
-    queryClient.invalidateQueries({ queryKey: ['sessions'] });
+    queryClient.invalidateQueries({ queryKey: sessionKeys.all });
     queryClient.invalidateQueries({ queryKey: providerKeys.catalog() });
   }
 

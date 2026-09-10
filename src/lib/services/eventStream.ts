@@ -90,7 +90,6 @@ export class EventStreamService {
   private providerReconciliationInFlight = false;
   private providerReconciliationPending = false;
   private providerReconciliationGeneration = 0;
-  private readonly hydratedRuntimeSessionIds = new Set<string>();
   private disposed = false;
   private connectionGeneration = 0;
   private readonly userId: string | null;
@@ -126,7 +125,6 @@ export class EventStreamService {
     this.reconciliationQueued = false;
     this.clearTimers();
     this.clearGpuReconciliations();
-    this.hydratedRuntimeSessionIds.clear();
     this.closeEventSource();
     setEventStreamStatus('disconnected');
   }
@@ -706,14 +704,12 @@ export class EventStreamService {
 
         const reconciliation = this.gpuReconciliations.get(sessionId);
         const alreadyScheduled = Boolean(reconciliation?.timer || reconciliation?.inFlight);
-        const needsDetail =
-          !alreadyScheduled &&
-          (!this.hydratedRuntimeSessionIds.has(sessionId) ||
-            this.queryClient.getQueryData(sessionKeys.detail(sessionId)) === undefined ||
-            (runtime.operation_id !== null &&
-              this.queryClient.getQueryData(operationKeys.detail(runtime.operation_id)) ===
-                undefined));
-        this.hydratedRuntimeSessionIds.add(sessionId);
+        const detailMissing =
+          this.queryClient.getQueryData(sessionKeys.detail(sessionId)) === undefined;
+        const operationMissing =
+          runtime.operation_id !== null &&
+          this.queryClient.getQueryData(operationKeys.detail(runtime.operation_id)) === undefined;
+        const needsDetail = !alreadyScheduled && (detailMissing || operationMissing);
 
         if (needsDetail) {
           this.requestGpuReconciliation(sessionId, connection, {
@@ -735,14 +731,15 @@ export class EventStreamService {
       }
     }
 
-    const cacheClient = this.queryClient as unknown as {
-      getQueryCache?: () => {
-        getAll: () => Array<{ queryKey: readonly unknown[]; state: { data: unknown } }>;
-      };
-    };
-    for (const query of cacheClient.getQueryCache?.().getAll() ?? []) {
+    for (const query of this.queryClient.getQueryCache().getAll()) {
       if (query.queryKey[0] !== sessionKeys.all[0]) continue;
-      if (query.queryKey[1] === 'detail' && typeof query.queryKey[2] === 'string') {
+      // An empty string is never a valid session ID — reject it defensively even if a caller
+      // ever regresses to encoding "no session" that way again.
+      if (
+        query.queryKey[1] === 'detail' &&
+        typeof query.queryKey[2] === 'string' &&
+        query.queryKey[2].length > 0
+      ) {
         sessionIds.add(query.queryKey[2]);
       }
       if (Array.isArray(query.state.data)) {

@@ -52,13 +52,15 @@ vi.mock('$lib/queries/sessions', async (importOriginal) => {
     ...actual,
     sessionDetailQueryOptions: (
       queryClient: QueryClient,
-      id: string,
+      id: string | null,
       opts: { enabled: boolean },
     ) => ({
-      queryKey: actual.sessionKeys.detail(id),
-      queryFn: async ({ signal }: { signal: AbortSignal }) =>
-        operations.ingestSessionSnapshot(queryClient, await api.getSession(id, signal)),
-      enabled: opts.enabled,
+      queryKey: [...actual.sessionKeys.all, 'detail', id] as const,
+      queryFn: async ({ signal }: { signal: AbortSignal }) => {
+        if (id === null) throw new Error('sessionDetailQueryOptions: no session id to fetch');
+        return operations.ingestSessionSnapshot(queryClient, await api.getSession(id, signal));
+      },
+      enabled: opts.enabled && id !== null,
       staleTime: 0,
     }),
   };
@@ -129,6 +131,8 @@ function makeMockQueryClient() {
     setQueryData: vi.fn(),
     getQueryData: vi.fn().mockReturnValue(null),
     setQueryDefaults: vi.fn(),
+    // reconcileKnownGpuSessions() scans the cache directly via the real QueryClient shape.
+    getQueryCache: vi.fn().mockReturnValue({ getAll: () => [] }),
   };
 }
 
@@ -1084,6 +1088,197 @@ describe('EventStreamService — GPU reconciliation races', () => {
     await vi.advanceTimersByTimeAsync(250);
     expect(vi.mocked(getSession).mock.calls[0]?.[0]).toBe('sess_reconnect');
     expect(vi.mocked(getSession).mock.calls[0]?.[1]).toBeDefined();
+    svc.dispose();
+  });
+
+  it('never discovers a placeholder session ID from a disabled "no session" query on reconnect', async () => {
+    vi.useFakeTimers();
+    vi.mocked(getSession).mockResolvedValue(sessionSnapshot('sess_real'));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+    // Mirrors Create's disabled query for "no runtime session currently associated".
+    const disabledOptions = sessionDetailQueryOptions(client, null, { enabled: false });
+    expect(disabledOptions.queryKey).toEqual(['sessions', 'detail', null]);
+    const disabledObserver = new QueryObserver(client, disabledOptions);
+    const unsubscribeDisabled = disabledObserver.subscribe(() => {});
+    await vi.advanceTimersByTimeAsync(0);
+
+    // Positive control: a genuine cached session detail is still discovered and reconciled.
+    client.setQueryData(sessionKeys.detail('sess_real'), sessionSnapshot('sess_real'));
+
+    const svc = new EventStreamService({ queryClient: client });
+    await svc.connect();
+    await vi.advanceTimersByTimeAsync(250);
+
+    expect(vi.mocked(getSession).mock.calls.map(([id]) => id)).toEqual(['sess_real']);
+    expect(
+      client
+        .getQueryCache()
+        .getAll()
+        .some((query) => query.queryKey[2] === ''),
+    ).toBe(false);
+
+    unsubscribeDisabled();
+    svc.dispose();
+  });
+
+  it('rejects a bogus empty-string session ID even if some other disabled query ever encodes it that way', async () => {
+    vi.useFakeTimers();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    // Simulates a disabled query key equivalent to the pre-fix ['sessions', 'detail', ''] shape,
+    // defending the reconnect scanner even if a future caller regresses to that encoding.
+    const bogusObserver = new QueryObserver(client, {
+      queryKey: [...sessionKeys.all, 'detail', ''] as const,
+      queryFn: () => Promise.reject(new Error('should never fetch')),
+      enabled: false,
+    });
+    const unsubscribeBogus = bogusObserver.subscribe(() => {});
+    await vi.advanceTimersByTimeAsync(0);
+
+    const svc = new EventStreamService({ queryClient: client });
+    await svc.connect();
+    await vi.advanceTimersByTimeAsync(250);
+
+    expect(getSession).not.toHaveBeenCalled();
+
+    unsubscribeBogus();
+    svc.dispose();
+  });
+
+  it('does not duplicate hydration when session detail resolves before the provider reconciliation that discovered it', async () => {
+    vi.useFakeTimers();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const catalog = {
+      providers: [
+        {
+          provider: 'aisha',
+          models: [
+            {
+              model_key: 'aisha-image',
+              runtime: {
+                state: 'provisioning',
+                session_id: 'sess_race',
+                deployment_id: 'deploy_001',
+                operation_id: 'op_race',
+              },
+            },
+          ],
+        },
+      ],
+      user_context: null,
+    };
+    // Discoverable at connect time via the cached provider catalog, so both the session-detail
+    // and provider reconciliations are scheduled from the same reconnect debounce window.
+    client.setQueryData(providerKeys.catalog(), catalog as never);
+    vi.mocked(getSession).mockResolvedValue({
+      ...sessionSnapshot('sess_race'),
+      bootstrap_operation: operationUpdated(2, { id: 'op_race' }),
+    });
+    const providerFetch = deferred<unknown>();
+    vi.mocked(fetchProviders).mockReturnValueOnce(providerFetch.promise as never);
+
+    const svc = new EventStreamService({ queryClient: client });
+    await svc.connect();
+    // Let the session-detail reconciliation win the race and fully populate the canonical
+    // session + operation caches while the provider snapshot is still pending.
+    await vi.advanceTimersByTimeAsync(250);
+    expect(getSession).toHaveBeenCalledTimes(1);
+    expect(client.getQueryData(sessionKeys.detail('sess_race'))).toBeDefined();
+    expect(client.getQueryData(operationKeys.detail('op_race'))).toMatchObject({ revision: 2 });
+
+    // The provider snapshot resolves afterward, re-discovering the same runtime session.
+    providerFetch.resolve(catalog as never);
+    await vi.advanceTimersByTimeAsync(250);
+
+    expect(getSession).toHaveBeenCalledTimes(1);
+    svc.dispose();
+  });
+
+  it('hydrates a cached session exactly once when its runtime operation is missing', async () => {
+    vi.useFakeTimers();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(
+      sessionKeys.detail('sess_op_missing'),
+      sessionSnapshot('sess_op_missing', 'active'),
+    );
+    vi.mocked(getSession).mockResolvedValue({
+      ...sessionSnapshot('sess_op_missing', 'active'),
+      bootstrap_operation: operationUpdated(4, { id: 'op_missing', session_id: 'sess_op_missing' }),
+    });
+    vi.mocked(fetchProviders).mockResolvedValue({
+      providers: [
+        {
+          provider: 'aisha',
+          models: [
+            {
+              model_key: 'aisha-image',
+              runtime: {
+                state: 'active',
+                session_id: 'sess_op_missing',
+                deployment_id: 'deploy_001',
+                operation_id: 'op_missing',
+              },
+            },
+          ],
+        },
+      ],
+      user_context: null,
+    } as never);
+
+    const svc = new EventStreamService({ queryClient: client });
+    await svc.connect();
+    await vi.advanceTimersByTimeAsync(250);
+    await vi.advanceTimersByTimeAsync(250);
+
+    expect(
+      vi.mocked(getSession).mock.calls.filter(([id]) => id === 'sess_op_missing'),
+    ).toHaveLength(1);
+    expect(client.getQueryData(operationKeys.detail('op_missing'))).toMatchObject({ revision: 4 });
+    svc.dispose();
+  });
+
+  it('does not trigger a provider-induced extra hydration when session detail and its operation are both cached', async () => {
+    vi.useFakeTimers();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(
+      sessionKeys.detail('sess_fully_cached'),
+      sessionSnapshot('sess_fully_cached', 'active'),
+    );
+    client.setQueryData(
+      operationKeys.detail('op_cached'),
+      operationUpdated(5, { id: 'op_cached', session_id: 'sess_fully_cached' }),
+    );
+    vi.mocked(getSession).mockResolvedValue(sessionSnapshot('sess_fully_cached', 'active'));
+    vi.mocked(fetchProviders).mockResolvedValue({
+      providers: [
+        {
+          provider: 'aisha',
+          models: [
+            {
+              model_key: 'aisha-image',
+              runtime: {
+                state: 'active',
+                session_id: 'sess_fully_cached',
+                deployment_id: 'deploy_001',
+                operation_id: 'op_cached',
+              },
+            },
+          ],
+        },
+      ],
+      user_context: null,
+    } as never);
+
+    const svc = new EventStreamService({ queryClient: client });
+    await svc.connect();
+    await vi.advanceTimersByTimeAsync(250);
+    await vi.advanceTimersByTimeAsync(250);
+
+    // The reconnect scan legitimately re-reconciles the cached session once; provider discovery
+    // must not add a second call now that its referenced operation is also already cached.
+    expect(
+      vi.mocked(getSession).mock.calls.filter(([id]) => id === 'sess_fully_cached'),
+    ).toHaveLength(1);
     svc.dispose();
   });
 });

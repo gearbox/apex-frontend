@@ -508,6 +508,125 @@ describe('epoch-bound middleware retries', () => {
   });
 });
 
+describe('caller/TanStack signal cancellation', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('does not send a second endpoint request when the caller aborts during a 429 backoff wait', async () => {
+    vi.useFakeTimers();
+    let calls = 0;
+    server.use(
+      http.get(`${BASE}/v1/billing/balance`, () => {
+        calls += 1;
+        return HttpResponse.json(
+          { error: 'rate_limit_exceeded' },
+          { status: 429, headers: { 'Retry-After': '1' } },
+        );
+      }),
+    );
+
+    const controller = new AbortController();
+    const request = apiClient.GET('/v1/billing/balance', { signal: controller.signal });
+    await vi.waitFor(() => expect(calls).toBe(1));
+    controller.abort();
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    // The backoff wait was interrupted, so the middleware hands back the un-retried 429 as-is;
+    // TanStack itself disregards the settled value of a query it already canceled. The behavior
+    // under test is that no second network request was made.
+    await expect(request).resolves.toMatchObject({ response: { status: 429 } });
+    expect(calls).toBe(1);
+    expect(__getAuthOperationCountForTesting()).toBe(0);
+  });
+
+  it('still retries normally when the caller is not canceled (control case)', async () => {
+    vi.useFakeTimers();
+    let calls = 0;
+    server.use(
+      http.get(`${BASE}/v1/billing/balance`, () => {
+        calls += 1;
+        return calls === 1
+          ? HttpResponse.json(
+              { error: 'rate_limit_exceeded' },
+              { status: 429, headers: { 'Retry-After': '1' } },
+            )
+          : HttpResponse.json({ account_id: 'acc_001', account_type: 'personal', balance: 500 });
+      }),
+    );
+
+    const controller = new AbortController();
+    const request = apiClient.GET('/v1/billing/balance', { signal: controller.signal });
+    await vi.waitFor(() => expect(calls).toBe(1));
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    await expect(request).resolves.toMatchObject({ response: { status: 200 } });
+    expect(calls).toBe(2);
+  });
+
+  it('does not replay a canceled 401 request once a sibling refresh completes', async () => {
+    setAuth(tokens('expired-access', 'refresh-a'), makeUserProfile({ id: 'user-a' }));
+    const refreshResponse = deferred<Response>();
+    const refreshStarted = deferred<void>();
+    let balanceCalls = 0;
+
+    server.use(
+      http.get(`${BASE}/v1/billing/balance`, () => {
+        balanceCalls += 1;
+        return HttpResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }),
+      http.post(`${BASE}/v1/auth/refresh`, async () => {
+        refreshStarted.resolve();
+        return refreshResponse.promise;
+      }),
+      http.get(`${BASE}/v1/users/me`, () => HttpResponse.json(makeUserProfile({ id: 'user-a' }))),
+    );
+
+    const controller = new AbortController();
+    const request = apiClient.GET('/v1/billing/balance', { signal: controller.signal });
+    await refreshStarted.promise;
+    controller.abort();
+    refreshResponse.resolve(
+      HttpResponse.json(makeTokenResponse({ access_token: 'refreshed-access' })),
+    );
+
+    await expect(request).rejects.toThrow();
+    // Only the original 401 — the refreshed token must never be replayed for a canceled caller.
+    expect(balanceCalls).toBe(1);
+    expect(getAccessToken()).toBe('refreshed-access');
+  });
+
+  it('still refreshes and replays normally when the caller is not canceled (control case)', async () => {
+    setAuth(tokens('expired-access', 'refresh-a'), makeUserProfile({ id: 'user-a' }));
+    let balanceCalls = 0;
+    let lastAuthHeader: string | null = null;
+
+    server.use(
+      http.get(`${BASE}/v1/billing/balance`, ({ request }) => {
+        balanceCalls += 1;
+        lastAuthHeader = request.headers.get('Authorization');
+        if (balanceCalls === 1) {
+          return HttpResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+        return HttpResponse.json({ account_id: 'acc_001', account_type: 'personal', balance: 500 });
+      }),
+      http.post(`${BASE}/v1/auth/refresh`, () =>
+        HttpResponse.json(makeTokenResponse({ access_token: 'refreshed-access' })),
+      ),
+      http.get(`${BASE}/v1/users/me`, () => HttpResponse.json(makeUserProfile({ id: 'user-a' }))),
+    );
+
+    const controller = new AbortController();
+    const { response } = await apiClient.GET('/v1/billing/balance', {
+      signal: controller.signal,
+    });
+
+    expect(response.status).toBe(200);
+    expect(balanceCalls).toBe(2);
+    expect(lastAuthHeader).toBe('Bearer refreshed-access');
+  });
+});
+
 describe('body-safe retries (C1)', () => {
   it('POST with JSON body: on 429 with Retry-After: 0, retries with intact body and preserved Idempotency-Key', async () => {
     let callCount = 0;

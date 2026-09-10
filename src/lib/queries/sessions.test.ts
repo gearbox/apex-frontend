@@ -71,6 +71,18 @@ describe('sessionDetailQueryOptions()', () => {
     const opts = sessionDetailQueryOptions(new QueryClient(), 'sess_001', { enabled: false });
     expect(opts.enabled).toBe(false);
   });
+
+  it('represents "no session" with a null key component, never an empty string', () => {
+    const opts = sessionDetailQueryOptions(new QueryClient(), null, { enabled: true });
+    expect(opts.queryKey).toEqual(['sessions', 'detail', null]);
+    expect(opts.queryKey).not.toContain('');
+    expect(opts.enabled).toBe(false);
+  });
+
+  it('rejects if queryFn is ever invoked directly with a null id', async () => {
+    const opts = sessionDetailQueryOptions(new QueryClient(), null, { enabled: true });
+    await expect(opts.queryFn({ signal: new AbortController().signal } as never)).rejects.toThrow();
+  });
 });
 
 describe('startSessionMutationOptions()', () => {

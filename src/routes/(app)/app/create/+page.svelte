@@ -18,7 +18,11 @@
     isProvisioningMode,
     canStartSession,
   } from '$lib/utils/sessionState';
-  import { sessionDetailQueryOptions, startSessionMutationOptions } from '$lib/queries/sessions';
+  import {
+    sessionDetailQueryOptions,
+    sessionKeys,
+    startSessionMutationOptions,
+  } from '$lib/queries/sessions';
   import * as m from '$paraglide/messages';
   import ModelSelector from '$lib/components/create/ModelSelector.svelte';
   import AgeVerificationModal from '$lib/components/create/AgeVerificationModal.svelte';
@@ -133,7 +137,7 @@
   // This is a normal snapshot read, not provisioning polling. It provides legacy Stop/timer
   // compatibility while the provider runtime remains the sole card-state authority.
   const selectedSessionQuery = createQuery(() =>
-    sessionDetailQueryOptions(queryClient, selectedSessionId ?? '', {
+    sessionDetailQueryOptions(queryClient, selectedSessionId, {
       enabled: selectedSessionId !== null,
     }),
   );
@@ -198,7 +202,7 @@
 
   function handleStopped() {
     stopModalSessionId = null;
-    queryClient.invalidateQueries({ queryKey: ['sessions'] });
+    queryClient.invalidateQueries({ queryKey: sessionKeys.all });
     queryClient.invalidateQueries({ queryKey: providerKeys.catalog() });
   }
 

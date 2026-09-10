@@ -36,16 +36,26 @@ export function sessionsListQueryOptions(
   };
 }
 
+/**
+ * `id: null` represents "no runtime session to look up" — e.g. the selected model currently has
+ * no session association. It must never be encoded as `''`: the reconnect scanner in
+ * EventStreamService discovers cached session IDs by reading this query's key component, and an
+ * empty string would look like a real (if bogus) session ID and trigger `GET /v1/sessions/`.
+ * A `null` key component can never be mistaken for a server-issued ID.
+ */
 export function sessionDetailQueryOptions(
   queryClient: QueryClient,
-  id: string,
+  id: string | null,
   opts: { enabled: boolean },
 ) {
+  const queryKey = [...sessionKeys.all, 'detail', id] as const;
   return {
-    queryKey: sessionKeys.detail(id),
-    queryFn: async ({ signal }: QueryFunctionContext<ReturnType<typeof sessionKeys.detail>>) =>
-      ingestSessionSnapshot(queryClient, await getSession(id, signal)),
-    enabled: opts.enabled,
+    queryKey,
+    queryFn: async ({ signal }: QueryFunctionContext<typeof queryKey>) => {
+      if (id === null) throw new Error('sessionDetailQueryOptions: no session id to fetch');
+      return ingestSessionSnapshot(queryClient, await getSession(id, signal));
+    },
+    enabled: opts.enabled && id !== null,
     staleTime: 0,
   };
 }
