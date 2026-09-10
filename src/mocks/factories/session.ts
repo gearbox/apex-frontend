@@ -11,7 +11,6 @@ export function makeGpuSessionResponse(
     user_id: 'usr_mock_001',
     product_id: 'prod_mock_001',
     status: 'active',
-    model_type: 'aisha-image',
     tunnel_hostname: 'tunnel.example.com',
     vastai_gpu_name: 'RTX 4090',
     vastai_cost_per_hour_micros: 50000,
@@ -22,8 +21,21 @@ export function makeGpuSessionResponse(
     stopped_at: null,
     error_message: null,
     in_flight_job_count: 0,
-    provisioning_phase: null,
-    provisioning_progress: null,
+    deployments: [
+      {
+        id: 'deploy_mock_001',
+        model_type: 'aisha-image',
+        bundle_name: 'aisha',
+        bundle_version: null,
+        status: 'active',
+        pending_restart: false,
+        routing_suspended: false,
+        is_primary: true,
+        created_at: '2026-06-20T00:00:00Z',
+        activated_at: '2026-06-20T00:01:00Z',
+        current_operation: null,
+      },
+    ],
     ...overrides,
   };
 }

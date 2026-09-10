@@ -29,11 +29,14 @@ import {
   isBalanceUpdatedPayload,
   isSystemNotificationPayload,
   isGpuSessionStatusPayload,
+  isGpuDeploymentStatusPayload,
+  isOperationResponse,
   isGpuSessionCreditWarningPayload,
   type JobStatusPayload,
   type JobProgressPayload,
   type BalanceUpdatedPayload,
   type GpuSessionStatusPayload,
+  type GpuDeploymentStatusPayload,
   type GpuSessionCreditWarningPayload,
 } from '$lib/api/events';
 import {
@@ -41,7 +44,13 @@ import {
   dismissCreditWarning,
   dismissAllCreditWarnings,
 } from '$lib/stores/creditWarnings';
-import { sessionKeys } from '$lib/queries/sessions';
+import { sessionDetailQueryOptions, sessionKeys } from '$lib/queries/sessions';
+import {
+  providerKeys,
+  providersQueryOptions,
+  type ProvidersResponse,
+} from '$lib/queries/providers';
+import { operationKeys, upsertOperation } from '$lib/queries/operations';
 import { get } from 'svelte/store';
 import { getCurrentUser } from '$lib/stores/auth';
 import { getAuthEpoch, isAuthEpochCurrent } from '$lib/stores/authLifecycle';
@@ -58,6 +67,15 @@ interface ConnectionIdentity {
   userId: string | null;
 }
 
+interface SessionReconciliationState {
+  timer: ReturnType<typeof setTimeout> | null;
+  inFlight: boolean;
+  pending: boolean;
+  generation: number;
+}
+
+const GPU_RECONCILIATION_DEBOUNCE_MS = 250;
+
 export class EventStreamService {
   private queryClient: QueryClient;
   private eventSource: EventSource | null = null;
@@ -66,6 +84,12 @@ export class EventStreamService {
   private fallbackRetryTimer: ReturnType<typeof setTimeout> | null = null;
   private reconciliationRun: Promise<void> | null = null;
   private reconciliationQueued = false;
+  private readonly gpuReconciliations = new Map<string, SessionReconciliationState>();
+  private sessionListReconciliationTimer: ReturnType<typeof setTimeout> | null = null;
+  private providerReconciliationTimer: ReturnType<typeof setTimeout> | null = null;
+  private providerReconciliationInFlight = false;
+  private providerReconciliationPending = false;
+  private providerReconciliationGeneration = 0;
   private disposed = false;
   private connectionGeneration = 0;
   private readonly userId: string | null;
@@ -81,6 +105,7 @@ export class EventStreamService {
     const connection = this.beginConnection();
     if (!this.isCurrent(connection)) return;
     this.clearTimers();
+    this.clearGpuReconciliations();
     this.closeEventSource();
     setEventStreamStatus('connecting');
 
@@ -99,6 +124,7 @@ export class EventStreamService {
     this.connectionGeneration += 1;
     this.reconciliationQueued = false;
     this.clearTimers();
+    this.clearGpuReconciliations();
     this.closeEventSource();
     setEventStreamStatus('disconnected');
   }
@@ -169,6 +195,7 @@ export class EventStreamService {
       }
       this.consecutiveFailures = 0;
       setEventStreamStatus('connected');
+      this.reconcileKnownGpuSessions(connection);
     };
 
     es.onerror = () => {
@@ -200,6 +227,14 @@ export class EventStreamService {
 
     es.addEventListener(SSE_EVENTS.GPU_SESSION_STATUS, (e: MessageEvent) => {
       if (this.isCurrent(connection)) this.handleGpuSessionStatus(e, connection);
+    });
+
+    es.addEventListener(SSE_EVENTS.GPU_SESSION_DEPLOYMENT_STATUS, (e: MessageEvent) => {
+      if (this.isCurrent(connection)) this.handleGpuDeploymentStatus(e, connection);
+    });
+
+    es.addEventListener(SSE_EVENTS.GPU_SESSION_OPERATION_UPDATED, (e: MessageEvent) => {
+      if (this.isCurrent(connection)) this.handleGpuOperationUpdated(e, connection);
     });
 
     es.addEventListener(SSE_EVENTS.GPU_SESSION_CREDIT_WARNING, (e: MessageEvent) => {
@@ -418,23 +453,9 @@ export class EventStreamService {
     if (!this.isCurrent(connection)) return;
     const { session_id, status, previous_status } = payload;
 
-    // Patch cached session detail optimistically
-    this.queryClient.setQueryData(
-      sessionKeys.detail(session_id),
-      (prev: Record<string, unknown> | undefined) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          status,
-          tunnel_hostname: payload.tunnel_hostname ?? prev['tunnel_hostname'],
-          error_message: payload.error_message ?? prev['error_message'],
-        };
-      },
-    );
-
-    // Invalidate list + providers so the create-page model card refreshes
-    this.queryClient.invalidateQueries({ queryKey: sessionKeys.all });
-    this.queryClient.invalidateQueries({ queryKey: ['providers'] });
+    // Session scalar fields and model runtime are independent, unversioned REST snapshots.
+    // This event only schedules their reconciliation; it must not overwrite cached scalars.
+    this.requestGpuReconciliation(session_id, connection);
 
     // Dismiss credit warning for this session when it reaches a terminal state
     if (status === 'stopped' || status === 'failed') {
@@ -473,6 +494,37 @@ export class EventStreamService {
     }
   }
 
+  private handleGpuDeploymentStatus(e: MessageEvent, connection: ConnectionIdentity): void {
+    try {
+      const data = JSON.parse(e.data);
+      if (!isGpuDeploymentStatusPayload(data)) return;
+      this.processGpuDeploymentStatus(data, connection);
+    } catch {
+      // Malformed event — ignore
+    }
+  }
+
+  private processGpuDeploymentStatus(
+    payload: GpuDeploymentStatusPayload,
+    connection: ConnectionIdentity,
+  ): void {
+    if (!this.isCurrent(connection)) return;
+    // Deliberately do not inspect deployment status, phase, or progress here. The event is
+    // an invalidation signal; operation_updated owns incremental operation telemetry.
+    this.requestGpuReconciliation(payload.session_id, connection);
+  }
+
+  private handleGpuOperationUpdated(e: MessageEvent, connection: ConnectionIdentity): void {
+    try {
+      const data = JSON.parse(e.data);
+      if (!isOperationResponse(data) || !this.isCurrent(connection)) return;
+      // Must happen before association lookup. deployment_id is informational and may be null.
+      upsertOperation(this.queryClient, data);
+    } catch {
+      // Malformed event — ignore
+    }
+  }
+
   private handleCreditWarning(e: MessageEvent, connection: ConnectionIdentity): void {
     try {
       const data = JSON.parse(e.data);
@@ -489,6 +541,239 @@ export class EventStreamService {
   ): void {
     if (!this.isCurrent(connection)) return;
     upsertCreditWarning(payload);
+  }
+
+  /* ─── GPU REST reconciliation ─── */
+
+  /** Schedules one trailing-edge reconciliation per affected session. */
+  private requestGpuReconciliation(
+    sessionId: string,
+    connection: ConnectionIdentity,
+    options: { refreshProviders?: boolean; refreshList?: boolean } = {},
+  ): void {
+    if (!this.isCurrent(connection)) return;
+    const { refreshProviders = true, refreshList = true } = options;
+    const state = this.gpuReconciliations.get(sessionId) ?? {
+      timer: null,
+      inFlight: false,
+      pending: false,
+      generation: 0,
+    };
+    this.gpuReconciliations.set(sessionId, state);
+    state.generation += 1;
+
+    // Abort the exact active query as soon as a newer event arrives. Its query function receives
+    // TanStack's signal, and TanStack will not commit an aborted generation's result.
+    if (state.inFlight) {
+      void this.queryClient.cancelQueries({
+        queryKey: sessionKeys.detail(sessionId),
+        exact: true,
+      });
+    }
+
+    if (state.timer) clearTimeout(state.timer);
+    state.timer = setTimeout(() => {
+      state.timer = null;
+      if (!this.isCurrent(connection)) return;
+      if (state.inFlight) {
+        state.pending = true;
+        return;
+      }
+      void this.runGpuReconciliation(sessionId, state, connection, state.generation);
+    }, GPU_RECONCILIATION_DEBOUNCE_MS);
+
+    if (refreshList) this.requestSessionListReconciliation(connection);
+    // The catalog is shared, so it gets one coalesced refresh even if several sessions change.
+    if (refreshProviders) this.requestProviderReconciliation(connection);
+  }
+
+  /** The sessions list is a separate projection; it never writes a session-detail cache key. */
+  private requestSessionListReconciliation(connection: ConnectionIdentity): void {
+    if (!this.isCurrent(connection)) return;
+    if (this.sessionListReconciliationTimer) clearTimeout(this.sessionListReconciliationTimer);
+    this.sessionListReconciliationTimer = setTimeout(() => {
+      this.sessionListReconciliationTimer = null;
+      if (!this.isCurrent(connection)) return;
+      void this.queryClient.invalidateQueries({
+        queryKey: sessionKeys.list(false),
+        exact: true,
+      });
+    }, GPU_RECONCILIATION_DEBOUNCE_MS);
+  }
+
+  private async runGpuReconciliation(
+    sessionId: string,
+    state: SessionReconciliationState,
+    connection: ConnectionIdentity,
+    requestGeneration: number,
+  ): Promise<void> {
+    if (!this.isCurrent(connection) || state.inFlight) return;
+    state.inFlight = true;
+
+    try {
+      const queryKey = sessionKeys.detail(sessionId);
+      // There is exactly one owner for this cache key: the TanStack query below. Mark it stale
+      // without active-refetching, abort any pre-existing observer fetch, then perform the one
+      // guarded reconciliation fetch. A later event cancels this exact query before it can commit.
+      void this.queryClient.cancelQueries({ queryKey, exact: true });
+      void this.queryClient.invalidateQueries({ queryKey, exact: true, refetchType: 'none' });
+      await this.queryClient.fetchQuery(
+        sessionDetailQueryOptions(this.queryClient, sessionId, { enabled: true }),
+      );
+    } catch {
+      // A subsequent event, focus refresh, or reconnect can retry. Do not surface SSE noise.
+    } finally {
+      state.inFlight = false;
+      if (this.isCurrent(connection)) {
+        if (state.pending && state.timer === null) {
+          state.pending = false;
+          void this.runGpuReconciliation(sessionId, state, connection, state.generation);
+        } else if (state.generation !== requestGeneration && state.timer === null) {
+          void this.runGpuReconciliation(sessionId, state, connection, state.generation);
+        }
+      }
+    }
+  }
+
+  private requestProviderReconciliation(connection: ConnectionIdentity): void {
+    if (!this.isCurrent(connection)) return;
+    this.providerReconciliationGeneration += 1;
+    if (this.providerReconciliationInFlight) {
+      void this.queryClient.cancelQueries({ queryKey: providerKeys.catalog(), exact: true });
+    }
+    if (this.providerReconciliationTimer) clearTimeout(this.providerReconciliationTimer);
+    this.providerReconciliationTimer = setTimeout(() => {
+      this.providerReconciliationTimer = null;
+      if (!this.isCurrent(connection)) return;
+      if (this.providerReconciliationInFlight) {
+        this.providerReconciliationPending = true;
+        return;
+      }
+      void this.runProviderReconciliation(connection, this.providerReconciliationGeneration);
+    }, GPU_RECONCILIATION_DEBOUNCE_MS);
+  }
+
+  private async runProviderReconciliation(
+    connection: ConnectionIdentity,
+    requestGeneration: number,
+  ): Promise<void> {
+    if (!this.isCurrent(connection) || this.providerReconciliationInFlight) return;
+    this.providerReconciliationInFlight = true;
+
+    try {
+      const queryKey = providerKeys.catalog();
+      // As with session detail, reconciliation owns this exact cache key through TanStack. An
+      // invalidation only marks stale; it must never start an uncontrolled active-observer fetch.
+      void this.queryClient.cancelQueries({ queryKey, exact: true });
+      void this.queryClient.invalidateQueries({ queryKey, exact: true, refetchType: 'none' });
+      const providers = await this.queryClient.fetchQuery(providersQueryOptions());
+      if (
+        this.isCurrent(connection) &&
+        this.providerReconciliationGeneration === requestGeneration
+      ) {
+        this.hydrateDiscoveredRuntimeSessions(providers, connection);
+      }
+    } catch {
+      // Leave the prior catalog visible; a later invalidation/focus refresh retries.
+    } finally {
+      this.providerReconciliationInFlight = false;
+      if (this.isCurrent(connection)) {
+        if (this.providerReconciliationPending && this.providerReconciliationTimer === null) {
+          this.providerReconciliationPending = false;
+          void this.runProviderReconciliation(connection, this.providerReconciliationGeneration);
+        } else if (
+          this.providerReconciliationGeneration !== requestGeneration &&
+          this.providerReconciliationTimer === null
+        ) {
+          void this.runProviderReconciliation(connection, this.providerReconciliationGeneration);
+        }
+      }
+    }
+  }
+
+  /** Hydrates runtime sessions discovered in a fresh provider snapshot without starting a loop. */
+  private hydrateDiscoveredRuntimeSessions(
+    providers: ProvidersResponse,
+    connection: ConnectionIdentity,
+  ): void {
+    for (const provider of providers.providers) {
+      for (const model of provider.models) {
+        const runtime = model.runtime;
+        const sessionId = runtime?.session_id;
+        if (!sessionId) continue;
+
+        const reconciliation = this.gpuReconciliations.get(sessionId);
+        const alreadyScheduled = Boolean(reconciliation?.timer || reconciliation?.inFlight);
+        const detailMissing =
+          this.queryClient.getQueryData(sessionKeys.detail(sessionId)) === undefined;
+        const operationMissing =
+          runtime.operation_id !== null &&
+          this.queryClient.getQueryData(operationKeys.detail(runtime.operation_id)) === undefined;
+        const needsDetail = !alreadyScheduled && (detailMissing || operationMissing);
+
+        if (needsDetail) {
+          this.requestGpuReconciliation(sessionId, connection, {
+            refreshProviders: false,
+            refreshList: false,
+          });
+        }
+      }
+    }
+  }
+
+  /** Reconnects are lossy: seed reconciliation from already-cached runtime/session IDs. */
+  private reconcileKnownGpuSessions(connection: ConnectionIdentity): void {
+    const sessionIds = new Set<string>();
+    const providers = this.queryClient.getQueryData<ProvidersResponse>(providerKeys.catalog());
+    for (const provider of providers?.providers ?? []) {
+      for (const model of provider.models) {
+        if (model.runtime?.session_id) sessionIds.add(model.runtime.session_id);
+      }
+    }
+
+    for (const query of this.queryClient.getQueryCache().getAll()) {
+      if (query.queryKey[0] !== sessionKeys.all[0]) continue;
+      // An empty string is never a valid session ID — reject it defensively even if a caller
+      // ever regresses to encoding "no session" that way again.
+      if (
+        query.queryKey[1] === 'detail' &&
+        typeof query.queryKey[2] === 'string' &&
+        query.queryKey[2].length > 0
+      ) {
+        sessionIds.add(query.queryKey[2]);
+      }
+      if (Array.isArray(query.state.data)) {
+        for (const item of query.state.data) {
+          if (isSessionLike(item)) sessionIds.add(item.id);
+        }
+      }
+    }
+
+    for (const sessionId of sessionIds) this.requestGpuReconciliation(sessionId, connection);
+    // A connected stream also refreshes runtime even when no current session is cached.
+    this.requestProviderReconciliation(connection);
+  }
+
+  private clearGpuReconciliations(): void {
+    for (const [sessionId, state] of this.gpuReconciliations) {
+      if (state.timer) clearTimeout(state.timer);
+      if (state.inFlight) {
+        void this.queryClient.cancelQueries({
+          queryKey: sessionKeys.detail(sessionId),
+          exact: true,
+        });
+      }
+    }
+    this.gpuReconciliations.clear();
+    if (this.sessionListReconciliationTimer) clearTimeout(this.sessionListReconciliationTimer);
+    this.sessionListReconciliationTimer = null;
+    if (this.providerReconciliationTimer) clearTimeout(this.providerReconciliationTimer);
+    this.providerReconciliationTimer = null;
+    if (this.providerReconciliationInFlight) {
+      void this.queryClient.cancelQueries({ queryKey: providerKeys.catalog(), exact: true });
+    }
+    this.providerReconciliationInFlight = false;
+    this.providerReconciliationPending = false;
   }
 
   /* ─── Reconnection Logic ─── */
@@ -553,6 +838,15 @@ export class EventStreamService {
       this.fallbackRetryTimer = null;
     }
   }
+}
+
+function isSessionLike(value: unknown): value is { id: string } {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'id' in value &&
+    typeof (value as { id: unknown }).id === 'string'
+  );
 }
 
 /* ─── Custom Error Classes ─── */

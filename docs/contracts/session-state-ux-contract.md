@@ -1,167 +1,276 @@
-# Frontend contract — `session_state` → model-card UX state & actions
+# Frontend contract — model runtime, deployments, and operations
 
-Companion to the backend change on `model-session-handling`. Ships in the **same PR**. Defines how `apex-frontend` (SvelteKit PWA) renders and acts on the three new/changed `GET /v1/providers` fields, and how it stays in sync via SSE.
+This document defines how `apex-frontend` renders on-demand Aisha models from
+`GET /v1/providers`, session reads, and SSE. Generated OpenAPI types are the
+source of truth for field types; this document defines lifecycle semantics and
+cache-update rules.
 
----
+## Inputs for an on-demand model card
 
-## The three backend inputs
+| Field | Meaning |
+|---|---|
+| `provider.available` | The provider is configured and serviceable for every user. It is independent of a user's runtime. |
+| `provider.provisioning_mode` | `"always_on"` or `"on_demand"`. Only the latter has a per-user runtime. |
+| `model.runtime` | Authenticated user's current `ModelRuntimeResponse` for an on-demand model. It is `null` for always-on providers and for an unauthenticated request. |
+| `model.provisioning` | Configured display hints for the initial bootstrap and an additive attach. They are not estimates. |
 
-Each model card is a pure function of three catalog fields plus the client's auth state:
+Never collapse `available` and `runtime` into a single boolean. An unavailable
+provider has no user action that can make it available; an available provider
+whose runtime is `none` can be started by the user.
 
-| Field                        | Source                           | Meaning                                                                                                                                                                                                                            |
-| ---------------------------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `provider.available`         | `ProviderInfo.available`         | Provider is **configured and serviceable in this deployment**. For `always_on` → cloud API wired (incl. storage). For `on_demand` → GPU stack wired (bundle index + workflow service). **Process-level**, identical for all users. |
-| `provider.provisioning_mode` | `ProviderInfo.provisioning_mode` | `"always_on"` (cloud API, usable whenever available) or `"on_demand"` (requires a per-user GPU session before generating).                                                                                                         |
-| `model.session_state`        | `ModelInfo.session_state`        | Per-user readiness of an on-demand model: `null` \| `"none"` \| `"provisioning"` \| `"active"` \| `"paused"` \| `"stale"` \| `"stopping"`. **Non-null only for `on_demand` models on an authenticated request.**                   |
-
-### The orthogonality rule (folded from review finding #3)
-
-**`available` and `session_state` are independent axes. Never collapse them into one "is it usable" boolean, and never treat `available=false` as "needs a session."**
-
-- `available=false` → the provider can't serve _anybody_ here (deployment-level). There is **no user action** that fixes it — do **not** offer "Start session"; starting one would fail.
-- `available=true` + `session_state="none"` → provider is fine; the user simply hasn't spun up a session yet. This **is** actionable.
-
-The previous backend always reported Aisha `available=true`; it now reports `false` wherever the GPU stack isn't wired (and Grok's condition is slightly stricter — it also requires storage). So a card can now legitimately be `provisioning_mode="on_demand"`, `available=false` — that's "temporarily unavailable," not "press Start."
-
----
-
-## Canonical state derivation
-
-Evaluate top-down; first match wins. `isAuthenticated` is the client's own auth flag.
-
-| #   | Condition                                                 | Card state                                                                                                  |
-| --- | --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| 1   | `!model.is_enabled`                                       | `DISABLED` _(not emitted by `/v1/providers` today — it only lists enabled models — but handle defensively)_ |
-| 2   | `!provider.available`                                     | `UNAVAILABLE`                                                                                               |
-| 3   | `provisioning_mode === "always_on"`                       | `READY`                                                                                                     |
-| 4   | `on_demand` && `!isAuthenticated`                         | `SIGN_IN_REQUIRED`                                                                                          |
-| 5   | `on_demand` && auth && `session_state === "none"`         | `NEEDS_SESSION`                                                                                             |
-| 6   | `on_demand` && auth && `session_state === "provisioning"` | `PROVISIONING`                                                                                              |
-| 7   | `on_demand` && auth && `session_state === "active"`       | `READY`                                                                                                     |
-| 8   | `on_demand` && auth && `session_state === "paused"`       | `PAUSED`                                                                                                    |
-| 9   | `on_demand` && auth && `session_state === "stale"`        | `STALE`                                                                                                     |
-| 10  | `on_demand` && auth && `session_state === "stopping"`     | `STOPPING`                                                                                                  |
-
-Invariant to lean on: for an `on_demand` model that is `available` and authenticated, the backend always sets `session_state` to at least `"none"` (never `null`). So `null` `session_state` on an `on_demand` card ⟺ unauthenticated (row 4). Passing `isAuthenticated` explicitly is still clearer than inferring.
-
----
-
-## Per-state UX & actions
-
-`Generate` = the primary generation control. "enabled" means the user can submit a job.
-
-| State                      | Badge / label                              | `Generate`  | Primary CTA → action                                                                        | Secondary                                                                        | Driven by                       |
-| -------------------------- | ------------------------------------------ | ----------- | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------- |
-| `READY` (always_on)        | none / "Ready"                             | **enabled** | —                                                                                           | —                                                                                | static                          |
-| `READY` (on_demand active) | "Session active" + running timer/cost      | **enabled** | —                                                                                           | `Pause` → `POST /v1/sessions/{id}/pause`; `Stop` → `POST /v1/sessions/{id}/stop` | SSE                             |
-| `NEEDS_SESSION`            | "Needs GPU session"                        | disabled    | **Start session** → `POST /v1/sessions { model }` (201)                                     | cost/latency hint                                                                | SSE after start                 |
-| `PROVISIONING`             | "Starting…" + spinner (+ phase if fetched) | disabled    | `Cancel` → `POST /v1/sessions/{id}/stop`                                                    | —                                                                                | SSE                             |
-| `PAUSED`                   | "Paused"                                   | disabled    | **Resume** → `POST /v1/sessions/{id}/resume`                                                | `Stop`                                                                           | SSE after resume                |
-| `STALE`                    | "Session unreachable" (warning)            | disabled    | **Stop** → `POST …/stop` (card transitions to `STOPPING` → SSE `stopped` → `NEEDS_SESSION`) | show `error_message` if present                                                  | SSE / manual                    |
-| `STOPPING`                 | "Stopping…" (muted)                        | disabled    | — _(no Start CTA — slot still occupied)_                                                    | —                                                                                | SSE `stopped` → `NEEDS_SESSION` |
-| `SIGN_IN_REQUIRED`         | "Sign in to use"                           | disabled    | **Sign in** → auth flow, return to generate screen                                          | —                                                                                | —                               |
-| `UNAVAILABLE`              | "Temporarily unavailable" (muted)          | disabled    | none                                                                                        | optional tooltip: provider not configured                                        | —                               |
-| `DISABLED`                 | hidden/greyed                              | disabled    | none                                                                                        | —                                                                                | —                               |
-
-Notes:
-
-- `POST /v1/sessions` body field is **`model`** (the `model_key`); product is resolved server-side from the request host/middleware — do not send it.
-- `PROVISIONING` may show finer detail (phase/progress) by fetching `GET /v1/sessions/{id}` once on entry; the catalog/SSE only carry the coarse status. Don't poll it in a tight loop — SSE drives the transition.
-- The model card is the natural home for on-demand session state since `session_state` is per-model; `Stop`/`Pause` can live on the card or a sessions tray, your call.
-
----
-
-## Shared status → state mapping (must mirror the backend)
-
-The SSE payload carries the **raw `GpuSessionStatus`**, not the derived `ModelSessionState`. To keep SSE-driven and catalog-driven cards in agreement, the frontend needs the exact same mapping as backend `session_state_from_status`:
+`runtime` has this shape:
 
 ```ts
-// Mirror of backend ModelSessionState
-export type SessionState = 'none' | 'provisioning' | 'active' | 'paused' | 'stale' | 'stopping';
-
-// Raw lifecycle status as it arrives on SSE (GpuSessionStatus)
-export type SessionStatus =
-  | 'pending'
-  | 'provisioning'
-  | 'active'
-  | 'stale'
-  | 'paused'
-  | 'resuming'
-  | 'stopping'
-  | 'stopped'
-  | 'failed';
-
-export function sessionStateFromStatus(s: SessionStatus): SessionState {
-  switch (s) {
-    case 'active':
-      return 'active';
-    case 'pending':
-    case 'provisioning':
-    case 'resuming':
-      return 'provisioning';
-    case 'paused':
-      return 'paused';
-    case 'stale':
-      return 'stale';
-    case 'stopping':
-      return 'stopping';
-    case 'stopped':
-    case 'failed':
-      return 'none';
-    // exhaustive: add a case if backend GpuSessionStatus grows
-  }
+interface ModelRuntimeResponse {
+  state: "none" | "provisioning" | "active" | "suspended" | "removing"
+       | "paused" | "stale" | "stopping";
+  session_id: string | null;
+  deployment_id: string | null;
+  operation_id: string | null; // non-terminal work only
 }
 ```
 
-Keep this in one module and unit-test it against the backend table so the two never drift (the backend has `TestSessionStateFromStatus` doing the equivalent).
+`runtime: null` is not `state: "none"`: `null` means that the runtime
+projection was not evaluated (always-on providers do not have a per-user
+runtime, and unauthenticated callers do not receive one), while `state:
+"none"` means that the authenticated on-demand runtime was evaluated and no
+deployment is live. When `state === "none"`, every ID is null. `operation_id`
+is a lightweight "work is in progress" handle; use `GET
+/v1/sessions/{session_id}` to read the full `current_operation` projection.
 
----
+Card state comes from the server-provided `model.runtime`. Live progress comes
+from the operation cache, looked up by `runtime.operation_id`. Nothing is
+derived by combining the providers `runtime.state` with a session-detail
+deployment status; the frontend must not compute a third state from those two
+REST projections.
 
-## Real-time sync (no polling)
+## Card states and actions
 
-GPU session transitions are pushed over SSE; the frontend updates the relevant card in place rather than refetching `/v1/providers`.
+Evaluate this order top-down:
 
-1. `POST /v1/events/sse-ticket` → short-lived ticket (only if real-time is enabled; handle the "not available" response).
-2. `GET /v1/events/stream?ticket=<ticket>` → `EventSource`.
-3. Handle `event: gpu_session.status_changed`. Payload:
+| Condition | Card state | Primary action |
+|---|---|---|
+| `!model.is_enabled` | Disabled | None |
+| `!provider.available` | Unavailable | None |
+| `provisioning_mode === "always_on"` | Ready | Generate |
+| On-demand and anonymous | Sign in required | Sign in |
+| `runtime.state === "none"` | Needs session | Start session |
+| `runtime.state === "provisioning"` | Provisioning | Show operation; allow cancel through session stop where applicable |
+| `runtime.state === "active"` | Ready | Generate |
+| `runtime.state === "suspended"` | Restarting | Show operation; generation disabled |
+| `runtime.state === "removing"` | Removing | Generation disabled |
+| `runtime.state === "paused"` | Paused | Resume or stop |
+| `runtime.state === "stale"` | Unreachable | Stop; surface any safe error text from the session read |
+| `runtime.state === "stopping"` | Stopping | Wait for terminal transition |
+
+`Generate` is enabled only for an available model whose state is `active` (or
+an available always-on model). Do not offer Start while a state other than
+`none` occupies the model's live deployment slot.
+
+## Provisioning hints
+
+`model.provisioning` is present for Aisha models. These values are deliberately
+coarse display hints and must never be combined with elapsed time to form an
+ETA, replace operation telemetry, or drive a timeout.
+
+The API permits `null` for either value. Treat it as “no hint configured” and
+show elapsed-only once an operation exists.
+
+## Read model and operation association
+
+`GET /v1/sessions/{id}` returns a primary deployment plus any sibling
+deployments attached additively. Each `DeploymentResponse.current_operation`
+is the current or latest durable `OperationResponse` for that deployment.
+Every embedded `OperationResponse` — `session.bootstrap_operation`, a
+deployment's `current_operation`, a `202` mutation body, or an
+`operation_updated` frame — is a view onto one canonical operation cache keyed
+by operation id and merged by `revision`.
+
+`OperationResponse.deployment_id` is an optional informational direct target.
+It may identify the primary deployment for `session_bootstrap` and the target
+for deployment-scoped operations. It may be `null` for operations governing
+multiple deployments or the whole session, notably cohort restarts. It must
+never be used to route an operation update to frontend deployment state.
+
+Upsert every `operation_updated` frame into the operation cache keyed by
+operation id whenever its `revision` is strictly greater than the cached
+revision, **before** resolving any deployment association. Never discard a
+newer operation solely because no cached deployment currently references it.
+Deployment cards and `session.bootstrap_operation` then render from that cache
+by id. Never route an operation by `deployment_id`; this includes cohort
+restarts, which resolve through each deployment's restart pointer rather than
+the operation's direct target.
+
+When applying a session snapshot, replace deployment scalars wholesale — REST
+is authoritative for them — but merge each embedded operation into the
+operation cache under the same strictly-greater-`revision` rule. A snapshot
+never lowers a cached operation's revision.
+
+A re-provision creates a new `session.bootstrap_operation` with a new id. The
+client learns of it through the `status_changed` invalidation and the refetch
+that follows, not through a frame for the old id.
+
+`/v1/providers` carries `runtime.operation_id` but not the operation itself. If
+that id is absent from the operation cache, the coalesced session-detail
+refetch hydrates it with the embedded full operation. Do not issue a separate
+`GET /v1/sessions/{id}/operations/{operation_id}` for this; that endpoint is
+the SSE-down fallback, not an operation-cache hydration path.
+
+## Operation lifecycle and progress guarantees
+
+A freshly created operation is a valid first state, not a loading failure:
+`status` is `queued`, `revision` is `0`, and `phase`, `progress`, and
+`started_at` are all `null`.
+
+The `progress`, `work`, `items`, and `rate` objects are each fully populated or
+`null`, never partial. `progress_pct` is `null` or within `[0, 100]`; a node may
+truthfully report `work.completed > work.total` when some file sizes were
+unknown, and the API retains that work measurement while rendering the derived
+percentage as `100.0`.
+
+`eta_seconds` is `null` unless it is derived from live throughput. The client
+must never synthesize it from `work`, elapsed time, or `typical_*_seconds`.
+
+## SSE synchronization
+
+SSE is lossy: after every connect or reconnect, re-fetch the session detail.
+Frames can arrive out of order; operation frames are retained in the canonical
+operation cache by the strictly-greater-`revision` rule above.
+
+Any durable change to `OperationResponse`, whatever its source (node telemetry,
+command timeout, cancellation, or lifecycle cascade), produces a newer
+`operation_updated` frame. This is what permits zero polling while SSE is
+healthy.
+
+### Event roles
+
+| Event | Role |
+|---|---|
+| `gpu_session.operation_updated` | Authoritative incremental state; apply directly by `revision`. |
+| `gpu_session.deployment_status_changed` | REST invalidation; refetch session detail. |
+| `gpu_session.status_changed` | REST invalidation; refetch session detail. |
+
+An event-triggered `GET` is not polling. The zero-polling guarantee is
+unchanged.
+
+After `gpu_session.status_changed` or
+`gpu_session.deployment_status_changed`, invalidate both the affected
+session-detail query and the authenticated `/v1/providers` runtime projection.
+Coalesce provider invalidations alongside session invalidations under the same
+per-session debounce: at most one session refetch may be in flight, use a
+trailing-edge debounce of roughly 250 ms, and discard the response of any
+refetch superseded by a later one.
+
+`/v1/providers` and session detail are independent, unversioned snapshots.
+Neither carries a revision, and they can land in either order, so transient
+disagreement between them after an invalidation is expected rather than an
+error. Rendering must not be gated on the two agreeing. The operation cache is
+the only revision-tracked store; full operations embedded in a session
+snapshot merge into it under the strictly-greater-`revision` rule, while the
+providers snapshot supplies only the `runtime.operation_id` lookup.
+
+### `gpu_session.status_changed`
 
 ```ts
 interface GpuSessionStatusPayload {
   session_id: string;
-  status: SessionStatus; // new status
-  previous_status: SessionStatus;
-  model_type: string; // === ModelInfo.model_key — use to find the card
-  bundle_name: string;
-  tunnel_hostname?: string | null;
-  error_message?: string | null; // surface on stale/failed
+  status: GpuSessionStatus;
+  previous_status: GpuSessionStatus | "none";
+  tunnel_hostname: string | null;
+  error_message: string | null;
+  reason: string | null;
 }
 ```
 
-On each event: `card[payload.model_type].session_state = sessionStateFromStatus(payload.status)` and re-derive the card state. Use `previous_status → status` for one-shot toasts (e.g. `provisioning → active` ⇒ "Session ready"; `* → stale` / `failed` ⇒ surface `error_message`).
+This parent-session event intentionally has no `model_type`: a session may
+contain several deployments. Treat this event as an invalidation signal.
+Re-fetch `GET /v1/sessions/{session_id}` and render the affected model cards
+from the server-provided `model.runtime` in authenticated `/v1/providers`.
+Do not independently reconstruct `RuntimeState` from session or deployment
+statuses. The payload may drive transient optimistic UI, but must not overwrite
+a newer REST snapshot.
 
-**Fallbacks** (SSE ticket fails, EventSource drops, or real-time disabled): re-fetch `GET /v1/providers` (cheap, gives fresh `session_state`) or `GET /v1/sessions` on a slow interval / on window-focus. Treat the catalog as source of truth on (re)load; SSE only fast-forwards between loads.
+### `gpu_session.deployment_status_changed`
 
----
+```ts
+interface GpuDeploymentStatusPayload {
+  deployment_id: string;
+  session_id: string;
+  model_type: ModelType;
+  status: DeploymentStatus;
+  pending_restart: boolean;
+  routing_suspended: boolean;
+  operation_id: string | null;
+  error_message: string | null;
+}
+```
 
-## Decision points (recommended default + alternative)
+Treat this event as an invalidation signal. Re-fetch
+`GET /v1/sessions/{session_id}` to reconcile the deployment and hydrate its
+current operation from REST, while rendering card state from the
+server-provided `model.runtime` in authenticated `/v1/providers`. Do not
+independently reconstruct `RuntimeState` from session or deployment statuses.
+The payload may drive transient optimistic UI, but must not overwrite a newer
+REST snapshot. Multiple events for the same session may be coalesced into one
+refresh. It contains no operation phase or progress and never exposes raw
+Aisha telemetry. `operation_id` is only the join key for the typed operation
+stream below.
 
-**DA — Start trigger: explicit vs implicit.** _Recommended: explicit `Start session`, `Generate` stays disabled until `active`._ GPU sessions are billable (Vast.ai per-hour) and take time to provision; implicitly starting one behind a "Generate" click hides both the cost and a multi-second wait, which reads as a broken button. Explicit start makes intent and cost visible.
-_Alternative:_ one-click "Generate (starts a session)" gated behind a confirm that states the hourly cost and that generation begins once the node is ready. Choose this only if onboarding friction is the bigger concern; never auto-start silently.
+### `gpu_session.operation_updated`
 
-**DB — Anonymous handling of on-demand models.** _Recommended: show them in `SIGN_IN_REQUIRED` (discoverable, drives signup), gate the action._ _Alternative:_ hide on-demand models for anonymous users for a cleaner catalog. Cosmetic.
+The payload is exactly `OperationResponse`, the same safe projection returned
+by REST. Its `phase` and `progress` are the only live operation telemetry the
+frontend may interpret. Upsert it into the operation cache before resolving
+cached `current_operation.id` values as described above, including every
+member of a cohort restart.
 
-**DC — Stale recovery.** _Recommended: manual `Stop & start new`_ — a stale node may be dead, and silent auto-restart re-bills without consent. Surface `error_message`. _Alternative:_ if the backend later exposes a re-probe/heal action, offer `Retry` before `Stop & start new`.
+## Async deployment mutations
 
-**DD — Session controls location.** _Recommended: state + Pause/Stop on the model card_ (since state is per-model), optionally mirrored in a global sessions tray. Pure UI.
+`POST` and `DELETE` deployment mutations return `202` with
+`{deployment, operation}`. `DELETE` addresses a deployment UUID, is idempotent
+while the deployment is `removing`, and requires `?force=true` to remove the
+last live deployment.
 
----
+## Failed additive attaches
+
+`RuntimeState` intentionally has no `failed` member. A failed deployment is
+not live and is excluded from the `/v1/providers` runtime overlay, so the
+affected model reports `runtime.state === "none"` after a failed attach. That
+is indistinguishable from “never provisioned” on the catalog alone.
+
+The failure is retained in `GET /v1/sessions/{id}` on the failed deployment and
+its failed operation's `error.message`. If the UI needs to show a previous
+attach failure, fetch the session detail; do not infer failure from a `none`
+runtime or invent a client-side failed runtime state.
 
 ## Acceptance checks
 
-- A model whose session is in `stopping` renders `STOPPING` — badge "Stopping…", `Generate` disabled, **no Start CTA** — and never triggers a 409 `session_already_exists` on Start (because Start is disabled until the SSE `stopped` event arrives and the card transitions to `NEEDS_SESSION`).
-- A card with `provisioning_mode="on_demand"`, `available=false` renders `UNAVAILABLE` with **no** Start CTA (the finding-#3 regression: must not show "Start session").
-- Anonymous load: every on-demand card is `SIGN_IN_REQUIRED`; every `always_on` available card is `READY`.
-- Authenticated, no session: on-demand card is `NEEDS_SESSION`; pressing Start and receiving SSE `pending→provisioning→active` walks the card `NEEDS_SESSION → PROVISIONING → READY` with no manual refresh.
-- `Generate` is enabled **iff** state is `READY`.
-- `sessionStateFromStatus` covers all nine `GpuSessionStatus` values (unit-tested), matching the backend.
-- Killing the SSE connection and reloading reproduces the same card states purely from `GET /v1/providers`.
+- A cohort restart updates all matching deployment cards even though the
+  operation's `deployment_id` is null.
+- A `deployment_status_changed` frame arriving after a newer REST snapshot does
+  not regress the card.
+- An `operation_updated` frame whose id matches no cached deployment is
+  retained and appears once the following refetch associates it.
+- A burst of frames for one session produces a single refetch.
+- An `operation_updated` frame replaces `session.bootstrap_operation` when the
+  ids match, under the same revision rule.
+- A deployment-status frame never causes the client to parse raw progress;
+  phase/progress come only from `gpu_session.operation_updated`.
+- A parent session-status frame triggers a REST refresh because it has no
+  model type and may affect sibling deployments.
+- An additive attach moves the card `none → provisioning → suspended → active`
+  by following server-provided `model.runtime`, without client-side state
+  derivation.
+- A removal moves the card `active → removing → none` by following
+  server-provided `model.runtime`, without client-side state derivation.
+- Pause and resume move the card `active → paused → active` by following
+  server-provided `model.runtime`, without client-side state derivation.
+- A stop or failure affecting several models on one GPU updates every affected
+  card from its server-provided `model.runtime`, without client-side state
+  derivation.
+- A failed attach renders as `none` in the provider catalog; session detail is
+  used to surface the persisted operation error when that context is needed.
+- A command-sweep timeout updates the operation card through SSE without a
+  refetch.
+- A `completed > total` telemetry payload renders at 100% rather than blanking
+  progress.

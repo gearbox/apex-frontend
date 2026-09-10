@@ -26,6 +26,12 @@ let lastInsufficientBalanceToastAt = 0;
 interface RetryMetadata {
   template: Request;
   auth: AuthRequestContext;
+  /**
+   * The auth-operation signal combined with the caller/TanStack signal for the whole logical
+   * request. A retry (429 backoff wait or post-401 replay) must keep listening to the caller
+   * after the first HTTP response, not just to the auth epoch.
+   */
+  signal: AbortSignal;
 }
 
 const retryMetadata = new WeakMap<Request, RetryMetadata>();
@@ -48,11 +54,16 @@ function buildRetryRequest(original: Request, metadata: RetryMetadata): Request 
   const template = metadata.template;
   // Clone the template per attempt so multiple retries each get a fresh body.
   const retry = template ? template.clone() : original.clone();
-  return new Request(retry, { signal: metadata.auth.signal });
+  return new Request(retry, { signal: metadata.signal });
 }
 
 function isRetrySessionCurrent(metadata: RetryMetadata): boolean {
   return metadata.auth.isCurrent();
+}
+
+/** A canceled caller must never keep a retry alive, additive to the auth-epoch check above. */
+function isRetryLive(metadata: RetryMetadata): boolean {
+  return !metadata.signal.aborted && isRetrySessionCurrent(metadata);
 }
 
 /** Resolves false when logout/session replacement aborts the wait. */
@@ -80,15 +91,20 @@ const authMiddleware: Middleware = {
     // An explicit caller-provided header must never become the retry template's credential.
     request.headers.delete('Authorization');
     const auth = beginAuthRequest();
+    // Request signals are immutable, so bind both the auth-operation and caller (TanStack query)
+    // signals on a reconstructed request. Reconciliation cancellation must reach openapi-fetch.
+    // This combined signal governs the whole logical request, including every retry attempt —
+    // not just the initial dispatch — so a canceled caller stops 429 backoff waits and post-401
+    // replays too, not only the first fetch.
+    const signal = AbortSignal.any([request.signal, auth.signal]);
     // Capture after product headers but before Authorization. FormData/JSON bodies are cloned
     // here, while they are still pristine, so raw fetch retries remain body-safe.
-    const metadata: RetryMetadata = { template: request.clone(), auth };
+    const metadata: RetryMetadata = { template: request.clone(), auth, signal };
     if (auth.initialToken) {
       request.headers.set('Authorization', `Bearer ${auth.initialToken}`);
     }
-    // Request signals are immutable, so bind the auth-operation signal on a reconstructed request.
-    // The metadata must follow that returned instance because it is what onResponse/onError receive.
-    const bound = new Request(request, { signal: auth.signal });
+    // The metadata must follow the returned instance because it is what onResponse/onError receive.
+    const bound = new Request(request, { signal });
     retryMetadata.set(bound, metadata);
     return bound;
   },
@@ -115,7 +131,7 @@ const authMiddleware: Middleware = {
       if (response.status === 429) {
         let current = response;
         for (let attempt = 1; attempt <= MAX_RATE_LIMIT_RETRIES; attempt++) {
-          if (!isRetrySessionCurrent(metadata)) break;
+          if (!isRetryLive(metadata)) break;
           const currentHeaders = parseRateLimitHeaders(current.headers);
           // Retry-After beyond our cap: don't silently block the UI — hand the 429 back now.
           if (
@@ -125,8 +141,8 @@ const authMiddleware: Middleware = {
             break;
           }
           const delay = getRetryDelay(currentHeaders.retryAfter, attempt);
-          if (!(await waitForRetryDelay(delay, metadata.auth.signal))) break;
-          if (!isRetrySessionCurrent(metadata)) break;
+          if (!(await waitForRetryDelay(delay, metadata.signal))) break;
+          if (!isRetryLive(metadata)) break;
           const retryReq = buildRetryRequest(request, metadata);
           // A retry may only ever use a credential from the original auth epoch; within that
           // epoch the newest token is always the correct one to send.
@@ -165,6 +181,10 @@ const authMiddleware: Middleware = {
         metadata.auth,
         response,
         (token) => {
+          // A sibling refresh may complete after this caller was canceled. Honor that before
+          // replaying — a canceled caller must not receive its own request re-sent on a new token.
+          if (!isRetryLive(metadata))
+            return Promise.reject(new DOMException('Aborted', 'AbortError'));
           const retryReq = buildRetryRequest(request, metadata);
           retryReq.headers.set('Authorization', `Bearer ${token}`);
           return fetch(retryReq);

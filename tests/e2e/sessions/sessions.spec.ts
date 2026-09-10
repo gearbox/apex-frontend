@@ -22,7 +22,12 @@ const mockProviders = {
           aspect_ratios: ['1:1'],
           image: null,
           video: null,
-          session_state: 'none',
+          runtime: {
+            state: 'none',
+            session_id: null,
+            deployment_id: null,
+            operation_id: null,
+          },
         },
       ],
     },
@@ -35,7 +40,6 @@ const mockProvisioningSession = {
   user_id: 'usr_001',
   product_id: 'prod_001',
   status: 'provisioning',
-  model_type: 'aisha-image',
   tunnel_hostname: null,
   vastai_gpu_name: null,
   vastai_cost_per_hour_micros: 50000,
@@ -46,8 +50,9 @@ const mockProvisioningSession = {
   stopped_at: null,
   error_message: null,
   in_flight_job_count: 0,
-  provisioning_phase: 'downloading',
-  provisioning_progress: null,
+  deployments: [
+    { id: 'deploy_prov', model_type: 'aisha-image', status: 'deploying', is_primary: true },
+  ],
 };
 
 const mockActiveSession = {
@@ -57,7 +62,6 @@ const mockActiveSession = {
   tunnel_hostname: 'tunnel.example.com',
   vastai_gpu_name: 'RTX 4090',
   started_at: '2026-06-20T00:01:00Z',
-  provisioning_phase: null,
 };
 
 const mockStopPreview = {
@@ -160,7 +164,7 @@ test.describe('Sessions page', () => {
   });
 
   test(
-    '2. Start session → provisioning → shows progress bar',
+    '2. Start session → provisioning without legacy raw progress parsing',
     { tag: '@cross-browser' },
     async ({ authenticatedPage: page }) => {
       let listCallCount = 0;
@@ -202,8 +206,8 @@ test.describe('Sessions page', () => {
       });
       await page.getByRole('button', { name: 'Start Session' }).click();
 
-      // Progress bar (.progress-wrap has role="progressbar") appears for provisioning sessions
-      await expect(page.getByRole('progressbar')).toBeVisible({ timeout: 8000 });
+      await expect(page.getByText('provisioning')).toBeVisible({ timeout: 8000 });
+      await expect(page.getByRole('progressbar')).not.toBeVisible();
     },
   );
 
@@ -253,7 +257,7 @@ test.describe('Sessions page', () => {
     await expect(page.getByRole('link', { name: /Sessions/i })).toBeVisible({ timeout: 5000 });
   });
 
-  test('6. Unavailable provider → Start button disabled', async ({ authenticatedPage: page }) => {
+  test('6. Unavailable provider does not offer Start', async ({ authenticatedPage: page }) => {
     const unavailableProviders = {
       providers: [{ ...mockProviders.providers[0], available: false }],
       user_context: null,
@@ -263,9 +267,9 @@ test.describe('Sessions page', () => {
 
     await page.goto('/app/sessions');
 
-    const startBtn = page.getByRole('button', { name: 'Start Session' });
-    await expect(startBtn).toBeVisible({ timeout: 5000 });
-    await expect(startBtn).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Start Session' })).not.toBeVisible({
+      timeout: 5000,
+    });
   });
 });
 
@@ -298,12 +302,22 @@ test.describe('Sessions page — create page hook', () => {
   test('8. 409 no_active_gpu_session on generate shows action toast', async ({
     authenticatedPage: page,
   }) => {
-    // Provider with aisha active session (so needsSession = false → Generate enabled)
+    // Provider with an active runtime (so Generate is enabled).
     const activeSessionProviders = {
       providers: [
         {
           ...mockProviders.providers[0],
-          models: [{ ...mockProviders.providers[0].models[0], session_state: 'active' }],
+          models: [
+            {
+              ...mockProviders.providers[0].models[0],
+              runtime: {
+                state: 'active',
+                session_id: 'sess_active',
+                deployment_id: 'deploy_active',
+                operation_id: null,
+              },
+            },
+          ],
         },
       ],
       user_context: null,

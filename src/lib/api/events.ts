@@ -1,6 +1,10 @@
 import type { components } from '$lib/api/types';
 
 type JobStatus = components['schemas']['JobStatus'];
+type GpuSessionStatus = components['schemas']['GpuSessionStatus'];
+type DeploymentStatus = components['schemas']['DeploymentStatus'];
+type ModelType = components['schemas']['ModelType'];
+export type OperationResponse = components['schemas']['OperationResponse'];
 
 /* ─── SSE Event Names ─── */
 export const SSE_EVENTS = {
@@ -9,6 +13,8 @@ export const SSE_EVENTS = {
   BALANCE_UPDATED: 'balance.updated',
   SYSTEM_NOTIFICATION: 'system.notification',
   GPU_SESSION_STATUS: 'gpu_session.status_changed',
+  GPU_SESSION_DEPLOYMENT_STATUS: 'gpu_session.deployment_status_changed',
+  GPU_SESSION_OPERATION_UPDATED: 'gpu_session.operation_updated',
   GPU_SESSION_CREDIT_WARNING: 'gpu_session.credit_warning',
 } as const;
 
@@ -64,12 +70,22 @@ export interface SystemNotificationPayload {
 
 export interface GpuSessionStatusPayload {
   session_id: string;
-  status: string;
-  previous_status: string;
-  model_type: string;
+  status: GpuSessionStatus;
+  previous_status: GpuSessionStatus | 'none';
   tunnel_hostname: string | null;
   error_message: string | null;
   reason: string | null;
+}
+
+export interface GpuDeploymentStatusPayload {
+  deployment_id: string;
+  session_id: string;
+  model_type: ModelType;
+  status: DeploymentStatus;
+  pending_restart: boolean;
+  routing_suspended: boolean;
+  operation_id: string | null;
+  error_message: string | null;
 }
 
 export interface GpuSessionCreditWarningPayload {
@@ -87,6 +103,8 @@ export type SSEPayload =
   | { event: typeof SSE_EVENTS.BALANCE_UPDATED; data: BalanceUpdatedPayload }
   | { event: typeof SSE_EVENTS.SYSTEM_NOTIFICATION; data: SystemNotificationPayload }
   | { event: typeof SSE_EVENTS.GPU_SESSION_STATUS; data: GpuSessionStatusPayload }
+  | { event: typeof SSE_EVENTS.GPU_SESSION_DEPLOYMENT_STATUS; data: GpuDeploymentStatusPayload }
+  | { event: typeof SSE_EVENTS.GPU_SESSION_OPERATION_UPDATED; data: OperationResponse }
   | { event: typeof SSE_EVENTS.GPU_SESSION_CREDIT_WARNING; data: GpuSessionCreditWarningPayload };
 
 /* ─── Type Guards ─── */
@@ -126,13 +144,49 @@ export function isSystemNotificationPayload(data: unknown): data is SystemNotifi
 }
 
 export function isGpuSessionStatusPayload(data: unknown): data is GpuSessionStatusPayload {
+  if (!isRecord(data)) return false;
   return (
-    typeof data === 'object' &&
-    data !== null &&
-    'session_id' in data &&
-    'status' in data &&
-    'previous_status' in data &&
-    'model_type' in data
+    typeof data.session_id === 'string' &&
+    typeof data.status === 'string' &&
+    typeof data.previous_status === 'string' &&
+    isNullableString(data.tunnel_hostname) &&
+    isNullableString(data.error_message) &&
+    isNullableString(data.reason)
+  );
+}
+
+export function isGpuDeploymentStatusPayload(data: unknown): data is GpuDeploymentStatusPayload {
+  if (!isRecord(data)) return false;
+  return (
+    typeof data.deployment_id === 'string' &&
+    typeof data.session_id === 'string' &&
+    typeof data.model_type === 'string' &&
+    typeof data.status === 'string' &&
+    typeof data.pending_restart === 'boolean' &&
+    typeof data.routing_suspended === 'boolean' &&
+    isNullableString(data.operation_id) &&
+    isNullableString(data.error_message)
+  );
+}
+
+/** The server event is a full public OperationResponse, without a parallel FE schema. */
+export function isOperationResponse(data: unknown): data is OperationResponse {
+  if (!isRecord(data)) return false;
+  return (
+    typeof data.id === 'string' &&
+    typeof data.session_id === 'string' &&
+    isNullableString(data.deployment_id) &&
+    typeof data.kind === 'string' &&
+    typeof data.status === 'string' &&
+    isNullableString(data.phase) &&
+    typeof data.revision === 'number' &&
+    isNullableObject(data.target) &&
+    isNullableObject(data.progress) &&
+    isNullableString(data.message) &&
+    isNullableObject(data.error) &&
+    isNullableString(data.started_at) &&
+    typeof data.updated_at === 'string' &&
+    isNullableString(data.finished_at)
   );
 }
 
@@ -145,4 +199,16 @@ export function isGpuSessionCreditWarningPayload(d: unknown): d is GpuSessionCre
     'minutes_remaining' in d &&
     'balance' in d
   );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isNullableString(value: unknown): value is string | null {
+  return value === null || typeof value === 'string';
+}
+
+function isNullableObject(value: unknown): value is Record<string, unknown> | null {
+  return value === null || isRecord(value);
 }

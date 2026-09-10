@@ -1,4 +1,5 @@
 import { QueryClient } from '@tanstack/svelte-query';
+import { configureOperationCache } from '$lib/queries/operations';
 
 /**
  * A module-level singleton is safe here ONLY because the app runs with `ssr = false`
@@ -24,6 +25,7 @@ export function getQueryClient(): QueryClient {
         },
       },
     });
+    configureOperationCache(instance);
   }
   return instance;
 }

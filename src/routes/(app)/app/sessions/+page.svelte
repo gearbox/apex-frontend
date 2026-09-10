@@ -3,13 +3,12 @@
   import { isSSEFallback } from '$lib/stores/eventStream';
   import { addToast } from '$lib/stores/toasts';
   import { parseApiError } from '$lib/api/errors';
-  import apiClient from '$lib/api/client';
   import {
+    sessionKeys,
     sessionsListQueryOptions,
-    sessionDetailQueryOptions,
     startSessionMutationOptions,
   } from '$lib/queries/sessions';
-  import { isProvisioningStatus } from '$lib/utils/sessionState';
+  import { providerKeys, providersQueryOptions } from '$lib/queries/providers';
   import StartSessionPanel from '$lib/components/sessions/StartSessionPanel.svelte';
   import SessionCard from '$lib/components/sessions/SessionCard.svelte';
   import StopSessionModal from '$lib/components/sessions/StopSessionModal.svelte';
@@ -22,25 +21,22 @@
   let appTitle = $derived($productInfo?.display_name ?? 'Apex');
 
   // ── Providers query (to derive on-demand models + availability)
-  const providerQuery = createQuery(() => ({
-    queryKey: ['providers'],
-    queryFn: async () => {
-      const { data } = await apiClient.GET('/v1/providers');
-      return data ?? { providers: [], user_context: null };
-    },
-    staleTime: 60 * 60 * 1000,
-  }));
+  const providerQuery = createQuery(() => providersQueryOptions($isSSEFallback ? 8000 : false));
 
   const onDemandModels = $derived(
-    (providerQuery.data?.providers ?? [])
-      .filter((p) => p.provisioning_mode === 'on_demand')
-      .flatMap((p) =>
-        p.models.map((model) => ({
-          model_key: model.model_key,
-          name: model.name,
-          available: p.available,
-        })),
-      ),
+    (providerQuery.data?.providers ?? []).flatMap((provider) =>
+      provider.provisioning_mode !== 'on_demand'
+        ? []
+        : provider.models
+            .filter(
+              (model) => provider.available && model.is_enabled && model.runtime?.state === 'none',
+            )
+            .map((model) => ({
+              model_key: model.model_key,
+              name: model.name,
+              available: provider.available,
+            })),
+    ),
   );
 
   // ── Sessions list query (poll only when SSE is in fallback mode)
@@ -49,37 +45,6 @@
   );
 
   const sessions = $derived(sessionsQuery.data ?? []);
-
-  // ── Find any currently-provisioning session (first one wins)
-  const provisioningSession = $derived(
-    sessions.find((s) => isProvisioningStatus(s.status)) ?? null,
-  );
-  const isProvisioning = $derived(provisioningSession !== null);
-
-  // ── Single-session detail poll while provisioning (surfaces provisioning_progress)
-  const sessionDetailQuery = createQuery(() =>
-    sessionDetailQueryOptions(provisioningSession?.id ?? '', {
-      enabled: isProvisioning && !!provisioningSession?.id,
-      refetchInterval: isProvisioning ? 3000 : false,
-    }),
-  );
-
-  // Compute progress percentage from provisioning_progress bytes data
-  const provisioningProgress = $derived.by((): number | null => {
-    const detail = sessionDetailQuery.data;
-    if (!detail) return null;
-    const pp = detail.provisioning_progress as Record<string, unknown> | null | undefined;
-    if (!pp) return null;
-    const done = typeof pp['bytes_done'] === 'number' ? pp['bytes_done'] : null;
-    const total = typeof pp['bytes_total'] === 'number' ? pp['bytes_total'] : null;
-    if (done === null || total === null || total === 0) return null;
-    return Math.round((done / total) * 100);
-  });
-
-  // Merge detail data into the provisioning session card
-  function getProgress(sessionId: string): number | null {
-    return provisioningSession?.id === sessionId ? provisioningProgress : null;
-  }
 
   // ── Start mutation
   const startMutation = createMutation(() => startSessionMutationOptions(queryClient));
@@ -106,8 +71,8 @@
 
   function handleStopped() {
     stopModalSessionId = null;
-    queryClient.invalidateQueries({ queryKey: ['sessions'] });
-    queryClient.invalidateQueries({ queryKey: ['providers'] });
+    queryClient.invalidateQueries({ queryKey: sessionKeys.all });
+    queryClient.invalidateQueries({ queryKey: providerKeys.catalog() });
   }
 
   function closeStopModal() {
@@ -130,11 +95,7 @@
   {#if sessions.length > 0}
     <div class="sessions-list">
       {#each sessions as session (session.id)}
-        <SessionCard
-          {session}
-          onStop={openStopModal}
-          provisioningProgress={getProgress(session.id)}
-        />
+        <SessionCard {session} onStop={openStopModal} />
       {/each}
     </div>
   {:else if !sessionsQuery.isPending}

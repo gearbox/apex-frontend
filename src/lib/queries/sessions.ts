@@ -1,4 +1,4 @@
-import type { QueryClient } from '@tanstack/svelte-query';
+import type { QueryClient, QueryFunctionContext } from '@tanstack/svelte-query';
 import {
   listSessions,
   getSession,
@@ -8,6 +8,8 @@ import {
   type GpuSessionResponse,
 } from '$lib/api/sessions';
 import type { components } from '$lib/api/types';
+import { providerKeys } from '$lib/queries/providers';
+import { ingestSessionSnapshot } from '$lib/queries/operations';
 
 type ModelType = components['schemas']['ModelType'];
 
@@ -35,19 +37,25 @@ export function sessionsListQueryOptions(
 }
 
 /**
- * Single-session poll used ONLY while provisioning, to surface provisioning_progress.
- * The page enables this (and sets the interval) only when a session is in a provisioning
- * status, and disables it on active/terminal.
+ * `id: null` represents "no runtime session to look up" — e.g. the selected model currently has
+ * no session association. It must never be encoded as `''`: the reconnect scanner in
+ * EventStreamService discovers cached session IDs by reading this query's key component, and an
+ * empty string would look like a real (if bogus) session ID and trigger `GET /v1/sessions/`.
+ * A `null` key component can never be mistaken for a server-issued ID.
  */
 export function sessionDetailQueryOptions(
-  id: string,
-  opts: { enabled: boolean; refetchInterval: number | false },
+  queryClient: QueryClient,
+  id: string | null,
+  opts: { enabled: boolean },
 ) {
+  const queryKey = [...sessionKeys.all, 'detail', id] as const;
   return {
-    queryKey: sessionKeys.detail(id),
-    queryFn: () => getSession(id),
-    enabled: opts.enabled,
-    refetchInterval: opts.refetchInterval,
+    queryKey,
+    queryFn: async ({ signal }: QueryFunctionContext<typeof queryKey>) => {
+      if (id === null) throw new Error('sessionDetailQueryOptions: no session id to fetch');
+      return ingestSessionSnapshot(queryClient, await getSession(id, signal));
+    },
+    enabled: opts.enabled && id !== null,
     staleTime: 0,
   };
 }
@@ -56,9 +64,12 @@ export function startSessionMutationOptions(queryClient: QueryClient) {
   return {
     mutationFn: (model: ModelType) => startSession(model),
     onSuccess: (session: GpuSessionResponse) => {
-      queryClient.setQueryData(sessionKeys.detail(session.id), session);
+      queryClient.setQueryData(
+        sessionKeys.detail(session.id),
+        ingestSessionSnapshot(queryClient, session),
+      );
       queryClient.invalidateQueries({ queryKey: sessionKeys.all });
-      queryClient.invalidateQueries({ queryKey: ['providers'] });
+      queryClient.invalidateQueries({ queryKey: providerKeys.catalog() });
     },
   };
 }
@@ -66,9 +77,13 @@ export function startSessionMutationOptions(queryClient: QueryClient) {
 export function stopSessionMutationOptions(queryClient: QueryClient) {
   return {
     mutationFn: (id: string) => stopSession(id),
-    onSuccess: () => {
+    onSuccess: (session: GpuSessionResponse) => {
+      queryClient.setQueryData(
+        sessionKeys.detail(session.id),
+        ingestSessionSnapshot(queryClient, session),
+      );
       queryClient.invalidateQueries({ queryKey: sessionKeys.all });
-      queryClient.invalidateQueries({ queryKey: ['providers'] });
+      queryClient.invalidateQueries({ queryKey: providerKeys.catalog() });
     },
   };
 }

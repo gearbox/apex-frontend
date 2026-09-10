@@ -11,7 +11,6 @@ const mockSession = {
   user_id: 'usr_001',
   product_id: 'prod_001',
   status: 'active',
-  model_type: 'aisha-image',
   tunnel_hostname: 'tunnel.example.com',
   vastai_gpu_name: 'RTX 4090',
   vastai_cost_per_hour_micros: 50000,
@@ -22,8 +21,6 @@ const mockSession = {
   stopped_at: null,
   error_message: null,
   in_flight_job_count: 0,
-  provisioning_phase: null,
-  provisioning_progress: null,
 };
 
 const mockStopConfirmation = {

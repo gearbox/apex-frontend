@@ -42,7 +42,7 @@ export const jobHandlers = [
           name: 'Aisha',
           available: true,
           provisioning_mode: 'on_demand',
-          models: [makeAishaImageModelInfo({ session_state: 'none' })],
+          models: [makeAishaImageModelInfo({ runtime: makeRuntime('none') })],
         },
       ],
       user_context: null,
@@ -89,14 +89,14 @@ export const aishaUnavailableHandler = http.get(`${BASE}/v1/providers`, () =>
         name: 'Aisha',
         available: false,
         provisioning_mode: 'on_demand',
-        models: [makeAishaImageModelInfo({ aspect_ratios: ['1:1'], session_state: 'none' })],
+        models: [makeAishaImageModelInfo({ aspect_ratios: ['1:1'], runtime: makeRuntime('none') })],
       },
     ],
     user_context: null,
   }),
 );
 
-// Override: aisha provider with active session (session_state: 'active')
+// Override: aisha provider with an active runtime.
 export const aishaActiveSessionHandler = http.get(`${BASE}/v1/providers`, () =>
   HttpResponse.json({
     providers: [
@@ -105,14 +105,25 @@ export const aishaActiveSessionHandler = http.get(`${BASE}/v1/providers`, () =>
         name: 'Aisha',
         available: true,
         provisioning_mode: 'on_demand',
-        models: [makeAishaImageModelInfo({ aspect_ratios: ['1:1'], session_state: 'active' })],
+        models: [
+          makeAishaImageModelInfo({ aspect_ratios: ['1:1'], runtime: makeRuntime('active') }),
+        ],
       },
     ],
     user_context: null,
   }),
 );
 
-function makeAishaProvider(session_state: string) {
+function makeRuntime(state: 'none' | 'provisioning' | 'active' | 'paused' | 'stale' | 'stopping') {
+  return {
+    state,
+    session_id: state === 'none' ? null : 'sess_aisha_001',
+    deployment_id: state === 'none' ? null : 'deploy_aisha_001',
+    operation_id: state === 'provisioning' ? 'op_aisha_001' : null,
+  };
+}
+
+function makeAishaProvider(state: 'provisioning' | 'stale' | 'stopping' | 'paused') {
   return {
     providers: [
       {
@@ -120,7 +131,7 @@ function makeAishaProvider(session_state: string) {
         name: 'Aisha',
         available: true,
         provisioning_mode: 'on_demand',
-        models: [makeAishaImageModelInfo({ aspect_ratios: ['1:1'], session_state })],
+        models: [makeAishaImageModelInfo({ aspect_ratios: ['1:1'], runtime: makeRuntime(state) })],
       },
     ],
     user_context: null,

@@ -12,6 +12,10 @@ import { eventStreamStatus, setEventStreamStatus } from './eventStream';
 import { makeUserProfile } from '../../mocks/factories/user';
 import { LEGACY_CONTENT_MEDIA_CACHE_NAME } from '$lib/utils/cacheNames';
 import { STORAGE_KEYS } from '$lib/utils/constants';
+import { operationKeys, upsertOperation } from '$lib/queries/operations';
+import type { components } from '$lib/api/types';
+
+type OperationResponse = components['schemas']['OperationResponse'];
 
 function getStoreValue<T>(store: { subscribe: (fn: (v: T) => void) => () => void }): T {
   let value!: T;
@@ -43,6 +47,31 @@ describe('clearAuth() -> resetAppState()', () => {
 
     expect(returnValue).toBeUndefined();
     expect(getQueryClient().getQueryData(['library', 'user-a'])).toBeUndefined();
+  });
+
+  it('clears retained operation revision watermarks on logout', () => {
+    const operation: OperationResponse = {
+      id: 'op_001',
+      session_id: 'sess_001',
+      deployment_id: 'deploy_001',
+      kind: 'bundle_provision',
+      status: 'running',
+      phase: null,
+      revision: 5,
+      target: null,
+      progress: null,
+      message: null,
+      error: null,
+      started_at: null,
+      updated_at: '2026-09-09T00:00:00Z',
+      finished_at: null,
+    };
+    upsertOperation(getQueryClient(), operation);
+    expect(getQueryClient().getQueryData(operationKeys.detail(operation.id))).toBeDefined();
+
+    clearAuth();
+
+    expect(getQueryClient().getQueryData(operationKeys.detail(operation.id))).toBeUndefined();
   });
 });
 

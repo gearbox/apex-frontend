@@ -1170,6 +1170,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/sessions/{session_id}/deployments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** AttachDeployment */
+        post: operations["V1SessionsSessionIdDeploymentsAttachDeployment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/sessions/{session_id}/operations/{operation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetOperation */
+        get: operations["V1SessionsSessionIdOperationsOperationIdGetOperation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/sessions/{session_id}": {
         parameters: {
             query?: never;
@@ -1222,6 +1256,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/sessions/{session_id}/deployments/{deployment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** RemoveDeployment */
+        delete: operations["V1SessionsSessionIdDeploymentsDeploymentIdRemoveDeployment"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/sessions/{session_id}/resume": {
         parameters: {
             query?: never;
@@ -1256,7 +1307,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/internal/gpu-sessions/{session_id}/provisioning": {
+    "/v1/internal/gpu-sessions/{session_id}/commands/claim": {
         parameters: {
             query?: never;
             header?: never;
@@ -1265,8 +1316,25 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** ProvisioningCallback */
-        post: operations["V1InternalGpuSessionsSessionIdProvisioningProvisioningCallback"];
+        /** ClaimCommand */
+        post: operations["V1InternalGpuSessionsSessionIdCommandsClaimClaimCommand"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/internal/gpu-sessions/{session_id}/operations/{operation_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** OperationEvent */
+        post: operations["V1InternalGpuSessionsSessionIdOperationsOperationIdEventsOperationEvent"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1888,6 +1956,10 @@ export interface components {
          * @enum {string}
          */
         AspectRatio: "2:3" | "3:2" | "1:1" | "9:16" | "16:9" | "3:4" | "4:3";
+        /** AttachDeploymentRequest */
+        AttachDeploymentRequest: {
+            model: components["schemas"]["ModelType"];
+        };
         /** AuditLogEntry */
         AuditLogEntry: {
             /** Format: uuid */
@@ -1973,6 +2045,11 @@ export interface components {
         ChangePasswordRequest: {
             current_password: string;
             new_password: string;
+        };
+        /** ClaimCommandRequest */
+        ClaimCommandRequest: {
+            agent_id: string;
+            schema_version: number;
         };
         /** ComponentHealthResponse */
         ComponentHealthResponse: {
@@ -2084,6 +2161,45 @@ export interface components {
             /** Format: date-time */
             deactivated_at: string;
         };
+        /** DeploymentMutationResponse */
+        DeploymentMutationResponse: {
+            deployment: components["schemas"]["DeploymentResponse"];
+            operation: components["schemas"]["OperationResponse"];
+        };
+        /** DeploymentResponse */
+        DeploymentResponse: {
+            /** Format: uuid */
+            id: string;
+            model_type: components["schemas"]["ModelType"];
+            bundle_name: string;
+            bundle_version: string | null;
+            status: components["schemas"]["DeploymentStatus"];
+            pending_restart: boolean;
+            routing_suspended: boolean;
+            is_primary: boolean;
+            /** Format: date-time */
+            created_at: string;
+            activated_at: string | null;
+            current_operation?: components["schemas"]["OperationResponse"] | null;
+        };
+        /**
+         * DeploymentStatus
+         * @description Lifecycle states for one gpu_session_deployments row.
+         *
+         *     ``pending_restart`` (P4 forward slot) is a boolean column, not a status —
+         *     a deployment can be 'active' from a previous restart while a newer
+         *     sibling awaits one, so it is orthogonal to this vocabulary.
+         * @enum {string}
+         */
+        DeploymentStatus: "deploying" | "active" | "removing" | "removed" | "failed";
+        /** DeploymentSummaryResponse */
+        DeploymentSummaryResponse: {
+            /** Format: uuid */
+            id: string;
+            model_type: components["schemas"]["ModelType"];
+            status: components["schemas"]["DeploymentStatus"];
+            is_primary: boolean;
+        };
         /** DetailedHealthResponse */
         DetailedHealthResponse: {
             status: string;
@@ -2094,13 +2210,6 @@ export interface components {
                 [key: string]: components["schemas"]["CategoryHealthResponse"];
             };
             gpu_sessions: components["schemas"]["GpuSessionHealthResponse"];
-        };
-        /** DownloadProgressBody */
-        DownloadProgressBody: {
-            bytes_done: number;
-            bytes_total: number;
-            files_done: number;
-            files_total: number;
         };
         /** ErrorEnvelope */
         ErrorEnvelope: {
@@ -2199,6 +2308,17 @@ export interface components {
             /** @default  */
             message: string;
         };
+        /** GpuSessionListItemResponse */
+        GpuSessionListItemResponse: {
+            /** Format: uuid */
+            id: string;
+            status: components["schemas"]["GpuSessionStatus"];
+            product_id: string;
+            /** Format: date-time */
+            created_at: string;
+            started_at: string | null;
+            deployments: components["schemas"]["DeploymentSummaryResponse"][];
+        };
         /** GpuSessionResponse */
         GpuSessionResponse: {
             /** Format: uuid */
@@ -2206,8 +2326,7 @@ export interface components {
             /** Format: uuid */
             user_id: string;
             product_id: string;
-            status: string;
-            model_type: string;
+            status: components["schemas"]["GpuSessionStatus"];
             tunnel_hostname: string | null;
             vastai_gpu_name: string | null;
             vastai_cost_per_hour_micros: number | null;
@@ -2220,11 +2339,15 @@ export interface components {
             error_message?: string | null;
             /** @default 0 */
             in_flight_job_count: number;
-            provisioning_phase?: string | null;
-            provisioning_progress?: {
-                [key: string]: unknown;
-            } | null;
+            bootstrap_operation?: components["schemas"]["OperationResponse"] | null;
+            deployments?: components["schemas"]["DeploymentResponse"][];
         };
+        /**
+         * GpuSessionStatus
+         * @description GPU session lifecycle states.
+         * @enum {string}
+         */
+        GpuSessionStatus: "pending" | "provisioning" | "active" | "stale" | "paused" | "resuming" | "stopping" | "stopped" | "failed";
         /** GrantPermissionRequest */
         GrantPermissionRequest: {
             permission: components["schemas"]["AdminPermission"];
@@ -2548,7 +2671,7 @@ export interface components {
         LineageRelation: "generated_from_upload" | "generated_from_output" | "frame_of_output" | "frame_of_upload";
         /** ListSessionsResponse */
         ListSessionsResponse: {
-            sessions: components["schemas"]["GpuSessionResponse"][];
+            sessions: components["schemas"]["GpuSessionListItemResponse"][];
         };
         /** LivenessResponse */
         LivenessResponse: {
@@ -2611,7 +2734,8 @@ export interface components {
             inputs?: components["schemas"]["ModelInputs"];
             image?: components["schemas"]["ImageConstraints"] | null;
             video?: components["schemas"]["VideoConstraints"] | null;
-            session_state?: string | null;
+            runtime?: components["schemas"]["ModelRuntimeResponse"] | null;
+            provisioning?: components["schemas"]["ModelProvisioningHintResponse"] | null;
         };
         /** ModelInputs */
         ModelInputs: {
@@ -2621,6 +2745,18 @@ export interface components {
         ModelListResponse: {
             items: components["schemas"]["GenerationModelResponse"][];
             total: number;
+        };
+        /** ModelProvisioningHintResponse */
+        ModelProvisioningHintResponse: {
+            typical_bootstrap_seconds: number | null;
+            typical_attach_seconds: number | null;
+        };
+        /** ModelRuntimeResponse */
+        ModelRuntimeResponse: {
+            state: components["schemas"]["RuntimeState"];
+            session_id: string | null;
+            deployment_id: string | null;
+            operation_id: string | null;
         };
         /**
          * ModelType
@@ -2659,6 +2795,113 @@ export interface components {
             invoice_url: string;
             /** Format: uuid */
             payment_id: string;
+        };
+        /** OperationBatchBody */
+        OperationBatchBody: {
+            batch_id: string;
+            index: number;
+            total: number;
+        };
+        /** OperationErrorResponse */
+        OperationErrorResponse: {
+            message: string;
+        };
+        /** OperationEventBody */
+        OperationEventBody: {
+            schema_version: number;
+            event_id: string;
+            /** Format: uuid */
+            session_id: string;
+            /** Format: uuid */
+            operation_id: string;
+            operation_kind: components["schemas"]["OperationKind"];
+            batch: components["schemas"]["OperationBatchBody"] | null;
+            sequence: number;
+            target: components["schemas"]["OperationTargetBody"] | null;
+            status: components["schemas"]["OperationStatus"];
+            phase: components["schemas"]["ProvisioningPhase"] | null;
+            /** Format: date-time */
+            started_at: string;
+            /** Format: date-time */
+            ts: string;
+            elapsed_seconds: number;
+            phase_elapsed_seconds: number | null;
+            progress: {
+                [key: string]: unknown;
+            } | null;
+            plan: {
+                [key: string]: unknown;
+            } | null;
+            summary: {
+                [key: string]: unknown;
+            } | null;
+            message: string;
+            error: string | null;
+        };
+        /**
+         * OperationKind
+         * @description The provisioning-like activity represented by an operation stream.
+         * @enum {string}
+         */
+        OperationKind: "session_bootstrap" | "bundle_provision" | "bundle_removal" | "comfyui_restart";
+        /** OperationProgressResponse */
+        OperationProgressResponse: {
+            progress_pct: number | null;
+            work: components["schemas"]["OperationWorkResponse"] | null;
+            items: components["schemas"]["OperationWorkResponse"] | null;
+            rate: components["schemas"]["OperationRateResponse"] | null;
+            /** @description Estimated remaining seconds, only when derived from live throughput. The API nulls estimates with any other or missing derivation. */
+            eta_seconds: number | null;
+        };
+        /** OperationRateResponse */
+        OperationRateResponse: {
+            value: number;
+            unit: components["schemas"]["RateUnit"];
+        };
+        /** OperationResponse */
+        OperationResponse: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            session_id: string;
+            /** @description Optional informational direct target. It may identify the primary deployment for session_bootstrap and the target for deployment-scoped operations. It may be null for operations governing multiple deployments or the whole session, notably cohort restarts. It must never be used to route an operation update to frontend deployment state; patch every cached deployment whose current_operation.id matches this operation's id instead. */
+            deployment_id: string | null;
+            kind: components["schemas"]["OperationKind"];
+            status: components["schemas"]["OperationStatus"];
+            phase: components["schemas"]["ProvisioningPhase"] | null;
+            revision: number;
+            target: components["schemas"]["OperationTargetResponse"] | null;
+            progress: components["schemas"]["OperationProgressResponse"] | null;
+            message: string | null;
+            error: components["schemas"]["OperationErrorResponse"] | null;
+            started_at: string | null;
+            /** Format: date-time */
+            updated_at: string;
+            finished_at: string | null;
+        };
+        /**
+         * OperationStatus
+         * @description Lifecycle state for an operation.
+         * @enum {string}
+         */
+        OperationStatus: "queued" | "running" | "succeeded" | "failed";
+        /** OperationTargetBody */
+        OperationTargetBody: {
+            bundle: string;
+            bundle_version: string | null;
+            mode: string;
+        };
+        /** OperationTargetResponse */
+        OperationTargetResponse: {
+            bundle: string;
+            bundle_version: string | null;
+            mode: string | null;
+        };
+        /** OperationWorkResponse */
+        OperationWorkResponse: {
+            completed: number;
+            total: number | null;
+            unit: components["schemas"]["WorkUnit"];
         };
         /** OrgCreateResponse */
         OrgCreateResponse: {
@@ -2768,20 +3011,12 @@ export interface components {
             providers: components["schemas"]["schemas_providers_ProviderInfo"][];
             user_context?: components["schemas"]["UserContext"] | null;
         };
-        /** ProvisioningCallbackBody */
-        ProvisioningCallbackBody: {
-            /** Format: uuid */
-            session_id: string;
-            phase: string;
-            /** @default  */
-            message: string;
-            download?: components["schemas"]["DownloadProgressBody"] | null;
-            /** @default 0 */
-            elapsed_seconds: number;
-            error?: string | null;
-            /** Format: date-time */
-            ts: string;
-        };
+        /**
+         * ProvisioningPhase
+         * @description Stable identifiers for individual provisioning phases.
+         * @enum {string}
+         */
+        ProvisioningPhase: "preflight" | "comfyui" | "requirements_base" | "requirements_locked" | "custom_nodes" | "models" | "workflow" | "verifying" | "restart";
         /** PublicCurrency */
         PublicCurrency: {
             ticker: string;
@@ -2817,6 +3052,12 @@ export interface components {
             /** Format: date-time */
             created_at: string;
         };
+        /**
+         * RateUnit
+         * @description Units used by Aisha operation telemetry rates.
+         * @enum {string}
+         */
+        RateUnit: "bytes_per_second";
         /** ReadinessResponse */
         ReadinessResponse: {
             status: string;
@@ -2846,6 +3087,12 @@ export interface components {
          * @enum {string}
          */
         Resolution: "draft" | "standard" | "high" | "ultra";
+        /**
+         * RuntimeState
+         * @description Per-user runtime state of an on-demand model deployment.
+         * @enum {string}
+         */
+        RuntimeState: "none" | "provisioning" | "active" | "suspended" | "removing" | "paused" | "stale" | "stopping";
         /** SSETicketResponse */
         SSETicketResponse: {
             ticket: string;
@@ -3145,6 +3392,12 @@ export interface components {
          * @enum {string}
          */
         VideoResolution: "480p" | "720p";
+        /**
+         * WorkUnit
+         * @description Units used by Aisha operation telemetry work counters.
+         * @enum {string}
+         */
+        WorkUnit: "bytes" | "files" | "items";
         /** ProviderInfo */
         schemas_providers_ProviderInfo: {
             provider: string;
@@ -5681,6 +5934,85 @@ export interface operations {
             };
         };
     };
+    V1SessionsSessionIdDeploymentsAttachDeployment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AttachDeploymentRequest"];
+            };
+        };
+        responses: {
+            /** @description Request accepted, processing continues off-line */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeploymentMutationResponse"] | components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1SessionsSessionIdOperationsOperationIdGetOperation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+                operation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperationResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
     V1SessionsSessionIdGetSession: {
         parameters: {
             query?: never;
@@ -5831,6 +6163,46 @@ export interface operations {
             };
         };
     };
+    V1SessionsSessionIdDeploymentsDeploymentIdRemoveDeployment: {
+        parameters: {
+            query?: {
+                force?: boolean;
+            };
+            header?: never;
+            path: {
+                session_id: string;
+                deployment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request accepted, processing continues off-line */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeploymentMutationResponse"] | components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
     V1SessionsSessionIdResumeResume: {
         parameters: {
             query?: never;
@@ -5909,7 +6281,7 @@ export interface operations {
             };
         };
     };
-    V1InternalGpuSessionsSessionIdProvisioningProvisioningCallback: {
+    V1InternalGpuSessionsSessionIdCommandsClaimClaimCommand: {
         parameters: {
             query?: never;
             header?: never;
@@ -5920,7 +6292,49 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ProvisioningCallbackBody"];
+                "application/json": components["schemas"]["ClaimCommandRequest"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1InternalGpuSessionsSessionIdOperationsOperationIdEventsOperationEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+                operation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OperationEventBody"];
             };
         };
         responses: {
