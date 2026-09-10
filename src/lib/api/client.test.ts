@@ -294,10 +294,11 @@ describe('epoch-bound middleware retries', () => {
 
     const request = apiClient.GET('/v1/billing/balance');
     await vi.waitFor(() => expect(calls).toBe(1));
+    const result = expect(request).rejects.toBeInstanceOf(StaleSessionError);
     clearAuth();
     await vi.advanceTimersByTimeAsync(1_000);
 
-    await expect(request).resolves.toMatchObject({ response: { status: 429 } });
+    await result;
     expect(calls).toBe(1);
   });
 
@@ -317,10 +318,11 @@ describe('epoch-bound middleware retries', () => {
 
     const request = apiClient.GET('/v1/billing/balance');
     await vi.waitFor(() => expect(calls).toBe(1));
+    const result = expect(request).rejects.toBeInstanceOf(StaleSessionError);
     setAuth(tokens('access-b', 'refresh-b'), makeUserProfile({ id: 'user-b' }));
     await vi.advanceTimersByTimeAsync(1_000);
 
-    await expect(request).resolves.toMatchObject({ response: { status: 429 } });
+    await result;
     expect(calls).toBe(1);
   });
 
@@ -529,13 +531,12 @@ describe('caller/TanStack signal cancellation', () => {
     const controller = new AbortController();
     const request = apiClient.GET('/v1/billing/balance', { signal: controller.signal });
     await vi.waitFor(() => expect(calls).toBe(1));
+    const result = expect(request).rejects.toMatchObject({ name: 'AbortError' });
     controller.abort();
     await vi.advanceTimersByTimeAsync(1_000);
 
-    // The backoff wait was interrupted, so the middleware hands back the un-retried 429 as-is;
-    // TanStack itself disregards the settled value of a query it already canceled. The behavior
-    // under test is that no second network request was made.
-    await expect(request).resolves.toMatchObject({ response: { status: 429 } });
+    // Explicit caller cancellation rejects rather than resolving the already-received 429.
+    await result;
     expect(calls).toBe(1);
     expect(__getAuthOperationCountForTesting()).toBe(0);
   });

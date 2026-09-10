@@ -1,7 +1,18 @@
 import { describe, it, expect } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { server } from '../../mocks/server';
-import { listSessions, getSession, startSession, previewStop, stopSession } from './sessions';
+import {
+  listSessions,
+  getSession,
+  getOperation,
+  startSession,
+  previewStop,
+  stopSession,
+  pauseSession,
+  resumeSession,
+  attachDeployment,
+  removeDeployment,
+} from './sessions';
 import { ApiRequestError } from './errors';
 
 const BASE = 'http://localhost:8000';
@@ -99,7 +110,7 @@ describe('startSession()', () => {
         return HttpResponse.json({ ...mockSession, status: 'pending' }, { status: 201 });
       }),
     );
-    const session = await startSession('aisha-image' as never);
+    const session = await startSession('aisha-image');
     expect(capturedBody).toEqual({ model: 'aisha-image' });
     expect(session.status).toBe('pending');
   });
@@ -113,7 +124,62 @@ describe('startSession()', () => {
         ),
       ),
     );
-    await expect(startSession('aisha-image' as never)).rejects.toThrow(ApiRequestError);
+    await expect(startSession('aisha-image')).rejects.toThrow(ApiRequestError);
+  });
+});
+
+describe('session lifecycle and deployment operations', () => {
+  it('uses the typed pause and resume endpoints', async () => {
+    const requests: string[] = [];
+    server.use(
+      http.post(`${BASE}/v1/sessions/:session_id/pause`, ({ request }) => {
+        requests.push(new URL(request.url).pathname);
+        return HttpResponse.json({ ...mockSession, status: 'paused' });
+      }),
+      http.post(`${BASE}/v1/sessions/:session_id/resume`, ({ request }) => {
+        requests.push(new URL(request.url).pathname);
+        return HttpResponse.json({ ...mockSession, status: 'resuming' });
+      }),
+    );
+    await expect(pauseSession('sess_001')).resolves.toMatchObject({ status: 'paused' });
+    await expect(resumeSession('sess_001')).resolves.toMatchObject({ status: 'resuming' });
+    expect(requests).toEqual(['/v1/sessions/sess_001/pause', '/v1/sessions/sess_001/resume']);
+  });
+
+  it('attaches and removes through the generated paths without force by default', async () => {
+    let body: unknown;
+    let removeUrl = '';
+    const mutation = {
+      deployment: { id: 'dep_001', model_type: 'aisha-image-lite', status: 'deploying' },
+      operation: { id: 'op_001', revision: 0, status: 'queued' },
+    };
+    server.use(
+      http.post(`${BASE}/v1/sessions/:session_id/deployments`, async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json(mutation, { status: 202 });
+      }),
+      http.delete(`${BASE}/v1/sessions/:session_id/deployments/:deployment_id`, ({ request }) => {
+        removeUrl = request.url;
+        return HttpResponse.json(mutation, { status: 202 });
+      }),
+    );
+    await attachDeployment('sess_001', 'aisha-image-lite');
+    await removeDeployment('sess_001', 'dep_001');
+    expect(body).toEqual({ model: 'aisha-image-lite' });
+    expect(removeUrl).not.toContain('force=true');
+  });
+
+  it('forwards cancellation to the operation fallback read', async () => {
+    const controller = new AbortController();
+    let signal: AbortSignal | undefined;
+    server.use(
+      http.get(`${BASE}/v1/sessions/:session_id/operations/:operation_id`, ({ request }) => {
+        signal = request.signal;
+        return HttpResponse.json({ id: 'op_001' });
+      }),
+    );
+    await getOperation('sess_001', 'op_001', controller.signal);
+    expect(signal).toBeDefined();
   });
 });
 

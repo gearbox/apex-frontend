@@ -1,7 +1,22 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/svelte';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen } from '@testing-library/svelte';
+import { tick } from 'svelte';
 import SessionCard from './SessionCard.svelte';
-import type { GpuSessionListItemResponse } from '$lib/api/sessions';
+import type { GpuSessionListItemResponse, GpuSessionResponse } from '$lib/api/sessions';
+
+const { mutations } = vi.hoisted(() => ({
+  mutations: [] as Array<{ mutate: ReturnType<typeof vi.fn> }>,
+}));
+
+vi.mock('@tanstack/svelte-query', () => ({
+  useQueryClient: () => ({}),
+  createQuery: () => ({ data: null }),
+  createMutation: () => {
+    const mutation = { isPending: false, mutate: vi.fn() };
+    mutations.push(mutation);
+    return mutation;
+  },
+}));
 
 function makeSession(
   overrides: Partial<GpuSessionListItemResponse> = {},
@@ -18,6 +33,42 @@ function makeSession(
     ...overrides,
   };
 }
+
+function makeDetailedSession(overrides: Partial<GpuSessionResponse> = {}): GpuSessionResponse {
+  return {
+    id: 'sess_001',
+    user_id: 'user_001',
+    product_id: 'prod_001',
+    status: 'active',
+    tunnel_hostname: null,
+    vastai_gpu_name: null,
+    vastai_cost_per_hour_micros: null,
+    created_at: '2026-06-20T00:00:00Z',
+    started_at: '2026-06-20T00:00:00Z',
+    in_flight_job_count: 0,
+    deployments: [
+      {
+        id: 'deploy_001',
+        model_type: 'aisha-image',
+        bundle_name: 'aisha',
+        bundle_version: null,
+        status: 'active',
+        pending_restart: false,
+        routing_suspended: false,
+        is_primary: true,
+        created_at: '2026-06-20T00:00:00Z',
+        activated_at: '2026-06-20T00:00:00Z',
+      },
+    ],
+    ...overrides,
+  };
+}
+
+beforeEach(() => mutations.splice(0));
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 describe('SessionCard — Stop button', () => {
   it('renders Stop button for active session', () => {
@@ -65,5 +116,255 @@ describe('SessionCard — deployment identity', () => {
     expect(screen.getByText('aisha-image')).not.toBeNull();
     expect(screen.queryByText('aisha-bundle')).toBeNull();
     expect(document.querySelector('.bundle-name')).toBeNull();
+  });
+});
+
+describe('SessionCard — detailed deployment operations', () => {
+  it('renders a bootstrap operation only in its deployment row when both reference the same ID', () => {
+    const operation = { id: 'op_bootstrap' } as never;
+    const { container } = render(SessionCard, {
+      props: {
+        session: makeDetailedSession({
+          bootstrap_operation: operation,
+          deployments: [{ ...makeDetailedSession().deployments![0], current_operation: operation }],
+        }),
+        onStop: vi.fn(),
+      },
+    });
+
+    expect(container.querySelectorAll('.operation')).toHaveLength(1);
+  });
+
+  it('renders a standalone bootstrap operation when no deployment references it', () => {
+    const { container } = render(SessionCard, {
+      props: {
+        session: makeDetailedSession({ bootstrap_operation: { id: 'op_bootstrap' } as never }),
+        onStop: vi.fn(),
+      },
+    });
+
+    expect(container.querySelectorAll('.operation')).toHaveLength(1);
+  });
+
+  it('renders distinct bootstrap and deployment operations independently', () => {
+    const { container } = render(SessionCard, {
+      props: {
+        session: makeDetailedSession({
+          bootstrap_operation: { id: 'op_bootstrap' } as never,
+          deployments: [
+            {
+              ...makeDetailedSession().deployments![0],
+              current_operation: { id: 'op_deployment' } as never,
+            },
+          ],
+        }),
+        onStop: vi.fn(),
+      },
+    });
+
+    expect(container.querySelectorAll('.operation')).toHaveLength(2);
+  });
+
+  it('offers Remove only for active deployments on an active session', () => {
+    const session = makeDetailedSession({
+      deployments: [
+        ...makeDetailedSession().deployments!,
+        {
+          ...makeDetailedSession().deployments![0],
+          id: 'deploy_deploying',
+          status: 'deploying',
+          model_type: 'aisha-image-lite',
+        },
+      ],
+    });
+    render(SessionCard, { props: { session, onStop: vi.fn() } });
+    expect(screen.getAllByRole('button', { name: 'Remove aisha-image' })).toHaveLength(1);
+  });
+
+  it('uses force only after the final-active warning confirmation', async () => {
+    render(SessionCard, { props: { session: makeDetailedSession(), onStop: vi.fn() } });
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Remove aisha-image' }));
+    expect(
+      screen.getByText(/GPU session will keep running and billing until you stop it/i),
+    ).toBeTruthy();
+    const confirm = screen.getByRole('button', { name: 'Remove last model anyway' });
+    await fireEvent.click(confirm);
+
+    expect(mutations[3]?.mutate).toHaveBeenCalledWith(
+      { sessionId: 'sess_001', deploymentId: 'deploy_001', force: true },
+      expect.any(Object),
+    );
+  });
+
+  it('does not send DELETE when the current snapshot changes before confirmation', async () => {
+    const current = makeDetailedSession();
+    const rendered = render(SessionCard, { props: { session: current, onStop: vi.fn() } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Remove aisha-image' }));
+
+    await rendered.rerender({
+      session: makeDetailedSession({ status: 'paused' }),
+      onStop: vi.fn(),
+    });
+    await fireEvent.click(screen.getByRole('button', { name: 'Remove last model anyway' }));
+
+    expect(mutations[3]?.mutate).not.toHaveBeenCalled();
+  });
+
+  it('shows an explicit detail error with retry while retaining list-level Stop', () => {
+    const retry = vi.fn();
+    render(SessionCard, {
+      props: {
+        session: makeSession(),
+        detailState: 'error',
+        onDetailRetry: retry,
+        onStop: vi.fn(),
+      },
+    });
+    expect(screen.getByText("Couldn't load session details.")).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Stop' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Pause' })).toBeNull();
+  });
+
+  it('summarizes only current model deployments and deduplicates names', () => {
+    const { container } = render(SessionCard, {
+      props: {
+        session: makeDetailedSession({
+          deployments: [
+            ...makeDetailedSession().deployments!,
+            { ...makeDetailedSession().deployments![0], id: 'old', status: 'removed' },
+            { ...makeDetailedSession().deployments![0], id: 'retry', status: 'active' },
+          ],
+        }),
+        onStop: vi.fn(),
+      },
+    });
+    expect(container.querySelector('.card-model strong')?.textContent).toBe('aisha-image');
+  });
+
+  it('updates detailed active-session uptime with a local minute clock', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-20T00:01:00Z'));
+    render(SessionCard, {
+      props: {
+        session: makeDetailedSession({ started_at: '2026-06-20T00:00:00Z' }),
+        onStop: vi.fn(),
+      },
+    });
+    expect(screen.getByText('Uptime: 1m')).toBeTruthy();
+
+    await tick();
+    vi.advanceTimersByTime(60_000);
+    await tick();
+    expect(screen.getByText('Uptime: 2m')).toBeTruthy();
+  });
+});
+
+describe('SessionCard — Pause gated by in-flight jobs', () => {
+  it('enables Pause when in_flight_job_count is 0', () => {
+    render(SessionCard, {
+      props: { session: makeDetailedSession({ in_flight_job_count: 0 }), onStop: vi.fn() },
+    });
+    const pause = screen.getByRole('button', { name: /pause/i }) as HTMLButtonElement;
+    expect(pause.disabled).toBe(false);
+  });
+
+  it('disables Pause when in_flight_job_count > 0 and explains why', () => {
+    render(SessionCard, {
+      props: { session: makeDetailedSession({ in_flight_job_count: 2 }), onStop: vi.fn() },
+    });
+    const pause = screen.getByRole('button', { name: /pause/i }) as HTMLButtonElement;
+    expect(pause.disabled).toBe(true);
+    expect(pause.title).toBe('Pause is available after active generations finish.');
+    expect(screen.getByText('Pause is available after active generations finish.')).toBeTruthy();
+  });
+
+  it('disables Pause reactively when detail reconciliation raises the count from 0', async () => {
+    const rendered = render(SessionCard, {
+      props: { session: makeDetailedSession({ in_flight_job_count: 0 }), onStop: vi.fn() },
+    });
+    expect((screen.getByRole('button', { name: /pause/i }) as HTMLButtonElement).disabled).toBe(
+      false,
+    );
+
+    await rendered.rerender({
+      session: makeDetailedSession({ in_flight_job_count: 1 }),
+      onStop: vi.fn(),
+    });
+    expect((screen.getByRole('button', { name: /pause/i }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+  });
+
+  it('does not hide the session or its other actions while Pause is blocked', () => {
+    render(SessionCard, {
+      props: { session: makeDetailedSession({ in_flight_job_count: 1 }), onStop: vi.fn() },
+    });
+    expect(screen.getByRole('button', { name: /stop/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /add model/i })).toBeTruthy();
+  });
+});
+
+describe('SessionCard — same-session command lock', () => {
+  it('disables Add model and deployment Remove once Pause is submitted', async () => {
+    render(SessionCard, { props: { session: makeDetailedSession(), onStop: vi.fn() } });
+
+    await fireEvent.click(screen.getByRole('button', { name: /^pause$/i }));
+
+    expect((screen.getByRole('button', { name: /add model/i }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+    expect(
+      (screen.getByRole('button', { name: 'Remove aisha-image' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    expect((screen.getByRole('button', { name: /stop/i }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+  });
+
+  it('does not submit attach when the session leaves active while the sheet is open', async () => {
+    const rendered = render(SessionCard, {
+      props: {
+        session: makeDetailedSession(),
+        attachableModels: [{ model: 'aisha-image-lite', name: 'Aisha Lite' }],
+        onStop: vi.fn(),
+      },
+    });
+    await fireEvent.click(screen.getByRole('button', { name: /add model/i }));
+    expect(screen.getByText('Aisha Lite')).toBeTruthy();
+
+    // The sheet's own model list is unaffected by session status, so the stale button is still
+    // on screen — exactly the race `handleAttach` must catch at submit time.
+    await rendered.rerender({
+      session: makeDetailedSession({ status: 'paused' }),
+      attachableModels: [{ model: 'aisha-image-lite', name: 'Aisha Lite' }],
+      onStop: vi.fn(),
+    });
+    await fireEvent.click(screen.getByText('Aisha Lite'));
+
+    expect(mutations[2]?.mutate).not.toHaveBeenCalled();
+  });
+});
+
+describe('SessionCard — Add model dead end', () => {
+  it('disables Add model when there are no attachable models', () => {
+    render(SessionCard, {
+      props: { session: makeDetailedSession(), attachableModels: [], onStop: vi.fn() },
+    });
+    const addModel = screen.getByRole('button', { name: /add model/i }) as HTMLButtonElement;
+    expect(addModel.disabled).toBe(true);
+  });
+
+  it('enables Add model when at least one model is attachable', () => {
+    render(SessionCard, {
+      props: {
+        session: makeDetailedSession(),
+        attachableModels: [{ model: 'aisha-image-lite', name: 'Aisha Lite' }],
+        onStop: vi.fn(),
+      },
+    });
+    const addModel = screen.getByRole('button', { name: /add model/i }) as HTMLButtonElement;
+    expect(addModel.disabled).toBe(false);
   });
 });

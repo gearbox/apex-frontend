@@ -1,5 +1,6 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/svelte';
+import { afterEach, describe, it, expect, vi } from 'vitest';
+import { QueryClient } from '@tanstack/svelte-query';
+import { cleanup, render, screen, waitFor } from '@testing-library/svelte';
 import { http, HttpResponse } from 'msw';
 import { server } from '../../../mocks/server';
 import { MOCK_BASE_URL as BASE } from '../../../mocks/config';
@@ -8,9 +9,12 @@ vi.mock('$paraglide/messages', () => ({
   session_stop_title: () => 'Stop Session',
   session_stop_preview_tokens: () => 'Estimated final tokens',
   session_stop_preview_duration: () => 'Active duration',
+  session_stop_preview_gpu: () => 'GPU',
   session_stop_confirm: () => 'Stop Session',
   session_stop_cancel: () => 'Keep Running',
   session_stopping: () => 'Stopping…',
+  session_stop_load_failed: () => 'Failed to load session information.',
+  session_stop_confirm_failed: () => 'Failed to stop session.',
   common_loading: () => 'Loading…',
   common_close: () => 'Close',
 }));
@@ -32,7 +36,18 @@ const mockPreview = {
   message: 'This will stop your session.',
 };
 
-import StopSessionModal from './StopSessionModal.svelte';
+import StopSessionModalQueryHost from './testing/StopSessionModalQueryHost.svelte';
+
+function renderModal(props: {
+  sessionId: string;
+  onStopped?: (session: unknown) => void;
+  onClose?: () => void;
+}) {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(StopSessionModalQueryHost, { props: { queryClient, ...props } });
+}
+
+afterEach(() => cleanup());
 
 describe('StopSessionModal', () => {
   it('shows loading state initially, then renders preview data', async () => {
@@ -46,9 +61,7 @@ describe('StopSessionModal', () => {
       }),
     );
 
-    render(StopSessionModal, {
-      props: { sessionId: 'sess_001', onStopped: vi.fn(), onClose: vi.fn() },
-    });
+    renderModal({ sessionId: 'sess_001' });
 
     expect(screen.queryByText(/loading/i)).not.toBeNull();
 
@@ -61,7 +74,7 @@ describe('StopSessionModal', () => {
     expect(screen.queryByRole('button', { name: /keep running/i })).not.toBeNull();
   });
 
-  it('calls stopSession on confirm and invokes onStopped', async () => {
+  it('calls the confirmed stop endpoint and invokes onStopped', async () => {
     const onStopped = vi.fn();
 
     server.use(
@@ -74,9 +87,7 @@ describe('StopSessionModal', () => {
       }),
     );
 
-    render(StopSessionModal, {
-      props: { sessionId: 'sess_001', onStopped, onClose: vi.fn() },
-    });
+    renderModal({ sessionId: 'sess_001', onStopped });
 
     await waitFor(() => {
       const btn = screen.queryByRole('button', {
@@ -93,7 +104,33 @@ describe('StopSessionModal', () => {
     });
   });
 
-  it('shows error message when previewStop fails', async () => {
+  it('does not send a second confirmed stop request on a same-tick double click', async () => {
+    let confirmedCalls = 0;
+    server.use(
+      http.post(`${BASE}/v1/sessions/:session_id/stop`, async ({ request }) => {
+        const body = (await request.json()) as { confirmed: boolean };
+        if (!body.confirmed) return HttpResponse.json(mockPreview);
+        confirmedCalls += 1;
+        return HttpResponse.json({ id: 'sess_001', status: 'stopping' });
+      }),
+    );
+
+    renderModal({ sessionId: 'sess_001' });
+    await waitFor(() => {
+      expect(
+        (screen.getByRole('button', { name: /stop session/i }) as HTMLButtonElement).disabled,
+      ).toBe(false);
+    });
+
+    const confirmButton = screen.getByRole('button', { name: /stop session/i });
+    confirmButton.click();
+    confirmButton.click();
+
+    await waitFor(() => expect(confirmedCalls).toBeGreaterThan(0));
+    expect(confirmedCalls).toBe(1);
+  });
+
+  it('shows a localized error message when the preview request fails', async () => {
     server.use(
       http.post(`${BASE}/v1/sessions/:session_id/stop`, () =>
         HttpResponse.json(
@@ -103,9 +140,7 @@ describe('StopSessionModal', () => {
       ),
     );
 
-    render(StopSessionModal, {
-      props: { sessionId: 'sess_missing', onStopped: vi.fn(), onClose: vi.fn() },
-    });
+    renderModal({ sessionId: 'sess_missing' });
 
     await waitFor(() => {
       expect(screen.queryByText(/session not found/i)).not.toBeNull();

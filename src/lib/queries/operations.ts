@@ -1,6 +1,6 @@
 import type { QueryClient } from '@tanstack/svelte-query';
 import type { components } from '$lib/api/types';
-import type { GpuSessionResponse } from '$lib/api/sessions';
+import { getOperation, type GpuSessionResponse } from '$lib/api/sessions';
 
 export type OperationResponse = components['schemas']['OperationResponse'];
 
@@ -27,7 +27,6 @@ export function upsertOperation(
   queryClient: QueryClient,
   incoming: OperationResponse,
 ): OperationResponse {
-  configureOperationCache(queryClient);
   const key = operationKeys.detail(incoming.id);
   const cached = queryClient.getQueryData<OperationResponse>(key);
 
@@ -37,6 +36,44 @@ export function upsertOperation(
   }
 
   return cached;
+}
+
+export function isTerminalOperation(operation: OperationResponse | undefined): boolean {
+  return operation?.status === 'succeeded' || operation?.status === 'failed';
+}
+
+/**
+ * Uses the canonical operation key while retaining the session ID solely for the fallback API
+ * route. A REST response may be older than an SSE update, so the query returns the effective
+ * cache value from `upsertOperation`, never the raw response.
+ */
+export function operationQueryOptions(
+  queryClient: QueryClient,
+  sessionId: string,
+  operationId: string,
+  opts: { fallback: boolean; enabled: boolean },
+) {
+  const queryKey = operationKeys.detail(operationId);
+  const cached = queryClient.getQueryData<OperationResponse>(queryKey);
+  const enabled =
+    opts.enabled &&
+    Boolean(sessionId) &&
+    Boolean(operationId) &&
+    opts.fallback &&
+    !isTerminalOperation(cached);
+  return {
+    queryKey,
+    queryFn: async ({ signal }: { signal: AbortSignal }) =>
+      upsertOperation(queryClient, await getOperation(sessionId, operationId, signal)),
+    enabled,
+    staleTime: 0,
+    // Operations are hydrated by SSE when it is healthy. The query becomes a bounded recovery
+    // poll only while the event stream is in fallback mode, and immediately stops at terminal.
+    refetchInterval: (): number | false =>
+      opts.fallback && !isTerminalOperation(queryClient.getQueryData<OperationResponse>(queryKey))
+        ? 3000
+        : false,
+  };
 }
 
 /**

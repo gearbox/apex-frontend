@@ -1,7 +1,21 @@
 import { describe, expect, it, vi } from 'vitest';
 import { QueryClient } from '@tanstack/svelte-query';
 import type { components } from '$lib/api/types';
-import { ingestSessionSnapshot, operationKeys, upsertOperation } from './operations';
+
+const { getOperationMock } = vi.hoisted(() => ({ getOperationMock: vi.fn() }));
+
+vi.mock('$lib/api/sessions', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('$lib/api/sessions')>()),
+  getOperation: getOperationMock,
+}));
+
+import {
+  configureOperationCache,
+  ingestSessionSnapshot,
+  operationKeys,
+  operationQueryOptions,
+  upsertOperation,
+} from './operations';
 
 type OperationResponse = components['schemas']['OperationResponse'];
 type GpuSessionResponse = components['schemas']['GpuSessionResponse'];
@@ -134,6 +148,9 @@ describe('canonical operation cache', () => {
       const client = new QueryClient({
         defaultOptions: { queries: { gcTime: 5 * 60_000 } },
       });
+      // upsertOperation() no longer configures the cache as a side effect (that now happens once,
+      // at QueryClient construction) — an ad-hoc test client must opt in explicitly.
+      configureOperationCache(client);
 
       upsertOperation(client, operation(5));
       vi.advanceTimersByTime(5 * 60_000 + 1);
@@ -156,5 +173,72 @@ describe('canonical operation cache', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('operationQueryOptions()', () => {
+  it('returns the retained newer SSE revision when fallback REST is older', async () => {
+    const client = new QueryClient();
+    upsertOperation(client, operation(6));
+    getOperationMock.mockResolvedValueOnce(operation(4));
+    const options = operationQueryOptions(client, 'sess_001', 'op_001', {
+      fallback: true,
+      enabled: true,
+    });
+
+    await expect(options.queryFn({ signal: new AbortController().signal })).resolves.toMatchObject({
+      revision: 6,
+    });
+    expect(client.getQueryData<OperationResponse>(operationKeys.detail('op_001'))).toMatchObject({
+      revision: 6,
+    });
+  });
+
+  it('accepts newer and revision-zero REST operations through the canonical cache', async () => {
+    const client = new QueryClient();
+    upsertOperation(client, operation(4));
+    getOperationMock.mockResolvedValueOnce(operation(5));
+    const newer = operationQueryOptions(client, 'sess_001', 'op_001', {
+      fallback: true,
+      enabled: true,
+    });
+    await expect(newer.queryFn({ signal: new AbortController().signal })).resolves.toMatchObject({
+      revision: 5,
+    });
+
+    const freshClient = new QueryClient();
+    getOperationMock.mockResolvedValueOnce(operation(0));
+    const queued = operationQueryOptions(freshClient, 'sess_001', 'op_001', {
+      fallback: true,
+      enabled: true,
+    });
+    await expect(queued.queryFn({ signal: new AbortController().signal })).resolves.toMatchObject({
+      revision: 0,
+      status: 'queued',
+    });
+  });
+
+  it('only schedules fallback polling for non-terminal operations', () => {
+    const client = new QueryClient();
+    const options = operationQueryOptions(client, 'sess_001', 'op_001', {
+      fallback: false,
+      enabled: true,
+    });
+    expect(options.enabled).toBe(false);
+    expect(options.refetchInterval()).toBe(false);
+
+    const fallback = operationQueryOptions(client, 'sess_001', 'op_001', {
+      fallback: true,
+      enabled: true,
+    });
+    expect(fallback.refetchInterval()).toBe(3000);
+    upsertOperation(client, operation(1, { status: 'succeeded' }));
+    expect(fallback.refetchInterval()).toBe(false);
+
+    const terminalFallback = operationQueryOptions(client, 'sess_001', 'op_001', {
+      fallback: true,
+      enabled: true,
+    });
+    expect(terminalFallback.enabled).toBe(false);
   });
 });
