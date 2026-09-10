@@ -18,3 +18,8 @@ Evaluate a candidate's bundled Chromium and WebKit versions, relevant release no
 changes, supported host operating systems, local and real-device coverage, and suite compatibility
 and flakiness. The scheduled latest-version CI canary is evidence for that evaluation, never an
 automatic upgrade instruction.
+
+The product browser floor is defined separately in [the browser support contract](contracts/browser-support.md).
+Playwright's bundled WebKit is a behavioral regression lane, not a declaration of the minimum
+iOS/iPadOS release that Apex supports; the host-version pin and product support policy are
+independent concerns.

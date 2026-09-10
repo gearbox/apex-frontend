@@ -6,8 +6,11 @@ import {
   sessionDetailQueryOptions,
   startSessionMutationOptions,
   stopSessionMutationOptions,
+  attachDeploymentMutationOptions,
+  removeDeploymentMutationOptions,
 } from './sessions';
 import type { GpuSessionResponse } from '$lib/api/sessions';
+import { operationKeys } from './operations';
 
 const mockSession: GpuSessionResponse = {
   id: 'sess_001',
@@ -64,7 +67,7 @@ describe('sessionDetailQueryOptions()', () => {
     expect(opts.queryKey).toEqual(['sessions', 'detail', 'sess_001']);
     expect(opts.enabled).toBe(true);
     expect(opts.staleTime).toBe(0);
-    expect('refetchInterval' in opts).toBe(false);
+    expect(opts.refetchInterval).toBe(false);
   });
 
   it('can be disabled', () => {
@@ -95,7 +98,10 @@ describe('startSessionMutationOptions()', () => {
     await opts.onSuccess(mockSession);
 
     expect(setDataSpy).toHaveBeenCalledWith(sessionKeys.detail('sess_001'), mockSession);
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: sessionKeys.all });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: sessionKeys.list(false),
+      exact: true,
+    });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['providers'] });
   });
 });
@@ -108,7 +114,57 @@ describe('stopSessionMutationOptions()', () => {
     const opts = stopSessionMutationOptions(queryClient);
     await opts.onSuccess(mockSession);
 
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: sessionKeys.all });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: sessionKeys.list(false),
+      exact: true,
+    });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['providers'] });
+  });
+});
+
+describe('deployment mutation options', () => {
+  const response = {
+    deployment: { id: 'dep_001', model_type: 'aisha-image-lite', status: 'deploying' },
+    operation: {
+      id: 'op_001',
+      session_id: 'sess_001',
+      deployment_id: 'dep_001',
+      kind: 'bundle_provision',
+      status: 'queued',
+      phase: null,
+      revision: 0,
+      target: null,
+      progress: null,
+      message: null,
+      error: null,
+      started_at: null,
+      updated_at: '2026-09-10T00:00:00Z',
+      finished_at: null,
+    },
+  } as never;
+
+  it('upserts attach operations before requesting REST reconciliation', async () => {
+    const queryClient = new QueryClient();
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+    const options = attachDeploymentMutationOptions(queryClient);
+    await options.onSuccess(response, { sessionId: 'sess_001' });
+
+    expect(queryClient.getQueryData(operationKeys.detail('op_001'))).toMatchObject({ revision: 0 });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: sessionKeys.detail('sess_001'),
+      exact: true,
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: sessionKeys.list(false), exact: true });
+  });
+
+  it('uses the same revision-safe reconciliation for remove', async () => {
+    const queryClient = new QueryClient();
+    const options = removeDeploymentMutationOptions(queryClient);
+    await options.onSuccess(response, {
+      sessionId: 'sess_001',
+      deploymentId: 'dep_001',
+      force: true,
+    });
+    expect(queryClient.getQueryData(operationKeys.detail('op_001'))).toMatchObject({ revision: 0 });
   });
 });

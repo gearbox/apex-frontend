@@ -16,9 +16,19 @@
     starting: boolean;
     onStart: () => void;
     onStopRequest: () => void;
+    onResume?: (() => void) | null;
+    resuming?: boolean;
   }
 
-  let { cardState, session, starting, onStart, onStopRequest }: Props = $props();
+  let {
+    cardState,
+    session,
+    starting,
+    onStart,
+    onStopRequest,
+    onResume = null,
+    resuming = false,
+  }: Props = $props();
 
   const balanceQuery = createQuery(balanceQueryOptions);
   const hasBalance = $derived(canStartNewWork(balanceQuery.data?.balance));
@@ -158,7 +168,7 @@
 {:else if cardState === 'RESTARTING' || cardState === 'REMOVING'}
   <div class="panel">
     <StatusBadge
-      status={cardState === 'RESTARTING' ? 'Restarting' : 'Removing'}
+      status={cardState === 'RESTARTING' ? m.create_state_restarting() : m.create_state_removing()}
       color={CARD_COLOR_BY_STATE[cardState]}
     />
   </div>
@@ -179,7 +189,17 @@
 {:else if cardState === 'PAUSED'}
   <div class="panel paused">
     <span class="paused-note">{m.create_session_paused_note()}</span>
-    <a href="/app/sessions" class="escape-link">{m.create_session_manage_link()} →</a>
+    <div class="paused-actions">
+      {#if onResume}
+        <button class="btn-primary" disabled={resuming} onclick={onResume}>
+          {resuming ? m.session_resuming() : m.session_resume()}
+        </button>
+      {/if}
+      <a href="/app/sessions" class="escape-link">{m.create_session_manage_link()} →</a>
+      {#if session}<button class="btn-secondary" onclick={onStopRequest}
+          >{m.create_session_stop()}</button
+        >{/if}
+    </div>
   </div>
 {/if}
 
@@ -250,6 +270,13 @@
     transition: all 0.15s;
     align-self: flex-start;
     text-decoration: none;
+  }
+
+  .paused-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
   }
 
   .btn-primary {

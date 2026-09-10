@@ -2,6 +2,10 @@ import type { QueryClient, QueryFunctionContext } from '@tanstack/svelte-query';
 import {
   listSessions,
   getSession,
+  pauseSession,
+  resumeSession,
+  attachDeployment,
+  removeDeployment,
   startSession,
   previewStop,
   stopSession,
@@ -9,7 +13,7 @@ import {
 } from '$lib/api/sessions';
 import type { components } from '$lib/api/types';
 import { providerKeys } from '$lib/queries/providers';
-import { ingestSessionSnapshot } from '$lib/queries/operations';
+import { ingestSessionSnapshot, upsertOperation } from '$lib/queries/operations';
 
 type ModelType = components['schemas']['ModelType'];
 
@@ -46,7 +50,7 @@ export function sessionsListQueryOptions(
 export function sessionDetailQueryOptions(
   queryClient: QueryClient,
   id: string | null,
-  opts: { enabled: boolean },
+  opts: { enabled: boolean; refetchInterval?: number | false },
 ) {
   const queryKey = [...sessionKeys.all, 'detail', id] as const;
   return {
@@ -57,6 +61,7 @@ export function sessionDetailQueryOptions(
     },
     enabled: opts.enabled && id !== null,
     staleTime: 0,
+    refetchInterval: opts.refetchInterval ?? false,
   };
 }
 
@@ -68,7 +73,7 @@ export function startSessionMutationOptions(queryClient: QueryClient) {
         sessionKeys.detail(session.id),
         ingestSessionSnapshot(queryClient, session),
       );
-      queryClient.invalidateQueries({ queryKey: sessionKeys.all });
+      queryClient.invalidateQueries({ queryKey: sessionKeys.list(false), exact: true });
       queryClient.invalidateQueries({ queryKey: providerKeys.catalog() });
     },
   };
@@ -82,9 +87,71 @@ export function stopSessionMutationOptions(queryClient: QueryClient) {
         sessionKeys.detail(session.id),
         ingestSessionSnapshot(queryClient, session),
       );
-      queryClient.invalidateQueries({ queryKey: sessionKeys.all });
+      queryClient.invalidateQueries({ queryKey: sessionKeys.list(false), exact: true });
       queryClient.invalidateQueries({ queryKey: providerKeys.catalog() });
     },
+  };
+}
+
+function writeSessionMutationSnapshot(queryClient: QueryClient, session: GpuSessionResponse): void {
+  queryClient.setQueryData(
+    sessionKeys.detail(session.id),
+    ingestSessionSnapshot(queryClient, session),
+  );
+  queryClient.invalidateQueries({ queryKey: sessionKeys.list(false), exact: true });
+  queryClient.invalidateQueries({ queryKey: providerKeys.catalog() });
+}
+
+export function pauseSessionMutationOptions(queryClient: QueryClient) {
+  return {
+    mutationFn: (sessionId: string) => pauseSession(sessionId),
+    onSuccess: (session: GpuSessionResponse) => writeSessionMutationSnapshot(queryClient, session),
+  };
+}
+
+export function resumeSessionMutationOptions(queryClient: QueryClient) {
+  return {
+    mutationFn: (sessionId: string) => resumeSession(sessionId),
+    onSuccess: (session: GpuSessionResponse) => writeSessionMutationSnapshot(queryClient, session),
+  };
+}
+
+export interface DeploymentMutationVariables {
+  sessionId: string;
+  deploymentId: string;
+  force?: boolean;
+}
+
+function reconcileDeploymentMutation(queryClient: QueryClient, sessionId: string) {
+  return {
+    onSuccess: (result: Awaited<ReturnType<typeof attachDeployment>>) => {
+      upsertOperation(queryClient, result.operation);
+      queryClient.invalidateQueries({ queryKey: sessionKeys.detail(sessionId), exact: true });
+      queryClient.invalidateQueries({ queryKey: sessionKeys.list(false), exact: true });
+      queryClient.invalidateQueries({ queryKey: providerKeys.catalog() });
+    },
+  };
+}
+
+export function attachDeploymentMutationOptions(queryClient: QueryClient) {
+  return {
+    mutationFn: ({ sessionId, model }: { sessionId: string; model: ModelType }) =>
+      attachDeployment(sessionId, model),
+    onSuccess: (
+      result: Awaited<ReturnType<typeof attachDeployment>>,
+      variables: { sessionId: string },
+    ) => reconcileDeploymentMutation(queryClient, variables.sessionId).onSuccess(result),
+  };
+}
+
+export function removeDeploymentMutationOptions(queryClient: QueryClient) {
+  return {
+    mutationFn: ({ sessionId, deploymentId, force = false }: DeploymentMutationVariables) =>
+      removeDeployment(sessionId, deploymentId, force),
+    onSuccess: (
+      result: Awaited<ReturnType<typeof removeDeployment>>,
+      variables: DeploymentMutationVariables,
+    ) => reconcileDeploymentMutation(queryClient, variables.sessionId).onSuccess(result),
   };
 }
 

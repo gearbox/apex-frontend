@@ -43,6 +43,9 @@ export default defineConfig({
     __BUILD_SHA__: JSON.stringify(BUILD_SHA),
   },
   build: {
+    // Product support is deliberately stricter than Vite's moving baseline.
+    // See docs/contracts/browser-support.md for the runtime contract.
+    target: ['chrome116', 'edge116', 'firefox124', 'safari18', 'ios18'],
     rollupOptions: {
       output: {
         manualChunks(id) {

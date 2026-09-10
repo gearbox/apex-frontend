@@ -66,6 +66,12 @@ function isRetryLive(metadata: RetryMetadata): boolean {
   return !metadata.signal.aborted && isRetrySessionCurrent(metadata);
 }
 
+/** Preserve the reason a logical request is no longer allowed to settle. */
+function assertRetryLive(metadata: RetryMetadata): void {
+  if (!isRetrySessionCurrent(metadata)) throw new StaleSessionError();
+  if (metadata.signal.aborted) throw new DOMException('Aborted', 'AbortError');
+}
+
 /** Resolves false when logout/session replacement aborts the wait. */
 function waitForRetryDelay(delay: number, signal: AbortSignal): Promise<boolean> {
   if (signal.aborted) return Promise.resolve(false);
@@ -118,7 +124,7 @@ const authMiddleware: Middleware = {
     try {
       // Aborting fetch is not sufficient when a response was already in flight. Never hand a
       // response from an invalidated session to a caller that may write it into current state.
-      if (!isRetrySessionCurrent(metadata)) throw new StaleSessionError();
+      assertRetryLive(metadata);
 
       // Always parse and store rate limit headers
       const key = endpointKey(request.url);
@@ -131,7 +137,7 @@ const authMiddleware: Middleware = {
       if (response.status === 429) {
         let current = response;
         for (let attempt = 1; attempt <= MAX_RATE_LIMIT_RETRIES; attempt++) {
-          if (!isRetryLive(metadata)) break;
+          assertRetryLive(metadata);
           const currentHeaders = parseRateLimitHeaders(current.headers);
           // Retry-After beyond our cap: don't silently block the UI — hand the 429 back now.
           if (
@@ -141,8 +147,8 @@ const authMiddleware: Middleware = {
             break;
           }
           const delay = getRetryDelay(currentHeaders.retryAfter, attempt);
-          if (!(await waitForRetryDelay(delay, metadata.signal))) break;
-          if (!isRetryLive(metadata)) break;
+          if (!(await waitForRetryDelay(delay, metadata.signal))) assertRetryLive(metadata);
+          assertRetryLive(metadata);
           const retryReq = buildRetryRequest(request, metadata);
           // A retry may only ever use a credential from the original auth epoch; within that
           // epoch the newest token is always the correct one to send.
@@ -151,13 +157,14 @@ const authMiddleware: Middleware = {
             retryReq.headers.set('Authorization', `Bearer ${token}`);
           }
           current = await fetch(retryReq);
-          if (!isRetrySessionCurrent(metadata)) throw new StaleSessionError();
+          assertRetryLive(metadata);
           const retriedHeaders = parseRateLimitHeaders(current.headers);
           if (Object.keys(retriedHeaders).length > 0) {
             updateRateLimit(key, retriedHeaders);
           }
           if (current.status !== 429) break;
         }
+        assertRetryLive(metadata);
         return current;
       }
 
@@ -177,7 +184,7 @@ const authMiddleware: Middleware = {
 
       if (response.status !== 401) return response;
 
-      return retryUnauthorized(
+      const replayed = await retryUnauthorized(
         metadata.auth,
         response,
         (token) => {
@@ -191,6 +198,8 @@ const authMiddleware: Middleware = {
         },
         () => new StaleSessionError(),
       );
+      assertRetryLive(metadata);
+      return replayed;
     } finally {
       metadata.auth.finish();
     }

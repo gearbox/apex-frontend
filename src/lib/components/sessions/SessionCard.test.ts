@@ -3,6 +3,11 @@ import { render, screen } from '@testing-library/svelte';
 import SessionCard from './SessionCard.svelte';
 import type { GpuSessionListItemResponse } from '$lib/api/sessions';
 
+vi.mock('@tanstack/svelte-query', () => ({
+  useQueryClient: () => ({}),
+  createMutation: () => ({ isPending: false, mutate: vi.fn() }),
+}));
+
 function makeSession(
   overrides: Partial<GpuSessionListItemResponse> = {},
 ): GpuSessionListItemResponse {

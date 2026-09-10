@@ -22,13 +22,17 @@
     sessionDetailQueryOptions,
     sessionKeys,
     startSessionMutationOptions,
+    resumeSessionMutationOptions,
   } from '$lib/queries/sessions';
+  import { ingestSessionSnapshot } from '$lib/queries/operations';
   import * as m from '$paraglide/messages';
   import ModelSelector from '$lib/components/create/ModelSelector.svelte';
   import AgeVerificationModal from '$lib/components/create/AgeVerificationModal.svelte';
   import CreateSessionPanel from '$lib/components/sessions/CreateSessionPanel.svelte';
   import StopSessionModal from '$lib/components/sessions/StopSessionModal.svelte';
+  import OperationProgress from '$lib/components/sessions/OperationProgress.svelte';
   import type { components } from '$lib/api/types';
+  import type { GpuSessionResponse } from '$lib/api/sessions';
   import type { UserProfile } from '$lib/stores/auth';
   import TypeSelector from '$lib/components/create/TypeSelector.svelte';
   import SourceMediaInput from '$lib/components/create/SourceMediaInput.svelte';
@@ -125,7 +129,7 @@
   $effect(() => {
     if (currentModelInfo === null && allModels.length > 0) {
       generationStore.setModel(
-        (allModels.find((model) => model.is_enabled) ?? allModels[0]).model_key as never,
+        (allModels.find((model) => model.is_enabled) ?? allModels[0]).model_key as ModelType,
       );
     }
   });
@@ -139,9 +143,11 @@
   const selectedSessionQuery = createQuery(() =>
     sessionDetailQueryOptions(queryClient, selectedSessionId, {
       enabled: selectedSessionId !== null,
+      refetchInterval: $isSSEFallback ? 8000 : false,
     }),
   );
   const selectedSession = $derived(selectedSessionQuery.data ?? null);
+  const selectedOperationId = $derived(currentModelInfo?.runtime?.operation_id ?? null);
 
   // ── Card state machine
   const cardState = $derived(
@@ -179,7 +185,7 @@
     ) {
       return;
     }
-    startMutation.mutate(currentModelInfo.model_key as never, {
+    startMutation.mutate(currentModelInfo.model_key as ModelType, {
       onError: (err) => {
         const e = parseApiError(err, 0);
         addToast({
@@ -193,6 +199,15 @@
     });
   }
 
+  const resumeMutation = createMutation(() => resumeSessionMutationOptions(queryClient));
+
+  function handleResume() {
+    if (!selectedSessionId || cardState !== 'PAUSED' || resumeMutation.isPending) return;
+    resumeMutation.mutate(selectedSessionId, {
+      onError: (err) => addToast({ type: 'error', message: parseApiError(err, 0).message }),
+    });
+  }
+
   // ── Stop / Cancel modal
   let stopModalSessionId = $state<string | null>(null);
 
@@ -200,9 +215,13 @@
     if (selectedSessionId) stopModalSessionId = selectedSessionId;
   }
 
-  function handleStopped() {
+  function handleStopped(session: GpuSessionResponse) {
     stopModalSessionId = null;
-    queryClient.invalidateQueries({ queryKey: sessionKeys.all });
+    queryClient.setQueryData(
+      sessionKeys.detail(session.id),
+      ingestSessionSnapshot(queryClient, session),
+    );
+    queryClient.invalidateQueries({ queryKey: sessionKeys.list(false), exact: true });
     queryClient.invalidateQueries({ queryKey: providerKeys.catalog() });
   }
 
@@ -513,7 +532,19 @@
       starting={startMutation.isPending}
       onStart={handleStart}
       onStopRequest={handleStopRequest}
+      onResume={cardState === 'PAUSED' && selectedSessionId ? handleResume : null}
+      resuming={resumeMutation.isPending}
     />
+
+    {#if selectedSessionId && selectedOperationId && (cardState === 'PROVISIONING' || cardState === 'RESTARTING' || cardState === 'REMOVING')}
+      <OperationProgress
+        sessionId={selectedSessionId}
+        operationId={selectedOperationId}
+        typicalSeconds={cardState === 'PROVISIONING'
+          ? currentModelInfo?.provisioning?.typical_bootstrap_seconds
+          : null}
+      />
+    {/if}
 
     <!-- Generate button (desktop, inline at bottom of controls) -->
     <div class="hidden md:block">

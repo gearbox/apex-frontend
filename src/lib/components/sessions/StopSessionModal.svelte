@@ -2,13 +2,13 @@
   import { onMount } from 'svelte';
   import { AlertTriangle } from '@lucide/svelte';
   import { previewStop, stopSession } from '$lib/api/sessions';
-  import type { StopConfirmationResponse } from '$lib/api/sessions';
+  import type { GpuSessionResponse, StopConfirmationResponse } from '$lib/api/sessions';
   import { ApiRequestError } from '$lib/api/errors';
   import * as m from '$paraglide/messages';
 
   interface Props {
     sessionId: string;
-    onStopped: () => void;
+    onStopped: (session: GpuSessionResponse) => void;
     onClose: () => void;
   }
 
@@ -42,8 +42,8 @@
     confirming = true;
     confirmError = '';
     try {
-      await stopSession(sessionId);
-      onStopped();
+      const session = await stopSession(sessionId);
+      onStopped(session);
     } catch (e) {
       confirmError = e instanceof ApiRequestError ? e.message : 'Failed to stop session.';
     } finally {

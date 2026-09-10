@@ -8,10 +8,12 @@
     sessionsListQueryOptions,
     startSessionMutationOptions,
   } from '$lib/queries/sessions';
+  import { ingestSessionSnapshot } from '$lib/queries/operations';
   import { providerKeys, providersQueryOptions } from '$lib/queries/providers';
   import StartSessionPanel from '$lib/components/sessions/StartSessionPanel.svelte';
-  import SessionCard from '$lib/components/sessions/SessionCard.svelte';
+  import SessionCardContainer from '$lib/components/sessions/SessionCardContainer.svelte';
   import StopSessionModal from '$lib/components/sessions/StopSessionModal.svelte';
+  import type { GpuSessionResponse, ModelType } from '$lib/api/sessions';
   import { productInfo } from '$lib/stores/product';
   import * as m from '$paraglide/messages';
 
@@ -50,13 +52,13 @@
   const startMutation = createMutation(() => startSessionMutationOptions(queryClient));
 
   function handleStart(model: string) {
-    startMutation.mutate(model as never, {
+    startMutation.mutate(model as ModelType, {
       onError: (err) => {
         const apiErr = parseApiError(err, 0);
         if (apiErr.error === 'session_already_exists') {
           addToast({ type: 'warning', message: m.session_already_exists() });
         } else {
-          addToast({ type: 'error', message: apiErr.message || 'Failed to start session' });
+          addToast({ type: 'error', message: apiErr.message || m.error_start_session_failed() });
         }
       },
     });
@@ -69,9 +71,13 @@
     stopModalSessionId = id;
   }
 
-  function handleStopped() {
+  function handleStopped(session: GpuSessionResponse) {
     stopModalSessionId = null;
-    queryClient.invalidateQueries({ queryKey: sessionKeys.all });
+    queryClient.setQueryData(
+      sessionKeys.detail(session.id),
+      ingestSessionSnapshot(queryClient, session),
+    );
+    queryClient.invalidateQueries({ queryKey: sessionKeys.list(false), exact: true });
     queryClient.invalidateQueries({ queryKey: providerKeys.catalog() });
   }
 
@@ -95,7 +101,7 @@
   {#if sessions.length > 0}
     <div class="sessions-list">
       {#each sessions as session (session.id)}
-        <SessionCard {session} onStop={openStopModal} />
+        <SessionCardContainer {session} providers={providerQuery.data} onStop={openStopModal} />
       {/each}
     </div>
   {:else if !sessionsQuery.isPending}
