@@ -38,9 +38,10 @@ vi.mock('$paraglide/messages', () => ({
   create_session_cancel: () => 'Cancel',
   create_session_sign_in_cta: () => 'Sign in',
   create_session_paused_note: () => 'Session is paused.',
-  create_session_cost_hint: () => 'Billed by the hour.',
+  gpu_session_start_hint_with_time: ({ time }: { time: string }) =>
+    `This model usually takes around ${time} to provision. Billed by the minute, with a 5-minute minimum.`,
+  gpu_session_start_hint_without_time: () => 'Billed by the minute, with a 5-minute minimum.',
   create_session_uptime: () => 'Uptime',
-  create_session_cost_so_far: () => 'Cost so far:',
   create_session_manage_link: () => 'Manage in Sessions',
   generate_btn_topup: () => 'Top up to generate',
 }));
@@ -74,7 +75,7 @@ function renderPanel(
 ) {
   const onStart = vi.fn();
   const onStopRequest = vi.fn();
-  const { container } = render(CreateSessionPanel, {
+  const rendered = render(CreateSessionPanel, {
     props: {
       cardState,
       session: null,
@@ -84,7 +85,7 @@ function renderPanel(
       ...overrides,
     },
   });
-  return { container, onStart, onStopRequest };
+  return { ...rendered, onStart, onStopRequest };
 }
 
 describe('CreateSessionPanel', () => {
@@ -103,14 +104,47 @@ describe('CreateSessionPanel', () => {
     expect(onStopRequest).toHaveBeenCalledOnce();
   });
 
-  it('NEEDS_SESSION: shows badge + hint + Start button', () => {
-    const { onStart } = renderPanel('NEEDS_SESSION');
+  it('READY: keeps uptime without displaying the provider cost as user billing', () => {
+    const { container } = renderPanel('READY', { session: mockSession });
+
+    expect(screen.getByText('Uptime')).toBeTruthy();
+    expect(container.textContent).not.toContain('Cost so far');
+    expect(container.textContent).not.toMatch(/\$\d+\.\d{4}/);
+  });
+
+  it('NEEDS_SESSION: shows the model-specific bootstrap hint + Start button', () => {
+    const { onStart, container } = renderPanel('NEEDS_SESSION', { typicalBootstrapSeconds: 600 });
     expect(screen.getByText('Needs GPU session')).toBeTruthy();
-    expect(screen.getByText('Billed by the hour.')).toBeTruthy();
+    expect(screen.getByText(/This model usually takes around 10m to provision/)).toBeTruthy();
+    expect(screen.getByText(/Billed by the minute, with a 5-minute minimum/)).toBeTruthy();
+    expect(container.textContent).not.toContain('30–90');
     const startBtn = screen.getByRole('button', { name: /Start session/i });
     expect(startBtn).toBeTruthy();
     fireEvent.click(startBtn);
     expect(onStart).toHaveBeenCalledOnce();
+  });
+
+  it('NEEDS_SESSION: falls back to localized billing-only text without a bootstrap hint', () => {
+    const { container } = renderPanel('NEEDS_SESSION', { typicalBootstrapSeconds: null });
+    expect(screen.getByText('Billed by the minute, with a 5-minute minimum.')).toBeTruthy();
+    expect(container.textContent).not.toContain('30–90');
+    expect(container.textContent).not.toContain('provision');
+  });
+
+  it('NEEDS_SESSION: updates the displayed model-specific bootstrap hint', async () => {
+    const rendered = renderPanel('NEEDS_SESSION', { typicalBootstrapSeconds: 600 });
+    expect(screen.getByText(/10m/)).toBeTruthy();
+
+    await rendered.rerender({
+      cardState: 'NEEDS_SESSION',
+      session: null,
+      starting: false,
+      typicalBootstrapSeconds: 180,
+      onStart: rendered.onStart,
+      onStopRequest: rendered.onStopRequest,
+    });
+
+    expect(screen.getByText(/This model usually takes around 3m to provision/)).toBeTruthy();
   });
 
   it('NEEDS_SESSION: Start button is disabled while starting=true', () => {

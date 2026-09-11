@@ -7,6 +7,7 @@
   import type { GpuSessionResponse } from '$lib/api/sessions';
   import type { CardState } from '$lib/utils/sessionState';
   import { balanceQueryOptions, canStartNewWork } from '$lib/stores/balanceGate';
+  import { formatTypicalDuration } from '$lib/utils/operationDisplay';
   import { ROUTES } from '$lib/utils/routes';
   import * as m from '$paraglide/messages';
 
@@ -14,6 +15,7 @@
     cardState: CardState;
     session: GpuSessionResponse | null;
     starting: boolean;
+    typicalBootstrapSeconds?: number | null;
     onStart: () => void;
     onStopRequest: () => void;
     onResume?: (() => void) | null;
@@ -24,6 +26,7 @@
     cardState,
     session,
     starting,
+    typicalBootstrapSeconds = null,
     onStart,
     onStopRequest,
     onResume = null,
@@ -33,6 +36,9 @@
   const balanceQuery = createQuery(balanceQueryOptions);
   const hasBalance = $derived(canStartNewWork(balanceQuery.data?.balance));
   const isTopUpMode = $derived(!hasBalance && !balanceQuery.isLoading);
+  const provisioningTime = $derived(
+    typicalBootstrapSeconds === null ? null : formatTypicalDuration(typicalBootstrapSeconds),
+  );
 
   const CARD_COLOR_BY_STATE: Record<CardState, string> = {
     READY: 'success',
@@ -92,12 +98,6 @@
       ? `${h}h ${min.toString().padStart(2, '0')}m`
       : `${min}m ${s.toString().padStart(2, '0')}s`;
   }
-
-  function microsToUsd(micros: number, seconds: number): string {
-    const hours = seconds / 3600;
-    const usd = (micros / 1_000_000) * hours;
-    return `$${usd.toFixed(4)}`;
-  }
 </script>
 
 {#if cardState === 'READY' && session}
@@ -108,12 +108,6 @@
       <div class="uptime">
         <span class="uptime-label">{m.create_session_uptime()}</span>
         <span class="uptime-value">{formatDuration(elapsed)}</span>
-        {#if session.vastai_cost_per_hour_micros}
-          <span class="cost-hint">
-            {m.create_session_cost_so_far()}
-            {microsToUsd(session.vastai_cost_per_hour_micros, elapsed)}
-          </span>
-        {/if}
       </div>
     </div>
     <button class="btn-secondary" onclick={onStopRequest}>
@@ -125,7 +119,11 @@
   <div class="panel">
     <div class="panel-header">
       <StatusBadge status={m.create_state_needs_session()} color={CARD_COLOR_BY_STATE[cardState]} />
-      <span class="hint">{m.create_session_cost_hint()}</span>
+      <span class="hint">
+        {provisioningTime
+          ? m.gpu_session_start_hint_with_time({ time: provisioningTime })
+          : m.gpu_session_start_hint_without_time()}
+      </span>
     </div>
     {#if isTopUpMode}
       <button class="btn-primary" onclick={() => goto(ROUTES.billingTopUp)}>
@@ -239,12 +237,6 @@
     font-weight: 600;
     color: var(--apex-text);
     font-variant-numeric: tabular-nums;
-  }
-
-  .cost-hint {
-    font-size: 11px;
-    color: var(--apex-text-dim);
-    margin-left: auto;
   }
 
   .hint {

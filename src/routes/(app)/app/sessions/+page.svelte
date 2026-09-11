@@ -40,6 +40,7 @@
               model_key: model.model_key,
               name: model.name,
               available: provider.available,
+              typicalBootstrapSeconds: model.provisioning?.typical_bootstrap_seconds ?? null,
             })),
     ),
   );

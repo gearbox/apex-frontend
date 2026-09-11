@@ -28,11 +28,49 @@ const mockProviders = {
             deployment_id: null,
             operation_id: null,
           },
+          provisioning: {
+            typical_bootstrap_seconds: 600,
+            typical_attach_seconds: 360,
+          },
         },
       ],
     },
   ],
   user_context: null,
+};
+
+const mockProvidersWithDistinctProvisioningHints = {
+  ...mockProviders,
+  providers: [
+    {
+      ...mockProviders.providers[0],
+      models: [
+        ...mockProviders.providers[0].models,
+        {
+          model_key: 'aisha-image-lite',
+          name: 'Aisha Lite',
+          capabilities: ['t2i', 'i2i'],
+          is_enabled: true,
+          max_images: 4,
+          max_prompt_length: 4096,
+          supports_negative_prompt: true,
+          aspect_ratios: ['1:1'],
+          image: null,
+          video: null,
+          runtime: {
+            state: 'none',
+            session_id: null,
+            deployment_id: null,
+            operation_id: null,
+          },
+          provisioning: {
+            typical_bootstrap_seconds: 180,
+            typical_attach_seconds: 120,
+          },
+        },
+      ],
+    },
+  ],
 };
 
 const mockProvisioningSession = {
@@ -161,6 +199,25 @@ test.describe('Sessions page', () => {
 
     await expect(page.getByText('GPU Sessions')).toBeVisible({ timeout: 5000 });
     await expect(page.getByRole('button', { name: 'Start Session' })).toBeVisible();
+  });
+
+  test('1.1. Selected model updates its typical provisioning hint from the provider snapshot', async ({
+    authenticatedPage: page,
+  }) => {
+    await page.route(
+      (url) => url.pathname === '/v1/providers',
+      jsonRoute(mockProvidersWithDistinctProvisioningHints),
+    );
+    await page.route((url) => url.pathname.startsWith('/v1/sessions'), jsonRoute({ sessions: [] }));
+    await page.goto('/app/sessions');
+
+    await expect(page.getByText(/This model usually takes around 10m to provision/)).toBeVisible({
+      timeout: 5000,
+    });
+
+    await page.getByLabel('Model').selectOption('aisha-image-lite');
+
+    await expect(page.getByText(/This model usually takes around 3m to provision/)).toBeVisible();
   });
 
   test(
