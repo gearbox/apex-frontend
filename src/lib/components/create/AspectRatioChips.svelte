@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { generationStore } from '$lib/stores/generation';
+  import { generationStore, type GenerationMode } from '$lib/stores/generation';
   import { getEditAspectRatios, getT2iAspectRatios } from '$lib/utils/modelCapabilities';
   import type { components } from '$lib/api/types';
   import * as m from '$paraglide/messages';
@@ -9,8 +9,9 @@
 
   let {
     modelInfo = null,
+    mode,
     aspectError = null,
-  }: { modelInfo?: ModelInfo | null; aspectError?: string | null } = $props();
+  }: { modelInfo?: ModelInfo | null; mode: GenerationMode; aspectError?: string | null } = $props();
 
   interface RatioMeta {
     w: number;
@@ -31,7 +32,7 @@
   // Display order only — ratio membership is owned by KNOWN_ASPECT_RATIOS in modelCapabilities.ts
   const RATIOS: AspectRatio[] = ['3:4', '4:3', '1:1', '9:16', '16:9', '2:3', '3:2'];
 
-  const isEditMode = $derived($generationStore.mode === 'i2i');
+  const isEditMode = $derived(mode === 'i2i');
   const editRatios = $derived(getEditAspectRatios(modelInfo));
   // Capability unknown while the providers query is still loading — never show the
   // "no reshape" notice or explicit ratio chips until modelInfo actually resolves.
