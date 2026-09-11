@@ -433,7 +433,6 @@
   "create_session_sign_in_cta": "Войти",
   "create_session_paused_note": "Сессия приостановлена. Управляйте ею в разделе Сессии.",
   "create_session_uptime": "Время работы",
-  "create_session_cost_so_far": "Текущие расходы:",
   "create_session_manage_link": "Управление в разделе Сессии",
   "credit_banner_warning": "Мало кредитов — эта GPU-сессия остановится через {time}. Пополните баланс.",
   "credit_banner_critical": "Критично: GPU-сессия вот-вот остановится! Через {time}. Пополните баланс.",

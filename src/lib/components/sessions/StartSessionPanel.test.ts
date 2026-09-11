@@ -93,6 +93,43 @@ describe('StartSessionPanel', () => {
     expect(screen.queryByText(/30–90/)).toBeNull();
   });
 
+  it('falls back to a current model when the selected model disappears', async () => {
+    const onStart = vi.fn();
+    const rendered = renderPanel(models, onStart);
+
+    await fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'model-b' } });
+    expect(screen.getByText(/3m/)).toBeTruthy();
+
+    await rendered.rerender({ onDemandModels: [models[0]], starting: false, onStart });
+
+    const select = screen.getByLabelText('Model') as HTMLSelectElement;
+    expect(select.value).toBe('model-a');
+    expect(screen.getByText(/10m/)).toBeTruthy();
+    const startButton = screen.getByRole('button', { name: 'Start Session' }) as HTMLButtonElement;
+    expect(startButton.disabled).toBe(false);
+    await fireEvent.click(startButton);
+    expect(onStart).toHaveBeenCalledWith('model-a');
+  });
+
+  it('recovers from an empty model list after a selected model disappears', async () => {
+    const onStart = vi.fn();
+    const rendered = renderPanel(models, onStart);
+
+    await fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'model-b' } });
+    await rendered.rerender({ onDemandModels: [], starting: false, onStart });
+
+    expect(screen.getByText('No active sessions. Start one below.')).toBeTruthy();
+    expect(screen.queryByLabelText('Model')).toBeNull();
+
+    await rendered.rerender({ onDemandModels: [models[0]], starting: false, onStart });
+
+    const select = screen.getByLabelText('Model') as HTMLSelectElement;
+    expect(select.value).toBe('model-a');
+    expect(screen.getByText(/10m/)).toBeTruthy();
+    await fireEvent.click(screen.getByRole('button', { name: 'Start Session' }));
+    expect(onStart).toHaveBeenCalledWith('model-a');
+  });
+
   it('preserves the unavailable-provider hint without showing a provisioning duration', () => {
     renderPanel([
       {

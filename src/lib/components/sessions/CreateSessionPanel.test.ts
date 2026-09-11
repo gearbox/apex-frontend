@@ -42,7 +42,6 @@ vi.mock('$paraglide/messages', () => ({
     `This model usually takes around ${time} to provision. Billed by the minute, with a 5-minute minimum.`,
   gpu_session_start_hint_without_time: () => 'Billed by the minute, with a 5-minute minimum.',
   create_session_uptime: () => 'Uptime',
-  create_session_cost_so_far: () => 'Cost so far:',
   create_session_manage_link: () => 'Manage in Sessions',
   generate_btn_topup: () => 'Top up to generate',
 }));
@@ -103,6 +102,14 @@ describe('CreateSessionPanel', () => {
     expect(stopBtn).toBeTruthy();
     fireEvent.click(stopBtn);
     expect(onStopRequest).toHaveBeenCalledOnce();
+  });
+
+  it('READY: keeps uptime without displaying the provider cost as user billing', () => {
+    const { container } = renderPanel('READY', { session: mockSession });
+
+    expect(screen.getByText('Uptime')).toBeTruthy();
+    expect(container.textContent).not.toContain('Cost so far');
+    expect(container.textContent).not.toMatch(/\$\d+\.\d{4}/);
   });
 
   it('NEEDS_SESSION: shows the model-specific bootstrap hint + Start button', () => {

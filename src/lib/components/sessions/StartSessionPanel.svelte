@@ -24,6 +24,12 @@
 
   let selectedModel = $state('');
 
+  $effect(() => {
+    if (selectedModel && !onDemandModels.some((model) => model.model_key === selectedModel)) {
+      selectedModel = '';
+    }
+  });
+
   // Falls back to first available model if none explicitly selected
   const resolvedModel = $derived(selectedModel || onDemandModels[0]?.model_key || '');
   const selectedInfo = $derived(onDemandModels.find((m) => m.model_key === resolvedModel) ?? null);

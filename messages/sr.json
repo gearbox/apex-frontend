@@ -433,7 +433,6 @@
   "create_session_sign_in_cta": "Prijavi se",
   "create_session_paused_note": "Sesija je pauzirana. Upravljajte njome u odeljku Sesije.",
   "create_session_uptime": "Vreme rada",
-  "create_session_cost_so_far": "Trenutni troškovi:",
   "create_session_manage_link": "Upravljanje u odeljku Sesije",
   "credit_banner_warning": "Malo kredita — ova GPU sesija staje za {time}. Dopunite da nastavite.",
   "credit_banner_critical": "Kritično: GPU sesija staje za {time}! Dopunite odmah.",

@@ -98,12 +98,6 @@
       ? `${h}h ${min.toString().padStart(2, '0')}m`
       : `${min}m ${s.toString().padStart(2, '0')}s`;
   }
-
-  function microsToUsd(micros: number, seconds: number): string {
-    const hours = seconds / 3600;
-    const usd = (micros / 1_000_000) * hours;
-    return `$${usd.toFixed(4)}`;
-  }
 </script>
 
 {#if cardState === 'READY' && session}
@@ -114,12 +108,6 @@
       <div class="uptime">
         <span class="uptime-label">{m.create_session_uptime()}</span>
         <span class="uptime-value">{formatDuration(elapsed)}</span>
-        {#if session.vastai_cost_per_hour_micros}
-          <span class="cost-hint">
-            {m.create_session_cost_so_far()}
-            {microsToUsd(session.vastai_cost_per_hour_micros, elapsed)}
-          </span>
-        {/if}
       </div>
     </div>
     <button class="btn-secondary" onclick={onStopRequest}>
@@ -249,12 +237,6 @@
     font-weight: 600;
     color: var(--apex-text);
     font-variant-numeric: tabular-nums;
-  }
-
-  .cost-hint {
-    font-size: 11px;
-    color: var(--apex-text-dim);
-    margin-left: auto;
   }
 
   .hint {
