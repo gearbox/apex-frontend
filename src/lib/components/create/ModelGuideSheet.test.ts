@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/svelte';
-import { makeAishaImageModelInfo, makeModelInfo } from '../../../mocks/factories/providers';
+import {
+  makeAishaImageModelInfo,
+  makeModelInfo,
+  generationModes,
+} from '../../../mocks/factories/providers';
 import type { components } from '$lib/api/types';
 import type { ModelBillingFacts } from '$lib/content/modelGuides/billingFacts';
 import type { ModelGuide } from '$lib/content/modelGuides/types';
@@ -150,7 +154,7 @@ describe('ModelGuideSheet', () => {
   it('uses distinct live aspect-ratio capabilities for Grok image modes', () => {
     renderSheet({
       modelInfo: makeModelInfo({
-        capabilities: ['t2i', 'i2i'],
+        generation_modes: generationModes(['t2i', 'i2i']),
         aspect_ratios: ['1:1', '16:9', '9:16'],
         image: { edit_aspect_ratios: [] },
       }),
@@ -164,7 +168,7 @@ describe('ModelGuideSheet', () => {
 
   it('shows supported image-edit ratios without borrowing text-to-image ratios', () => {
     renderSheet({
-      modelInfo: makeAishaImageModelInfo({ capabilities: ['i2i'] }),
+      modelInfo: makeAishaImageModelInfo({ generation_modes: generationModes(['i2i']) }),
     });
 
     expect(screen.queryByText('Text to image aspect ratios')).toBeNull();
@@ -173,7 +177,10 @@ describe('ModelGuideSheet', () => {
 
   it('does not show a text-to-image aspect row for a video-only model', () => {
     renderSheet({
-      modelInfo: makeModelInfo({ capabilities: ['t2v'], aspect_ratios: ['1:1', '16:9'] }),
+      modelInfo: makeModelInfo({
+        generation_modes: generationModes(['t2v']),
+        aspect_ratios: ['1:1', '16:9'],
+      }),
     });
 
     expect(screen.queryByText('Text to image aspect ratios')).toBeNull();
@@ -183,7 +190,7 @@ describe('ModelGuideSheet', () => {
   it('shows live video constraints and excludes unavailable Create modes', () => {
     renderSheet({
       modelInfo: makeModelInfo({
-        capabilities: ['t2v', 'i2v', 'v2v', 'flf2v'],
+        generation_modes: generationModes(['t2v', 'i2v', 'v2v', 'flf2v']),
         image: null,
         video: { max_duration: 4, resolutions: ['480p'] },
       }),
@@ -251,7 +258,7 @@ describe('ModelGuideSheet', () => {
 
   it('keeps long capability and billing values complete in semantic stacked rows', () => {
     renderSheet({
-      modelInfo: makeAishaImageModelInfo({ capabilities: ['i2i'] }),
+      modelInfo: makeAishaImageModelInfo({ generation_modes: generationModes(['i2i']) }),
       billingFacts: {
         costs: [{ mode: 'i2i', tokenCost: 7, inputTokenCost: 2 }],
         billedBySession: false,

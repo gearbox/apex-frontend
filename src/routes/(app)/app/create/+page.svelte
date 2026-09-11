@@ -58,7 +58,7 @@
   import { deriveModelBillingFacts } from '$lib/content/modelGuides/billingFacts';
   import type { ModelGuideExample } from '$lib/content/modelGuides/types';
   import ModelSummaryCard from '$lib/components/create/ModelSummaryCard.svelte';
-  import { canEnterCreateMode, isGenerationMode } from '$lib/utils/generationModes';
+  import { createSupportedModes, isGenerationMode } from '$lib/utils/generationModes';
   import { libraryGroupQueryOptions } from '$lib/queries/library';
 
   const queryClient = useQueryClient();
@@ -242,7 +242,7 @@
     sourceMediaCountForRequest($generationStore, currentModelInfo),
   );
   const currentEstimatedCost = $derived(
-    currentPricingRule
+    currentPricingRule && currentSourceMediaCount !== null
       ? estimatePricingRuleCost(currentPricingRule, {
           outputCount: currentOutputCount,
           inputImageCount: currentSourceMediaCount,
@@ -267,11 +267,7 @@
 
   const sourcePolicy = $derived(sourceMediaPolicy(currentModelInfo, $generationStore.mode));
   const sourceValidation = $derived(validateSourceMedia($generationStore, currentModelInfo));
-  const canSubmit = $derived(
-    generateEnabled &&
-      sourceValidation.valid &&
-      canEnterCreateMode($generationStore.mode, $generationStore),
-  );
+  const canSubmit = $derived(generateEnabled && sourceValidation.valid);
 
   // ── Age gate state
   let showAgeModal = $state(false);
@@ -405,9 +401,8 @@
 
     if (
       !currentModelInfo?.is_enabled ||
-      !currentModelInfo.capabilities.includes(state.mode) ||
       !isGenerationMode(state.mode) ||
-      !canEnterCreateMode(state.mode, state)
+      !createSupportedModes(currentModelInfo).includes(state.mode)
     ) {
       addToast({ type: 'error', message: m.error_generation_mode_unavailable() });
       return;
@@ -476,7 +471,7 @@
     stopPoller?.();
   });
 
-  const showSourceMediaInput = $derived(sourcePolicy.accepted && $generationStore.mode !== 'v2v');
+  const showSourceMediaInput = $derived(sourcePolicy.accepted);
   const showSkeleton = $derived($isGenerating);
 </script>
 

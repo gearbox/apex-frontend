@@ -153,7 +153,6 @@ const mockAssetDetailGroupVariationB = {
 const mockGroupDetail = {
   job_id: 'job_002',
   badge: 'image',
-  input_media: makeMedia('/v1/content/uploads/b0000000-0000-4000-8000-000000000099'),
   prompt: 'Ocean waves crashing on shore under a stylised sky',
   negative_prompt: null,
   outputs: [
@@ -191,25 +190,23 @@ const mockProvidersResponse = {
       provider: 'grok',
       name: 'Grok',
       available: true,
+      provisioning_mode: 'always_on',
       models: [
         {
           model_key: 'grok-imagine-image',
           name: 'Grok Image',
           description: 'Image generation model',
-          capabilities: ['t2i', 'i2i'],
+          generation_modes: {
+            t2i: { source_media: null },
+            i2i: {
+              source_media: { min: 1, max: 1, media_types: ['image'], roles: null },
+            },
+          },
           is_enabled: true,
           max_images: 4,
           max_prompt_length: 4096,
           supports_negative_prompt: true,
           aspect_ratios: ['1:1', '16:9', '3:4'],
-          inputs: {
-            source_media: {
-              min: 1,
-              max: 1,
-              media_types: ['image'],
-              required_for: ['i2i'],
-            },
-          },
           image: null,
           video: null,
         },
@@ -217,7 +214,17 @@ const mockProvidersResponse = {
           model_key: 'grok-imagine-video',
           name: 'Grok Video',
           description: 'Video generation model',
-          capabilities: ['t2v', 'i2v'],
+          // Matches current backend master: t2v, i2v (1 owned image), v2v (1 owned
+          // video) — no flf2v (Grok video does not advertise it).
+          generation_modes: {
+            t2v: { source_media: null },
+            i2v: {
+              source_media: { min: 1, max: 1, media_types: ['image'], roles: null },
+            },
+            v2v: {
+              source_media: { min: 1, max: 1, media_types: ['video'], roles: null },
+            },
+          },
           is_enabled: true,
           max_images: 1,
           max_prompt_length: 4096,
@@ -516,7 +523,6 @@ test.describe('Library actions — Remix / Reproduce', () => {
       jsonRoute({
         job_id: 'job_003',
         badge: 'video',
-        input_media: null,
         source_media: [],
         prompt: 'City lights at night timelapse',
         negative_prompt: null,
@@ -548,6 +554,137 @@ test.describe('Library actions — Remix / Reproduce', () => {
     const promptTextarea = page.locator('textarea').first();
     await expect(promptTextarea).toHaveValue(/City lights at night timelapse/i, { timeout: 3000 });
     await expect(page.getByText('From generated')).not.toBeVisible();
+  });
+
+  test('Reproduce button on a v2v video asset restores its original owned video source_media', async ({
+    authenticatedPage: page,
+  }) => {
+    const itemVideoV2V = {
+      asset_ref: 'output:a0000000-0000-4000-8000-000000000004',
+      source: 'output',
+      media: makeMedia('/v1/content/outputs/a0000000-0000-4000-8000-000000000004', 'video'),
+      created_at: '2025-01-04T00:00:00Z',
+      expires_at: '2025-07-04T00:00:00Z',
+      display_title: null,
+      original_filename: null,
+      is_favorite: false,
+      duration_ms: 6000,
+      job_id: 'job_004',
+      output_count: 1,
+      model: 'grok-imagine-video',
+      generation_type: 'v2v',
+      available_actions: ['reproduce', 'download', 'favorite', 'delete'],
+      tags: [],
+    };
+    const sourceVideoAssetRef = 'upload:c0000000-0000-4000-8000-000000000001';
+
+    await page.route(
+      (url) => url.pathname === '/v1/library',
+      jsonRoute({ items: [itemVideoV2V], limit: 20, has_more: false, next_cursor: null }),
+    );
+    await page.route(
+      '**/v1/library/assets/**',
+      jsonRoute({
+        ...itemVideoV2V,
+        prompt: 'Timelapse extended from source clip',
+        negative_prompt: null,
+        provider: 'grok',
+        aspect_ratio: '16:9',
+        token_cost: 25,
+        completed_at: '2025-01-04T00:01:00Z',
+        lineage: null,
+        descendants: { job_count: 0, frame_count: 0 },
+      }),
+    );
+    await page.route(
+      '**/v1/library/groups/job_004',
+      jsonRoute({
+        job_id: 'job_004',
+        badge: 'video',
+        source_media: [
+          {
+            position: 0,
+            asset_ref: sourceVideoAssetRef,
+            available: true,
+            media: makeMedia('/v1/content/uploads/c0000000-0000-4000-8000-000000000001', 'video'),
+          },
+        ],
+        prompt: 'Timelapse extended from source clip',
+        negative_prompt: null,
+        outputs: [],
+        media_type: 'video',
+        model: 'grok-imagine-video',
+        provider: 'grok',
+        generation_type: 'v2v',
+        aspect_ratio: '16:9',
+        token_cost: 25,
+        created_at: '2025-01-04T00:00:00Z',
+        completed_at: '2025-01-04T00:01:00Z',
+        lineage: null,
+      }),
+    );
+
+    let capturedBody: Record<string, unknown> | null = null;
+    await page.route('**/v1/generate', async (route) => {
+      capturedBody = await route.request().postDataJSON();
+      return route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          job_id: 'job_e2e_v2v',
+          status: 'pending',
+          name: 'E2E v2v generation',
+          model: 'grok-imagine-video',
+          generation_type: 'v2v',
+          created_at: '2025-01-04T00:02:00Z',
+        }),
+      });
+    });
+    await page.route(
+      '**/v1/jobs/**',
+      jsonRoute({
+        id: 'job_e2e_v2v',
+        status: 'running',
+        name: 'E2E v2v generation',
+        provider: 'grok',
+        model: 'grok-imagine-video',
+        generation_type: 'v2v',
+        prompt: 'Timelapse extended from source clip',
+        created_at: '2025-01-04T00:02:00Z',
+        outputs: [],
+      }),
+    );
+
+    await page.goto('/app/library');
+    await expect(page.getByText(/\d+\s*loaded/i)).toBeVisible({ timeout: 5000 });
+
+    await page.locator('[class*="grid"] button.absolute.inset-0.z-0').first().click();
+    await expect(page.getByText('Timelapse extended from source clip').first()).toBeVisible({
+      timeout: 3000,
+    });
+
+    await page.getByRole('button', { name: 'Reproduce' }).click();
+
+    await expect(page).toHaveURL(/\/app\/create/, { timeout: 5000 });
+    // Type is V2V — the mode set by the replayed group, not a T2I fallback.
+    await expect(page.locator('[data-generation-mode="v2v"][aria-pressed="true"]')).toBeVisible({
+      timeout: 5000,
+    });
+    // The original owned video source_media survives the replay, in its original position.
+    await expect(page.getByText('From uploads')).toBeVisible();
+
+    const generateBtn = page.getByRole('button', { name: /Generate/i }).first();
+    await expect(generateBtn).toBeEnabled();
+    await generateBtn.click();
+
+    await expect(page.getByRole('button', { name: /Submitting|Generating/i })).toBeVisible();
+    expect(capturedBody).not.toBeNull();
+    expect(capturedBody!['generation_type']).toBe('v2v');
+    expect(capturedBody!['source_media']).toEqual([{ asset_ref: sourceVideoAssetRef }]);
+    expect(capturedBody).not.toHaveProperty('input_video_url');
+    expect(capturedBody).not.toHaveProperty('input_image_id');
+    expect(capturedBody).not.toHaveProperty('source_output_id');
+    expect(capturedBody).not.toHaveProperty('source_images');
   });
 
   test('Remix button in the unified multi-output viewer navigates to Create with I2I mode', async ({

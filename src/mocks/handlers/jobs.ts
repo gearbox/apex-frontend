@@ -4,7 +4,9 @@ import { MOCK_BASE_URL as BASE } from '../config';
 import {
   makeModelInfo,
   makeGrokImageModelInfo,
+  makeGrokVideoModelInfo,
   makeAishaImageModelInfo,
+  generationModes,
 } from '../factories/providers';
 
 export const jobHandlers = [
@@ -23,18 +25,10 @@ export const jobHandlers = [
               model_key: 'grok-2-image-1212',
               name: 'Grok 2',
               description: 'High-quality image model',
-              capabilities: ['t2i'],
+              generation_modes: generationModes(['t2i']),
               image: null,
             }),
-            makeModelInfo({
-              model_key: 'grok-imagine-video',
-              name: 'Grok Video',
-              description: 'Video generation model',
-              capabilities: ['t2v', 'i2v', 'v2v', 'flf2v'],
-              max_images: 1,
-              image: null,
-              video: { max_duration: 15, resolutions: ['480p', '720p'] },
-            }),
+            makeGrokVideoModelInfo(),
           ],
         },
         {

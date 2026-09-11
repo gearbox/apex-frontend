@@ -2281,6 +2281,10 @@ export interface components {
             expires_in_seconds: number;
             duration_ms: number;
         };
+        /** GenerationModeInfo */
+        GenerationModeInfo: {
+            source_media?: components["schemas"]["SourceMediaModeConstraints"] | null;
+        };
         /** GenerationModelResponse */
         GenerationModelResponse: {
             model_key: string;
@@ -2508,7 +2512,6 @@ export interface components {
             /** Format: uuid */
             job_id: string;
             badge: components["schemas"]["LibraryBadge"];
-            input_media?: components["schemas"]["MediaObject"] | null;
             source_media?: components["schemas"]["LibrarySourceMediaItem"][];
             prompt: string;
             negative_prompt?: string | null;
@@ -2703,6 +2706,12 @@ export interface components {
             content_type: string;
             size_bytes: number;
         };
+        /**
+         * MediaSlot
+         * @description Named media positions supplied by a generation request.
+         * @enum {string}
+         */
+        MediaSlot: "reference" | "first_frame" | "last_frame" | "source";
         /** MemberResponse */
         MemberResponse: {
             /** Format: uuid */
@@ -2722,7 +2731,9 @@ export interface components {
             model_key: string;
             name: string;
             description: string;
-            capabilities: string[];
+            generation_modes: {
+                [key: string]: components["schemas"]["GenerationModeInfo"];
+            };
             is_enabled: boolean;
             max_images: number;
             max_prompt_length: number;
@@ -2731,15 +2742,10 @@ export interface components {
             aspect_ratios: string[];
             /** @default false */
             requires_age_verification: boolean;
-            inputs?: components["schemas"]["ModelInputs"];
             image?: components["schemas"]["ImageConstraints"] | null;
             video?: components["schemas"]["VideoConstraints"] | null;
             runtime?: components["schemas"]["ModelRuntimeResponse"] | null;
             provisioning?: components["schemas"]["ModelProvisioningHintResponse"] | null;
-        };
-        /** ModelInputs */
-        ModelInputs: {
-            source_media?: components["schemas"]["SourceMediaConstraints"] | null;
         };
         /** ModelListResponse */
         ModelListResponse: {
@@ -3117,17 +3123,12 @@ export interface components {
         SetModelEnabledRequest: {
             is_enabled: boolean;
         };
-        /** SourceImageReference */
-        SourceImageReference: {
-            input_image_id?: string | null;
-            source_output_id?: string | null;
-        };
-        /** SourceMediaConstraints */
-        SourceMediaConstraints: {
+        /** SourceMediaModeConstraints */
+        SourceMediaModeConstraints: {
             min: number;
             max: number;
             media_types: components["schemas"]["MediaKind"][];
-            required_for: string[];
+            roles?: components["schemas"]["MediaSlot"][] | null;
         };
         /** SourceMediaReference */
         SourceMediaReference: {
@@ -3265,10 +3266,6 @@ export interface components {
             generation_type: components["schemas"]["GenerationType"];
             model: components["schemas"]["ModelType"];
             source_media?: components["schemas"]["SourceMediaReference"][] | null;
-            input_image_id?: string | null;
-            source_output_id?: string | null;
-            source_images?: components["schemas"]["SourceImageReference"][] | null;
-            input_video_url?: string | null;
             negative_prompt?: string | null;
             aspect_ratio?: components["schemas"]["AspectRatio"] | null;
             /** @default 1 */

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import { generationStore } from '$lib/stores/generation';
-import { makeModelInfo } from '../../../mocks/factories/providers';
+import { makeModelInfo, generationModes } from '../../../mocks/factories/providers';
 import TypeSelector from './TypeSelector.svelte';
 
 vi.mock('$paraglide/messages', () => ({
@@ -17,25 +17,23 @@ vi.mock('$paraglide/messages', () => ({
 describe('TypeSelector', () => {
   beforeEach(() => generationStore.reset());
 
-  it('offers every actionable provider-advertised mode, except blank legacy v2v', () => {
+  it('offers every provider-advertised mode, v2v included', () => {
     render(TypeSelector, {
-      modelInfo: makeModelInfo({ capabilities: ['t2v', 'i2v', 'v2v', 'flf2v'] }),
+      modelInfo: makeModelInfo({
+        generation_modes: generationModes(['t2v', 'i2v', 'v2v', 'flf2v']),
+      }),
     });
 
     expect(screen.getByRole('button', { name: 'Text to video' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Image to video' })).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Video to video' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Video to video' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'First and last frame to video' })).toBeTruthy();
   });
 
-  it('keeps a Library-prefilled v2v draft actionable', () => {
-    generationStore.prefill({ mode: 'v2v', inputVideoUrl: '/v1/content/outputs/video' });
-    render(TypeSelector, { modelInfo: makeModelInfo({ capabilities: ['t2v', 'v2v'] }) });
-    expect(screen.getByRole('button', { name: 'Video to video' })).toBeTruthy();
-  });
-
   it('exposes stable mode semantics and selected state', () => {
-    render(TypeSelector, { modelInfo: makeModelInfo({ capabilities: ['t2i', 'i2i'] }) });
+    render(TypeSelector, {
+      modelInfo: makeModelInfo({ generation_modes: generationModes(['t2i', 'i2i']) }),
+    });
 
     const textToImage = screen.getByRole('button', { name: 'Text to image' });
     const imageToImage = screen.getByRole('button', { name: 'Image to image' });

@@ -9,7 +9,7 @@ import {
   makeLibraryOutputItem,
 } from '../../../mocks/factories/library';
 import { makeMediaObject, makeVideoMediaObject } from '../../../mocks/factories/media';
-import { makeGrokImageModelInfo } from '../../../mocks/factories/providers';
+import { makeGrokImageModelInfo, generationModes } from '../../../mocks/factories/providers';
 import type { SaveOutcome } from '$lib/media/save';
 
 type LibraryAssetDetail = components['schemas']['LibraryAssetDetail'];
@@ -51,11 +51,14 @@ vi.mock('@tanstack/svelte-query', () => ({
               available: true,
               provisioning_mode: 'always_on',
               models: [
-                makeGrokImageModelInfo({ is_enabled: true, capabilities: ['t2i', 'i2i'] }),
+                makeGrokImageModelInfo({
+                  is_enabled: true,
+                  generation_modes: generationModes(['t2i', 'i2i']),
+                }),
                 makeGrokImageModelInfo({
                   model_key: 'grok-imagine-video',
                   is_enabled: true,
-                  capabilities: ['t2v', 'i2v', 'v2v'],
+                  generation_modes: generationModes(['t2v', 'i2v', 'v2v']),
                 }),
               ],
             },

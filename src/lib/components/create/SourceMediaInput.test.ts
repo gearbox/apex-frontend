@@ -25,6 +25,7 @@ const policy: SourceMediaPolicy = {
   min: 1,
   max: 2,
   mediaTypes: ['image'],
+  roles: null,
 };
 
 beforeEach(() => {

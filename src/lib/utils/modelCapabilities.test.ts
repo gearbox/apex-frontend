@@ -7,7 +7,11 @@ import {
   supportedSizingModes,
 } from './modelCapabilities';
 import type { components } from '$lib/api/types';
-import { makeGrokImageModelInfo, makeAishaImageModelInfo } from '../../mocks/factories/providers';
+import {
+  makeGrokImageModelInfo,
+  makeAishaImageModelInfo,
+  generationModes,
+} from '../../mocks/factories/providers';
 
 type ModelInfo = components['schemas']['ModelInfo'];
 
@@ -40,31 +44,33 @@ describe('provider capabilities', () => {
     expect(isGenerationParameterSupported(constrained, 'cfg')).toBe(true);
   });
 
-  it('derives requiredness only from required_for, including future modes', () => {
+  it('derives requiredness solely from the mode-specific min > 0, including future modes', () => {
     const constrained = {
       ...grokModelInfo,
-      inputs: {
-        source_media: {
+      generation_modes: generationModes(['t2i', 'future-edit'], {
+        t2i: null,
+        'future-edit': {
           min: 1,
           max: 2,
           media_types: ['image'] as components['schemas']['MediaKind'][],
-          required_for: ['future-edit'],
+          roles: null,
         },
-      },
+      }),
     };
     expect(sourceMediaPolicy(constrained, 't2i').required).toBe(false);
     expect(sourceMediaPolicy(constrained, 'future-edit').required).toBe(true);
   });
 
-  it('fails closed when discovery omits inputs instead of inventing legacy source requirements', () => {
-    const withoutInputs = { ...grokModelInfo, inputs: undefined };
+  it('fails closed when a mode is absent from generation_modes instead of inventing legacy source requirements', () => {
+    const withoutModes = { ...grokModelInfo, generation_modes: generationModes(['t2i']) };
     for (const mode of ['i2i', 'i2v', 'flf2v']) {
-      expect(sourceMediaPolicy(withoutInputs, mode)).toEqual({
+      expect(sourceMediaPolicy(withoutModes, mode)).toEqual({
         accepted: false,
         required: false,
         min: 0,
         max: 0,
         mediaTypes: [],
+        roles: null,
       });
     }
   });

@@ -3,7 +3,7 @@ import { get } from 'svelte/store';
 import type { components } from '$lib/api/types';
 import { generationStore, type SourceMediaDraft } from '$lib/stores/generation';
 import { prefillSourceForGeneration, replayGenerationPrefill } from './generationPrefill';
-import { makeGrokImageModelInfo } from '../../mocks/factories/providers';
+import { makeGrokImageModelInfo, generationModes } from '../../mocks/factories/providers';
 
 type ProvidersResponse = components['schemas']['ProvidersResponse'];
 type LibraryGroupDetail = components['schemas']['LibraryGroupDetail'];
@@ -35,7 +35,6 @@ function group(overrides: Partial<LibraryGroupDetail> = {}): LibraryGroupDetail 
   return {
     job_id: 'job-1',
     badge: 'image',
-    input_media: null,
     source_media: [],
     prompt: 'original prompt',
     negative_prompt: null,
@@ -53,7 +52,9 @@ beforeEach(() => generationStore.reset());
 
 describe('capability-aware source prefill', () => {
   it('uses the current enabled capable model for an I2I source', () => {
-    const discovery = providers([makeGrokImageModelInfo({ capabilities: ['t2i', 'i2i'] })]);
+    const discovery = providers([
+      makeGrokImageModelInfo({ generation_modes: generationModes(['t2i', 'i2i']) }),
+    ]);
     expect(
       prefillSourceForGeneration({
         providers: discovery,
@@ -71,10 +72,10 @@ describe('capability-aware source prefill', () => {
 
   it('resolves another enabled capable model when the selected one cannot accept I2I', () => {
     const discovery = providers([
-      makeGrokImageModelInfo({ capabilities: ['t2i'] }),
+      makeGrokImageModelInfo({ generation_modes: generationModes(['t2i']) }),
       makeGrokImageModelInfo({
         model_key: 'grok-2-image-1212',
-        capabilities: ['i2i'],
+        generation_modes: generationModes(['i2i']),
       }),
     ]);
     expect(
@@ -89,7 +90,9 @@ describe('capability-aware source prefill', () => {
   });
 
   it('does not change the draft or navigate intent when no capable model exists', () => {
-    const discovery = providers([makeGrokImageModelInfo({ capabilities: ['t2i'] })]);
+    const discovery = providers([
+      makeGrokImageModelInfo({ generation_modes: generationModes(['t2i']) }),
+    ]);
     expect(
       prefillSourceForGeneration({
         providers: discovery,
@@ -106,20 +109,13 @@ describe('replayGenerationPrefill', () => {
   it('uses another compatible model when the original optional t2i source is no longer accepted', () => {
     const discovery = providers([
       makeGrokImageModelInfo({
-        capabilities: ['t2i'],
-        inputs: { source_media: null },
+        generation_modes: generationModes(['t2i'], { t2i: null }),
       }),
       makeGrokImageModelInfo({
         model_key: 'grok-2-image-1212',
-        capabilities: ['t2i'],
-        inputs: {
-          source_media: {
-            min: 1,
-            max: 4,
-            media_types: ['image'],
-            required_for: [],
-          },
-        },
+        generation_modes: generationModes(['t2i'], {
+          t2i: { min: 0, max: 4, media_types: ['image'], roles: null },
+        }),
       }),
     ]);
 
@@ -156,7 +152,7 @@ describe('replayGenerationPrefill', () => {
 
   it('fails explicitly rather than dropping optional t2i sources when no current model accepts them', () => {
     const discovery = providers([
-      makeGrokImageModelInfo({ capabilities: ['t2i'], inputs: { source_media: null } }),
+      makeGrokImageModelInfo({ generation_modes: generationModes(['t2i'], { t2i: null }) }),
     ]);
 
     expect(
@@ -189,15 +185,9 @@ describe('replayGenerationPrefill', () => {
   it('fails rather than truncating a replay whose original source count exceeds the live max', () => {
     const discovery = providers([
       makeGrokImageModelInfo({
-        capabilities: ['i2i'],
-        inputs: {
-          source_media: {
-            min: 1,
-            max: 1,
-            media_types: ['image'],
-            required_for: ['i2i'],
-          },
-        },
+        generation_modes: generationModes(['i2i'], {
+          i2i: { min: 1, max: 1, media_types: ['image'], roles: null },
+        }),
       }),
     ]);
 
@@ -228,15 +218,9 @@ describe('replayGenerationPrefill', () => {
   it('requires every available persisted media kind to be accepted by the replay model', () => {
     const discovery = providers([
       makeGrokImageModelInfo({
-        capabilities: ['i2i'],
-        inputs: {
-          source_media: {
-            min: 1,
-            max: 4,
-            media_types: ['image'],
-            required_for: ['i2i'],
-          },
-        },
+        generation_modes: generationModes(['i2i'], {
+          i2i: { min: 1, max: 4, media_types: ['image'], roles: null },
+        }),
       }),
     ]);
 
@@ -259,7 +243,9 @@ describe('replayGenerationPrefill', () => {
   });
 
   it('replays ordered source positions and unavailable sources without normalizing them away', () => {
-    const discovery = providers([makeGrokImageModelInfo({ capabilities: ['i2i'] })]);
+    const discovery = providers([
+      makeGrokImageModelInfo({ generation_modes: generationModes(['i2i']) }),
+    ]);
     const result = replayGenerationPrefill(
       {
         generation_type: 'i2i',
@@ -302,7 +288,9 @@ describe('replayGenerationPrefill', () => {
   });
 
   it('rejects a duplicate group replay rather than silently changing its source count', () => {
-    const discovery = providers([makeGrokImageModelInfo({ capabilities: ['i2i'] })]);
+    const discovery = providers([
+      makeGrokImageModelInfo({ generation_modes: generationModes(['i2i']) }),
+    ]);
     expect(
       replayGenerationPrefill(
         { generation_type: 'i2i', model: 'grok-imagine-image', prompt: 'original prompt' },
@@ -317,15 +305,31 @@ describe('replayGenerationPrefill', () => {
     ).toEqual({ ok: false, reason: 'duplicate-source' });
   });
 
-  it('does not claim exact v2v replay when the group has no persisted input URL', () => {
-    const discovery = providers([makeGrokImageModelInfo({ capabilities: ['v2v'] })]);
-    expect(
-      replayGenerationPrefill(
-        { generation_type: 'v2v', model: 'grok-imagine-image', prompt: 'extend this' },
-        discovery,
-        group({ media_type: 'video', generation_type: 'v2v', input_media: null, source_media: [] }),
-      ),
-    ).toEqual({ ok: false, reason: 'legacy-v2v-source-unavailable' });
+  it('replays a v2v group source through the same source_media path as every other mode', () => {
+    const discovery = providers([
+      makeGrokImageModelInfo({ generation_modes: generationModes(['v2v']) }),
+    ]);
+    const result = replayGenerationPrefill(
+      { generation_type: 'v2v', model: 'grok-imagine-image', prompt: 'extend this' },
+      discovery,
+      group({
+        media_type: 'video',
+        generation_type: 'v2v',
+        source_media: [
+          {
+            position: 0,
+            asset_ref: 'upload:video-1',
+            available: true,
+            media: sourceMedia('video'),
+          },
+        ],
+      }),
+    );
+    expect(result).toMatchObject({ ok: true });
+    if (result.ok) {
+      expect(result.params.mode).toBe('v2v');
+      expect(result.params.sourceMedia).toMatchObject([{ assetRef: 'upload:video-1' }]);
+    }
   });
 });
 

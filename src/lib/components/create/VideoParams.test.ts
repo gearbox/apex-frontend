@@ -2,7 +2,7 @@ import { describe, expect, it, beforeEach } from 'vitest';
 import { render } from '@testing-library/svelte';
 import { get } from 'svelte/store';
 import { generationStore } from '$lib/stores/generation';
-import { makeModelInfo } from '../../../mocks/factories/providers';
+import { makeModelInfo, generationModes } from '../../../mocks/factories/providers';
 import VideoParams from './VideoParams.svelte';
 
 describe('VideoParams', () => {
@@ -13,7 +13,7 @@ describe('VideoParams', () => {
     generationStore.setVideoResolution('720p');
     const { container } = render(VideoParams, {
       modelInfo: makeModelInfo({
-        capabilities: ['t2v'],
+        generation_modes: generationModes(['t2v']),
         image: null,
         video: { max_duration: 4, resolutions: ['480p'] },
       }),

@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { makeModelInfo } from '../../mocks/factories/providers';
+import { makeModelInfo, generationModes } from '../../mocks/factories/providers';
 import { getVideoConstraints, normalizeVideoParams } from './videoParams';
 
 describe('video parameters', () => {
   const constrainedVideoModel = makeModelInfo({
-    capabilities: ['t2v'],
+    generation_modes: generationModes(['t2v']),
     image: null,
     video: { max_duration: 4, resolutions: ['480p'] },
   });

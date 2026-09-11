@@ -1,14 +1,6 @@
 import type { components } from '$lib/api/types';
-import {
-  normalizeSourceMedia,
-  type GenerationState,
-  type SourceMediaDraft,
-} from '$lib/stores/generation';
-import {
-  isGenerationParameterSupported,
-  sourceMediaPolicy,
-  type SourceMediaPolicy,
-} from '$lib/utils/modelCapabilities';
+import type { GenerationState } from '$lib/stores/generation';
+import { isGenerationParameterSupported, sourceMediaPolicy } from '$lib/utils/modelCapabilities';
 import { normalizeVideoParams } from '$lib/utils/videoParams';
 
 type ModelInfo = components['schemas']['ModelInfo'];
@@ -20,36 +12,19 @@ export interface SourceMediaValidation {
   message: string | null;
 }
 
-function allowedSourceMedia(
-  sourceMedia: readonly SourceMediaDraft[],
-  policy: SourceMediaPolicy,
-): SourceMediaDraft[] {
-  if (!policy.accepted) return [];
-
-  const selected: SourceMediaDraft[] = [];
-  for (const source of normalizeSourceMedia(sourceMedia)) {
-    if (
-      source.available &&
-      source.mediaType !== null &&
-      policy.mediaTypes.includes(source.mediaType as never)
-    ) {
-      selected.push(source);
-    }
-  }
-  return selected.slice(0, policy.max);
-}
+export type SourceMediaProjection =
+  | { valid: true; sourceMedia: SourceMediaReference[] | undefined }
+  | { valid: false; reason: string };
 
 /**
  * Validate the editable list against the latest discovery response. This is
- * deliberately shared by UI gating and request projection so `required_for`
- * remains the only requiredness authority.
+ * deliberately shared by UI gating and request projection so the mode's own
+ * `min` remains the only requiredness authority.
  */
 export function validateSourceMedia(
   state: GenerationState,
   modelInfo: ModelInfo | null,
 ): SourceMediaValidation {
-  // v2v keeps its existing URL-based request path until the backend migrates it.
-  if (state.mode === 'v2v') return { valid: true, message: null };
   const policy = sourceMediaPolicy(modelInfo, state.mode);
   if (!policy.accepted) return { valid: true, message: null };
 
@@ -81,23 +56,44 @@ export function validateSourceMedia(
 }
 
 /**
- * Normalize a draft using the live capability response immediately before a
- * request. The output contains no UI metadata and preserves source order.
+ * Projects the draft into the exact ordered `source_media` the backend will
+ * receive. Projection defers entirely to `validateSourceMedia`: an invalid
+ * draft is never filtered/truncated/deduplicated into a smaller — but
+ * valid-looking — request. Callers that skip validation get an explicit
+ * `valid: false` result instead of a silently repaired subset.
+ */
+export function projectSourceMedia(
+  state: GenerationState,
+  modelInfo: ModelInfo | null,
+): SourceMediaProjection {
+  const policy = sourceMediaPolicy(modelInfo, state.mode);
+  if (!policy.accepted) return { valid: true, sourceMedia: undefined };
+
+  const validation = validateSourceMedia(state, modelInfo);
+  if (!validation.valid) {
+    return { valid: false, reason: validation.message ?? 'Invalid source media selection.' };
+  }
+
+  const sourceMedia = state.sourceMedia.map(({ assetRef }) => ({ asset_ref: assetRef }));
+  // `source_media`, when present, has a schema minimum of one item. Optional
+  // source-media modes therefore omit the field instead of sending an invalid
+  // empty array.
+  return { valid: true, sourceMedia: sourceMedia.length > 0 ? sourceMedia : undefined };
+}
+
+/**
+ * Normalize a validated draft using the live capability response immediately
+ * before a request. The output contains no UI metadata and preserves source
+ * order. Throws if the draft is invalid — callers must gate on
+ * `validateSourceMedia`/`projectSourceMedia` first, as `handleGenerate` does.
  */
 export function sourceMediaForRequest(
   state: GenerationState,
   modelInfo: ModelInfo | null,
 ): SourceMediaReference[] | undefined {
-  if (state.mode === 'v2v') return undefined;
-  const policy = sourceMediaPolicy(modelInfo, state.mode);
-  if (!policy.accepted) return undefined;
-  const sourceMedia = allowedSourceMedia(state.sourceMedia ?? [], policy).map(({ assetRef }) => ({
-    asset_ref: assetRef,
-  }));
-  // `source_media`, when present, has a schema minimum of one item. Optional
-  // source-media modes therefore omit the field instead of sending an invalid
-  // empty array.
-  return sourceMedia.length > 0 ? sourceMedia : undefined;
+  const projection = projectSourceMedia(state, modelInfo);
+  if (!projection.valid) throw new Error(projection.reason);
+  return projection.sourceMedia;
 }
 
 /**
@@ -110,12 +106,17 @@ export function outputCountForRequest(state: GenerationState, modelInfo: ModelIn
   return modelInfo ? Math.max(1, Math.min(requestedCount, modelInfo.max_images)) : requestedCount;
 }
 
-/** Returns the normalized owned-media count used by the pricing quote. */
+/**
+ * Returns the normalized owned-media count used by the pricing quote, or
+ * `null` when the current draft is invalid. Callers must suppress the quote
+ * in that case rather than price a hidden, silently repaired subset.
+ */
 export function sourceMediaCountForRequest(
   state: GenerationState,
   modelInfo: ModelInfo | null,
-): number {
-  return sourceMediaForRequest(state, modelInfo)?.length ?? 0;
+): number | null {
+  const projection = projectSourceMedia(state, modelInfo);
+  return projection.valid ? (projection.sourceMedia?.length ?? 0) : null;
 }
 
 /**
@@ -137,9 +138,6 @@ export function buildGeneratePayload(
     duration: videoParams.duration,
     resolution: videoParams.resolution,
     ...(sourceMedia !== undefined ? { source_media: sourceMedia } : {}),
-    ...(state.mode === 'v2v' && state.inputVideoUrl
-      ? { input_video_url: state.inputVideoUrl }
-      : {}),
     ...(isGenerationParameterSupported(modelInfo, 'aspect_ratio')
       ? state.mode === 'i2i'
         ? state.editAspectRatio !== null

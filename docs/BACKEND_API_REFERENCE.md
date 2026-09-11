@@ -592,14 +592,7 @@ Request: {
   prompt: string (1–4096 chars),
   generation_type: GenerationType,
   model: ModelType,
-  input_image_id?: UUID,          // required for i2i / i2v / flf2v if source_output_id not set
-  source_output_id?: UUID,        // alternative to input_image_id — use an existing generation output as input
-                                  // mutually exclusive with input_image_id
-  source_images?: Array<{         // Grok I2I multi-reference inputs (1–4 items); backend resolves refs to provider URLs
-    input_image_id?: UUID,        // exactly one of input_image_id or source_output_id per item
-    source_output_id?: UUID
-  }>,                             // mutually exclusive with top-level input_image_id/source_output_id
-  input_video_url?: string,       // required for v2v (public URL)
+  source_media?: Array<{ asset_ref: string }>, // ordered owned inputs; v2v requires one video asset
   negative_prompt?: string (≤2048 chars),  // applied by Aisha; stored but ignored by Grok
   aspect_ratio?: AspectRatio | null,  // omit/null ⇒ provider default for t2i (1:1 image, 16:9 video);
                                       //   for i2i, omit/null ⇒ output follows the source image's aspect.
@@ -633,14 +626,10 @@ Response: JobCreatedResponse
 Status:   201 Created
 Errors:   400 (model_disabled | validation_error | generation_failed | not_implemented | provider_invalid_request), 402 insufficient_balance, 403 (model_not_allowed | age_verification_required), 409 (idempotency_conflict | no_active_gpu_session), 422 provider_moderation_rejected, 429 (rate_limited | provider_rate_limited), 502 (provider_malformed_response | provider_output_not_delivered), 503 (service_unavailable | provider_timeout | provider_unavailable | provider_authentication_failed | provider_unknown)
 Headers:  Idempotency-Key: <string> (required, max 64 chars)
-Note:     source_output_id enables "remix from Library" — the backend resolves lineage automatically
-          (source_job_id + source_output_id) and records it on the new job.
-          source_images is storage-reference based (1–4 items); clients send upload/output IDs, not public URLs.
-          If source_images contains output references and no top-level source_output_id is set,
-          lineage is recorded from the first output-typed item in list order.
+Note:     source_media is storage-reference based; clients send upload/output asset references,
+          not public URLs. Lineage is recorded from the first output-typed item in list order.
           Tokens charged scale as (token_cost + input_token_cost × k) × n, where k is the
-          input-image count: 0 for text-to-image, 1 for input_image_id/source_output_id, or
-          source_images.length for multi-reference image inputs.
+          source-media count: `source_media.length` (or 0 when it is omitted).
           Idempotency-Key prevents duplicate jobs on network retries — supply a UUIDv4 per submission attempt.
           Aisha (ComfyUI) models require an active GPU session — start one via
           POST /v1/sessions before submitting an Aisha generation, otherwise 409 no_active_gpu_session is returned.
@@ -755,7 +744,15 @@ ModelInfo: {
   model_key: string,                 // matches ModelType value
   name: string,
   description: string,
-  capabilities: string[],            // e.g. ["t2i", "i2i"]
+  generation_modes: { [generation_type: string]: { // authoritative input contract per mode
+    source_media: {
+      min: int,
+      max: int,
+      media_types: string[],          // "image" | "video"
+      roles: string[] | null          // null => positions interchangeable; otherwise
+    } | null                          // roles[i] names position i: "reference",
+  } },                                // "first_frame", "last_frame", "source"
+  unsupported_parameters: string[],  // controls the resolved bundle cannot apply
   is_enabled: bool,
   max_images: int,                   // max outputs per request
   max_prompt_length: int,
@@ -801,6 +798,15 @@ UserContext: {
   subscription_tier: string          // e.g. "free", "pro"
 }
 ```
+
+`generation_modes` is the authoritative contract. See
+`gearbox/apex/docs/contracts/fe-api-contract-workflow-media-arc.md` §1.1 (canonical backend
+source — not mirrored in this repository) for its semantics and resolution rules.
+
+Current frontend behavior still uses explicit `TypeSelector`/`generationStore.mode`: the user
+picks the generation type directly. The automatic intent/mode resolution described in that
+backend contract (deriving `generation_type` from user action and selected source media) is
+planned separately and is not implemented here.
 
 > **Deprecated flat format** (`providers` + `models` as a flat list) was removed in v2.
 
@@ -1719,7 +1725,6 @@ interface LibraryAssetPatch {
 interface LibraryGroupDetail {
   job_id: string;
   badge: LibraryBadge;             // "prompt" (t2i/t2v) or "image" (i2i/i2v/flf2v/v2v)
-  input_media: MediaObject | null; // present when badge == "image"
   prompt: string;
   negative_prompt: string | null;
   outputs: LibraryOutputItem[];    // non-thumbnail outputs, ordered by output_index
@@ -1879,9 +1884,7 @@ PricingRuleResponse: {
 ```
 
 Total generation charge is `(token_cost + input_token_cost × k) × n`, where `n` is the
-requested output count and `k` is the input-image count: `0` for T2I, `1` when
-`input_image_id` or `source_output_id` is set, or `source_images.length` when
-`source_images` is set.
+requested output count and `k` is `source_media.length` (or `0` when it is omitted).
 
 #### `GET /v1/billing/topup/options`
 
@@ -2627,6 +2630,8 @@ data: <JSON-encoded inner payload>
 | `job.status_changed` | Job moved to a new status | `JobStatusPayload` |
 | `job.progress` | Job progress update | `JobProgressPayload` |
 | `gpu_session.status_changed` | GPU session moved to a new status (e.g. provisioning → active, active → paused, paused → resuming → active, → stopped) | `GpuSessionStatusPayload` |
+| `gpu_session.deployment_status_changed` | A model deployment's lifecycle or routing state changed | `GpuDeploymentStatusPayload` |
+| `gpu_session.operation_updated` | Typed public projection of a session/deployment operation | `OperationResponse` |
 | `gpu_session.credit_warning` | Session balance is low; emitted once per upward level transition (no warning → warning → critical). Cleared on balance recovery or termination. | `GpuSessionCreditWarningPayload` |
 | `balance.updated` | Token balance changed (debit, credit, refund) | `BalanceUpdatedPayload` |
 | `system.notification` | Broadcast system message (maintenance, outage) | `SystemNotificationPayload` |
@@ -2656,12 +2661,29 @@ interface JobProgressPayload {
 interface GpuSessionStatusPayload {
   session_id: string;            // UUID
   status: GpuSessionStatus;      // new status
-  previous_status: string;       // previous status
-  model_type: string;            // e.g. "aisha-image"
+  previous_status: GpuSessionStatus | "none"; // "none" on initial creation
   tunnel_hostname: string | null;
   error_message: string | null;  // populated when status == "failed"
   reason: string | null;         // machine-readable stop reason, e.g. "insufficient_credits"
 }
+
+// gpu_session.deployment_status_changed
+interface GpuDeploymentStatusPayload {
+  deployment_id: string;         // UUID
+  session_id: string;            // UUID
+  model_type: ModelType;
+  status: DeploymentStatus;
+  pending_restart: boolean;
+  routing_suspended: boolean;
+  operation_id: string | null;   // UUID; join key for operation_updated
+  error_message: string | null;
+}
+
+// gpu_session.operation_updated
+// Exactly the same safe OperationResponse projection returned by REST.
+// Patch cached deployments by current_operation.id === payload.id, never by
+// payload.deployment_id: cohort restart operations legitimately have null
+// deployment_id while governing multiple deployments.
 
 // gpu_session.credit_warning
 interface GpuSessionCreditWarningPayload {
@@ -2693,7 +2715,7 @@ interface SystemNotificationPayload {
 
 | Channel | Subscribers | Events |
 |---------|-------------|--------|
-| `user:{user_id}` | Per-user | `job.status_changed`, `job.progress`, `gpu_session.status_changed`, `gpu_session.credit_warning`, `balance.updated` |
+| `user:{user_id}` | Per-user | `job.status_changed`, `job.progress`, `gpu_session.status_changed`, `gpu_session.deployment_status_changed`, `gpu_session.operation_updated`, `gpu_session.credit_warning`, `balance.updated` |
 | `system:broadcast` | All connected clients | `system.notification` |
 
 Each SSE connection subscribes to both the per-user channel and `system:broadcast`.
@@ -2708,6 +2730,8 @@ Events are automatically published by the backend at:
 | `job.status_changed` | Grok video job completes, fails, or times out |
 | `job.progress` | Grok video job enters `running` state |
 | `gpu_session.status_changed` | GPU session transitions between any two states (start/provision/active/pause/resume/stop/fail) |
+| `gpu_session.deployment_status_changed` | A deployment is attached, provisioned, restarted, activated, removed, or has its routing state changed |
+| `gpu_session.operation_updated` | A durable GPU operation receives a new accepted telemetry state |
 | `gpu_session.credit_warning` | `SessionCreditGuard` cycle detects balance at warning or critical level (emitted once per upward transition) |
 | `balance.updated` | `check_and_reserve` (debit), `refund`, `credit`, `admin_adjustment`, `settle_session_usage` |
 | `system.notification` | Admin calls `POST /v1/admin/broadcast` |
@@ -3119,7 +3143,7 @@ Values: `"sfw"`, `"permissive"`
 | `i2i` | Image → Image | Yes | No | No |
 | `t2v` | Text → Video | No | No | Yes |
 | `i2v` | Image → Video | Yes | No | Yes |
-| `v2v` | Video → Video | No | Yes | Yes |
+| `v2v` | Video → Video | No | Yes (via `source_media`) | Yes |
 | `flf2v` | First-Last Frame → Video | Yes | No | Yes |
 
 ### JobStatus

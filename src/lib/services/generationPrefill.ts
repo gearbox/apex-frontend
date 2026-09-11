@@ -25,8 +25,6 @@ export interface SourcePrefillRequest {
   mode: GenerationMode;
   preferredModel?: string | null;
   source: SourceMediaDraft;
-  /** Required for temporary v2v URL transport; never used as source_media. */
-  inputVideoUrl?: string | null;
   prompt?: string;
   negativePrompt?: string;
 }
@@ -38,14 +36,12 @@ export interface SourcePrefillRequest {
  */
 export function prefillSourceForGeneration(request: SourcePrefillRequest): boolean {
   const model = resolveModelForMode(request.providers, request.mode, request.preferredModel);
-  if (!model || (request.mode === 'v2v' && !request.inputVideoUrl?.trim())) return false;
+  if (!model) return false;
 
   generationStore.prefill({
     model,
     mode: request.mode,
-    ...(request.mode === 'v2v'
-      ? { inputVideoUrl: request.inputVideoUrl ?? null }
-      : { sourceMedia: [request.source] }),
+    sourceMedia: [request.source],
     ...(request.prompt === undefined ? {} : { prompt: request.prompt }),
     ...(request.negativePrompt === undefined ? {} : { negativePrompt: request.negativePrompt }),
   });
@@ -78,11 +74,7 @@ export type ReplayPrefillResult =
   { ok: true; params: Partial<GenerationState> } | { ok: false; reason: ReplayFailureReason };
 
 export type ReplayFailureReason =
-  | 'no-model'
-  | 'missing-source'
-  | 'duplicate-source'
-  | 'incompatible-source-policy'
-  | 'legacy-v2v-source-unavailable';
+  'no-model' | 'missing-source' | 'duplicate-source' | 'incompatible-source-policy';
 
 export interface ReplayModelRequest {
   providers: ProvidersResponse | null | undefined;
@@ -99,7 +91,7 @@ function sourceMediaLabel(assetRef: string): string | null {
 }
 
 function isEnabledModeModel(model: ModelInfo, mode: GenerationMode): boolean {
-  return model.is_enabled && model.capabilities.includes(mode);
+  return model.is_enabled && mode in model.generation_modes;
 }
 
 function acceptsReplaySources(
@@ -205,10 +197,6 @@ export function replayGenerationPrefill(
     ? source.generation_type
     : 't2i';
   if (!group) return { ok: false, reason: 'missing-source' };
-
-  // Historical v2v inputs remain URL-based in this API arc. Group `input_media`
-  // is derived from owned source_media, so it cannot reconstruct the original URL.
-  if (mode === 'v2v') return { ok: false, reason: 'legacy-v2v-source-unavailable' };
 
   const sourceMedia = [...(group.source_media ?? [])]
     .sort((a, b) => a.position - b.position)

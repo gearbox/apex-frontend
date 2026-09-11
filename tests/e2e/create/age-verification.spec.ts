@@ -14,7 +14,10 @@ const mockProvidersWithAisha = {
           model_key: 'aisha-image',
           name: 'Aisha',
           description: 'Age-gated image model',
-          capabilities: ['t2i', 'i2i'],
+          generation_modes: {
+            t2i: { source_media: null },
+            i2i: { source_media: { min: 1, max: 4, media_types: ['image'], roles: null } },
+          },
           is_enabled: true,
           requires_age_verification: true,
           max_images: 4,

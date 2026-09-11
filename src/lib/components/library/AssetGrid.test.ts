@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/svelte';
 import { makeLibraryAssetDetail, makeLibraryAssetItem } from '../../../mocks/factories/library';
-import { makeGrokImageModelInfo } from '../../../mocks/factories/providers';
+import { makeGrokImageModelInfo, generationModes } from '../../../mocks/factories/providers';
 import type { LibraryActionDeps } from './actions';
 import AssetGrid from './AssetGrid.svelte';
 
@@ -40,11 +40,11 @@ function makeDeps(overrides: Partial<LibraryActionDeps> = {}): LibraryActionDeps
           models: [
             makeGrokImageModelInfo({
               model_key: 'grok-imagine-image',
-              capabilities: ['t2i', 'i2i'],
+              generation_modes: generationModes(['t2i', 'i2i']),
             }),
             makeGrokImageModelInfo({
               model_key: 'grok-imagine-video',
-              capabilities: ['t2v', 'i2v', 'v2v'],
+              generation_modes: generationModes(['t2v', 'i2v', 'v2v']),
               image: null,
             }),
           ],

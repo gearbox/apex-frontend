@@ -1,5 +1,5 @@
 import type { components } from '$lib/api/types';
-import type { GenerationMode, GenerationState } from '$lib/stores/generation';
+import type { GenerationMode } from '$lib/stores/generation';
 
 export type { GenerationMode };
 
@@ -24,27 +24,7 @@ export function isVideoMode(mode: GenerationMode): boolean {
 
 /** Returns backend-advertised modes. No client-side mode allow-list is applied. */
 export function createSupportedModes(modelInfo: ModelInfo | null | undefined): GenerationMode[] {
-  return (modelInfo?.capabilities ?? []).filter(isGenerationMode);
-}
-
-/**
- * Create UI readiness is separate from advertised model capability. v2v still
- * uses the temporary `input_video_url` transport, so blank Create cannot enter
- * it until a caller (for example Library Extend) explicitly supplies that URL.
- * Delete this exception when v2v migrates to source_media.
- */
-export function canEnterCreateMode(
-  mode: GenerationMode,
-  draft: Pick<GenerationState, 'inputVideoUrl'>,
-): boolean {
-  return mode !== 'v2v' || Boolean(draft.inputVideoUrl?.trim());
-}
-
-export function createActionableModes(
-  modelInfo: ModelInfo | null | undefined,
-  draft: Pick<GenerationState, 'inputVideoUrl'>,
-): GenerationMode[] {
-  return createSupportedModes(modelInfo).filter((mode) => canEnterCreateMode(mode, draft));
+  return Object.keys(modelInfo?.generation_modes ?? {}).filter(isGenerationMode);
 }
 
 /**
@@ -57,8 +37,8 @@ export function enabledModes(providers: ProvidersResponse | null | undefined): S
   for (const provider of providers?.providers ?? []) {
     for (const model of provider.models) {
       if (!model.is_enabled) continue;
-      for (const capability of model.capabilities) {
-        if (isGenerationMode(capability)) modes.add(capability);
+      for (const mode of Object.keys(model.generation_modes)) {
+        if (isGenerationMode(mode)) modes.add(mode);
       }
     }
   }
@@ -78,7 +58,7 @@ export function findModelInfo(
 }
 
 function isCapableEnabledModel(model: ModelInfo, mode: GenerationMode): boolean {
-  return model.is_enabled && model.capabilities.includes(mode);
+  return model.is_enabled && mode in model.generation_modes;
 }
 
 /**

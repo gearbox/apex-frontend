@@ -22,7 +22,12 @@ const GROK_PROVIDERS: ProvidersResponse = {
           model_key: 'grok-imagine-image',
           name: 'Grok Imagine',
           description: 'Fast image generation model',
-          capabilities: ['t2i', 'i2i'],
+          generation_modes: {
+            t2i: { source_media: null },
+            i2i: {
+              source_media: { min: 1, max: 4, media_types: ['image'], roles: null },
+            },
+          },
           is_enabled: true,
           max_images: 10,
           max_prompt_length: 4096,
@@ -30,14 +35,6 @@ const GROK_PROVIDERS: ProvidersResponse = {
           unsupported_parameters: ['negative_prompt'],
           aspect_ratios: ['1:1', '16:9', '9:16'],
           requires_age_verification: false,
-          inputs: {
-            source_media: {
-              min: 1,
-              max: 4,
-              media_types: ['image'],
-              required_for: ['i2i'],
-            },
-          },
           image: { edit_aspect_ratios: [] },
           video: null,
         },
@@ -59,7 +56,7 @@ const GROK_VIDEO_PROVIDERS: ProvidersResponse = {
           model_key: 'grok-imagine-video',
           name: 'Grok Video',
           description: 'Fast video generation model',
-          capabilities: ['t2v'],
+          generation_modes: { t2v: { source_media: null } },
           is_enabled: true,
           max_images: 1,
           max_prompt_length: 4096,
@@ -325,7 +322,27 @@ describe('/app/create page — generate gating during providers load', () => {
   });
 
   it('prices a retained optional source after switching back to t2i when discovery accepts it', () => {
-    providersData = GROK_PROVIDERS;
+    providersData = {
+      ...GROK_PROVIDERS,
+      providers: [
+        {
+          ...GROK_PROVIDERS.providers[0],
+          models: [
+            {
+              ...GROK_PROVIDERS.providers[0].models[0],
+              generation_modes: {
+                ...GROK_PROVIDERS.providers[0].models[0].generation_modes,
+                // This model's t2i mode explicitly accepts an optional source
+                // (min: 0), unlike the shared GROK_PROVIDERS fixture — the
+                // retained source is priced only because this mode's own
+                // contract, not a cross-mode union, says it may be.
+                t2i: { source_media: { min: 0, max: 4, media_types: ['image'], roles: null } },
+              },
+            },
+          ],
+        },
+      ],
+    };
     generationStore.setMode('i2i');
     generationStore.setSourceMedia([
       {

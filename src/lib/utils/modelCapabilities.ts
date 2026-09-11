@@ -2,11 +2,13 @@ import type { components } from '$lib/api/types';
 
 type ModelInfo = components['schemas']['ModelInfo'];
 type AspectRatio = components['schemas']['AspectRatio'];
+type MediaSlot = components['schemas']['MediaSlot'];
 
 /**
- * The backend is the authority for both the source-media picker and its
- * requiredness. `min` is a cardinality limit, not an unconditional required
- * count: it applies only to modes listed in `required_for`.
+ * The backend is the sole authority for the source-media picker, per the
+ * currently selected mode's own contract in `generation_modes`. `min` bounds
+ * cardinality and also drives requiredness: a mode requires source media only
+ * when its `min > 0`.
  */
 export interface SourceMediaPolicy {
   accepted: boolean;
@@ -14,26 +16,30 @@ export interface SourceMediaPolicy {
   min: number;
   max: number;
   mediaTypes: readonly string[];
+  /** null means positions are interchangeable. Carried through, not consumed by UI yet. */
+  roles: readonly MediaSlot[] | null;
 }
 
 export function sourceMediaPolicy(
   modelInfo: ModelInfo | null | undefined,
   generationType: string,
 ): SourceMediaPolicy {
-  const constraints = modelInfo?.inputs?.source_media;
+  const constraints = modelInfo?.generation_modes?.[generationType]?.source_media;
   if (constraints) {
     return {
       accepted: true,
-      required: constraints.required_for.includes(generationType),
+      required: constraints.min > 0,
       min: constraints.min,
       max: constraints.max,
       mediaTypes: constraints.media_types,
+      roles: constraints.roles ?? null,
     };
   }
 
-  // A missing or null discovery block cannot safely imply media support or
-  // requiredness. `required_for` is the sole authority for that policy.
-  return { accepted: false, required: false, min: 0, max: 0, mediaTypes: [] };
+  // A mode absent from discovery, or one whose source_media is explicitly
+  // null, cannot safely imply media support. There is no cross-mode
+  // requiredness list anymore — each mode's own `min` is the sole authority.
+  return { accepted: false, required: false, min: 0, max: 0, mediaTypes: [], roles: null };
 }
 
 /** Backend parameters with writable Create-draft controls. */

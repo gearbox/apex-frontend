@@ -133,8 +133,6 @@ function replayFailureMessage(reason: ReplayFailureReason): string {
       return m.library_action_no_model();
     case 'incompatible-source-policy':
       return m.library_reproduce_source_incompatible();
-    case 'legacy-v2v-source-unavailable':
-      return m.library_reproduce_v2v_unavailable();
     default:
       return m.library_reproduce_source_missing();
   }
@@ -163,7 +161,6 @@ async function useAsSource(
         sourceAsset.media,
         sourceAsset.asset_ref.startsWith('output:') ? 'From generated' : 'From uploads',
       ),
-      inputVideoUrl: sourceAsset.media.original.url,
       ...(policy.prompt === 'copy-provenance'
         ? {
             prompt: sourceAsset.prompt ?? '',
@@ -186,9 +183,15 @@ async function useAsSource(
 }
 
 /**
- * Re-runs the same generation settings from scratch. All-or-nothing: any unresolvable step
- * (no capable model, missing/deleted source asset) shows an error toast and never navigates.
- * Never rejects — every failure path is caught and surfaced as a toast.
+ * Re-runs the same generation settings from scratch, using the owning group's
+ * `source_media` as replay authority. An available source replays its exact
+ * ordered `asset_ref`; an unavailable (deleted/expired) historical source
+ * preserves its position as a placeholder instead of being dropped — Generate
+ * stays blocked on the Create page until that position is replaced. Only a
+ * genuinely unresolvable step (no model/mode can accept this source shape,
+ * duplicate refs, or the owning job/group failed to load) shows an error
+ * toast and never navigates. Never rejects — every failure path is caught and
+ * surfaced as a toast.
  */
 async function reproduce(asset: LibraryActionAsset, deps: LibraryActionDeps): Promise<void> {
   try {
@@ -296,9 +299,6 @@ export function filterVisibleLibraryActions(
     // Duplicate of `remix` with the current API surface — deferred until a real
     // create-variation prefill (denoise/seed) is implemented.
     if (action === 'create_variation') return false;
-    // v2v historical requests have no replayable original input URL in the
-    // current group contract. Extend remains independently available.
-    if (action === 'reproduce' && opts.generationType === 'v2v') return false;
     const mode = ACTION_MODE[action];
     if (mode && !opts.availableModes.has(mode)) return false;
     return true;
