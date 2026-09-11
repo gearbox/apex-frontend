@@ -60,12 +60,38 @@ export function makeGrokImageModelInfo(overrides: Partial<ModelInfo> = {}): Mode
   return makeModelInfo(overrides);
 }
 
+/**
+ * Matches current backend `master` (`src/core/model_registry.py`): t2i (no
+ * source), i2i (exactly 1 owned image, no positional role). The generic
+ * `DEFAULT_SOURCE_MEDIA` i2i default (min 1, max 4) is Grok-shaped, not
+ * accurate for this model — override it explicitly.
+ */
 export function makeAishaImageModelInfo(overrides: Partial<ModelInfo> = {}): ModelInfo {
   return makeModelInfo({
     model_key: 'aisha-image',
     name: 'Aisha',
     description: 'Aisha image generation model',
-    generation_modes: generationModes(['t2i', 'i2i']),
+    generation_modes: generationModes(['t2i', 'i2i'], {
+      i2i: { min: 1, max: 1, media_types: ['image'], roles: null },
+    }),
+    max_images: 4,
+    supports_negative_prompt: true,
+    unsupported_parameters: [],
+    aspect_ratios: ['1:1', '16:9', '9:16', '4:3', '3:4'],
+    image: AISHA_IMAGE_CONSTRAINTS,
+    ...overrides,
+  });
+}
+
+/**
+ * Matches current backend `master`: t2i only — no i2i/edit mode advertised.
+ */
+export function makeAishaImageLiteModelInfo(overrides: Partial<ModelInfo> = {}): ModelInfo {
+  return makeModelInfo({
+    model_key: 'aisha-image-lite',
+    name: 'Aisha Lite',
+    description: 'Aisha lightweight image generation model',
+    generation_modes: generationModes(['t2i']),
     max_images: 4,
     supports_negative_prompt: true,
     unsupported_parameters: [],

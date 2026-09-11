@@ -4,7 +4,12 @@
   import apiClient, { isRequestCancellation } from '$lib/api/client';
   import { parseApiError } from '$lib/api/errors';
   import { generateIdempotencyKey } from '$lib/utils/idempotency';
-  import { generationStore, isGenerating, markGenerationDraftSaved } from '$lib/stores/generation';
+  import {
+    generationStore,
+    isGenerating,
+    markGenerationDraftSaved,
+    type GenerationState,
+  } from '$lib/stores/generation';
   import { activeJobStore } from '$lib/stores/jobs';
   import { addToast } from '$lib/stores/toasts';
   import { estimatePricingRuleCost, findPricingRule } from '$lib/utils/pricing';
@@ -58,8 +63,9 @@
   import { deriveModelBillingFacts } from '$lib/content/modelGuides/billingFacts';
   import type { ModelGuideExample } from '$lib/content/modelGuides/types';
   import ModelSummaryCard from '$lib/components/create/ModelSummaryCard.svelte';
-  import { createSupportedModes, isGenerationMode } from '$lib/utils/generationModes';
+  import { isGenerationMode } from '$lib/utils/generationModes';
   import { libraryGroupQueryOptions } from '$lib/queries/library';
+  import { resolveEffectiveGenerationMode } from '$lib/utils/generationModeResolverAdapter';
 
   const queryClient = useQueryClient();
   let pricingNowMs = $state(Date.now());
@@ -224,22 +230,43 @@
     stopModalSessionId = null;
   }
 
+  // ── Effective generation mode
+  // A single pure resolution drives pricing, source validation, payload
+  // `generation_type`, the submit guard, and mode-sensitive parameter UI —
+  // never independent reads of `$generationStore.mode`. See
+  // `resolveEffectiveGenerationMode` for the Phase-2 TypeSelector compatibility
+  // boundary this wraps around the pure `resolveGenerationMode`.
+  const modeResolution = $derived(
+    resolveEffectiveGenerationMode($generationStore, currentModelInfo),
+  );
+  // Only `resolved`/`incomplete` carry a concrete mode. The raw fallback here is
+  // for non-submission-affecting param UI only (e.g. video-vs-image layout) —
+  // pricing/validation/payload/submit all gate on `modeResolution.status`
+  // directly and never rely on this fallback.
+  const effectiveMode = $derived(
+    modeResolution.status === 'resolved' || modeResolution.status === 'incomplete'
+      ? modeResolution.mode
+      : $generationStore.mode,
+  );
+  const effectiveState = $derived<GenerationState>({ ...$generationStore, mode: effectiveMode });
+
   // Mirror the backend quote: a matching rule is priced against the exact
-  // normalized request state that buildGeneratePayload will submit.
+  // normalized request state that buildGeneratePayload will submit. No quote
+  // is computed unless the mode is unambiguously resolved.
   const currentPricingRule = $derived(
-    pricingQuery.data && currentModelInfo
+    pricingQuery.data && currentModelInfo && modeResolution.status === 'resolved'
       ? findPricingRule(
           pricingQuery.data,
           currentModelInfo.provider,
           $generationStore.model,
-          $generationStore.mode,
+          modeResolution.mode,
           pricingNowMs,
         )
       : null,
   );
   const currentOutputCount = $derived(outputCountForRequest($generationStore, currentModelInfo));
   const currentSourceMediaCount = $derived(
-    sourceMediaCountForRequest($generationStore, currentModelInfo),
+    sourceMediaCountForRequest(effectiveState, currentModelInfo),
   );
   const currentEstimatedCost = $derived(
     currentPricingRule && currentSourceMediaCount !== null
@@ -265,9 +292,13 @@
     });
   }
 
+  // Source controls stay gated on the raw explicit Type intent (Phase 3 scope
+  // makes this source-driven instead) — see `resolveEffectiveGenerationMode`.
   const sourcePolicy = $derived(sourceMediaPolicy(currentModelInfo, $generationStore.mode));
-  const sourceValidation = $derived(validateSourceMedia($generationStore, currentModelInfo));
-  const canSubmit = $derived(generateEnabled && sourceValidation.valid);
+  const sourceValidation = $derived(validateSourceMedia(effectiveState, currentModelInfo));
+  const canSubmit = $derived(
+    generateEnabled && modeResolution.status === 'resolved' && sourceValidation.valid,
+  );
 
   // ── Age gate state
   let showAgeModal = $state(false);
@@ -305,7 +336,7 @@
     aspectError = null;
   });
 
-  function handleJobError(error: unknown): void {
+  function handleJobError(error: unknown, submittedMode: GenerationState['mode']): void {
     const apiErr = parseApiError(error, 0);
     if (apiErr.error === 'age_verification_required') {
       showAgeModal = true;
@@ -336,7 +367,7 @@
       // safe diagnostic signal while still showing the backend's public text.
       console.error('[generation] capability contract failure', {
         model: $generationStore.model,
-        generationType: $generationStore.mode,
+        generationType: submittedMode,
       });
       addToast({ type: 'error', message: apiErr.message });
     } else {
@@ -391,22 +422,21 @@
   async function handleGenerate() {
     if (submitting || $isGenerating || !generateEnabled) return;
 
-    const state = $generationStore;
-
     if (currentModelInfo?.requires_age_verification && !$isAgeVerified) {
       pendingModelKey = null;
       showAgeModal = true;
       return;
     }
 
-    if (
-      !currentModelInfo?.is_enabled ||
-      !isGenerationMode(state.mode) ||
-      !createSupportedModes(currentModelInfo).includes(state.mode)
-    ) {
+    // The submit guard: an ambiguous/incomplete/invalid resolution never
+    // reaches the request. `state.mode` below is always the same resolved
+    // mode that was priced and validated above.
+    if (!currentModelInfo?.is_enabled || modeResolution.status !== 'resolved') {
       addToast({ type: 'error', message: m.error_generation_mode_unavailable() });
       return;
     }
+
+    const state = effectiveState;
 
     if (!sourceValidation.valid) {
       addToast({
@@ -444,7 +474,7 @@
           aspectError = parseApiError(error, response.status).message;
           return;
         }
-        handleJobError(error);
+        handleJobError(error, state.mode);
         return;
       }
 
@@ -508,7 +538,7 @@
     {#if isGenerationParameterSupported(currentModelInfo, 'negative_prompt')}
       <NegativePromptInput />
     {/if}
-    <ParamsPanel modelInfo={currentModelInfo} {aspectError} />
+    <ParamsPanel modelInfo={currentModelInfo} {aspectError} mode={effectiveMode} />
 
     <!-- Results (mobile: inline below form) -->
     <div class="md:hidden">

@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { generationStore } from '$lib/stores/generation';
   import type { components } from '$lib/api/types';
+  import type { GenerationMode } from '$lib/stores/generation';
   import { isVideoMode } from '$lib/utils/generationModes';
   import {
     isGenerationParameterSupported,
@@ -15,10 +15,11 @@
 
   let {
     modelInfo,
+    mode,
     aspectError = null,
-  }: { modelInfo: ModelInfo | null; aspectError?: string | null } = $props();
+  }: { modelInfo: ModelInfo | null; mode: GenerationMode; aspectError?: string | null } = $props();
 
-  const isVideo = $derived(isVideoMode($generationStore.mode));
+  const isVideo = $derived(isVideoMode(mode));
   const showWorkflowParams = $derived(
     !isVideo &&
       supportsAnyGenerationParameter(modelInfo, [
@@ -44,7 +45,7 @@
 {:else}
   <div class="flex flex-col gap-3">
     {#if showAspectRatio}
-      <AspectRatioChips {modelInfo} {aspectError} />
+      <AspectRatioChips {modelInfo} {aspectError} {mode} />
     {/if}
     {#if showImageCount}
       <ImageCountStepper {modelInfo} />

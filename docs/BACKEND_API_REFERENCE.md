@@ -799,9 +799,10 @@ UserContext: {
 }
 ```
 
-`generation_modes` is the authoritative contract. See
-`gearbox/apex/docs/contracts/fe-api-contract-workflow-media-arc.md` §1.1 (canonical backend
-source — not mirrored in this repository) for its semantics and resolution rules.
+`generation_modes` is the authoritative contract. The backend repository
+(`gearbox/apex/docs/contracts/fe-api-contract-workflow-media-arc.md` §1.1) is the canonical
+source; this frontend repository keeps a frozen snapshot at
+`docs/contracts/fe-api-contract-workflow-media-arc.md` for its semantics and resolution rules.
 
 Current frontend behavior still uses explicit `TypeSelector`/`generationStore.mode`: the user
 picks the generation type directly. The automatic intent/mode resolution described in that
