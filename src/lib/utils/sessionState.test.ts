@@ -3,8 +3,6 @@ import {
   canStartSession,
   deriveCardState,
   isGenerateEnabled,
-  isProvisioningStatus,
-  isTerminalStatus,
   type ProvisioningMode,
   type RuntimeState,
 } from './sessionState';
@@ -27,16 +25,6 @@ const onDemand = {
   isAuthenticated: true,
   runtime: runtime('none'),
 };
-
-describe('session lifecycle helpers', () => {
-  it('keeps raw session lifecycle helpers explicitly session-specific', () => {
-    expect(isProvisioningStatus('pending')).toBe(true);
-    expect(isProvisioningStatus('resuming')).toBe(true);
-    expect(isProvisioningStatus('active')).toBe(false);
-    expect(isTerminalStatus('stopped')).toBe(true);
-    expect(isTerminalStatus('failed')).toBe(true);
-  });
-});
 
 describe('provider runtime card state', () => {
   it('evaluates disabled and unavailable before all runtime actions', () => {

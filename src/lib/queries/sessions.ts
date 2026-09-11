@@ -105,7 +105,7 @@ export function resumeSessionMutationOptions(queryClient: QueryClient) {
   };
 }
 
-export interface DeploymentMutationVariables {
+interface DeploymentMutationVariables {
   sessionId: string;
   deploymentId: string;
   force?: boolean;

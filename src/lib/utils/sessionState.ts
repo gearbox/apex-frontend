@@ -1,20 +1,7 @@
 import type { components } from '$lib/api/types';
 
 export type RuntimeState = components['schemas']['RuntimeState'];
-export type GpuSessionStatus = components['schemas']['GpuSessionStatus'];
-export type ModelRuntime = components['schemas']['ModelRuntimeResponse'];
-
-const PROVISIONING: readonly GpuSessionStatus[] = ['pending', 'provisioning', 'resuming'];
-const TERMINAL: readonly GpuSessionStatus[] = ['stopped', 'failed'];
-
-/** Session-only lifecycle helpers. They must not derive model-card readiness. */
-export function isProvisioningStatus(status: string): boolean {
-  return (PROVISIONING as readonly string[]).includes(status);
-}
-
-export function isTerminalStatus(status: string): boolean {
-  return (TERMINAL as readonly string[]).includes(status);
-}
+type ModelRuntime = components['schemas']['ModelRuntimeResponse'];
 
 // ── Card state machine ──────────────────────────────────────────────────────
 
