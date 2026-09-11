@@ -34,8 +34,6 @@ export interface GenerationState {
   prompt: string;
   negativePrompt: string;
   sourceMedia: SourceMediaDraft[];
-  /** Temporary v2v-only path; owned `source_media` is intentionally not used for v2v yet. */
-  inputVideoUrl: string | null;
 
   // Parameters
   aspectRatio: AspectRatio; // t2i / video default aspect
@@ -75,7 +73,6 @@ function createGenerationStore() {
     prompt: '',
     negativePrompt: DEFAULT_NEGATIVE_PROMPT,
     sourceMedia: [],
-    inputVideoUrl: null,
     aspectRatio: '3:4',
     editAspectRatio: null,
     imageCount: 1,
@@ -176,10 +173,6 @@ function createGenerationStore() {
 
     setSourceMedia(sourceMedia: SourceMediaDraft[]) {
       update((s) => ({ ...s, sourceMedia: normalizeSourceMedia(sourceMedia) }));
-    },
-
-    setInputVideoUrl(inputVideoUrl: string | null) {
-      update((s) => ({ ...s, inputVideoUrl }));
     },
 
     setAspectRatio(aspectRatio: AspectRatio) {
@@ -304,9 +297,6 @@ function createGenerationStore() {
         jobStatus: null,
         completedJob: null,
         progress: null,
-        // `input_video_url` is a distinct, temporary v2v input. Never carry a
-        // prior video's URL into a subsequent prefill by accident.
-        ...(params.inputVideoUrl === undefined ? { inputVideoUrl: null } : {}),
         // Reset i2i aspect to Auto unless explicitly provided in params
         editAspectRatio: params.editAspectRatio !== undefined ? params.editAspectRatio : null,
       }));
@@ -354,7 +344,6 @@ export function generationDraftFingerprint(state: GenerationState): string {
       mediaType,
       available,
     })),
-    inputVideoUrl: state.inputVideoUrl,
     aspectRatio: state.aspectRatio,
     editAspectRatio: state.editAspectRatio,
     imageCount: state.imageCount,

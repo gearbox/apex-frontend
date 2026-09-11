@@ -41,15 +41,13 @@ function allowedSourceMedia(
 
 /**
  * Validate the editable list against the latest discovery response. This is
- * deliberately shared by UI gating and request projection so `required_for`
- * remains the only requiredness authority.
+ * deliberately shared by UI gating and request projection so the mode's own
+ * `min` remains the only requiredness authority.
  */
 export function validateSourceMedia(
   state: GenerationState,
   modelInfo: ModelInfo | null,
 ): SourceMediaValidation {
-  // v2v keeps its existing URL-based request path until the backend migrates it.
-  if (state.mode === 'v2v') return { valid: true, message: null };
   const policy = sourceMediaPolicy(modelInfo, state.mode);
   if (!policy.accepted) return { valid: true, message: null };
 
@@ -88,7 +86,6 @@ export function sourceMediaForRequest(
   state: GenerationState,
   modelInfo: ModelInfo | null,
 ): SourceMediaReference[] | undefined {
-  if (state.mode === 'v2v') return undefined;
   const policy = sourceMediaPolicy(modelInfo, state.mode);
   if (!policy.accepted) return undefined;
   const sourceMedia = allowedSourceMedia(state.sourceMedia ?? [], policy).map(({ assetRef }) => ({
@@ -137,9 +134,6 @@ export function buildGeneratePayload(
     duration: videoParams.duration,
     resolution: videoParams.resolution,
     ...(sourceMedia !== undefined ? { source_media: sourceMedia } : {}),
-    ...(state.mode === 'v2v' && state.inputVideoUrl
-      ? { input_video_url: state.inputVideoUrl }
-      : {}),
     ...(isGenerationParameterSupported(modelInfo, 'aspect_ratio')
       ? state.mode === 'i2i'
         ? state.editAspectRatio !== null

@@ -57,7 +57,13 @@ vi.mock('@tanstack/svelte-query', () => ({
     data: {
       providers: [
         {
-          models: [{ model_key: 'grok-imagine-image', is_enabled: true, capabilities: ['i2i'] }],
+          models: [
+            {
+              model_key: 'grok-imagine-image',
+              is_enabled: true,
+              generation_modes: { i2i: { source_media: null } },
+            },
+          ],
         },
       ],
     },

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { components } from '$lib/api/types';
-import { makeModelInfo } from '../../../mocks/factories/providers';
+import { makeModelInfo, generationModes } from '../../../mocks/factories/providers';
 import { isProvisioningMode } from '$lib/utils/sessionState';
 import { deriveModelBillingFacts } from './billingFacts';
 
@@ -37,7 +37,7 @@ describe('deriveModelBillingFacts', () => {
 
   it('uses provider capability order and keeps pricing for every advertised mode', () => {
     const modelInfo = makeModelInfo({
-      capabilities: ['t2v', 'not-a-mode', 'i2i', 't2i'],
+      generation_modes: generationModes(['t2v', 'not-a-mode', 'i2i', 't2i']),
       model_key: 'grok-imagine-image',
     });
     const facts = deriveModelBillingFacts({
@@ -61,7 +61,7 @@ describe('deriveModelBillingFacts', () => {
   });
 
   it('distinguishes missing pricing from a real zero cost and records session billing', () => {
-    const modelInfo = makeModelInfo({ capabilities: ['t2i', 'i2i'] });
+    const modelInfo = makeModelInfo({ generation_modes: generationModes(['t2i', 'i2i']) });
     const facts = deriveModelBillingFacts({
       modelInfo,
       provider: 'grok',
@@ -93,7 +93,7 @@ describe('deriveModelBillingFacts', () => {
 
   it('does not expose a model-guide price after its supplied clock passes the expiry', () => {
     const facts = deriveModelBillingFacts({
-      modelInfo: makeModelInfo({ capabilities: ['t2i'] }),
+      modelInfo: makeModelInfo({ generation_modes: generationModes(['t2i']) }),
       provider: 'grok',
       provisioningMode: 'always_on',
       pricing: [rule({ effective_until: '2026-02-15T00:00:00Z' })],

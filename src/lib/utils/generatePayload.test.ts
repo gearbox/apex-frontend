@@ -7,7 +7,7 @@ import {
   validateSourceMedia,
 } from './generatePayload';
 import type { GenerationState, SourceMediaDraft } from '$lib/stores/generation';
-import { makeGrokImageModelInfo } from '../../mocks/factories/providers';
+import { makeGrokImageModelInfo, generationModes } from '../../mocks/factories/providers';
 
 const upload: SourceMediaDraft = {
   assetRef: 'upload:11111111-1111-1111-1111-111111111111',
@@ -23,6 +23,13 @@ const output: SourceMediaDraft = {
   label: 'output',
   available: true,
 };
+const video: SourceMediaDraft = {
+  assetRef: 'upload:33333333-3333-3333-3333-333333333333',
+  mediaType: 'video',
+  previewUrl: '/video.png',
+  label: 'video',
+  available: true,
+};
 
 const baseState: GenerationState = {
   model: 'grok-imagine-image',
@@ -30,7 +37,6 @@ const baseState: GenerationState = {
   prompt: 'a cat',
   negativePrompt: 'blurry',
   sourceMedia: [],
-  inputVideoUrl: null,
   aspectRatio: '1:1',
   editAspectRatio: null,
   imageCount: 3,
@@ -56,14 +62,10 @@ function model(overrides: Parameters<typeof makeGrokImageModelInfo>[0] = {}) {
   return makeGrokImageModelInfo({
     max_images: 4,
     unsupported_parameters: [],
-    inputs: {
-      source_media: {
-        min: 1,
-        max: 3,
-        media_types: ['image'],
-        required_for: ['i2i'],
-      },
-    },
+    generation_modes: generationModes(['t2i', 'i2i', 'v2v'], {
+      i2i: { min: 1, max: 3, media_types: ['image'], roles: null },
+      v2v: { min: 1, max: 1, media_types: ['video'], roles: null },
+    }),
     ...overrides,
   });
 }
@@ -82,19 +84,20 @@ describe('canonical source_media payload projection', () => {
     expect(payload).not.toHaveProperty('input_image_id');
     expect(payload).not.toHaveProperty('source_output_id');
     expect(payload).not.toHaveProperty('source_images');
+    expect(payload).not.toHaveProperty('input_video_url');
   });
 
-  it('omits owned media entirely when the latest model declares source_media null', () => {
+  it('omits owned media entirely when the latest model declares source_media null for the mode', () => {
+    const noSourceModel = model({
+      generation_modes: generationModes(['t2i', 'i2i'], { i2i: null }),
+    });
     const payload = buildGeneratePayload(
       { ...baseState, mode: 'i2i', sourceMedia: [upload] },
-      model({ inputs: { source_media: null } }),
+      noSourceModel,
     );
     expect(payload.source_media).toBeUndefined();
     expect(
-      validateSourceMedia(
-        { ...baseState, mode: 'i2i', sourceMedia: [upload] },
-        model({ inputs: { source_media: null } }),
-      ),
+      validateSourceMedia({ ...baseState, mode: 'i2i', sourceMedia: [upload] }, noSourceModel),
     ).toEqual({
       valid: true,
       message: null,
@@ -107,7 +110,9 @@ describe('canonical source_media payload projection', () => {
     const fourth = { ...upload, assetRef: 'upload:fourth' };
     const state = { ...baseState, sourceMedia: [upload, audio, output, third, fourth] };
     const current = model({
-      inputs: { source_media: { min: 1, max: 2, media_types: ['image'], required_for: [] } },
+      generation_modes: generationModes(['t2i'], {
+        t2i: { min: 1, max: 2, media_types: ['image'], roles: null },
+      }),
     });
 
     expect(sourceMediaForRequest(state, current)).toEqual([
@@ -119,14 +124,19 @@ describe('canonical source_media payload projection', () => {
   });
 });
 
-describe('source_media required_for', () => {
-  it('does not treat min as required outside required_for', () => {
+describe('source_media requiredness', () => {
+  it('treats an accepted mode as optional when its own min is 0', () => {
+    const optionalT2i = model({
+      generation_modes: generationModes(['t2i'], {
+        t2i: { min: 0, max: 2, media_types: ['image'], roles: null },
+      }),
+    });
     const state = { ...baseState, mode: 't2i' as const };
-    expect(validateSourceMedia(state, model())).toEqual({
+    expect(validateSourceMedia(state, optionalT2i)).toEqual({
       valid: true,
       message: null,
     });
-    expect(buildGeneratePayload(state, model()).source_media).toBeUndefined();
+    expect(buildGeneratePayload(state, optionalT2i).source_media).toBeUndefined();
   });
 
   it('requires min only for i2i in this provider response', () => {
@@ -139,12 +149,12 @@ describe('source_media required_for', () => {
     });
   });
 
-  it('makes a future mode required solely from required_for', () => {
+  it('makes a future mode required solely from its own min > 0', () => {
     const futureModel = model({
-      capabilities: ['t2i', 'future-edit'],
-      inputs: {
-        source_media: { min: 1, max: 2, media_types: ['image'], required_for: ['future-edit'] },
-      },
+      generation_modes: generationModes(['t2i', 'future-edit'], {
+        t2i: null,
+        'future-edit': { min: 1, max: 2, media_types: ['image'], roles: null },
+      }),
     });
     expect(validateSourceMedia({ ...baseState, mode: 'future-edit' }, futureModel).valid).toBe(
       false,
@@ -155,14 +165,13 @@ describe('source_media required_for', () => {
     ).toBe(true);
   });
 
-  it('keeps v2v on input_video_url and out of source_media validation', () => {
-    const payload = buildGeneratePayload(
-      { ...baseState, mode: 'v2v', inputVideoUrl: '/v1/content/outputs/video' },
-      model(),
-    );
-    expect(payload.input_video_url).toBe('/v1/content/outputs/video');
-    expect(payload.source_media).toBeUndefined();
-    expect(validateSourceMedia({ ...baseState, mode: 'v2v' }, model()).valid).toBe(true);
+  it('sends its video source through source_media like every other source-driven mode', () => {
+    const state = { ...baseState, mode: 'v2v' as const, sourceMedia: [video] };
+    const payload = buildGeneratePayload(state, model());
+    expect(payload.source_media).toEqual([{ asset_ref: video.assetRef }]);
+    expect(payload).not.toHaveProperty('input_video_url');
+    expect(validateSourceMedia(state, model()).valid).toBe(true);
+    expect(validateSourceMedia({ ...baseState, mode: 'v2v' }, model()).valid).toBe(false);
   });
 
   it('rejects duplicate source refs before they can satisfy a minimum count', () => {

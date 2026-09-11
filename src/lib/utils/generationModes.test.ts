@@ -1,32 +1,28 @@
 import { describe, expect, it } from 'vitest';
 import {
-  canEnterCreateMode,
-  createActionableModes,
   createSupportedModes,
   enabledModes,
   findModelInfo,
   resolveModelForMode,
 } from './generationModes';
-import { makeGrokImageModelInfo } from '../../mocks/factories/providers';
+import { makeGrokImageModelInfo, generationModes } from '../../mocks/factories/providers';
 import type { components } from '$lib/api/types';
 
 type ProvidersResponse = components['schemas']['ProvidersResponse'];
 
 describe('provider-discovered modes', () => {
-  it('uses every advertised capability without a frontend create-mode list', () => {
-    const info = makeGrokImageModelInfo({ capabilities: ['t2i', 'future-edit'] });
+  it('uses every advertised generation mode without a frontend create-mode list', () => {
+    const info = makeGrokImageModelInfo({
+      generation_modes: generationModes(['t2i', 'future-edit']),
+    });
     expect(createSupportedModes(info)).toEqual(['t2i', 'future-edit']);
   });
 
-  it('keeps legacy v2v out of blank Create but makes a Library-prefilled video actionable', () => {
-    const info = makeGrokImageModelInfo({ capabilities: ['t2v', 'v2v', 'flf2v'] });
-    expect(createActionableModes(info, { inputVideoUrl: null })).toEqual(['t2v', 'flf2v']);
-    expect(canEnterCreateMode('v2v', { inputVideoUrl: '/v1/content/outputs/video' })).toBe(true);
-    expect(createActionableModes(info, { inputVideoUrl: '/v1/content/outputs/video' })).toEqual([
-      't2v',
-      'v2v',
-      'flf2v',
-    ]);
+  it('makes v2v actionable like any other advertised mode', () => {
+    const info = makeGrokImageModelInfo({
+      generation_modes: generationModes(['t2v', 'v2v', 'flf2v']),
+    });
+    expect(createSupportedModes(info)).toEqual(['t2v', 'v2v', 'flf2v']);
   });
 
   it('keeps disabled models visible to discovery but excludes them from actionable modes', () => {
@@ -38,10 +34,13 @@ describe('provider-discovered modes', () => {
           available: true,
           provisioning_mode: 'always_on',
           models: [
-            makeGrokImageModelInfo({ is_enabled: false, capabilities: ['t2i'] }),
+            makeGrokImageModelInfo({
+              is_enabled: false,
+              generation_modes: generationModes(['t2i']),
+            }),
             makeGrokImageModelInfo({
               model_key: 'grok-2-image-1212',
-              capabilities: ['future-edit'],
+              generation_modes: generationModes(['future-edit']),
             }),
           ],
         },
@@ -61,10 +60,10 @@ describe('provider-discovered modes', () => {
           available: true,
           provisioning_mode: 'always_on',
           models: [
-            makeGrokImageModelInfo({ capabilities: ['t2i'] }),
+            makeGrokImageModelInfo({ generation_modes: generationModes(['t2i']) }),
             makeGrokImageModelInfo({
               model_key: 'grok-imagine-video',
-              capabilities: ['i2v'],
+              generation_modes: generationModes(['i2v']),
             }),
           ],
         },
@@ -76,7 +75,7 @@ describe('provider-discovered modes', () => {
           models: [
             makeGrokImageModelInfo({
               model_key: 'aisha-video',
-              capabilities: ['i2v'],
+              generation_modes: generationModes(['i2v']),
             }),
           ],
         },
@@ -88,7 +87,10 @@ describe('provider-discovered modes', () => {
   });
 
   it('finds models across providers and never resolves disabled-only capabilities', () => {
-    const model = makeGrokImageModelInfo({ is_enabled: false, capabilities: ['i2v'] });
+    const model = makeGrokImageModelInfo({
+      is_enabled: false,
+      generation_modes: generationModes(['i2v']),
+    });
     const providers: ProvidersResponse = {
       providers: [
         {

@@ -482,7 +482,6 @@ describe('libraryGroupQueryOptions()', () => {
         HttpResponse.json({
           job_id: params.job_id,
           badge: 'prompt',
-          input_media: null,
           prompt: 'test',
           negative_prompt: null,
           outputs: [],

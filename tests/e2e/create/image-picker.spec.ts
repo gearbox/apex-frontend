@@ -186,20 +186,17 @@ test.describe('Image Picker', () => {
               {
                 model_key: 'grok-imagine-image',
                 name: 'Grok Imagine',
-                capabilities: ['t2i', 'i2i'],
+                generation_modes: {
+                  t2i: { source_media: null },
+                  i2i: {
+                    source_media: { min: 1, max: 1, media_types: ['image'], roles: null },
+                  },
+                },
                 is_enabled: true,
                 max_images: 10,
                 max_prompt_length: 4096,
                 supports_negative_prompt: false,
                 aspect_ratios: ['1:1', '16:9', '9:16'],
-                inputs: {
-                  source_media: {
-                    min: 1,
-                    max: 1,
-                    media_types: ['image'],
-                    required_for: ['i2i'],
-                  },
-                },
                 image: null,
                 video: null,
               },

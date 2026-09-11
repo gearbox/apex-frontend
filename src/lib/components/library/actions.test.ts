@@ -8,8 +8,8 @@ import {
   type LibraryActionDeps,
 } from './actions';
 import { makeLibraryAssetDetail } from '../../../mocks/factories/library';
-import { makeMediaObject } from '../../../mocks/factories/media';
-import { makeGrokImageModelInfo } from '../../../mocks/factories/providers';
+import { makeMediaObject, makeVideoMediaObject } from '../../../mocks/factories/media';
+import { makeGrokImageModelInfo, generationModes } from '../../../mocks/factories/providers';
 import type { components } from '$lib/api/types';
 
 const { addToastMock } = vi.hoisted(() => ({ addToastMock: vi.fn() }));
@@ -34,7 +34,9 @@ function providers(): ProvidersResponse {
         name: 'Grok',
         available: true,
         provisioning_mode: 'always_on',
-        models: [makeGrokImageModelInfo({ capabilities: ['t2i', 'i2i', 'v2v'] })],
+        models: [
+          makeGrokImageModelInfo({ generation_modes: generationModes(['t2i', 'i2i', 'v2v']) }),
+        ],
       },
     ],
     user_context: null,
@@ -51,7 +53,6 @@ function deps(
     loadGroup: vi.fn().mockResolvedValue({
       job_id: 'job-1',
       badge: 'image',
-      input_media: null,
       source_media: groupSources,
       prompt: 'original prompt',
       negative_prompt: null,
@@ -119,37 +120,38 @@ describe('Re-Generate source-media replay', () => {
     ]);
   });
 
-  it('keeps v2v on inputVideoUrl rather than forcing the video into sourceMedia', async () => {
+  it('prefills extend (v2v) with the owned video source, not a video URL', async () => {
     const videoAsset = {
       ...asset,
       asset_ref: SOURCE_B,
-      media: makeMediaObject({
-        media_type: 'video',
-        original: { url: '/v1/content/outputs/video', content_type: 'video/mp4', size_bytes: 1 },
-      }),
+      media: makeVideoMediaObject(),
     };
     const actionDeps = deps([]);
     actionDeps.loadDetail = vi.fn().mockResolvedValue(videoAsset);
     const action = resolveLibraryAction('extend', videoAsset, {}, actionDeps);
     await action?.();
-    expect(get(generationStore).inputVideoUrl).toBe('/v1/content/outputs/video');
-    expect(get(generationStore).sourceMedia).toEqual([]);
+    expect(get(generationStore).mode).toBe('v2v');
+    expect(get(generationStore).sourceMedia).toMatchObject([
+      { assetRef: SOURCE_B, available: true },
+    ]);
   });
 
-  it('does not navigate for historical v2v Re-Generate without a replayable input URL', async () => {
+  it('replays a v2v Re-Generate through group.source_media like every other mode', async () => {
     const v2vAsset = {
       ...asset,
       generation_type: 'v2v' as const,
       model: 'grok-imagine-image',
     };
-    const actionDeps = deps([], { input_media: null, source_media: [] });
+    const actionDeps = deps(
+      [{ position: 0, asset_ref: SOURCE_B, available: true, media: makeVideoMediaObject() }],
+      { generation_type: 'v2v', media_type: 'video' },
+    );
     actionDeps.loadDetail = vi.fn().mockResolvedValue(v2vAsset);
     const action = resolveLibraryAction('reproduce', v2vAsset, {}, actionDeps);
     await action?.();
-    expect(actionDeps.navigate).not.toHaveBeenCalled();
-    expect(addToastMock).toHaveBeenCalled();
-    expect(get(generationStore).inputVideoUrl).toBeNull();
-    expect(get(generationStore).sourceMedia).toEqual([]);
+    expect(actionDeps.navigate).toHaveBeenCalled();
+    expect(get(generationStore).mode).toBe('v2v');
+    expect(get(generationStore).sourceMedia).toMatchObject([{ assetRef: SOURCE_B }]);
   });
 
   it('does not navigate when no current model can preserve an original optional source', async () => {
@@ -164,7 +166,9 @@ describe('Re-Generate source-media replay', () => {
           available: true,
           provisioning_mode: 'always_on',
           models: [
-            makeGrokImageModelInfo({ capabilities: ['i2i'], inputs: { source_media: null } }),
+            makeGrokImageModelInfo({
+              generation_modes: generationModes(['i2i'], { i2i: null }),
+            }),
           ],
         },
       ],
@@ -198,7 +202,7 @@ describe('Library action visibility and provenance', () => {
         generationType: 'v2v',
         saveCapabilities: ['download'],
       }),
-    ).toEqual(['extend']);
+    ).toEqual(['reproduce', 'extend']);
   });
 
   it('keeps save actions independent while serializing source/replay navigation actions', () => {

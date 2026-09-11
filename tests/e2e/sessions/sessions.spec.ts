@@ -14,7 +14,10 @@ const mockProviders = {
         {
           model_key: 'aisha-image',
           name: 'Aisha',
-          capabilities: ['t2i', 'i2i'],
+          generation_modes: {
+            t2i: { source_media: null },
+            i2i: { source_media: { min: 1, max: 4, media_types: ['image'], roles: null } },
+          },
           is_enabled: true,
           max_images: 4,
           max_prompt_length: 4096,
@@ -49,7 +52,10 @@ const mockProvidersWithDistinctProvisioningHints = {
         {
           model_key: 'aisha-image-lite',
           name: 'Aisha Lite',
-          capabilities: ['t2i', 'i2i'],
+          generation_modes: {
+            t2i: { source_media: null },
+            i2i: { source_media: { min: 1, max: 4, media_types: ['image'], roles: null } },
+          },
           is_enabled: true,
           max_images: 4,
           max_prompt_length: 4096,
@@ -565,7 +571,7 @@ test.describe('Sessions page', () => {
               {
                 model_key: 'aisha-image-lite',
                 name: 'Aisha Lite',
-                capabilities: ['t2i'],
+                generation_modes: { t2i: { source_media: null } },
                 is_enabled: true,
                 max_images: 4,
                 max_prompt_length: 4096,
@@ -688,7 +694,7 @@ test.describe('Sessions page', () => {
               {
                 model_key: 'aisha-image-lite',
                 name: 'Aisha Lite',
-                capabilities: ['t2i'],
+                generation_modes: { t2i: { source_media: null } },
                 is_enabled: true,
                 max_images: 4,
                 max_prompt_length: 4096,

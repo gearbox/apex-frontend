@@ -133,8 +133,6 @@ function replayFailureMessage(reason: ReplayFailureReason): string {
       return m.library_action_no_model();
     case 'incompatible-source-policy':
       return m.library_reproduce_source_incompatible();
-    case 'legacy-v2v-source-unavailable':
-      return m.library_reproduce_v2v_unavailable();
     default:
       return m.library_reproduce_source_missing();
   }
@@ -163,7 +161,6 @@ async function useAsSource(
         sourceAsset.media,
         sourceAsset.asset_ref.startsWith('output:') ? 'From generated' : 'From uploads',
       ),
-      inputVideoUrl: sourceAsset.media.original.url,
       ...(policy.prompt === 'copy-provenance'
         ? {
             prompt: sourceAsset.prompt ?? '',
@@ -296,9 +293,6 @@ export function filterVisibleLibraryActions(
     // Duplicate of `remix` with the current API surface — deferred until a real
     // create-variation prefill (denoise/seed) is implemented.
     if (action === 'create_variation') return false;
-    // v2v historical requests have no replayable original input URL in the
-    // current group contract. Extend remains independently available.
-    if (action === 'reproduce' && opts.generationType === 'v2v') return false;
     const mode = ACTION_MODE[action];
     if (mode && !opts.availableModes.has(mode)) return false;
     return true;

@@ -43,8 +43,6 @@
         return m.library_action_no_model();
       case 'incompatible-source-policy':
         return m.library_reproduce_source_incompatible();
-      case 'legacy-v2v-source-unavailable':
-        return m.library_reproduce_v2v_unavailable();
       default:
         return m.library_reproduce_source_missing();
     }
@@ -152,7 +150,7 @@
                 {/if}
               </button>
             {/each}
-            {#if job && job.generation_type !== 'v2v'}
+            {#if job}
               <button
                 onclick={() => void handleRegenerate(job)}
                 class="flex h-7 w-7 items-center justify-center rounded-lg bg-white/20 text-white backdrop-blur-sm hover:bg-white/30 transition-colors"

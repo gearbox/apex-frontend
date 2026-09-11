@@ -56,10 +56,8 @@ describe('generationStore source media', () => {
 
   it('prefill keeps explicitly ordered sources and otherwise clears an old selection', () => {
     generationStore.setSourceMedia([upload]);
-    generationStore.setInputVideoUrl('/v1/content/outputs/old-video');
     generationStore.prefill({ prompt: 'new draft' });
     expect(get(generationStore).sourceMedia).toEqual([]);
-    expect(get(generationStore).inputVideoUrl).toBeNull();
 
     generationStore.prefill({ sourceMedia: [output, upload] });
     expect(get(generationStore).sourceMedia.map((source) => source.assetRef)).toEqual([

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/svelte';
+import { render, screen, fireEvent } from '@testing-library/svelte';
 import { generationStore } from '$lib/stores/generation';
 import { makeJobOutputItem, makeUnifiedJobResponse } from '../../../mocks/factories/job';
 import ResultsPanel from './ResultsPanel.svelte';
@@ -19,7 +19,7 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('ResultsPanel replay controls', () => {
-  it('does not offer exact Re-Generate for historical v2v jobs', () => {
+  it('offers Re-Generate for v2v jobs, same as every other mode', async () => {
     generationStore.setComplete(
       makeUnifiedJobResponse({
         generation_type: 'v2v',
@@ -30,7 +30,8 @@ describe('ResultsPanel replay controls', () => {
 
     render(ResultsPanel, { props: { loadGroup } });
 
-    expect(screen.queryByLabelText('Re-generate with same prompt')).toBeNull();
-    expect(loadGroup).not.toHaveBeenCalled();
+    const button = screen.getByLabelText('Re-generate with same prompt');
+    await fireEvent.click(button);
+    expect(loadGroup).toHaveBeenCalled();
   });
 });

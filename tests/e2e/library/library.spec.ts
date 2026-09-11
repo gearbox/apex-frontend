@@ -153,7 +153,6 @@ const mockAssetDetailGroupVariationB = {
 const mockGroupDetail = {
   job_id: 'job_002',
   badge: 'image',
-  input_media: makeMedia('/v1/content/uploads/b0000000-0000-4000-8000-000000000099'),
   prompt: 'Ocean waves crashing on shore under a stylised sky',
   negative_prompt: null,
   outputs: [
@@ -196,20 +195,17 @@ const mockProvidersResponse = {
           model_key: 'grok-imagine-image',
           name: 'Grok Image',
           description: 'Image generation model',
-          capabilities: ['t2i', 'i2i'],
+          generation_modes: {
+            t2i: { source_media: null },
+            i2i: {
+              source_media: { min: 1, max: 1, media_types: ['image'], roles: null },
+            },
+          },
           is_enabled: true,
           max_images: 4,
           max_prompt_length: 4096,
           supports_negative_prompt: true,
           aspect_ratios: ['1:1', '16:9', '3:4'],
-          inputs: {
-            source_media: {
-              min: 1,
-              max: 1,
-              media_types: ['image'],
-              required_for: ['i2i'],
-            },
-          },
           image: null,
           video: null,
         },
@@ -217,7 +213,12 @@ const mockProvidersResponse = {
           model_key: 'grok-imagine-video',
           name: 'Grok Video',
           description: 'Video generation model',
-          capabilities: ['t2v', 'i2v'],
+          generation_modes: {
+            t2v: { source_media: null },
+            i2v: {
+              source_media: { min: 1, max: 1, media_types: ['image'], roles: null },
+            },
+          },
           is_enabled: true,
           max_images: 1,
           max_prompt_length: 4096,
@@ -516,7 +517,6 @@ test.describe('Library actions — Remix / Reproduce', () => {
       jsonRoute({
         job_id: 'job_003',
         badge: 'video',
-        input_media: null,
         source_media: [],
         prompt: 'City lights at night timelapse',
         negative_prompt: null,
