@@ -1,5 +1,5 @@
 import type { components } from '$lib/api/types';
-import { AISHA_IMAGE_CONSTRAINTS } from '../fixtures/aisha';
+import { AISHA_IMAGE_CONSTRAINTS, AISHA_IMAGE_LITE_CONSTRAINTS } from '../fixtures/aisha';
 
 type ModelInfo = components['schemas']['ModelInfo'];
 type GenerationModeInfo = components['schemas']['GenerationModeInfo'];
@@ -84,7 +84,10 @@ export function makeAishaImageModelInfo(overrides: Partial<ModelInfo> = {}): Mod
 }
 
 /**
- * Matches current backend `master`: t2i only — no i2i/edit mode advertised.
+ * Matches current backend `master`: t2i only — no i2i/edit mode advertised;
+ * `negative_prompt` unsupported (provider discovery reports it as an
+ * unsupported parameter); requires age verification; cannot reshape on edit
+ * (`image.edit_aspect_ratios: []`, via `AISHA_IMAGE_LITE_CONSTRAINTS`).
  */
 export function makeAishaImageLiteModelInfo(overrides: Partial<ModelInfo> = {}): ModelInfo {
   return makeModelInfo({
@@ -93,10 +96,11 @@ export function makeAishaImageLiteModelInfo(overrides: Partial<ModelInfo> = {}):
     description: 'Aisha lightweight image generation model',
     generation_modes: generationModes(['t2i']),
     max_images: 4,
-    supports_negative_prompt: true,
-    unsupported_parameters: [],
+    supports_negative_prompt: false,
+    unsupported_parameters: ['negative_prompt'],
     aspect_ratios: ['1:1', '16:9', '9:16', '4:3', '3:4'],
-    image: AISHA_IMAGE_CONSTRAINTS,
+    requires_age_verification: true,
+    image: AISHA_IMAGE_LITE_CONSTRAINTS,
     ...overrides,
   });
 }
