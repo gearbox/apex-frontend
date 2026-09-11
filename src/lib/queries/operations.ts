@@ -38,7 +38,7 @@ export function upsertOperation(
   return cached;
 }
 
-export function isTerminalOperation(operation: OperationResponse | undefined): boolean {
+function isTerminalOperation(operation: OperationResponse | undefined): boolean {
   return operation?.status === 'succeeded' || operation?.status === 'failed';
 }
 

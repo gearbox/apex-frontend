@@ -412,6 +412,18 @@ The picker emits a `MediaPickerSelection` (`assetRef`, `mediaType`, `previewUrl`
 
 ---
 
+## GPU Sessions
+
+On-demand models (`provider.provisioning_mode === "on_demand"`, e.g. Aisha) require a per-user GPU session before generation. Card readiness on `/app/create` comes **only** from the authenticated `GET /v1/providers` runtime overlay (`model.runtime`) — never derived from session or deployment status scalars. `/app/sessions` manages the session itself: start, pause/resume, attach/remove additive deployments, and the two-call stop (`confirmed=false` preview, `confirmed=true` teardown) protocol.
+
+Every durable `OperationResponse` — a session's `bootstrap_operation`, a deployment's `current_operation`, an attach/remove mutation's `202` body, or an `operation_updated` SSE frame — merges into one canonical, revision-ordered cache (`operationKeys.detail(id)` in `src/lib/queries/operations.ts`); only a strictly greater `revision` may replace a cached operation.
+
+Key files: `src/lib/components/sessions/*.svelte`, `src/lib/queries/{sessions,operations,providers}.ts`, `src/lib/utils/{sessionState,deploymentEligibility}.ts`, `src/lib/services/eventStream.ts` (SSE dispatch/reconciliation).
+
+Full implementation map, ownership, and recovery model: [`docs/features/gpu-sessions.md`](docs/features/gpu-sessions.md). Lifecycle/state-machine contract: [`docs/contracts/session-state-ux-contract.md`](docs/contracts/session-state-ux-contract.md). Manual staging smoke checklist: [`docs/testing/gpu-session-live-smoke.md`](docs/testing/gpu-session-live-smoke.md).
+
+---
+
 ## Real-Time Events (SSE)
 
 ### Architecture
