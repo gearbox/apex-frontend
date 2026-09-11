@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/svelte';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { get } from 'svelte/store';
 import type { components } from '$lib/api/types';
 import { generationStore } from '$lib/stores/generation';
 import { setEventStreamStatus } from '$lib/stores/eventStream';
+import { makeGrokVideoModelInfo } from '../../../../mocks/factories/providers';
 
 type ProvidersResponse = components['schemas']['ProvidersResponse'];
 type PricingRuleResponse = components['schemas']['PricingRuleResponse'];
@@ -68,6 +69,20 @@ const GROK_VIDEO_PROVIDERS: ProvidersResponse = {
           video: null,
         },
       ],
+    },
+  ],
+  user_context: null,
+} as unknown as ProvidersResponse;
+
+// A fuller video contract (t2v/i2v/v2v) than GROK_VIDEO_PROVIDERS, for source-driven assertions.
+const GROK_VIDEO_FULL_PROVIDERS: ProvidersResponse = {
+  providers: [
+    {
+      provider: 'grok',
+      name: 'xAI Grok',
+      available: true,
+      provisioning_mode: 'always_on',
+      models: [makeGrokVideoModelInfo()],
     },
   ],
   user_context: null,
@@ -321,7 +336,7 @@ describe('/app/create page — generate gating during providers load', () => {
     expect(screen.getAllByText('◈ 9')).toHaveLength(2);
   });
 
-  it('prices a retained optional source after switching back to t2i when discovery accepts it', () => {
+  it('a source compatible with more than one advertised mode is ambiguous, not priced by a stale explicit mode', () => {
     providersData = {
       ...GROK_PROVIDERS,
       providers: [
@@ -333,9 +348,10 @@ describe('/app/create page — generate gating during providers load', () => {
               generation_modes: {
                 ...GROK_PROVIDERS.providers[0].models[0].generation_modes,
                 // This model's t2i mode explicitly accepts an optional source
-                // (min: 0), unlike the shared GROK_PROVIDERS fixture — the
-                // retained source is priced only because this mode's own
-                // contract, not a cross-mode union, says it may be.
+                // (min: 0), which — for the same single image — is also a
+                // complete i2i candidate. Source-driven Create must not guess
+                // between them via a stale `generationStore.mode`; it must
+                // resolve ambiguous and refuse to price/submit.
                 t2i: { source_media: { min: 0, max: 4, media_types: ['image'], roles: null } },
               },
             },
@@ -343,7 +359,6 @@ describe('/app/create page — generate gating during providers load', () => {
         },
       ],
     };
-    generationStore.setMode('i2i');
     generationStore.setSourceMedia([
       {
         assetRef: 'upload:image_001',
@@ -353,7 +368,6 @@ describe('/app/create page — generate gating during providers load', () => {
         available: true,
       },
     ]);
-    generationStore.setMode('t2i');
     pricingData = [
       {
         id: '00000000-0000-0000-0000-000000000001',
@@ -371,8 +385,9 @@ describe('/app/create page — generate gating during providers load', () => {
 
     render(Page);
 
-    expect(screen.getByText('Est. ◈ 9 tokens')).toBeTruthy();
-    expect(screen.getAllByText('◈ 9')).toHaveLength(2);
+    expect(screen.queryByText(/Est\. ◈/)).toBeNull();
+    expect(screen.getAllByText('Cost unavailable').length).toBeGreaterThan(0);
+    for (const btn of generateButtons()) expect(btn.disabled).toBe(true);
   });
 
   it('uses one output in the estimate after switching from four images to video', () => {
@@ -493,5 +508,112 @@ describe('/app/create page — generate gating during providers load', () => {
 
     expect(screen.getByText('Est. ◈ 11 tokens')).toBeTruthy();
     expect(screen.getAllByText('◈ 11')).toHaveLength(2);
+  });
+});
+
+describe('/app/create page — source-driven generation mode (Phase 3)', () => {
+  it('has no user-facing Type selector', () => {
+    providersData = GROK_PROVIDERS;
+
+    render(Page);
+
+    expect(document.querySelector('[data-generation-mode]')).toBeNull();
+    expect(screen.queryByText('Type')).toBeNull();
+  });
+
+  it('shows the source affordance for an image model while the draft is source-free', () => {
+    providersData = GROK_PROVIDERS; // t2i (no source) + i2i (1..4 images)
+
+    render(Page);
+
+    expect(screen.getByText('Source Media')).toBeTruthy();
+  });
+
+  it('hides the source affordance for a t2i-only model with no retained source', () => {
+    providersData = {
+      ...GROK_PROVIDERS,
+      providers: [
+        {
+          ...GROK_PROVIDERS.providers[0],
+          models: [
+            {
+              ...GROK_PROVIDERS.providers[0].models[0],
+              generation_modes: { t2i: { source_media: null } },
+            },
+          ],
+        },
+      ],
+    };
+
+    render(Page);
+
+    expect(screen.queryByText('Source Media')).toBeNull();
+    expect(screen.queryByText('Source Image')).toBeNull();
+  });
+
+  it('does not stay stuck in a stale i2i preference once the last source is removed (store.mode alone must not drive resolution)', async () => {
+    providersData = GROK_PROVIDERS;
+    pricingData = [
+      {
+        id: '00000000-0000-0000-0000-000000000001',
+        provider: 'grok',
+        generation_type: 'i2i',
+        model: 'grok-imagine-image',
+        token_cost: 7,
+        input_token_cost: 2,
+        is_active: true,
+        effective_from: '2026-01-01T00:00:00Z',
+        effective_until: null,
+        notes: null,
+      },
+      {
+        id: '00000000-0000-0000-0000-000000000002',
+        provider: 'grok',
+        generation_type: 't2i',
+        model: 'grok-imagine-image',
+        token_cost: 5,
+        input_token_cost: 0,
+        is_active: true,
+        effective_from: '2026-01-01T00:00:00Z',
+        effective_until: null,
+        notes: null,
+      },
+    ];
+    // A historical explicit selection is retained on the store, exactly as it
+    // would be after a (now-removed) TypeSelector, or an in-progress replay.
+    generationStore.setMode('i2i');
+    generationStore.setSourceMedia([
+      {
+        assetRef: 'upload:image_001',
+        mediaType: 'image',
+        previewUrl: null,
+        label: null,
+        available: true,
+      },
+    ]);
+
+    render(Page);
+    expect(screen.getByText('Est. ◈ 9 tokens')).toBeTruthy();
+
+    generationStore.setSourceMedia([]);
+
+    // `store.mode` is untouched (still 'i2i') — Create must resolve the
+    // no-source mode from the model + source shape anyway, not stay stuck on
+    // an incomplete i2i because the stale field says so.
+    expect(get(generationStore).mode).toBe('i2i');
+    await waitFor(() => expect(screen.getByText('Est. ◈ 5 tokens')).toBeTruthy());
+    for (const btn of generateButtons()) expect(btn.disabled).toBe(false);
+  });
+
+  it('Grok Video with no source accepts both image and video as the first source', () => {
+    providersData = GROK_VIDEO_FULL_PROVIDERS;
+
+    render(Page);
+
+    const fileInput = document.querySelector('input[type="file"]');
+    expect(fileInput).toBeTruthy();
+    const accept = fileInput?.getAttribute('accept') ?? '';
+    expect(accept).toContain('image/');
+    expect(accept).toContain('video/');
   });
 });

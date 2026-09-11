@@ -37,7 +37,6 @@
   import type { components } from '$lib/api/types';
   import type { GpuSessionResponse } from '$lib/api/sessions';
   import type { UserProfile } from '$lib/stores/auth';
-  import TypeSelector from '$lib/components/create/TypeSelector.svelte';
   import SourceMediaInput from '$lib/components/create/SourceMediaInput.svelte';
   import PromptInput from '$lib/components/create/PromptInput.svelte';
   import NegativePromptInput from '$lib/components/create/NegativePromptInput.svelte';
@@ -48,7 +47,7 @@
     outputCountForRequest,
     validateSourceMedia,
   } from '$lib/utils/generatePayload';
-  import { isGenerationParameterSupported, sourceMediaPolicy } from '$lib/utils/modelCapabilities';
+  import { isGenerationParameterSupported } from '$lib/utils/modelCapabilities';
   import GenerateButton from '$lib/components/create/GenerateButton.svelte';
   import ResultsPanel from '$lib/components/create/ResultsPanel.svelte';
   import { ROUTES } from '$lib/utils/routes';
@@ -65,7 +64,8 @@
   import ModelSummaryCard from '$lib/components/create/ModelSummaryCard.svelte';
   import { isGenerationMode } from '$lib/utils/generationModes';
   import { libraryGroupQueryOptions } from '$lib/queries/library';
-  import { resolveEffectiveGenerationMode } from '$lib/utils/generationModeResolverAdapter';
+  import { resolveGenerationMode } from '$lib/utils/generationModeResolver';
+  import { isSourceSectionVisible, toResolverSources } from '$lib/utils/sourceMediaAffordance';
 
   const queryClient = useQueryClient();
   let pricingNowMs = $state(Date.now());
@@ -231,13 +231,18 @@
   }
 
   // ── Effective generation mode
-  // A single pure resolution drives pricing, source validation, payload
-  // `generation_type`, the submit guard, and mode-sensitive parameter UI —
-  // never independent reads of `$generationStore.mode`. See
-  // `resolveEffectiveGenerationMode` for the Phase-2 TypeSelector compatibility
-  // boundary this wraps around the pure `resolveGenerationMode`.
+  // Source-driven Create (Phase 3): `generation_type` is derived purely from
+  // the current model's advertised `generation_modes` and the actual stored
+  // source-media draft — never from the old mutable `$generationStore.mode`,
+  // which would otherwise keep a stale explicit selection (e.g. "incomplete
+  // i2i") sticky after the user removes the source that made it relevant.
+  // This single resolution drives pricing, source validation, payload
+  // `generation_type`, the submit guard, and mode-sensitive parameter UI.
   const modeResolution = $derived(
-    resolveEffectiveGenerationMode($generationStore, currentModelInfo),
+    resolveGenerationMode({
+      modelInfo: currentModelInfo,
+      sourceMedia: toResolverSources($generationStore.sourceMedia),
+    }),
   );
   // Only `resolved`/`incomplete` carry a concrete mode. The raw fallback here is
   // for non-submission-affecting param UI only (e.g. video-vs-image layout) —
@@ -292,9 +297,6 @@
     });
   }
 
-  // Source controls stay gated on the raw explicit Type intent (Phase 3 scope
-  // makes this source-driven instead) — see `resolveEffectiveGenerationMode`.
-  const sourcePolicy = $derived(sourceMediaPolicy(currentModelInfo, $generationStore.mode));
   const sourceValidation = $derived(validateSourceMedia(effectiveState, currentModelInfo));
   const canSubmit = $derived(
     generateEnabled && modeResolution.status === 'resolved' && sourceValidation.valid,
@@ -328,7 +330,7 @@
   // ── i2i aspect-reshape 400 error (inline, under the aspect control)
   let aspectError = $state<string | null>(null);
   const aspectErrorResetKey = $derived(
-    `${$generationStore.mode}|${$generationStore.model}|${$generationStore.editAspectRatio}`,
+    `${effectiveMode}|${$generationStore.model}|${$generationStore.editAspectRatio}`,
   );
 
   $effect(() => {
@@ -501,7 +503,9 @@
     stopPoller?.();
   });
 
-  const showSourceMediaInput = $derived(sourcePolicy.accepted);
+  const showSourceMediaInput = $derived(
+    isSourceSectionVisible(currentModelInfo, $generationStore.sourceMedia),
+  );
   const showSkeleton = $derived($isGenerating);
 </script>
 
@@ -528,10 +532,8 @@
       onuseexample={handleUseGuideExample}
     />
 
-    <TypeSelector modelInfo={currentModelInfo ?? null} />
-
     {#if showSourceMediaInput}
-      <SourceMediaInput policy={sourcePolicy} />
+      <SourceMediaInput modelInfo={currentModelInfo ?? null} />
     {/if}
 
     <PromptInput />

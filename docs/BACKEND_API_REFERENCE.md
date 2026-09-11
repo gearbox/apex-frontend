@@ -804,10 +804,20 @@ UserContext: {
 source; this frontend repository keeps a frozen snapshot at
 `docs/contracts/fe-api-contract-workflow-media-arc.md` for its semantics and resolution rules.
 
-Current frontend behavior still uses explicit `TypeSelector`/`generationStore.mode`: the user
-picks the generation type directly. The automatic intent/mode resolution described in that
-backend contract (deriving `generation_type` from user action and selected source media) is
-planned separately and is not implemented here.
+Current frontend behavior implements that automatic resolution: Create has no user-facing
+generation-type selector. The user picks a model, a prompt, optional source media, and
+generation parameters; `generation_type` is derived purely from the pure resolver in
+`src/lib/utils/generationModeResolver.ts` (`resolveGenerationMode`), fed the current model's
+advertised `generation_modes` and the actual ordered `sourceMedia` draft — never a stored
+technical mode selection. Adding/removing source media transitions the resolved mode
+automatically (e.g. adding an image moves an image model from `t2i` to `i2i`; removing the
+last source returns it to `t2i`). `src/lib/utils/sourceMediaAffordance.ts` derives which media
+kinds can legally be appended or used to replace a given source position by simulating the
+resolver against a hypothetical draft, so generic "add source" UI never offers an action that
+would create an ambiguous or invalid combination. An `ambiguous`/`incomplete`/`invalid`
+resolution disables pricing and submission; only a `resolved` mode reaches the request.
+`generationStore.mode` still exists for Library replay/prefill/backward-compatible state
+plumbing, but generic Create behavior never reads it as a sticky preference.
 
 > **Deprecated flat format** (`providers` + `models` as a flat list) was removed in v2.
 

@@ -52,7 +52,6 @@ src/
 │   │   │   └── BalancePill.svelte    # Token balance → links to /app/billing
 │   │   ├── create/
 │   │   │   ├── ModelSelector.svelte
-│   │   │   ├── TypeSelector.svelte
 │   │   │   ├── PromptInput.svelte
 │   │   │   ├── ParamsPanel.svelte
 │   │   │   ├── SourceMediaInput.svelte # Drag-drop source-media upload + library trigger

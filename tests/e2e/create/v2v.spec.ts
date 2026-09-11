@@ -1,8 +1,10 @@
 import { Buffer } from 'node:buffer';
-import type { Page } from '@playwright/test';
 import { test, expect } from '../fixtures/auth.fixture';
 import { jsonRoute } from '../helpers/api';
-import { makeGrokVideoModelInfo } from '../../../src/mocks/factories/providers';
+import {
+  makeAishaImageModelInfo,
+  makeGrokVideoModelInfo,
+} from '../../../src/mocks/factories/providers';
 
 // Real backend-shaped contract (t2v/i2v/v2v, no flf2v) so this suite exercises the
 // migrated V2V transport (owned `source_media`) against an accurate model fixture.
@@ -14,6 +16,22 @@ const grokVideoProvidersResponse = {
       available: true,
       provisioning_mode: 'always_on',
       models: [makeGrokVideoModelInfo()],
+    },
+  ],
+  user_context: null,
+};
+
+// A second, image-only provider used to prove an incompatible model switch retains
+// (rather than silently clears) a video source that model can never consume.
+const grokVideoPlusAishaImageProvidersResponse = {
+  providers: [
+    ...grokVideoProvidersResponse.providers,
+    {
+      provider: 'aisha',
+      name: 'Aisha',
+      available: true,
+      provisioning_mode: 'always_on',
+      models: [makeAishaImageModelInfo()],
     },
   ],
   user_context: null,
@@ -68,10 +86,6 @@ const ownedImageUpload = {
   generation_type: null,
   available_actions: ['download', 'favorite', 'delete'],
 };
-
-async function selectGenerationMode(page: Page, mode: 't2v' | 'i2v' | 'v2v'): Promise<void> {
-  await page.locator(`[data-generation-mode="${mode}"]`).click();
-}
 
 test.describe('Create — V2V submission', () => {
   test.beforeEach(async ({ authenticatedPage: page }) => {
@@ -136,21 +150,19 @@ test.describe('Create — V2V submission', () => {
 
     await page.goto('/app/create?prompt=A+video+extension+test');
 
-    await selectGenerationMode(page, 'v2v');
-
-    // The source-media picker for V2V must request/allow only video media, never the
-    // default image kind — proves SourceMediaInput passes the mode's own policy through.
+    // No mode to select: this model has no source yet, so both image and video
+    // are legal first sources — the "Library" affordance is already visible.
     const libraryButton = page.getByRole('button', { name: 'Library' });
     await expect(libraryButton).toBeVisible();
     await libraryButton.click();
 
-    await expect(page.getByRole('heading', { name: 'Choose Source Media' })).toBeVisible();
+    const pickerDialog = page.getByRole('dialog', { name: 'Choose source media from library' });
+    await expect(pickerDialog.getByRole('heading', { name: 'Choose Source Media' })).toBeVisible();
 
-    // The mock upload item is only returned for a `source=upload&media_type=video`
-    // request, so its visibility itself proves the picker requested video media.
-    const pickerItems = page
-      .getByRole('dialog', { name: 'Choose source media from library' })
-      .locator('[aria-pressed]');
+    // The picker opens on the image tab by default — switch to video to reach the owned clip.
+    await pickerDialog.getByRole('button', { name: 'video', exact: true }).click();
+
+    const pickerItems = pickerDialog.locator('[aria-pressed]');
     await expect(pickerItems.first()).toBeVisible({ timeout: 5000 });
     expect(libraryRequestMediaTypes).toContain('video');
 
@@ -176,7 +188,7 @@ test.describe('Create — V2V submission', () => {
     expect(capturedBody).not.toHaveProperty('source_images');
   });
 
-  test('switching V2V -> I2V with a retained video source cannot submit V2V behind the I2V selection (P1 regression)', async ({
+  test('switching to a model that cannot use the video source retains it and disables Generate until removed', async ({
     authenticatedPage: page,
   }) => {
     await page.route('**/v1/library*', (route) => {
@@ -200,11 +212,11 @@ test.describe('Create — V2V submission', () => {
         status: 201,
         contentType: 'application/json',
         body: JSON.stringify({
-          job_id: 'job_e2e_i2v',
+          job_id: 'job_e2e_i2i',
           status: 'pending',
-          name: 'E2E i2v recovery',
-          model: 'grok-imagine-video',
-          generation_type: 'i2v',
+          name: 'E2E i2i recovery',
+          model: 'aisha-image',
+          generation_type: 'i2i',
           created_at: '2025-06-05T00:02:00Z',
         }),
       });
@@ -212,27 +224,28 @@ test.describe('Create — V2V submission', () => {
     await page.route(
       '**/v1/jobs/**',
       jsonRoute({
-        id: 'job_e2e_i2v',
+        id: 'job_e2e_i2i',
         status: 'running',
-        name: 'E2E i2v recovery',
-        provider: 'grok',
-        model: 'grok-imagine-video',
-        generation_type: 'i2v',
+        name: 'E2E i2i recovery',
+        provider: 'aisha',
+        model: 'aisha-image',
+        generation_type: 'i2i',
         prompt: 'Mode mismatch regression',
         created_at: '2025-06-05T00:02:00Z',
         outputs: [],
       }),
     );
+    // Overrides the beforeEach registration — Playwright dispatches to the most recently added handler.
+    await page.route('**/v1/providers', jsonRoute(grokVideoPlusAishaImageProvidersResponse));
 
     await page.goto('/app/create?prompt=Mode+mismatch+regression');
 
     // 1-3: build a submit-ready V2V draft with an owned video source.
-    await selectGenerationMode(page, 'v2v');
     await page.getByRole('button', { name: 'Library' }).click();
-    await expect(page.getByRole('heading', { name: 'Choose Source Media' })).toBeVisible();
-    const pickerItems = page
-      .getByRole('dialog', { name: 'Choose source media from library' })
-      .locator('[aria-pressed]');
+    const pickerDialog = page.getByRole('dialog', { name: 'Choose source media from library' });
+    await expect(pickerDialog.getByRole('heading', { name: 'Choose Source Media' })).toBeVisible();
+    await pickerDialog.getByRole('button', { name: 'video', exact: true }).click();
+    const pickerItems = pickerDialog.locator('[aria-pressed]');
     await expect(pickerItems.first()).toBeVisible({ timeout: 5000 });
     await pickerItems.first().click();
     await page.getByRole('button', { name: /Add Selected Media/i }).click();
@@ -243,21 +256,17 @@ test.describe('Create — V2V submission', () => {
     // 4: V2V is submit-ready.
     await expect(generateBtn).toBeEnabled();
 
-    // 5-6: switch the explicit Type to I2V; the video source is retained (not cleared).
-    await selectGenerationMode(page, 'i2v');
-    await expect(page.locator('[data-generation-mode="i2v"]')).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
+    // 5-6: switch to a model that cannot consume any source at all — the video
+    // source is retained (not cleared), and a semantic warning explains why.
+    await page.getByRole('button', { name: 'Aisha' }).click();
     await expect(page.getByText('From uploads')).toBeVisible();
+    await expect(page.getByText('This model cannot use the current source media.')).toBeVisible();
 
-    // 7-8: Generate must be disabled — no hidden fallback to v2v behind the I2V UI.
-    // Disabled is itself the proof: a native <button disabled> cannot dispatch a
-    // click, so nothing reaches the `**/v1/generate` route below it.
+    // 7-8: Generate must be disabled — no hidden fallback behind the switched model.
     await expect(generateBtn).toBeDisabled();
     expect(capturedBody).toBeNull();
 
-    // 9-11: recovery — replace the video with a valid image for I2V.
+    // 9-11: recovery — replace the video with a valid image for Aisha's own I2I.
     await page.getByRole('button', { name: 'Remove image' }).click();
     const chooseFromLibraryBtn = page.getByRole('button', { name: 'Choose from library' });
     await expect(chooseFromLibraryBtn).toBeVisible();
@@ -273,12 +282,13 @@ test.describe('Create — V2V submission', () => {
 
     await expect(generateBtn).toBeEnabled();
 
-    // 12-13: submit and confirm the request is genuinely i2v.
+    // 12-13: submit and confirm the request is genuinely i2i, against the new model.
     await generateBtn.click();
     await expect(page.getByRole('button', { name: /Submitting|Generating/i })).toBeVisible();
 
     expect(capturedBody).not.toBeNull();
-    expect(capturedBody!['generation_type']).toBe('i2v');
+    expect(capturedBody!['generation_type']).toBe('i2i');
+    expect(capturedBody!['model']).toBe('aisha-image');
     expect(capturedBody!['source_media']).toEqual([
       { asset_ref: 'upload:e0000000-0000-4000-8000-000000000002' },
     ]);

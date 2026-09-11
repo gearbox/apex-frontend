@@ -666,11 +666,8 @@ test.describe('Library actions — Remix / Reproduce', () => {
     await page.getByRole('button', { name: 'Reproduce' }).click();
 
     await expect(page).toHaveURL(/\/app\/create/, { timeout: 5000 });
-    // Type is V2V — the mode set by the replayed group, not a T2I fallback.
-    await expect(page.locator('[data-generation-mode="v2v"][aria-pressed="true"]')).toBeVisible({
-      timeout: 5000,
-    });
-    // The original owned video source_media survives the replay, in its original position.
+    // The original owned video source_media survives the replay, in its original position —
+    // the submitted `generation_type` below confirms it resolves to V2V, not a T2I fallback.
     await expect(page.getByText('From uploads')).toBeVisible();
 
     const generateBtn = page.getByRole('button', { name: /Generate/i }).first();

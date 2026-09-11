@@ -22,7 +22,13 @@ export type SemanticSourceIntent = { kind: 'reference' } | { kind: 'role'; role:
 export interface ModeResolutionInput {
   modelInfo: ModelInfo | null | undefined;
   sourceMedia: readonly ResolverSource[];
-  /** The current explicit Type-selector choice, if any. Takes precedence over automatic resolution. */
+  /**
+   * A genuine explicit intent (e.g. a model-guide example, or a future
+   * Phase-4 positional action) to prefer, if any. Generic source-driven
+   * Create never passes the mutable `generationStore.mode` here — doing so
+   * would keep a stale selection sticky after the source that made it
+   * relevant is removed.
+   */
   preferredMode?: GenerationMode | null;
   semanticIntent?: SemanticSourceIntent | null;
 }
@@ -113,11 +119,11 @@ function classifyCandidate(
  * explicit arguments only.
  *
  * Precedence:
- * 1. `preferredMode` (the current Type-selector choice), if advertised and not
- *    `incompatible`, is preserved as-is: `resolved` when complete, `incomplete`
- *    when it's missing required source cardinality. This keeps explicit
- *    source-required Type selections usable while the user is still filling
- *    them in.
+ * 1. `preferredMode` (a genuine explicit intent — see `ModeResolutionInput`),
+ *    if advertised and not `incompatible`, is preserved as-is: `resolved`
+ *    when complete, `incomplete` when it's missing required source
+ *    cardinality. Source-driven Create leaves this unset; only prefill/replay
+ *    entry points with real explicit intent pass it.
  * 2. Otherwise, every advertised mode is classified as `complete`,
  *    `incomplete`, or `incompatible` against the current sources and optional
  *    `semanticIntent`. Exactly one `complete` candidate resolves; more than

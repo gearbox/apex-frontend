@@ -7,13 +7,6 @@ import { jsonRoute } from '../helpers/api';
 // from satisfying those requests outside Playwright's route handlers in WebKit.
 test.use({ serviceWorkers: 'block' });
 
-async function selectGenerationMode(
-  page: Page,
-  mode: 't2i' | 'i2i' | 't2v' | 'i2v',
-): Promise<void> {
-  await page.locator(`[data-generation-mode="${mode}"]`).click();
-}
-
 function imagePickerItems(page: Page) {
   return page.getByRole('dialog', { name: 'Choose from library' }).locator('[aria-pressed]');
 }
@@ -213,26 +206,51 @@ test.describe('Image Picker', () => {
     await page.route('**/v1/billing/pricing', jsonRoute([]));
   });
 
-  test('1. "Choose from library" button appears in I2I mode', async ({
+  test('1. "Choose from library" button appears for a model that advertises I2I', async ({
     authenticatedPage: page,
   }) => {
     await page.goto('/app/create');
 
-    await selectGenerationMode(page, 'i2i');
-
     await expect(page.getByRole('button', { name: /Choose from library/i })).toBeVisible();
   });
 
-  test('2. "Choose from library" is NOT visible in T2I mode', async ({
+  test('2. "Choose from library" is NOT visible for a T2I-only model', async ({
     authenticatedPage: page,
   }) => {
+    await page.route(
+      '**/v1/providers',
+      jsonRoute({
+        providers: [
+          {
+            provider: 'grok',
+            name: 'xAI Grok',
+            available: true,
+            models: [
+              {
+                model_key: 'grok-imagine-image',
+                name: 'Grok Imagine',
+                generation_modes: { t2i: { source_media: null } },
+                is_enabled: true,
+                max_images: 10,
+                max_prompt_length: 4096,
+                supports_negative_prompt: false,
+                aspect_ratios: ['1:1', '16:9', '9:16'],
+                image: null,
+                video: null,
+              },
+            ],
+          },
+        ],
+        user_context: null,
+      }),
+    );
+
     await page.goto('/app/create');
     await expect(page.getByRole('button', { name: /Choose from library/i })).not.toBeVisible();
   });
 
   test('3. Picker opens and shows uploads tab', async ({ authenticatedPage: page }) => {
     await page.goto('/app/create');
-    await selectGenerationMode(page, 'i2i');
 
     await page.getByRole('button', { name: /Choose from library/i }).click();
 
@@ -242,7 +260,6 @@ test.describe('Image Picker', () => {
 
   test('4. Can switch to Generated tab', async ({ authenticatedPage: page }) => {
     await page.goto('/app/create');
-    await selectGenerationMode(page, 'i2i');
 
     await page.getByRole('button', { name: /Choose from library/i }).click();
     await page.getByRole('tab', { name: /Generated/i }).click();
@@ -256,7 +273,6 @@ test.describe('Image Picker', () => {
     authenticatedPage: page,
   }) => {
     await page.goto('/app/create');
-    await selectGenerationMode(page, 'i2i');
 
     await page.getByRole('button', { name: /Choose from library/i }).click();
 
@@ -279,7 +295,6 @@ test.describe('Image Picker', () => {
     authenticatedPage: page,
   }) => {
     await page.goto('/app/create');
-    await selectGenerationMode(page, 'i2i');
     await page.getByRole('button', { name: /Choose from library/i }).click();
 
     await expect(page.getByRole('button', { name: 'Upload: photo.jpg' })).toBeVisible();
@@ -290,7 +305,6 @@ test.describe('Image Picker', () => {
     authenticatedPage: page,
   }) => {
     await page.goto('/app/create');
-    await selectGenerationMode(page, 'i2i');
     await page.getByRole('button', { name: /Choose from library/i }).click();
 
     await expect(page.getByRole('button', { name: 'Upload: Unnamed upload' })).toBeVisible();
@@ -299,7 +313,6 @@ test.describe('Image Picker', () => {
 
   test('6. Selecting a generated output auto-fills prompt', async ({ authenticatedPage: page }) => {
     await page.goto('/app/create');
-    await selectGenerationMode(page, 'i2i');
 
     await page.getByRole('button', { name: /Choose from library/i }).click();
     await page.getByRole('tab', { name: /Generated/i }).click();
@@ -316,7 +329,6 @@ test.describe('Image Picker', () => {
 
   test('7. Escape closes the picker', async ({ authenticatedPage: page }) => {
     await page.goto('/app/create');
-    await selectGenerationMode(page, 'i2i');
 
     await page.getByRole('button', { name: /Choose from library/i }).click();
     await expect(page.getByRole('heading', { name: 'Choose from Library' })).toBeVisible();
@@ -329,7 +341,6 @@ test.describe('Image Picker', () => {
     authenticatedPage: page,
   }) => {
     await page.goto('/app/create');
-    await selectGenerationMode(page, 'i2i');
 
     await page.getByRole('button', { name: /Choose from library/i }).click();
     await page.getByRole('tab', { name: /Generated/i }).click();
@@ -350,7 +361,6 @@ test.describe('Image Picker', () => {
 
   test('9. Clearing the selection resets the preview', async ({ authenticatedPage: page }) => {
     await page.goto('/app/create');
-    await selectGenerationMode(page, 'i2i');
 
     // Select from picker
     await page.getByRole('button', { name: /Choose from library/i }).click();

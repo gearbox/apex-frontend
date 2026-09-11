@@ -11,13 +11,22 @@
   import { ACCEPTED_IMAGE_TYPES, ACCEPTED_VIDEO_TYPES } from '$lib/utils/constants';
   import { activeProject } from '$lib/stores/activeProject.svelte';
   import { inheritProjectForUpload } from '$lib/services/projectInheritance';
-  import type { SourceMediaPolicy } from '$lib/utils/modelCapabilities';
+  import {
+    appendableMediaKinds,
+    broadMaxSourceCount,
+    isSourceDraftAmbiguous,
+    isSourceDraftIncompatible,
+    replacementMediaKinds,
+    sourceConsumingMediaKinds,
+    toResolverSources,
+  } from '$lib/utils/sourceMediaAffordance';
   import type { components } from '$lib/api/types';
   import { shouldCopySourcePrompt } from '$lib/utils/sourcePromptPolicy';
 
   type MediaKind = components['schemas']['MediaKind'];
+  type ModelInfo = components['schemas']['ModelInfo'];
 
-  let { policy }: { policy: SourceMediaPolicy } = $props();
+  let { modelInfo }: { modelInfo: ModelInfo | null } = $props();
 
   const queryClient = useQueryClient();
   const MAX_SIZE_BYTES = 20 * 1024 * 1024;
@@ -28,13 +37,31 @@
   let fileInput: HTMLInputElement;
 
   const sourceMedia = $derived($generationStore.sourceMedia);
-  const mediaTypes = $derived(policy.mediaTypes);
+  const resolverSources = $derived(toResolverSources(sourceMedia));
+
+  // A single kind ("image") capped at exactly one item across every advertised
+  // source-consuming mode gets the compact single-image drop-zone layout; any
+  // richer contract (multiple kinds, or a kind allowing more than one item)
+  // uses the generic multi-source list — independent of which source is
+  // currently attached, so the empty-state layout never flickers on add/remove.
+  const consumingKinds = $derived(sourceConsumingMediaKinds(modelInfo));
+  const broadMax = $derived(broadMaxSourceCount(modelInfo));
   const isSingleImagePicker = $derived(
-    policy.max === 1 && mediaTypes.length === 1 && mediaTypes[0] === 'image',
+    consumingKinds.length === 1 && consumingKinds[0] === 'image' && broadMax === 1,
   );
-  const atCapacity = $derived(sourceMedia.length >= policy.max);
+
+  const appendKinds = $derived(appendableMediaKinds(modelInfo, resolverSources));
+  const canAddMore = $derived(appendKinds.length > 0);
+  const isIncompatible = $derived(isSourceDraftIncompatible(modelInfo, resolverSources));
+  const isAmbiguous = $derived(isSourceDraftAmbiguous(modelInfo, resolverSources));
+
+  const activeMediaKinds = $derived(
+    replacementIndex === null
+      ? appendKinds
+      : replacementMediaKinds(modelInfo, resolverSources, replacementIndex),
+  );
   const acceptedFileTypes = $derived(
-    mediaTypes.flatMap((type) =>
+    activeMediaKinds.flatMap((type) =>
       type === 'image' ? ACCEPTED_IMAGE_TYPES : type === 'video' ? ACCEPTED_VIDEO_TYPES : [],
     ),
   );
@@ -46,7 +73,11 @@
   }
 
   function canUse(source: SourceMediaDraft, replacing: number | null): boolean {
-    if (!policy.mediaTypes.includes(source.mediaType as MediaKind)) {
+    const allowedKinds =
+      replacing === null
+        ? appendKinds
+        : replacementMediaKinds(modelInfo, resolverSources, replacing);
+    if (!source.mediaType || !allowedKinds.includes(source.mediaType)) {
       addToast({ type: 'error', message: 'That media type is not accepted by this model.' });
       return false;
     }
@@ -57,10 +88,10 @@
       addToast({ type: 'warning', message: 'That source is already selected.' });
       return false;
     }
-    if (replacing === null && atCapacity) {
+    if (replacing === null && !canAddMore) {
       addToast({
         type: 'warning',
-        message: `This model accepts up to ${policy.max} source items.`,
+        message: `This model accepts up to ${broadMax} source items.`,
       });
       return false;
     }
@@ -76,7 +107,11 @@
 
   function validateFile(file: File): string | null {
     const mediaType = mediaTypeForFile(file);
-    if (!mediaType || !mediaTypes.includes(mediaType) || !acceptedFileTypes.includes(file.type)) {
+    if (
+      !mediaType ||
+      !activeMediaKinds.includes(mediaType) ||
+      !acceptedFileTypes.includes(file.type)
+    ) {
       return 'This model does not accept that file type.';
     }
     if (file.size > MAX_SIZE_BYTES) return 'File must be under 20 MB';
@@ -153,9 +188,24 @@
       >{isSingleImagePicker ? 'Source Image' : 'Source Media'}</span
     >
     {#if !isSingleImagePicker}
-      <span class="text-[11px] text-text-dim">{sourceMedia.length} / {policy.max}</span>
+      <span class="text-[11px] text-text-dim">{sourceMedia.length} / {broadMax}</span>
     {/if}
   </div>
+
+  {#if isIncompatible}
+    <p
+      class="flex items-center gap-2 rounded-lg border border-warning/60 bg-warning/10 px-2.5 py-2 text-xs text-warning"
+    >
+      <AlertTriangle size={14} class="shrink-0" /> This model cannot use the current source media.
+    </p>
+  {:else if isAmbiguous}
+    <p
+      class="flex items-center gap-2 rounded-lg border border-warning/60 bg-warning/10 px-2.5 py-2 text-xs text-warning"
+    >
+      <AlertTriangle size={14} class="shrink-0" /> This source combination needs a more specific workflow
+      choice.
+    </p>
+  {/if}
 
   {#if sourceMedia.length > 0}
     <div class="flex flex-col gap-2">
@@ -209,7 +259,7 @@
     </div>
   {/if}
 
-  {#if !atCapacity}
+  {#if canAddMore}
     {#if isSingleImagePicker}
       <button
         type="button"
@@ -291,7 +341,7 @@
 {#if pickerOpen}
   <MediaPickerModal
     open={pickerOpen}
-    {mediaTypes}
+    mediaTypes={activeMediaKinds}
     onclose={() => {
       pickerOpen = false;
       replacementIndex = null;

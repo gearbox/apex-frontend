@@ -1,4 +1,5 @@
 import type { components } from '$lib/api/types';
+import { KNOWN_ASPECT_RATIOS } from '$lib/utils/modelCapabilities';
 import { AISHA_IMAGE_CONSTRAINTS, AISHA_IMAGE_LITE_CONSTRAINTS } from '../fixtures/aisha';
 
 type ModelInfo = components['schemas']['ModelInfo'];
@@ -77,7 +78,7 @@ export function makeAishaImageModelInfo(overrides: Partial<ModelInfo> = {}): Mod
     max_images: 4,
     supports_negative_prompt: true,
     unsupported_parameters: [],
-    aspect_ratios: ['1:1', '16:9', '9:16', '4:3', '3:4'],
+    aspect_ratios: [...KNOWN_ASPECT_RATIOS],
     image: AISHA_IMAGE_CONSTRAINTS,
     ...overrides,
   });
@@ -98,7 +99,7 @@ export function makeAishaImageLiteModelInfo(overrides: Partial<ModelInfo> = {}):
     max_images: 4,
     supports_negative_prompt: false,
     unsupported_parameters: ['negative_prompt'],
-    aspect_ratios: ['1:1', '16:9', '9:16', '4:3', '3:4'],
+    aspect_ratios: [...KNOWN_ASPECT_RATIOS],
     requires_age_verification: true,
     image: AISHA_IMAGE_LITE_CONSTRAINTS,
     ...overrides,
