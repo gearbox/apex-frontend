@@ -669,7 +669,14 @@ test.describe('Sessions page', () => {
 
       await expect.poll(() => attachRequestBodies.length).toBe(1);
       expect(attachRequestBodies[0]).toEqual({ model: 'aisha-image-lite' });
-      await expect(page.getByText('Deploying')).toBeVisible({ timeout: 5000 });
+
+      // Scope to the deployments list so the pre-existing primary deployment (also
+      // "Deploying" in this fixture) can't collide with the newly attached row.
+      const newDeploymentRow = page
+        .locator('.deployments')
+        .getByRole('article')
+        .filter({ hasText: 'Aisha Lite' });
+      await expect(newDeploymentRow.getByText('Deploying')).toBeVisible({ timeout: 5000 });
     },
   );
 

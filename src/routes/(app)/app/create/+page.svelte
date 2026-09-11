@@ -242,7 +242,7 @@
     sourceMediaCountForRequest($generationStore, currentModelInfo),
   );
   const currentEstimatedCost = $derived(
-    currentPricingRule
+    currentPricingRule && currentSourceMediaCount !== null
       ? estimatePricingRuleCost(currentPricingRule, {
           outputCount: currentOutputCount,
           inputImageCount: currentSourceMediaCount,

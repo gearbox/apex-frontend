@@ -1,8 +1,17 @@
 # Frontend API contract — workflow-map & media-assets arc
+**Backend source:** `gearbox/apex@74d235ebb7db32c5de9d11eac2b4e6142c512d58`
+Snapshot date: 2026-09-11
+**Status:** frozen BE→FE contract snapshot; contract is stable.
 
-**Backend source:** `gearbox/apex@7b79e4b` (B1 workflow-node-map, merged as #160, on top of
-merged `feat/source-media-assets`)
-**Status:** B1 merged; contract is stable. Regenerate `gen:api` before the next frontend release.
+This file is intentionally copied into apex-frontend as the contract
+against which the frontend migration phases are implemented.
+
+It is not necessarily a description of the currently implemented UX.
+Implementation status is tracked separately.
+
+Do not silently synchronize this file with backend master.
+When adopting a newer backend contract, replace/update it explicitly
+in a dedicated change so the contract delta remains visible in Git.
 
 Two changes drive everything here:
 

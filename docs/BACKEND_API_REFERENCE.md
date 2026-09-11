@@ -800,8 +800,13 @@ UserContext: {
 ```
 
 `generation_modes` is the authoritative contract. See
-[`fe-api-contract-workflow-media-arc.md` §1.1](contracts/fe-api-contract-workflow-media-arc.md#11-new-generation_modes-authoritative)
-for its semantics and resolution rules.
+`gearbox/apex/docs/contracts/fe-api-contract-workflow-media-arc.md` §1.1 (canonical backend
+source — not mirrored in this repository) for its semantics and resolution rules.
+
+Current frontend behavior still uses explicit `TypeSelector`/`generationStore.mode`: the user
+picks the generation type directly. The automatic intent/mode resolution described in that
+backend contract (deriving `generation_type` from user action and selected source media) is
+planned separately and is not implemented here.
 
 > **Deprecated flat format** (`providers` + `models` as a flat list) was removed in v2.
 

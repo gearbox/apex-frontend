@@ -5,6 +5,7 @@ import {
   outputCountForRequest,
   sourceMediaForRequest,
   validateSourceMedia,
+  projectSourceMedia,
 } from './generatePayload';
 import type { GenerationState, SourceMediaDraft } from '$lib/stores/generation';
 import { makeGrokImageModelInfo, generationModes } from '../../mocks/factories/providers';
@@ -104,23 +105,72 @@ describe('canonical source_media payload projection', () => {
     });
   });
 
-  it('filters stale unsupported kinds and current max before pricing or POST projection', () => {
-    const audio: SourceMediaDraft = { ...upload, assetRef: 'upload:audio', mediaType: 'audio' };
+  it('treats an over-capacity draft as invalid instead of truncating it into a smaller request', () => {
     const third = { ...upload, assetRef: 'upload:third' };
-    const fourth = { ...upload, assetRef: 'upload:fourth' };
-    const state = { ...baseState, sourceMedia: [upload, audio, output, third, fourth] };
+    const state = { ...baseState, mode: 't2i' as const, sourceMedia: [upload, output, third] };
     const current = model({
       generation_modes: generationModes(['t2i'], {
         t2i: { min: 1, max: 2, media_types: ['image'], roles: null },
       }),
     });
 
-    expect(sourceMediaForRequest(state, current)).toEqual([
-      { asset_ref: upload.assetRef },
-      { asset_ref: output.assetRef },
-    ]);
-    expect(sourceMediaCountForRequest(state, current)).toBe(2);
     expect(validateSourceMedia(state, current).valid).toBe(false);
+    expect(projectSourceMedia(state, current)).toMatchObject({ valid: false });
+    expect(() => sourceMediaForRequest(state, current)).toThrow();
+    expect(sourceMediaCountForRequest(state, current)).toBeNull();
+  });
+
+  it('treats an incompatible-kind draft as invalid instead of silently filtering it out', () => {
+    const audio: SourceMediaDraft = { ...upload, assetRef: 'upload:audio', mediaType: 'audio' };
+    const state = { ...baseState, mode: 't2i' as const, sourceMedia: [upload, audio] };
+    const current = model({
+      generation_modes: generationModes(['t2i'], {
+        t2i: { min: 1, max: 2, media_types: ['image'], roles: null },
+      }),
+    });
+
+    expect(validateSourceMedia(state, current).valid).toBe(false);
+    expect(projectSourceMedia(state, current)).toMatchObject({ valid: false });
+    expect(() => sourceMediaForRequest(state, current)).toThrow();
+    expect(sourceMediaCountForRequest(state, current)).toBeNull();
+  });
+
+  it('treats an unavailable replay source as invalid instead of silently dropping it', () => {
+    const unavailable: SourceMediaDraft = { ...upload, available: false };
+    const state = { ...baseState, mode: 'i2i' as const, sourceMedia: [unavailable] };
+
+    expect(validateSourceMedia(state, model()).valid).toBe(false);
+    expect(projectSourceMedia(state, model())).toMatchObject({ valid: false });
+    expect(() => sourceMediaForRequest(state, model())).toThrow();
+    expect(sourceMediaCountForRequest(state, model())).toBeNull();
+  });
+});
+
+describe('pricing and request source-count agreement', () => {
+  it('agrees pricing and submitted source counts for a valid draft', () => {
+    const state = { ...baseState, mode: 'i2i' as const, sourceMedia: [upload, output] };
+    expect(sourceMediaCountForRequest(state, model())).toBe(
+      sourceMediaForRequest(state, model())?.length,
+    );
+    expect(sourceMediaCountForRequest(state, model())).toBe(
+      buildGeneratePayload(state, model()).source_media?.length,
+    );
+  });
+
+  it('suppresses the quote (does not price a repaired subset) for an invalid draft', () => {
+    const third = { ...upload, assetRef: 'upload:third' };
+    const overCapacity = {
+      ...baseState,
+      mode: 't2i' as const,
+      sourceMedia: [upload, output, third],
+    };
+    const current = model({
+      generation_modes: generationModes(['t2i'], {
+        t2i: { min: 1, max: 2, media_types: ['image'], roles: null },
+      }),
+    });
+    expect(validateSourceMedia(overCapacity, current).valid).toBe(false);
+    expect(sourceMediaCountForRequest(overCapacity, current)).toBeNull();
   });
 });
 
@@ -174,10 +224,12 @@ describe('source_media requiredness', () => {
     expect(validateSourceMedia({ ...baseState, mode: 'v2v' }, model()).valid).toBe(false);
   });
 
-  it('rejects duplicate source refs before they can satisfy a minimum count', () => {
+  it('treats duplicate source refs as invalid instead of silently deduplicating them', () => {
     const state = { ...baseState, mode: 'i2i' as const, sourceMedia: [upload, upload] };
     expect(validateSourceMedia(state, model()).valid).toBe(false);
-    expect(sourceMediaForRequest(state, model())).toEqual([{ asset_ref: upload.assetRef }]);
+    expect(projectSourceMedia(state, model())).toMatchObject({ valid: false });
+    expect(() => sourceMediaForRequest(state, model())).toThrow();
+    expect(sourceMediaCountForRequest(state, model())).toBeNull();
   });
 
   it('keeps validation and serialized source counts aligned for valid drafts', () => {
@@ -286,10 +338,16 @@ describe('general payload normalization regressions', () => {
 
   it('uses edit aspect ratio only for i2i and leaves Auto absent', () => {
     expect(
-      buildGeneratePayload({ ...baseState, mode: 'i2i', editAspectRatio: null }, model()),
+      buildGeneratePayload(
+        { ...baseState, mode: 'i2i', sourceMedia: [upload], editAspectRatio: null },
+        model(),
+      ),
     ).not.toHaveProperty('aspect_ratio');
     expect(
-      buildGeneratePayload({ ...baseState, mode: 'i2i', editAspectRatio: '16:9' }, model()),
+      buildGeneratePayload(
+        { ...baseState, mode: 'i2i', sourceMedia: [upload], editAspectRatio: '16:9' },
+        model(),
+      ),
     ).toMatchObject({ aspect_ratio: '16:9' });
     expect(
       buildGeneratePayload({ ...baseState, mode: 't2v', editAspectRatio: '16:9' }, model()),
