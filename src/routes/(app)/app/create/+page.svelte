@@ -529,6 +529,7 @@
       {cardState}
       session={selectedSession}
       starting={startMutation.isPending}
+      typicalBootstrapSeconds={currentModelInfo?.provisioning?.typical_bootstrap_seconds ?? null}
       onStart={handleStart}
       onStopRequest={handleStopRequest}
       onResume={cardState === 'PAUSED' && selectedSessionId ? handleResume : null}

@@ -3,6 +3,7 @@
   import { createQuery } from '@tanstack/svelte-query';
   import { Zap } from '@lucide/svelte';
   import { balanceQueryOptions, canStartNewWork } from '$lib/stores/balanceGate';
+  import { formatTypicalDuration } from '$lib/utils/operationDisplay';
   import { ROUTES } from '$lib/utils/routes';
   import * as m from '$paraglide/messages';
 
@@ -10,6 +11,7 @@
     model_key: string;
     name: string;
     available: boolean;
+    typicalBootstrapSeconds: number | null;
   }
 
   interface Props {
@@ -25,6 +27,11 @@
   // Falls back to first available model if none explicitly selected
   const resolvedModel = $derived(selectedModel || onDemandModels[0]?.model_key || '');
   const selectedInfo = $derived(onDemandModels.find((m) => m.model_key === resolvedModel) ?? null);
+  const provisioningTime = $derived(
+    selectedInfo?.typicalBootstrapSeconds == null
+      ? null
+      : formatTypicalDuration(selectedInfo.typicalBootstrapSeconds),
+  );
 
   const balanceQuery = createQuery(balanceQueryOptions);
   const hasBalance = $derived(canStartNewWork(balanceQuery.data?.balance));
@@ -63,7 +70,11 @@
     {#if selectedInfo && !selectedInfo.available}
       <p class="unavailable-hint">{m.sessions_provider_unavailable()}</p>
     {:else}
-      <p class="hint">{m.sessions_start_hint()}</p>
+      <p class="hint">
+        {provisioningTime
+          ? m.gpu_session_start_hint_with_time({ time: provisioningTime })
+          : m.gpu_session_start_hint_without_time()}
+      </p>
     {/if}
 
     {#if isTopUpMode}
