@@ -2,8 +2,17 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { get } from 'svelte/store';
 import type { components } from '$lib/api/types';
 import { generationStore, type SourceMediaDraft } from '$lib/stores/generation';
-import { prefillSourceForGeneration, replayGenerationPrefill } from './generationPrefill';
-import { makeGrokImageModelInfo, generationModes } from '../../mocks/factories/providers';
+import {
+  prefillRoleSourceForGeneration,
+  prefillSourceForGeneration,
+  replayGenerationPrefill,
+} from './generationPrefill';
+import {
+  makeAishaVideoModelInfo,
+  makeGrokImageModelInfo,
+  makeGrokVideoModelInfo,
+  generationModes,
+} from '../../mocks/factories/providers';
 
 type ProvidersResponse = components['schemas']['ProvidersResponse'];
 type LibraryGroupDetail = components['schemas']['LibraryGroupDetail'];
@@ -14,6 +23,7 @@ const source: SourceMediaDraft = {
   previewUrl: '/v1/content/outputs/source-a',
   label: 'From generated',
   available: true,
+  role: null,
 };
 
 function providers(models: components['schemas']['ModelInfo'][]): ProvidersResponse {
@@ -328,8 +338,141 @@ describe('replayGenerationPrefill', () => {
     expect(result).toMatchObject({ ok: true });
     if (result.ok) {
       expect(result.params.mode).toBe('v2v');
-      expect(result.params.sourceMedia).toMatchObject([{ assetRef: 'upload:video-1' }]);
+      expect(result.params.sourceMedia).toMatchObject([{ assetRef: 'upload:video-1', role: null }]);
     }
+  });
+
+  it('hydrates positional roles from the live model contract, by historical position', () => {
+    const discovery = providers([makeAishaVideoModelInfo()]);
+    const result = replayGenerationPrefill(
+      { generation_type: 'flf2v', model: 'aisha-video', prompt: 'original prompt' },
+      discovery,
+      group({
+        generation_type: 'flf2v',
+        model: 'aisha-video',
+        media_type: 'video',
+        source_media: [
+          { position: 0, asset_ref: 'upload:first', available: true, media: sourceMedia('image') },
+          { position: 1, asset_ref: 'upload:last', available: true, media: sourceMedia('image') },
+        ],
+      }),
+    );
+    expect(result).toMatchObject({ ok: true });
+    if (result.ok) {
+      expect(result.params.sourceMedia).toMatchObject([
+        { assetRef: 'upload:first', role: 'first_frame' },
+        { assetRef: 'upload:last', role: 'last_frame' },
+      ]);
+    }
+  });
+
+  it('preserves the semantic role on an unavailable replay position', () => {
+    const discovery = providers([makeAishaVideoModelInfo()]);
+    const result = replayGenerationPrefill(
+      { generation_type: 'flf2v', model: 'aisha-video', prompt: 'original prompt' },
+      discovery,
+      group({
+        generation_type: 'flf2v',
+        model: 'aisha-video',
+        media_type: 'video',
+        source_media: [
+          { position: 0, asset_ref: 'upload:first', available: true, media: sourceMedia('image') },
+          { position: 1, asset_ref: 'upload:last', available: false, media: null },
+        ],
+      }),
+    );
+    expect(result).toMatchObject({ ok: true });
+    if (result.ok) {
+      expect(result.params.sourceMedia).toMatchObject([
+        { assetRef: 'upload:first', role: 'first_frame', available: true },
+        { assetRef: 'upload:last', role: 'last_frame', available: false },
+      ]);
+    }
+  });
+
+  it('reordered group entries are sorted by position before role assignment', () => {
+    const discovery = providers([makeAishaVideoModelInfo()]);
+    const result = replayGenerationPrefill(
+      { generation_type: 'flf2v', model: 'aisha-video', prompt: 'original prompt' },
+      discovery,
+      group({
+        generation_type: 'flf2v',
+        model: 'aisha-video',
+        media_type: 'video',
+        source_media: [
+          { position: 1, asset_ref: 'upload:last', available: true, media: sourceMedia('image') },
+          { position: 0, asset_ref: 'upload:first', available: true, media: sourceMedia('image') },
+        ],
+      }),
+    );
+    expect(result).toMatchObject({ ok: true });
+    if (result.ok) {
+      expect(result.params.sourceMedia).toMatchObject([
+        { assetRef: 'upload:first', role: 'first_frame' },
+        { assetRef: 'upload:last', role: 'last_frame' },
+      ]);
+    }
+  });
+
+  it('fails closed when the live positional role count no longer matches the historical position count', () => {
+    const discovery = providers([makeAishaVideoModelInfo()]);
+    const result = replayGenerationPrefill(
+      { generation_type: 'flf2v', model: 'aisha-video', prompt: 'original prompt' },
+      discovery,
+      group({
+        generation_type: 'flf2v',
+        model: 'aisha-video',
+        media_type: 'video',
+        // Only one historical position, but the live flf2v contract fixes
+        // exactly two roles — must never silently replay a shorter list.
+        source_media: [
+          { position: 0, asset_ref: 'upload:first', available: true, media: sourceMedia('image') },
+        ],
+      }),
+    );
+    expect(result).toEqual({ ok: false, reason: 'incompatible-source-policy' });
+  });
+});
+
+describe('prefillSourceForGeneration — role derived from the resolved model contract', () => {
+  it('tags the source with the resolved mode’s sole advertised role', () => {
+    const discovery = providers([makeAishaVideoModelInfo()]);
+    expect(prefillSourceForGeneration({ providers: discovery, mode: 'i2v', source })).toBe(true);
+    expect(get(generationStore).sourceMedia).toMatchObject([{ role: 'first_frame' }]);
+  });
+
+  it('keeps the source generic for a roleless target mode', () => {
+    const discovery = providers([makeGrokVideoModelInfo()]);
+    expect(prefillSourceForGeneration({ providers: discovery, mode: 'i2v', source })).toBe(true);
+    expect(get(generationStore).sourceMedia).toMatchObject([{ role: null }]);
+  });
+});
+
+describe('prefillRoleSourceForGeneration', () => {
+  it('resolves a role-capable enabled model and tags the source with the requested role', () => {
+    const discovery = providers([makeAishaVideoModelInfo()]);
+    expect(
+      prefillRoleSourceForGeneration({ providers: discovery, role: 'last_frame', source }),
+    ).toBe(true);
+    expect(get(generationStore)).toMatchObject({
+      model: 'aisha-video',
+      sourceMedia: [{ ...source, role: 'last_frame' }],
+    });
+  });
+
+  it('preserves the existing draft prompt (does not overwrite it)', () => {
+    generationStore.prefill({ prompt: 'my draft in progress' });
+    const discovery = providers([makeAishaVideoModelInfo()]);
+    prefillRoleSourceForGeneration({ providers: discovery, role: 'first_frame', source });
+    expect(get(generationStore).prompt).toBe('my draft in progress');
+  });
+
+  it('returns false and does not touch the draft when no enabled model supports the role', () => {
+    const discovery = providers([makeGrokVideoModelInfo()]); // roles: null everywhere
+    expect(
+      prefillRoleSourceForGeneration({ providers: discovery, role: 'first_frame', source }),
+    ).toBe(false);
+    expect(get(generationStore).sourceMedia).toEqual([]);
   });
 });
 

@@ -1,6 +1,7 @@
 import type { components } from '$lib/api/types';
 import type { SourceMediaDraft } from '$lib/stores/generation';
 import { resolveGenerationMode, type ResolverSource } from './generationModeResolver';
+import { ROLE_DISPLAY_ORDER, type MediaSlot } from './mediaSlots';
 
 type ModelInfo = components['schemas']['ModelInfo'];
 
@@ -12,6 +13,7 @@ export function toResolverSources(sourceMedia: readonly SourceMediaDraft[]): Res
     assetRef: source.assetRef,
     mediaType: source.mediaType,
     available: source.available,
+    role: source.role,
   }));
 }
 
@@ -100,7 +102,7 @@ export function appendableMediaKinds(
   return sourceConsumingMediaKinds(modelInfo).filter((kind) =>
     hypotheticalStatusAllowsAction(modelInfo, [
       ...sourceMedia,
-      { assetRef: PROBE_ASSET_REF, mediaType: kind, available: true },
+      { assetRef: PROBE_ASSET_REF, mediaType: kind, available: true, role: null },
     ]),
   );
 }
@@ -109,7 +111,10 @@ export function appendableMediaKinds(
  * Media kinds that can legally replace the source at `index`, derived by its
  * own replacement simulation — never by reusing `appendableMediaKinds`. This
  * keeps unavailable-source recovery working even when the draft is already
- * at whatever capacity blocks a plain append.
+ * at whatever capacity blocks a plain append. The probe preserves the
+ * existing item's role assignment: replacing an unavailable `last_frame`
+ * must keep testing candidates as a `last_frame` replacement, never silently
+ * downgrade it to a generic/interchangeable source.
  */
 export function replacementMediaKinds(
   modelInfo: ModelInfo | null | undefined,
@@ -117,12 +122,47 @@ export function replacementMediaKinds(
   index: number,
 ): string[] {
   if (index < 0 || index >= sourceMedia.length) return [];
+  const role = sourceMedia[index].role;
   return sourceConsumingMediaKinds(modelInfo).filter((kind) =>
     hypotheticalStatusAllowsAction(
       modelInfo,
       sourceMedia.map((source, i) =>
-        i === index ? { assetRef: PROBE_ASSET_REF, mediaType: kind, available: true } : source,
+        i === index
+          ? { assetRef: PROBE_ASSET_REF, mediaType: kind, available: true, role }
+          : source,
       ),
     ),
   );
+}
+
+/**
+ * The union of named roles advertised by any of the model's positional
+ * (`roles !== null`) source-consuming modes, in canonical display order.
+ * Empty for a model with no positional contract at all — driving the generic
+ * (Phase 3) list UI for those models unchanged. Non-empty roles are shown as
+ * slots unconditionally, independent of the current resolution status, so
+ * "Last frame" is visible even while only "First frame" is filled.
+ */
+export function roleSlotsForModel(modelInfo: ModelInfo | null | undefined): MediaSlot[] {
+  const roles = new Set<MediaSlot>();
+  for (const modeInfo of Object.values(modelInfo?.generation_modes ?? {})) {
+    for (const role of modeInfo?.source_media?.roles ?? []) roles.add(role);
+  }
+  return [...roles].sort((a, b) => ROLE_DISPLAY_ORDER.indexOf(a) - ROLE_DISPLAY_ORDER.indexOf(b));
+}
+
+/** The index of the draft item currently occupying `role`, or `null` if the slot is empty. */
+export function sourceIndexForRole(
+  sourceMedia: readonly SourceMediaDraft[],
+  role: MediaSlot,
+): number | null {
+  const index = sourceMedia.findIndex((source) => source.role === role);
+  return index === -1 ? null : index;
+}
+
+/** Sources carrying no explicit role — the generic/interchangeable list, in insertion order. */
+export function interchangeableSourceMedia(
+  sourceMedia: readonly SourceMediaDraft[],
+): SourceMediaDraft[] {
+  return sourceMedia.filter((source) => source.role === null);
 }

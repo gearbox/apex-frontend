@@ -1,7 +1,9 @@
 import type { components } from '$lib/api/types';
-import type { GenerationState } from '$lib/stores/generation';
+import type { GenerationState, SourceMediaDraft } from '$lib/stores/generation';
 import { isGenerationParameterSupported, sourceMediaPolicy } from '$lib/utils/modelCapabilities';
 import { normalizeVideoParams } from '$lib/utils/videoParams';
+import { isMediaSlot, mediaKindForSlot, roleLabel, type MediaSlot } from '$lib/utils/mediaSlots';
+import * as m from '$paraglide/messages';
 
 type ModelInfo = components['schemas']['ModelInfo'];
 type UnifiedGenerationRequest = components['schemas']['UnifiedGenerationRequest'];
@@ -16,6 +18,56 @@ export type SourceMediaProjection =
   | { valid: true; sourceMedia: SourceMediaReference[] | undefined }
   | { valid: false; reason: string };
 
+/** True when a role-tagged source is one this positional contract actually advertises. */
+function isSupportedRole(
+  role: MediaSlot | null,
+  mediaType: string | null,
+  roles: readonly MediaSlot[],
+): boolean {
+  return (
+    role !== null &&
+    isMediaSlot(role) &&
+    roles.includes(role) &&
+    mediaKindForSlot(role) === mediaType
+  );
+}
+
+/**
+ * Role-specific checks for a positional (`roles !== null`) contract, run only
+ * after the generic availability/duplicate/media-kind checks above have
+ * passed. This is the same strict validation boundary request projection
+ * relies on — it never trusts that a caller already ran the resolver.
+ */
+function validatePositionalRoles(
+  sourceMedia: readonly SourceMediaDraft[],
+  roles: readonly MediaSlot[],
+): SourceMediaValidation {
+  for (const source of sourceMedia) {
+    if (source.role !== null && !isMediaSlot(source.role)) {
+      return { valid: false, message: m.error_source_role_unknown() };
+    }
+  }
+  if (sourceMedia.some((source) => !isSupportedRole(source.role, source.mediaType, roles))) {
+    return { valid: false, message: m.error_source_role_unsupported() };
+  }
+  const seenRoles = new Set<MediaSlot>();
+  for (const source of sourceMedia) {
+    const role = source.role as MediaSlot;
+    if (seenRoles.has(role)) return { valid: false, message: m.error_source_role_duplicate() };
+    seenRoles.add(role);
+  }
+  if (sourceMedia.length < roles.length) {
+    const missing = roles.filter((role) => !seenRoles.has(role));
+    if (missing.length === 1) {
+      return {
+        valid: false,
+        message: m.error_source_role_missing({ role: roleLabel(missing[0]).toLowerCase() }),
+      };
+    }
+  }
+  return { valid: true, message: null };
+}
+
 /**
  * Validate the editable list against the latest discovery response. This is
  * deliberately shared by UI gating and request projection so the mode's own
@@ -29,7 +81,14 @@ export function validateSourceMedia(
   if (!policy.accepted) return { valid: true, message: null };
 
   if (state.sourceMedia.some((source) => !source.available)) {
-    return { valid: false, message: 'Replace unavailable source media before generating.' };
+    const unavailableRole = state.sourceMedia.find((source) => !source.available)?.role;
+    return {
+      valid: false,
+      message:
+        unavailableRole !== null && unavailableRole !== undefined && isMediaSlot(unavailableRole)
+          ? m.error_source_role_unavailable({ role: roleLabel(unavailableRole).toLowerCase() })
+          : 'Replace unavailable source media before generating.',
+    };
   }
   const refs = state.sourceMedia.map((source) => source.assetRef);
   if (new Set(refs).size !== refs.length) {
@@ -46,6 +105,10 @@ export function validateSourceMedia(
   if (state.sourceMedia.length > policy.max) {
     return { valid: false, message: `This model accepts at most ${policy.max} source items.` };
   }
+  if (policy.roles !== null) {
+    const roleValidation = validatePositionalRoles(state.sourceMedia, policy.roles);
+    if (!roleValidation.valid) return roleValidation;
+  }
   if (policy.required && state.sourceMedia.length < policy.min) {
     return {
       valid: false,
@@ -61,6 +124,12 @@ export function validateSourceMedia(
  * draft is never filtered/truncated/deduplicated into a smaller — but
  * valid-looking — request. Callers that skip validation get an explicit
  * `valid: false` result instead of a silently repaired subset.
+ *
+ * For a positional (`roles !== null`) contract, the validated draft is
+ * reordered into the advertised role order before projection — the store's
+ * insertion order is editing convenience only, never wire order, once named
+ * roles are involved. A roleless contract preserves insertion order exactly.
+ * Role names themselves never enter the request body.
  */
 export function projectSourceMedia(
   state: GenerationState,
@@ -74,7 +143,15 @@ export function projectSourceMedia(
     return { valid: false, reason: validation.message ?? 'Invalid source media selection.' };
   }
 
-  const sourceMedia = state.sourceMedia.map(({ assetRef }) => ({ asset_ref: assetRef }));
+  // Validation above guarantees, for a positional contract, that every role
+  // is represented exactly once — `find` below can never come up empty.
+  const orderedSources = policy.roles
+    ? policy.roles.map(
+        (role) => state.sourceMedia.find((source) => source.role === role) as SourceMediaDraft,
+      )
+    : state.sourceMedia;
+
+  const sourceMedia = orderedSources.map(({ assetRef }) => ({ asset_ref: assetRef }));
   // `source_media`, when present, has a schema minimum of one item. Optional
   // source-media modes therefore omit the field instead of sending an invalid
   // empty array.

@@ -25,7 +25,7 @@
     favoriteMutationOptions,
   } from '$lib/queries/library';
   import { providersQueryOptions } from '$lib/queries/providers';
-  import { enabledModes } from '$lib/utils/generationModes';
+  import { enabledModes, enabledRoles } from '$lib/utils/generationModes';
   import { resolveLibraryAction, libraryActionLabel, filterVisibleLibraryActions } from './actions';
   import { createLibraryActionDeps } from './actionDeps';
   import { createActionController } from './actionController.svelte';
@@ -140,6 +140,7 @@
   // fixed-height placeholder until it resolves so navigation actions never pop into the row.
   const providersQuery = createQuery(() => providersQueryOptions());
   const availableModes = $derived(enabledModes(providersQuery.data));
+  const availableRoles = $derived(enabledRoles(providersQuery.data));
   const providersReady = $derived(providersQuery.data !== undefined || !providersQuery.isLoading);
 
   const actionDeps = createLibraryActionDeps(() => providersQuery.data, queryClient);
@@ -325,6 +326,7 @@
     currentDetail
       ? filterVisibleLibraryActions(currentDetail.available_actions, {
           availableModes,
+          availableRoles,
           generationType: currentDetail.generation_type,
         })
           .filter(

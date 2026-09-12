@@ -819,6 +819,37 @@ resolution disables pricing and submission; only a `resolved` mode reaches the r
 `generationStore.mode` still exists for Library replay/prefill/backward-compatible state
 plumbing, but generic Create behavior never reads it as a sticky preference.
 
+**Positional source roles (Phase 4).** `generation_modes[*].source_media.roles` is no longer
+carried-but-unused: `SourceMediaDraft` (`src/lib/stores/generation.ts`) has a `role:
+MediaSlot | null` field that travels with each source item as its single semantic assignment.
+`role: null` means generic/interchangeable — legal only against a `roles: null` candidate — and
+is what every plain "add source"/"Choose from library" action still produces, unchanged from
+Phase 3. A named role (`reference` | `first_frame` | `last_frame` | `source`) is written only by
+an explicit user action against a candidate whose `roles` array actually contains it: a
+positional slot in `SourceMediaInput.svelte` (rendered from `roleSlotsForModel`, driven purely by
+discovery — never a model-name branch), or a Library `use_as_first_frame`/`use_as_last_frame`
+action. The resolver (`generationModeResolver.ts`) treats the two kinds of source as mutually
+exclusive per candidate: a `roles: null` candidate rejects any role-tagged source, and a
+positional candidate requires every selected source to carry one of its own roles exactly once,
+with a media kind matching that role's protocol-fixed kind (`src/lib/utils/mediaSlots.ts`). A
+non-empty proper subset of a positional contract's required roles is a legitimate sparse
+`incomplete` draft — e.g. only `last_frame` filled resolves an incomplete FLF2V, and the user may
+fill `first_frame` afterward. Turning an existing *generic* source into part of a positional
+selection (e.g. "Add end frame" after one plain reference image) is handled by a dedicated pure
+transition planner, `src/lib/utils/sourceRolePlanner.ts` (`planRoleSelection`) — it is the only
+place a draft's existing role assignment is ever promoted, and it refuses to guess (returns
+`allowed: false`) whenever more than one distinct promotion would be legal. Request projection
+(`src/lib/utils/generatePayload.ts`) reorders a positional draft into the contract's advertised
+role order before serializing — store/editing order is never wire order once roles are involved
+— while a `roles: null` draft still serializes in plain insertion order; no role name ever
+reaches the wire request (`SourceMediaReference` remains `{ asset_ref }` only). Re-Generate
+hydrates roles by position from the *live* selected model's contract
+(`src/lib/services/generationPrefill.ts`, `replayGenerationPrefill`), and fails closed rather than
+reinterpreting history if the live positional role count no longer matches the historical group.
+Library's `use_as_first_frame` / `use_as_last_frame` resolve an enabled model by actual role
+capability (`resolveModelForRole`/`enabledRoles` in `src/lib/utils/generationModes.ts`), never by
+checking `availableModes.has('flf2v')` — there is no fixed mode name for a role action.
+
 > **Deprecated flat format** (`providers` + `models` as a flat list) was removed in v2.
 
 ---

@@ -2,13 +2,17 @@ import { describe, expect, it } from 'vitest';
 import {
   appendableMediaKinds,
   broadMaxSourceCount,
+  interchangeableSourceMedia,
   isSourceDraftAmbiguous,
   isSourceDraftIncompatible,
   isSourceSectionVisible,
   replacementMediaKinds,
+  roleSlotsForModel,
   sourceConsumingMediaKinds,
+  sourceIndexForRole,
 } from './sourceMediaAffordance';
 import type { ResolverSource } from './generationModeResolver';
+import type { SourceMediaDraft } from '$lib/stores/generation';
 import {
   makeAishaImageLiteModelInfo,
   makeAishaImageModelInfo,
@@ -20,13 +24,25 @@ import {
 import type { components } from '$lib/api/types';
 
 type GenerationModeInfo = components['schemas']['GenerationModeInfo'];
+type MediaSlot = components['schemas']['MediaSlot'];
 
-function image(assetRef: string): ResolverSource {
-  return { assetRef, mediaType: 'image', available: true };
+function image(assetRef: string, role: MediaSlot | null = null): ResolverSource {
+  return { assetRef, mediaType: 'image', available: true, role };
 }
 
-function video(assetRef: string): ResolverSource {
-  return { assetRef, mediaType: 'video', available: true };
+function video(assetRef: string, role: MediaSlot | null = null): ResolverSource {
+  return { assetRef, mediaType: 'video', available: true, role };
+}
+
+function sourceDraft(source: ResolverSource, label: string | null = null): SourceMediaDraft {
+  return {
+    assetRef: source.assetRef,
+    mediaType: source.mediaType,
+    previewUrl: null,
+    label,
+    available: source.available,
+    role: source.role,
+  };
 }
 
 describe('isSourceSectionVisible', () => {
@@ -36,7 +52,14 @@ describe('isSourceSectionVisible', () => {
 
   it('2. shows for a t2i-only model with a retained draft', () => {
     const draft = [
-      { assetRef: 'upload:1', mediaType: 'image', previewUrl: null, label: null, available: true },
+      {
+        assetRef: 'upload:1',
+        mediaType: 'image',
+        previewUrl: null,
+        label: null,
+        available: true,
+        role: null,
+      },
     ];
     expect(isSourceSectionVisible(makeAishaImageLiteModelInfo(), draft)).toBe(true);
   });
@@ -75,12 +98,16 @@ describe('appendableMediaKinds', () => {
     expect(appendableMediaKinds(makeGrokVideoModelInfo(), [video('upload:1')])).toEqual([]);
   });
 
-  it('11. Aisha Video empty draft -> image allowed', () => {
-    expect(appendableMediaKinds(makeAishaVideoModelInfo(), [])).toEqual(['image']);
+  it('11. Aisha Video has no generic/interchangeable affordance at all — every source-accepting mode is positional', () => {
+    // Phase 4: appendableMediaKinds is the *interchangeable* affordance only.
+    // Aisha Video's i2v/flf2v both require named roles, so a plain generic
+    // append can never satisfy either — the model is driven entirely by role
+    // slots (see `roleSlotsForModel`), not this generic list affordance.
+    expect(appendableMediaKinds(makeAishaVideoModelInfo(), [])).toEqual([]);
   });
 
-  it('12. Aisha Video one image -> second image allowed under the current unique FLF2V contract', () => {
-    expect(appendableMediaKinds(makeAishaVideoModelInfo(), [image('upload:1')])).toEqual(['image']);
+  it('12. Aisha Video with one generic image still offers no generic append', () => {
+    expect(appendableMediaKinds(makeAishaVideoModelInfo(), [image('upload:1')])).toEqual([]);
   });
 
   it('13. Aisha Video two images -> no third source', () => {
@@ -90,7 +117,7 @@ describe('appendableMediaKinds', () => {
   });
 });
 
-describe('appendableMediaKinds — mandatory ambiguity protection (synthetic future contract)', () => {
+describe('appendableMediaKinds — synthetic mixed generic + positional contract', () => {
   const syntheticModes: Record<string, GenerationModeInfo> = {
     i2v: { source_media: { min: 1, max: 2, media_types: ['image'], roles: null } },
     flf2v: {
@@ -107,9 +134,19 @@ describe('appendableMediaKinds — mandatory ambiguity protection (synthetic fut
     i2v: syntheticModes.i2v,
   };
 
-  it('14-15. a generic second image would be ambiguous (complete i2v + complete flf2v) -> not offered', () => {
+  it('14. a lone generic image still allows a generic append (resolves i2v, not ambiguous)', () => {
     const modelInfo = makeModelInfo({ generation_modes: syntheticModes });
-    expect(appendableMediaKinds(modelInfo, [image('upload:1')])).toEqual([]);
+    expect(appendableMediaKinds(modelInfo, [])).toEqual(['image']);
+  });
+
+  it('15. a second generic image ("Add reference") is offered too — flf2v never becomes a candidate without roles', () => {
+    const modelInfo = makeModelInfo({ generation_modes: syntheticModes });
+    expect(appendableMediaKinds(modelInfo, [image('upload:1')])).toEqual(['image']);
+  });
+
+  it('a role-tagged first_frame source has no generic append (i2v rejects a role-tagged selection)', () => {
+    const modelInfo = makeModelInfo({ generation_modes: syntheticModes });
+    expect(appendableMediaKinds(modelInfo, [image('upload:1', 'first_frame')])).toEqual([]);
   });
 
   it('16. is unaffected by advertised key order', () => {
@@ -121,16 +158,67 @@ describe('appendableMediaKinds — mandatory ambiguity protection (synthetic fut
   });
 });
 
+describe('roleSlotsForModel', () => {
+  it('exposes first_frame and last_frame for Aisha Video, in display order, regardless of current sources', () => {
+    const modelInfo = makeAishaVideoModelInfo();
+    expect(roleSlotsForModel(modelInfo)).toEqual(['first_frame', 'last_frame']);
+  });
+
+  it('returns no slots for a purely roleless (Grok-shaped) model', () => {
+    expect(roleSlotsForModel(makeGrokImageModelInfo())).toEqual([]);
+    expect(roleSlotsForModel(makeGrokVideoModelInfo())).toEqual([]);
+  });
+
+  it('returns no slots for a model with no generation modes at all', () => {
+    expect(roleSlotsForModel(null)).toEqual([]);
+  });
+});
+
+describe('sourceIndexForRole / interchangeableSourceMedia', () => {
+  it('finds the occupying index for a filled role and null for an empty one', () => {
+    const sources = [sourceDraft(image('upload:1', 'last_frame'))];
+    expect(sourceIndexForRole(sources, 'last_frame')).toBe(0);
+    expect(sourceIndexForRole(sources, 'first_frame')).toBeNull();
+  });
+
+  it('filters to only the generic/interchangeable sources, preserving order', () => {
+    const sources = [
+      sourceDraft(image('upload:1', 'first_frame')),
+      sourceDraft(image('upload:2')),
+      sourceDraft(image('upload:3', 'last_frame')),
+      sourceDraft(image('upload:4')),
+    ];
+    expect(interchangeableSourceMedia(sources).map((s) => s.assetRef)).toEqual([
+      'upload:2',
+      'upload:4',
+    ]);
+  });
+});
+
 describe('replacementMediaKinds', () => {
   it('17-18. a max-capacity source list can still replace an unavailable source (computed by replacement simulation)', () => {
     const modelInfo = makeAishaImageModelInfo(); // i2i: exactly 1 image
     const draft: ResolverSource[] = [
-      { assetRef: 'output:missing', mediaType: null, available: false },
+      { assetRef: 'output:missing', mediaType: null, available: false, role: null },
     ];
     // Append is unavailable at capacity (mediaType null can't append at all)...
     expect(appendableMediaKinds(modelInfo, draft)).toEqual([]);
     // ...but replacement at the existing index recovers it.
     expect(replacementMediaKinds(modelInfo, draft, 0)).toEqual(['image']);
+  });
+
+  it('preserves an existing role assignment while simulating a replacement — never downgrades it to generic', () => {
+    const modelInfo = makeAishaVideoModelInfo(); // flf2v: [first_frame, last_frame]
+    const draft: ResolverSource[] = [
+      image('upload:1', 'first_frame'),
+      { assetRef: 'output:missing', mediaType: null, available: false, role: 'last_frame' },
+    ];
+    // The unavailable position keeps its `last_frame` role during simulation,
+    // so a replacement image resolves flf2v rather than being rejected for
+    // producing a generic + role-tagged mix.
+    expect(replacementMediaKinds(modelInfo, draft, 1)).toEqual(['image']);
+    // A video can never fill an image-only role, regardless of replacement.
+    expect(replacementMediaKinds(modelInfo, draft, 1)).not.toContain('video');
   });
 
   it('19. invalid/ambiguous replacements are not offered', () => {
@@ -175,7 +263,7 @@ describe('isSourceDraftIncompatible / isSourceDraftAmbiguous', () => {
     expect(isSourceDraftIncompatible(makeGrokImageModelInfo(), [image('upload:1')])).toBe(false);
   });
 
-  it('flags an ambiguous draft', () => {
+  it('two generic images against a mixed generic/positional model resolve cleanly — never ambiguous by count alone', () => {
     const modelInfo = makeModelInfo({
       generation_modes: {
         i2v: { source_media: { min: 1, max: 2, media_types: ['image'], roles: null } },
@@ -189,9 +277,31 @@ describe('isSourceDraftIncompatible / isSourceDraftAmbiguous', () => {
         },
       },
     });
-    expect(isSourceDraftAmbiguous(modelInfo, [image('upload:1'), image('upload:2')])).toBe(true);
+    expect(isSourceDraftAmbiguous(modelInfo, [image('upload:1'), image('upload:2')])).toBe(false);
     expect(isSourceDraftIncompatible(modelInfo, [image('upload:1'), image('upload:2')])).toBe(
       false,
     );
+    // Explicit role assignment resolves the positional candidate instead.
+    expect(
+      isSourceDraftAmbiguous(modelInfo, [
+        image('upload:1', 'first_frame'),
+        image('upload:2', 'last_frame'),
+      ]),
+    ).toBe(false);
+  });
+
+  it('flags a genuinely ambiguous draft — two positional candidates accepting the same role', () => {
+    const modelInfo = makeModelInfo({
+      generation_modes: {
+        'edit-a': {
+          source_media: { min: 1, max: 1, media_types: ['image'], roles: ['reference'] },
+        },
+        'edit-b': {
+          source_media: { min: 1, max: 1, media_types: ['image'], roles: ['reference'] },
+        },
+      },
+    });
+    expect(isSourceDraftAmbiguous(modelInfo, [image('upload:1', 'reference')])).toBe(true);
+    expect(isSourceDraftIncompatible(modelInfo, [image('upload:1', 'reference')])).toBe(false);
   });
 });

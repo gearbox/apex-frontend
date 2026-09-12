@@ -22,7 +22,7 @@
   } from '$lib/queries/library';
   import { storageStatsQueryOptions, storageKeys } from '$lib/queries/storage';
   import { providersQueryOptions } from '$lib/queries/providers';
-  import { enabledModes } from '$lib/utils/generationModes';
+  import { enabledModes, enabledRoles } from '$lib/utils/generationModes';
   import { createLibraryActionDeps } from '$lib/components/library/actionDeps';
   import { uploadMedia } from '$lib/api/upload';
   import { ApiRequestError } from '$lib/api/errors';
@@ -202,6 +202,7 @@
   const tagsQuery = createQuery(() => tagsListQueryOptions());
   const providersQuery = createQuery(() => providersQueryOptions());
   const availableModes = $derived(enabledModes(providersQuery.data));
+  const availableRoles = $derived(enabledRoles(providersQuery.data));
   const providersReady = $derived(providersQuery.data !== undefined || !providersQuery.isLoading);
 
   const allItems = $derived((libraryQuery.data?.pages ?? []).flatMap((p) => p.items));
@@ -603,6 +604,7 @@
       {bulkErrorRefs}
       onToggleSelect={toggleSelection}
       {availableModes}
+      {availableRoles}
       {providersReady}
       {actionDeps}
     />

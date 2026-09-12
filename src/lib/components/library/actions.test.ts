@@ -9,7 +9,13 @@ import {
 } from './actions';
 import { makeLibraryAssetDetail } from '../../../mocks/factories/library';
 import { makeMediaObject, makeVideoMediaObject } from '../../../mocks/factories/media';
-import { makeGrokImageModelInfo, generationModes } from '../../../mocks/factories/providers';
+import {
+  makeAishaVideoModelInfo,
+  makeGrokImageModelInfo,
+  makeGrokVideoModelInfo,
+  generationModes,
+} from '../../../mocks/factories/providers';
+import { enabledRoles } from '$lib/utils/generationModes';
 import type { components } from '$lib/api/types';
 
 const { addToastMock } = vi.hoisted(() => ({ addToastMock: vi.fn() }));
@@ -242,5 +248,235 @@ describe('Library action visibility and provenance', () => {
     await action?.();
     expect(noModelDeps.navigate).not.toHaveBeenCalled();
     expect(addToastMock).toHaveBeenCalled();
+  });
+});
+
+function aishaVideoProviders(): ProvidersResponse {
+  return {
+    providers: [
+      {
+        provider: 'aisha',
+        name: 'Aisha',
+        available: true,
+        provisioning_mode: 'always_on',
+        models: [makeAishaVideoModelInfo()],
+      },
+    ],
+    user_context: null,
+  };
+}
+
+function grokVideoOnlyProviders(): ProvidersResponse {
+  return {
+    providers: [
+      {
+        provider: 'grok',
+        name: 'Grok',
+        available: true,
+        provisioning_mode: 'always_on',
+        models: [makeGrokVideoModelInfo()], // roles: null everywhere
+      },
+    ],
+    user_context: null,
+  };
+}
+
+describe('Phase 4 — role-capability-driven Library visibility', () => {
+  it('shows use_as_first_frame / use_as_last_frame when an enabled provider actually advertises those roles', () => {
+    const availableRoles = enabledRoles(aishaVideoProviders());
+    expect(
+      filterVisibleLibraryActions(['use_as_first_frame', 'use_as_last_frame'], {
+        availableModes: new Set(),
+        availableRoles,
+        saveCapabilities: ['download'],
+      }),
+    ).toEqual(['use_as_first_frame', 'use_as_last_frame']);
+  });
+
+  it('hides use_as_first_frame / use_as_last_frame for Grok-only (roleless) providers', () => {
+    const availableRoles = enabledRoles(grokVideoOnlyProviders());
+    expect(availableRoles.size).toBe(0);
+    expect(
+      filterVisibleLibraryActions(['use_as_first_frame', 'use_as_last_frame'], {
+        availableModes: new Set(['i2v', 'v2v']),
+        availableRoles,
+        saveCapabilities: ['download'],
+      }),
+    ).toEqual([]);
+  });
+
+  it('never uses availableModes.has("flf2v") as a stand-in for role capability', () => {
+    // A model set that happens to advertise a mode literally named "flf2v" but
+    // with roles: null must still not surface the role-based actions.
+    const providersWithRolelessFlf2v: ProvidersResponse = {
+      providers: [
+        {
+          provider: 'grok',
+          name: 'Grok',
+          available: true,
+          provisioning_mode: 'always_on',
+          models: [
+            makeGrokImageModelInfo({
+              generation_modes: generationModes(['t2i', 'flf2v'], {
+                flf2v: { min: 2, max: 2, media_types: ['image'], roles: null },
+              }),
+            }),
+          ],
+        },
+      ],
+      user_context: null,
+    };
+    expect(
+      filterVisibleLibraryActions(['use_as_first_frame', 'use_as_last_frame'], {
+        availableModes: new Set(['flf2v']),
+        availableRoles: enabledRoles(providersWithRolelessFlf2v),
+        saveCapabilities: ['download'],
+      }),
+    ).toEqual([]);
+  });
+
+  it('use_as_reference stays visible via its roleless i2i path even with no named reference role', () => {
+    expect(
+      filterVisibleLibraryActions(['use_as_reference'], {
+        availableModes: new Set(['i2i']),
+        availableRoles: new Set(),
+        saveCapabilities: ['download'],
+      }),
+    ).toEqual(['use_as_reference']);
+  });
+});
+
+describe('Phase 4 — role-based prefill (use_as_first_frame / use_as_last_frame)', () => {
+  function aishaAsset(overrides: Partial<typeof asset> = {}) {
+    return makeLibraryAssetDetail({
+      asset_ref: SOURCE_A,
+      job_id: 'job-2',
+      generation_type: 'i2v',
+      model: 'aisha-video',
+      media: makeMediaObject(),
+      ...overrides,
+    });
+  }
+
+  it('use_as_first_frame tags the source with role first_frame and preserves the draft prompt', async () => {
+    generationStore.prefill({ prompt: 'my draft in progress' });
+    const actionDeps = deps([]);
+    actionDeps.providers = aishaVideoProviders();
+    const action = resolveLibraryAction('use_as_first_frame', aishaAsset(), {}, actionDeps);
+    await action?.();
+
+    expect(actionDeps.navigate).toHaveBeenCalled();
+    expect(get(generationStore)).toMatchObject({
+      model: 'aisha-video',
+      prompt: 'my draft in progress',
+      sourceMedia: [{ assetRef: SOURCE_A, role: 'first_frame' }],
+    });
+  });
+
+  it('use_as_last_frame tags the source with role last_frame, leaving Create in an incomplete FLF state', async () => {
+    const actionDeps = deps([]);
+    actionDeps.providers = aishaVideoProviders();
+    const action = resolveLibraryAction('use_as_last_frame', aishaAsset(), {}, actionDeps);
+    await action?.();
+
+    expect(get(generationStore)).toMatchObject({
+      model: 'aisha-video',
+      sourceMedia: [{ assetRef: SOURCE_A, role: 'last_frame' }],
+    });
+  });
+
+  it('prefers the asset’s originating model when it is enabled and role-capable', async () => {
+    const providersMultiModel: ProvidersResponse = {
+      providers: [
+        {
+          provider: 'aisha',
+          name: 'Aisha',
+          available: true,
+          provisioning_mode: 'always_on',
+          models: [
+            makeAishaVideoModelInfo({ model_key: 'aisha-video-a' }),
+            makeAishaVideoModelInfo({ model_key: 'aisha-video-b' }),
+          ],
+        },
+      ],
+      user_context: null,
+    };
+    const actionDeps = deps([]);
+    actionDeps.providers = providersMultiModel;
+    const action = resolveLibraryAction(
+      'use_as_first_frame',
+      aishaAsset({ model: 'aisha-video-b' }),
+      {},
+      actionDeps,
+    );
+    await action?.();
+    expect(get(generationStore).model).toBe('aisha-video-b');
+  });
+
+  it('falls back to another enabled role-capable model when the originating one cannot be used', async () => {
+    const providersFallback: ProvidersResponse = {
+      providers: [
+        {
+          provider: 'aisha',
+          name: 'Aisha',
+          available: true,
+          provisioning_mode: 'always_on',
+          models: [makeAishaVideoModelInfo({ model_key: 'aisha-video-b' })],
+        },
+      ],
+      user_context: null,
+    };
+    const actionDeps = deps([]);
+    actionDeps.providers = providersFallback;
+    // Originating model 'aisha-video-a' no longer exists/enabled.
+    const action = resolveLibraryAction(
+      'use_as_first_frame',
+      aishaAsset({ model: 'aisha-video-a' }),
+      {},
+      actionDeps,
+    );
+    await action?.();
+    expect(get(generationStore).model).toBe('aisha-video-b');
+  });
+
+  it('does not navigate and surfaces an error toast when no role-capable model is enabled', async () => {
+    const actionDeps = deps([]);
+    actionDeps.providers = grokVideoOnlyProviders();
+    const action = resolveLibraryAction('use_as_first_frame', aishaAsset(), {}, actionDeps);
+    await action?.();
+    expect(actionDeps.navigate).not.toHaveBeenCalled();
+    expect(addToastMock).toHaveBeenCalled();
+    expect(get(generationStore).sourceMedia).toEqual([]);
+  });
+});
+
+describe('Phase 4 — Animate role assignment follows the target contract, never a global rule', () => {
+  it('assigns first_frame only when the resolved i2v target actually advertises that role', async () => {
+    const actionDeps = deps([]);
+    actionDeps.providers = aishaVideoProviders();
+    actionDeps.loadDetail = vi
+      .fn()
+      .mockResolvedValue({ ...asset, model: 'aisha-video', media: makeMediaObject() });
+    const action = resolveLibraryAction('animate', asset, {}, actionDeps);
+    await action?.();
+    expect(get(generationStore)).toMatchObject({
+      model: 'aisha-video',
+      mode: 'i2v',
+      sourceMedia: [{ role: 'first_frame' }],
+    });
+  });
+
+  it('keeps Animate roleless when the resolved i2v target advertises no roles', async () => {
+    const actionDeps = deps([]);
+    actionDeps.providers = grokVideoOnlyProviders(); // i2v with roles: null
+    actionDeps.loadDetail = vi
+      .fn()
+      .mockResolvedValue({ ...asset, model: 'grok-imagine-video', media: makeMediaObject() });
+    const action = resolveLibraryAction('animate', asset, {}, actionDeps);
+    await action?.();
+    expect(get(generationStore)).toMatchObject({
+      mode: 'i2v',
+      sourceMedia: [{ role: null }],
+    });
   });
 });

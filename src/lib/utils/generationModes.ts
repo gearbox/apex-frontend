@@ -1,5 +1,6 @@
 import type { components } from '$lib/api/types';
 import type { GenerationMode } from '$lib/stores/generation';
+import { isMediaSlot, mediaKindForSlot, type MediaSlot } from './mediaSlots';
 
 export type { GenerationMode };
 
@@ -43,6 +44,111 @@ export function enabledModes(providers: ProvidersResponse | null | undefined): S
     }
   }
   return modes;
+}
+
+/**
+ * Every named role satisfiable by at least one enabled model's advertised
+ * positional (`roles !== null`) source-consuming mode, across all providers.
+ * This is the Library role-action visibility predicate: `use_as_first_frame`
+ * / `use_as_last_frame` must never be shown from `availableModes.has(...)`
+ * alone (there is no fixed mode name for a role), and must never be shown
+ * merely because a role name appears in a *disabled* model's contract.
+ */
+export function enabledRoles(providers: ProvidersResponse | null | undefined): Set<MediaSlot> {
+  const roles = new Set<MediaSlot>();
+  for (const provider of providers?.providers ?? []) {
+    for (const model of provider.models) {
+      if (!model.is_enabled) continue;
+      for (const modeInfo of Object.values(model.generation_modes)) {
+        for (const role of modeInfo?.source_media?.roles ?? []) {
+          if (isMediaSlot(role)) roles.add(role);
+        }
+      }
+    }
+  }
+  return roles;
+}
+
+function isCapableEnabledModelForRole(model: ModelInfo, role: MediaSlot): boolean {
+  if (!model.is_enabled) return false;
+  const mediaKind = mediaKindForSlot(role);
+  return Object.values(model.generation_modes).some((modeInfo) => {
+    const constraints = modeInfo?.source_media;
+    return (
+      constraints?.roles != null &&
+      constraints.roles.includes(role) &&
+      constraints.media_types.includes(mediaKind)
+    );
+  });
+}
+
+/**
+ * Resolves the model to prefill for a named role intent, mirroring
+ * `resolveModelForMode`'s preference cascade exactly (preferred model, then
+ * same provider, then any enabled provider) but keyed on role capability
+ * instead of a fixed mode name — there is no single mode name a role-based
+ * Library action can target directly.
+ */
+export function resolveModelForRole(
+  providers: ProvidersResponse | null | undefined,
+  role: MediaSlot,
+  preferred?: string | null,
+): ModelType | null {
+  const providerList = providers?.providers ?? [];
+
+  if (preferred) {
+    const model = findModelInfo(providers, preferred);
+    if (model && isCapableEnabledModelForRole(model, role)) return preferred as ModelType;
+  }
+
+  if (preferred) {
+    const preferredProvider = providerList.find((provider) =>
+      provider.models.some((model) => model.model_key === preferred),
+    );
+    const match = preferredProvider?.models.find((model) =>
+      isCapableEnabledModelForRole(model, role),
+    );
+    if (match) return match.model_key as ModelType;
+  }
+
+  for (const provider of providerList) {
+    const match = provider.models.find((model) => isCapableEnabledModelForRole(model, role));
+    if (match) return match.model_key as ModelType;
+  }
+
+  return null;
+}
+
+/**
+ * The first (alphabetically, for determinism) advertised mode whose
+ * positional contract includes `role` — informational only. `generationStore.mode`
+ * is compatibility metadata; the actual effective mode is always recomputed
+ * live by the resolver from the draft's own role assignments.
+ */
+export function modeForRole(
+  modelInfo: ModelInfo | null | undefined,
+  role: MediaSlot,
+): GenerationMode | null {
+  const modes = Object.entries(modelInfo?.generation_modes ?? {})
+    .filter(([, info]) => info?.source_media?.roles?.includes(role))
+    .map(([mode]) => mode)
+    .sort();
+  return modes[0] ?? null;
+}
+
+/**
+ * The sole role a mode advertises, or `null` when the mode is roleless or
+ * advertises more than one role. Used to tag a source's role automatically
+ * from the *resolved model's own contract* — never from the mode name or a
+ * hardcoded table — so e.g. Animate assigns `first_frame` only when the
+ * target model's i2v contract actually names it.
+ */
+export function soleAdvertisedRole(
+  modelInfo: ModelInfo | null | undefined,
+  mode: GenerationMode,
+): MediaSlot | null {
+  const roles = modelInfo?.generation_modes?.[mode]?.source_media?.roles;
+  return roles != null && roles.length === 1 ? roles[0] : null;
 }
 
 export function findModelInfo(

@@ -11,6 +11,7 @@ type Resolution = components['schemas']['Resolution'];
 type Sampler = components['schemas']['Sampler'];
 type Scheduler = components['schemas']['Scheduler'];
 type MediaKind = components['schemas']['MediaKind'];
+type MediaSlot = components['schemas']['MediaSlot'];
 
 /**
  * Canonical editable source state. Asset refs remain intact so a draft never
@@ -23,6 +24,14 @@ export interface SourceMediaDraft {
   label: string | null;
   /** False only for an unavailable item restored by Re-Generate. */
   available: boolean;
+  /**
+   * Explicit named-slot intent for a positional contract (`roles !== null`).
+   * `null` means generic/interchangeable — legal only against a `roles: null`
+   * candidate. This is the single source-level semantic assignment: it
+   * travels with the item through append/replace/prefill/normalization
+   * rather than living in a second, parallel piece of state.
+   */
+  role: MediaSlot | null;
 }
 
 export interface GenerationState {
@@ -173,6 +182,21 @@ function createGenerationStore() {
 
     setSourceMedia(sourceMedia: SourceMediaDraft[]) {
       update((s) => ({ ...s, sourceMedia: normalizeSourceMedia(sourceMedia) }));
+    },
+
+    /**
+     * Reassigns the semantic role of an existing source in place — the sole
+     * mutation the positional transition planner needs to "promote" a
+     * generic source into a named slot without touching its identity,
+     * preview, or position.
+     */
+    setSourceRole(index: number, role: MediaSlot | null) {
+      update((s) => {
+        if (index < 0 || index >= s.sourceMedia.length) return s;
+        const sourceMedia = [...s.sourceMedia];
+        sourceMedia[index] = { ...sourceMedia[index], role };
+        return { ...s, sourceMedia };
+      });
     },
 
     setAspectRatio(aspectRatio: AspectRatio) {
@@ -339,10 +363,11 @@ export function generationDraftFingerprint(state: GenerationState): string {
     mode: state.mode,
     prompt: state.prompt,
     negativePrompt: state.negativePrompt,
-    sourceMedia: state.sourceMedia.map(({ assetRef, mediaType, available }) => ({
+    sourceMedia: state.sourceMedia.map(({ assetRef, mediaType, available, role }) => ({
       assetRef,
       mediaType,
       available,
+      role,
     })),
     aspectRatio: state.aspectRatio,
     editAspectRatio: state.editAspectRatio,

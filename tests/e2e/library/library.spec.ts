@@ -708,6 +708,192 @@ test.describe('Library actions — Remix / Reproduce', () => {
   });
 });
 
+// Adds a role-capable (Aisha Video-shaped) model on top of the roleless Grok
+// fixtures above, so `use_as_first_frame` / `use_as_last_frame` are visible
+// and resolvable (Phase 4).
+const mockProvidersWithAishaVideo = {
+  providers: [
+    ...mockProvidersResponse.providers,
+    {
+      provider: 'aisha',
+      name: 'Aisha',
+      available: true,
+      provisioning_mode: 'always_on',
+      models: [
+        {
+          model_key: 'aisha-video',
+          name: 'Aisha Video',
+          description: 'Aisha video generation model',
+          generation_modes: {
+            t2v: { source_media: null },
+            i2v: {
+              source_media: { min: 1, max: 1, media_types: ['image'], roles: ['first_frame'] },
+            },
+            flf2v: {
+              source_media: {
+                min: 2,
+                max: 2,
+                media_types: ['image'],
+                roles: ['first_frame', 'last_frame'],
+              },
+            },
+          },
+          is_enabled: true,
+          max_images: 1,
+          max_prompt_length: 4096,
+          supports_negative_prompt: true,
+          aspect_ratios: ['1:1', '16:9'],
+          requires_age_verification: false,
+          image: null,
+          video: { max_duration: 10, resolutions: ['480p', '720p'] },
+        },
+      ],
+    },
+  ],
+  user_context: null,
+};
+
+const itemImageForRoleAction = {
+  ...itemImageSingle,
+  asset_ref: 'output:c0000000-0000-4000-8000-000000000001',
+  available_actions: ['use_as_first_frame', 'use_as_last_frame', 'download', 'favorite', 'delete'],
+};
+
+// A second, distinct owned upload for the picker fill — reusing the same
+// asset the "Use as Last Frame" action already attached would hit the
+// duplicate-source guard instead of filling the empty first_frame slot.
+const uploadForFirstFrame = {
+  asset_ref: 'upload:d0000000-0000-4000-8000-000000000002',
+  source: 'upload',
+  media: makeMedia('/v1/content/uploads/d0000000-0000-4000-8000-000000000002'),
+  created_at: '2025-01-05T00:00:00Z',
+  expires_at: '2025-07-05T00:00:00Z',
+  display_title: null,
+  original_filename: 'lighthouse-start.jpg',
+  display_filename: 'lighthouse-start.jpg',
+  is_favorite: false,
+  duration_ms: null,
+  job_id: null,
+  output_count: null,
+  model: null,
+  generation_type: null,
+  available_actions: ['download', 'favorite', 'delete'],
+};
+
+const mockAssetDetailForRoleAction = {
+  ...itemImageForRoleAction,
+  prompt: 'A lighthouse at dusk',
+  negative_prompt: null,
+  provider: 'grok',
+  aspect_ratio: '1:1',
+  token_cost: 10,
+  completed_at: '2025-01-01T00:01:00Z',
+  lineage: null,
+  descendants: { job_count: 0, frame_count: 0 },
+};
+
+test.describe('Library actions — positional role source (Phase 4)', () => {
+  test.beforeEach(async ({ authenticatedPage: page }) => {
+    await page.route('**/v1/content/**', (route) =>
+      route.fulfill({ status: 200, contentType: 'image/jpeg', body: Buffer.from('fake') }),
+    );
+    await page.route('**/v1/providers', jsonRoute(mockProvidersWithAishaVideo));
+    await page.route(
+      '**/v1/billing/balance',
+      jsonRoute({ account_id: 'acc_001', account_type: 'personal', balance: 1000 }),
+    );
+    await page.route('**/v1/billing/pricing', jsonRoute([]));
+    // The grid lists the single output asset; the picker (always queried with
+    // `source`/`media_type` filters) offers a distinct owned upload, so filling
+    // the empty first_frame slot never collides with the asset the "Use as
+    // Last Frame" action already attached.
+    await page.route(
+      (url) => url.pathname === '/v1/library',
+      (route) => {
+        const requestUrl = new URL(route.request().url());
+        const isPickerQuery =
+          requestUrl.searchParams.has('source') || requestUrl.searchParams.has('media_type');
+        const items = isPickerQuery ? [uploadForFirstFrame] : [itemImageForRoleAction];
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ items, limit: 20, has_more: false, next_cursor: null }),
+        });
+      },
+    );
+    await page.route('**/v1/library/assets/**', jsonRoute(mockAssetDetailForRoleAction));
+  });
+
+  test('Use as Last Frame opens Create with Last frame filled, First frame empty, Generate disabled — then fills First frame for an FLF2V request', async ({
+    authenticatedPage: page,
+  }) => {
+    await page.goto('/app/library');
+    await expect(page.getByText(/\d+\s*loaded/i)).toBeVisible({ timeout: 5000 });
+
+    await page.locator('[class*="grid"] button.absolute.inset-0.z-0').first().click();
+    await expect(page.getByText('A lighthouse at dusk').first()).toBeVisible({ timeout: 3000 });
+
+    await page.getByRole('button', { name: 'Use as Last Frame' }).click();
+    await expect(page).toHaveURL(/\/app\/create/, { timeout: 5000 });
+
+    const lastFrameSlot = page.getByTestId('role-slot-last_frame');
+    const firstFrameSlot = page.getByTestId('role-slot-first_frame');
+    await expect(lastFrameSlot.getByText('From generated')).toBeVisible();
+    await expect(firstFrameSlot.getByRole('button', { name: /Add first frame/i })).toBeVisible();
+
+    const generateBtn = page.getByRole('button', { name: /Generate/i }).first();
+    await expect(generateBtn).toBeDisabled();
+
+    // Fill the first frame from a distinct owned upload via the picker.
+    await firstFrameSlot.getByRole('button', { name: 'Library' }).click();
+    const picker = page.getByRole('dialog', { name: 'Choose from library' });
+    await expect(picker.locator('[aria-pressed]').first()).toBeVisible({ timeout: 5000 });
+    await picker.locator('[aria-pressed]').first().click();
+    await page.getByRole('button', { name: /Use Selected Image/i }).click();
+    await expect(firstFrameSlot.getByText('From uploads')).toBeVisible();
+
+    // The role action preserves the (blank) draft prompt rather than copying
+    // provenance text — a real submission still needs one.
+    await page.locator('textarea').first().fill('A lighthouse test prompt');
+
+    let capturedBody: Record<string, unknown> | null = null;
+    await page.route('**/v1/generate', async (route) => {
+      capturedBody = await route.request().postDataJSON();
+      return route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          job_id: 'job_e2e_lib_flf2v',
+          status: 'pending',
+          name: 'E2E library flf2v',
+          model: 'aisha-video',
+          generation_type: 'flf2v',
+          created_at: '2025-01-01T00:02:00Z',
+        }),
+      });
+    });
+    await page.route(
+      '**/v1/jobs/**',
+      jsonRoute({
+        id: 'job_e2e_lib_flf2v',
+        status: 'running',
+        name: 'E2E library flf2v',
+        provider: 'aisha',
+        model: 'aisha-video',
+        generation_type: 'flf2v',
+        prompt: 'A lighthouse at dusk',
+        created_at: '2025-01-01T00:02:00Z',
+        outputs: [],
+      }),
+    );
+
+    await expect(generateBtn).toBeEnabled();
+    await generateBtn.click();
+    await expect(page.getByRole('button', { name: /Submitting|Generating/i })).toBeVisible();
+    expect(capturedBody).toMatchObject({ generation_type: 'flf2v' });
+  });
+});
+
 test.describe('Library page', () => {
   test.beforeEach(async ({ authenticatedPage: page }) => {
     await page.route('**/v1/content/**', (route) =>
