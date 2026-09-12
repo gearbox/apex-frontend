@@ -78,7 +78,14 @@ export function validateSourceMedia(
   modelInfo: ModelInfo | null,
 ): SourceMediaValidation {
   const policy = sourceMediaPolicy(modelInfo, state.mode);
-  if (!policy.accepted) return { valid: true, message: null };
+  // A source-free mode may be submitted only with an empty draft. Retained
+  // sources are incompatible with that contract; never treat them as valid
+  // and silently omit them from the request during projection.
+  if (!policy.accepted) {
+    return state.sourceMedia.length === 0
+      ? { valid: true, message: null }
+      : { valid: false, message: m.create_source_current_incompatible() };
+  }
 
   if (policy.hasUnknownRoles) {
     return { valid: false, message: m.error_source_role_unknown() };
@@ -143,12 +150,12 @@ export function projectSourceMedia(
   modelInfo: ModelInfo | null,
 ): SourceMediaProjection {
   const policy = sourceMediaPolicy(modelInfo, state.mode);
-  if (!policy.accepted) return { valid: true, sourceMedia: undefined };
-
   const validation = validateSourceMedia(state, modelInfo);
   if (!validation.valid) {
     return { valid: false, reason: validation.message ?? 'Invalid source media selection.' };
   }
+
+  if (!policy.accepted) return { valid: true, sourceMedia: undefined };
 
   // Validation above guarantees, for a positional contract, that every role
   // is represented exactly once — `find` below can never come up empty.

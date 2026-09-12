@@ -8,6 +8,7 @@ import {
 } from '$lib/stores/generation';
 import {
   findModelInfo,
+  isExecutableModeContract,
   isGenerationMode,
   modeForRole,
   resolveModelForReference,
@@ -57,6 +58,7 @@ export function prefillSourceForGeneration(request: SourcePrefillRequest): boole
   const model = resolveModelForMode(request.providers, request.mode, request.preferredModel);
   if (!model) return false;
   const modelInfo = findModelInfo(request.providers, model);
+  if (!isExecutableModeContract(modelInfo, request.mode)) return false;
 
   generationStore.prefill({
     model,

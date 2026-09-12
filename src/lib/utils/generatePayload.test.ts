@@ -95,21 +95,44 @@ describe('canonical source_media payload projection', () => {
     expect(payload).not.toHaveProperty('input_video_url');
   });
 
-  it('omits owned media entirely when the latest model declares source_media null for the mode', () => {
+  it('omits source_media for an empty draft when the latest model declares source_media null', () => {
     const noSourceModel = model({
       generation_modes: generationModes(['t2i', 'i2i'], { i2i: null }),
     });
-    const payload = buildGeneratePayload(
-      { ...baseState, mode: 'i2i', sourceMedia: [upload] },
-      noSourceModel,
-    );
+    const state = { ...baseState, mode: 'i2i' as const, sourceMedia: [] };
+    const payload = buildGeneratePayload(state, noSourceModel);
+
     expect(payload.source_media).toBeUndefined();
-    expect(
-      validateSourceMedia({ ...baseState, mode: 'i2i', sourceMedia: [upload] }, noSourceModel),
-    ).toEqual({
+    expect(validateSourceMedia(state, noSourceModel)).toEqual({
       valid: true,
       message: null,
     });
+  });
+
+  it('rejects a retained generic source for a source-free mode instead of dropping it', () => {
+    const noSourceModel = model({
+      generation_modes: generationModes(['t2i', 'i2i'], { i2i: null }),
+    });
+    const state = { ...baseState, mode: 'i2i' as const, sourceMedia: [upload] };
+
+    expect(validateSourceMedia(state, noSourceModel).valid).toBe(false);
+    expect(projectSourceMedia(state, noSourceModel)).toMatchObject({ valid: false });
+    expect(() => sourceMediaForRequest(state, noSourceModel)).toThrow();
+    expect(sourceMediaCountForRequest(state, noSourceModel)).toBeNull();
+    expect(() => buildGeneratePayload(state, noSourceModel)).toThrow();
+  });
+
+  it('rejects a retained role source for a source-free mode', () => {
+    const noSourceModel = model({
+      generation_modes: generationModes(['t2i', 'i2i'], { i2i: null }),
+    });
+    const state = {
+      ...baseState,
+      mode: 'i2i' as const,
+      sourceMedia: [{ ...upload, role: 'first_frame' as const }],
+    };
+
+    expect(validateSourceMedia(state, noSourceModel).valid).toBe(false);
   });
 
   it('treats an over-capacity draft as invalid instead of truncating it into a smaller request', () => {

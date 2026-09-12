@@ -1,4 +1,5 @@
 import { Buffer } from 'node:buffer';
+import type { Page } from '@playwright/test';
 import { test, expect } from '../fixtures/auth.fixture';
 import { jsonRoute } from '../helpers/api';
 import {
@@ -59,6 +60,43 @@ function makeUploadItem(assetRef: string, filename: string) {
 const uploadA = makeUploadItem('upload:a0000000-0000-4000-8000-000000000001', 'a-frame.jpg');
 const uploadB = makeUploadItem('upload:b0000000-0000-4000-8000-000000000002', 'b-frame.jpg');
 
+async function mockPendingAishaGeneration(
+  page: Page,
+  job: { id: string; name: string; prompt: string },
+): Promise<{ body: Record<string, unknown> | null }> {
+  const captured = { body: null as Record<string, unknown> | null };
+  await page.route('**/v1/generate', async (route) => {
+    captured.body = await route.request().postDataJSON();
+    return route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        job_id: job.id,
+        status: 'pending',
+        name: job.name,
+        model: 'aisha-video',
+        generation_type: 'flf2v',
+        created_at: '2025-06-05T00:02:00Z',
+      }),
+    });
+  });
+  await page.route(
+    '**/v1/jobs/**',
+    jsonRoute({
+      id: job.id,
+      status: 'running',
+      name: job.name,
+      provider: 'aisha',
+      model: 'aisha-video',
+      generation_type: 'flf2v',
+      prompt: job.prompt,
+      created_at: '2025-06-05T00:02:00Z',
+      outputs: [],
+    }),
+  );
+  return captured;
+}
+
 test.describe('Create — Aisha Video positional first/last frame roles', () => {
   test.beforeEach(async ({ authenticatedPage: page }) => {
     // Aisha Video requires age verification — override the fixture's default
@@ -103,36 +141,11 @@ test.describe('Create — Aisha Video positional first/last frame roles', () => 
   test('adding first frame then last frame submits FLF2V with contract-ordered source_media', async ({
     authenticatedPage: page,
   }) => {
-    let capturedBody: Record<string, unknown> | null = null;
-    await page.route('**/v1/generate', async (route) => {
-      capturedBody = await route.request().postDataJSON();
-      return route.fulfill({
-        status: 201,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          job_id: 'job_e2e_flf2v',
-          status: 'pending',
-          name: 'E2E flf2v generation',
-          model: 'aisha-video',
-          generation_type: 'flf2v',
-          created_at: '2025-06-05T00:02:00Z',
-        }),
-      });
+    const captured = await mockPendingAishaGeneration(page, {
+      id: 'job_e2e_flf2v',
+      name: 'E2E flf2v generation',
+      prompt: 'A first-and-last-frame test',
     });
-    await page.route(
-      '**/v1/jobs/**',
-      jsonRoute({
-        id: 'job_e2e_flf2v',
-        status: 'running',
-        name: 'E2E flf2v generation',
-        provider: 'aisha',
-        model: 'aisha-video',
-        generation_type: 'flf2v',
-        prompt: 'A first-and-last-frame test',
-        created_at: '2025-06-05T00:02:00Z',
-        outputs: [],
-      }),
-    );
 
     await page.goto('/app/create?prompt=A+first-and-last-frame+test');
 
@@ -170,7 +183,7 @@ test.describe('Create — Aisha Video positional first/last frame roles', () => 
     await generateBtn.click();
 
     await expect(page.getByRole('button', { name: /Submitting|Generating/i })).toBeVisible();
-    expect(capturedBody).toMatchObject({
+    expect(captured.body).toMatchObject({
       generation_type: 'flf2v',
       source_media: [{ asset_ref: uploadA.asset_ref }, { asset_ref: uploadB.asset_ref }],
     });
@@ -179,36 +192,11 @@ test.describe('Create — Aisha Video positional first/last frame roles', () => 
   test('selecting last frame before first frame still submits in contract order [first, last]', async ({
     authenticatedPage: page,
   }) => {
-    let capturedBody: Record<string, unknown> | null = null;
-    await page.route('**/v1/generate', async (route) => {
-      capturedBody = await route.request().postDataJSON();
-      return route.fulfill({
-        status: 201,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          job_id: 'job_e2e_flf2v_sparse',
-          status: 'pending',
-          name: 'E2E sparse flf2v generation',
-          model: 'aisha-video',
-          generation_type: 'flf2v',
-          created_at: '2025-06-05T00:02:00Z',
-        }),
-      });
+    const captured = await mockPendingAishaGeneration(page, {
+      id: 'job_e2e_flf2v_sparse',
+      name: 'E2E sparse flf2v generation',
+      prompt: 'A sparse-order test',
     });
-    await page.route(
-      '**/v1/jobs/**',
-      jsonRoute({
-        id: 'job_e2e_flf2v_sparse',
-        status: 'running',
-        name: 'E2E sparse flf2v generation',
-        provider: 'aisha',
-        model: 'aisha-video',
-        generation_type: 'flf2v',
-        prompt: 'A sparse-order test',
-        created_at: '2025-06-05T00:02:00Z',
-        outputs: [],
-      }),
-    );
 
     await page.goto('/app/create?prompt=A+sparse-order+test');
 
@@ -241,7 +229,7 @@ test.describe('Create — Aisha Video positional first/last frame roles', () => 
 
     await expect(page.getByRole('button', { name: /Submitting|Generating/i })).toBeVisible();
     // Selection order was [last, first] — the request must still be contract-ordered [first, last].
-    expect(capturedBody).toMatchObject({
+    expect(captured.body).toMatchObject({
       generation_type: 'flf2v',
       source_media: [{ asset_ref: uploadA.asset_ref }, { asset_ref: uploadB.asset_ref }],
     });

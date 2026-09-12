@@ -159,6 +159,22 @@ function generateButtons(): HTMLButtonElement[] {
     .filter((btn): btn is HTMLButtonElement => /generate/i.test(btn.textContent ?? ''));
 }
 
+function pricingRule(overrides: Partial<PricingRuleResponse> = {}): PricingRuleResponse {
+  return {
+    id: '00000000-0000-0000-0000-000000000001',
+    provider: 'grok',
+    generation_type: 't2i',
+    model: 'grok-imagine-image',
+    token_cost: 7,
+    input_token_cost: 0,
+    is_active: true,
+    effective_from: '2026-05-01T00:00:00Z',
+    effective_until: null,
+    notes: null,
+    ...overrides,
+  };
+}
+
 describe('/app/create page — generate gating during providers load', () => {
   it('disables Generate while the providers query is still loading', () => {
     providersData = undefined;
@@ -443,20 +459,7 @@ describe('/app/create page — generate gating during providers load', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-06-01T00:00:00Z'));
     providersData = GROK_PROVIDERS;
-    pricingData = [
-      {
-        id: '00000000-0000-0000-0000-000000000001',
-        provider: 'grok',
-        generation_type: 't2i',
-        model: 'grok-imagine-image',
-        token_cost: 7,
-        input_token_cost: 0,
-        is_active: true,
-        effective_from: '2026-05-01T00:00:00Z',
-        effective_until: '2026-06-01T00:01:00Z',
-        notes: null,
-      },
-    ];
+    pricingData = [pricingRule({ effective_until: '2026-06-01T00:01:00Z' })];
 
     render(Page);
     expect(screen.getByText('Est. ◈ 7 tokens')).toBeTruthy();
@@ -475,20 +478,7 @@ describe('/app/create page — generate gating during providers load', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-06-01T00:00:00Z'));
     providersData = GROK_PROVIDERS;
-    pricingData = [
-      {
-        id: '00000000-0000-0000-0000-000000000001',
-        provider: 'grok',
-        generation_type: 't2i',
-        model: 'grok-imagine-image',
-        token_cost: 7,
-        input_token_cost: 0,
-        is_active: true,
-        effective_from: '2026-05-01T00:00:00Z',
-        effective_until: '2026-06-01T00:01:00Z',
-        notes: null,
-      },
-    ];
+    pricingData = [pricingRule({ effective_until: '2026-06-01T00:01:00Z' })];
 
     render(Page);
     expect(screen.getByText('Est. ◈ 7 tokens')).toBeTruthy();
@@ -496,18 +486,11 @@ describe('/app/create page — generate gating during providers load', () => {
     // Simulate the Create-only query's minute refetch returning the rule that
     // was not effective when the previous response was fetched.
     pricingData = [
-      {
+      pricingRule({
         id: '00000000-0000-0000-0000-000000000002',
-        provider: 'grok',
-        generation_type: 't2i',
-        model: 'grok-imagine-image',
         token_cost: 11,
-        input_token_cost: 0,
-        is_active: true,
         effective_from: '2026-06-01T00:01:00Z',
-        effective_until: null,
-        notes: null,
-      },
+      }),
     ];
     await vi.advanceTimersByTimeAsync(60_000);
 

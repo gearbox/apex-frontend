@@ -443,8 +443,8 @@ describe('replayGenerationPrefill', () => {
         model: 'aisha-video',
         media_type: 'video',
         source_media: [
-          { position: 0, asset_ref: 'upload:first', available: true, media: sourceMedia('image') },
-          { position: 1, asset_ref: 'upload:last', available: true, media: sourceMedia('image') },
+          groupSource(0, 'upload:first', 'image'),
+          groupSource(1, 'upload:last', 'image'),
         ],
       }),
     );
@@ -467,8 +467,8 @@ describe('replayGenerationPrefill', () => {
         model: 'aisha-video',
         media_type: 'video',
         source_media: [
-          { position: 0, asset_ref: 'upload:first', available: true, media: sourceMedia('image') },
-          { position: 1, asset_ref: 'upload:last', available: false, media: null },
+          groupSource(0, 'upload:first', 'image'),
+          groupSource(1, 'upload:last', 'image', false),
         ],
       }),
     );
@@ -491,8 +491,8 @@ describe('replayGenerationPrefill', () => {
         model: 'aisha-video',
         media_type: 'video',
         source_media: [
-          { position: 1, asset_ref: 'upload:last', available: true, media: sourceMedia('image') },
-          { position: 0, asset_ref: 'upload:first', available: true, media: sourceMedia('image') },
+          groupSource(1, 'upload:last', 'image'),
+          groupSource(0, 'upload:first', 'image'),
         ],
       }),
     );
@@ -516,9 +516,7 @@ describe('replayGenerationPrefill', () => {
         media_type: 'video',
         // Only one historical position, but the live flf2v contract fixes
         // exactly two roles — must never silently replay a shorter list.
-        source_media: [
-          { position: 0, asset_ref: 'upload:first', available: true, media: sourceMedia('image') },
-        ],
+        source_media: [groupSource(0, 'upload:first', 'image')],
       }),
     );
     expect(result).toEqual({ ok: false, reason: 'incompatible-source-policy' });
@@ -546,8 +544,8 @@ describe('replayGenerationPrefill', () => {
       discovery,
       group({
         source_media: [
-          { position: 0, asset_ref: 'upload:first', available: true, media: sourceMedia('image') },
-          { position: 1, asset_ref: 'upload:source', available: true, media: sourceMedia('video') },
+          groupSource(0, 'upload:first', 'image'),
+          groupSource(1, 'upload:source', 'video'),
         ],
       }),
     );
@@ -585,18 +583,8 @@ describe('replayGenerationPrefill', () => {
         discovery,
         group({
           source_media: [
-            {
-              position: 0,
-              asset_ref: 'upload:source',
-              available: true,
-              media: sourceMedia('video'),
-            },
-            {
-              position: 1,
-              asset_ref: 'upload:first',
-              available: true,
-              media: sourceMedia('image'),
-            },
+            groupSource(0, 'upload:source', 'video'),
+            groupSource(1, 'upload:first', 'image'),
           ],
         }),
       ),
@@ -615,6 +603,26 @@ describe('prefillSourceForGeneration — role derived from the resolved model co
     const discovery = providers([makeGrokVideoModelInfo()]);
     expect(prefillSourceForGeneration({ providers: discovery, mode: 'i2v', source })).toBe(true);
     expect(get(generationStore).sourceMedia).toMatchObject([{ role: null }]);
+  });
+
+  it('does not mutate the draft for a target mode with an unknown positional role', () => {
+    generationStore.prefill({ model: 'grok-imagine-image', prompt: 'keep this draft' });
+    const before = get(generationStore);
+    const discovery = providers([
+      makeAishaVideoModelInfo({
+        generation_modes: generationModes(['i2v'], {
+          i2v: {
+            min: 1,
+            max: 2,
+            media_types: ['image'],
+            roles: ['first_frame', 'future_magic_slot'] as never,
+          },
+        }),
+      }),
+    ]);
+
+    expect(prefillSourceForGeneration({ providers: discovery, mode: 'i2v', source })).toBe(false);
+    expect(get(generationStore)).toEqual(before);
   });
 });
 
@@ -655,5 +663,19 @@ function sourceMedia(media_type: 'image' | 'video'): components['schemas']['Medi
       size_bytes: 1,
     },
     variants: [],
+  };
+}
+
+function groupSource(
+  position: number,
+  assetRef: string,
+  mediaType: 'image' | 'video',
+  available = true,
+) {
+  return {
+    position,
+    asset_ref: assetRef,
+    available,
+    media: available ? sourceMedia(mediaType) : null,
   };
 }

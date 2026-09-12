@@ -29,6 +29,20 @@ function singleProviderProviders(models: components['schemas']['ModelInfo'][]): 
   };
 }
 
+function modelWithUnknownI2vRole(model_key = 'aisha-video') {
+  return makeAishaVideoModelInfo({
+    model_key,
+    generation_modes: generationModes(['i2v'], {
+      i2v: {
+        min: 1,
+        max: 2,
+        media_types: ['image'],
+        roles: ['first_frame', 'future_magic_slot'] as never,
+      },
+    }),
+  });
+}
+
 describe('provider-discovered modes', () => {
   it('uses every advertised generation mode without a frontend create-mode list', () => {
     const info = makeGrokImageModelInfo({
@@ -125,6 +139,46 @@ describe('provider-discovered modes', () => {
     expect(findModelInfo(providers, 'grok-imagine-image')).toEqual(model);
     expect(findModelInfo(providers, 'missing')).toBeNull();
     expect(resolveModelForMode(providers, 'i2v')).toBeNull();
+  });
+
+  it('excludes only modes with unknown positional roles from executable capabilities', () => {
+    const providers = singleProviderProviders([
+      makeAishaVideoModelInfo({
+        generation_modes: generationModes(['t2v', 'i2v'], {
+          t2v: null,
+          i2v: {
+            min: 1,
+            max: 2,
+            media_types: ['image'],
+            roles: ['first_frame', 'future_magic_slot'] as never,
+          },
+        }),
+      }),
+    ]);
+
+    expect(enabledModes(providers)).toEqual(new Set(['t2v']));
+    expect(resolveModelForMode(providers, 'i2v')).toBeNull();
+  });
+
+  it('skips unknown-role mode contracts while preserving preference among executable candidates', () => {
+    const providers = singleProviderProviders([
+      modelWithUnknownI2vRole('unknown-i2v'),
+      makeAishaVideoModelInfo({
+        model_key: 'known-i2v-a',
+        generation_modes: generationModes(['i2v'], {
+          i2v: { min: 1, max: 1, media_types: ['image'], roles: ['first_frame'] },
+        }),
+      }),
+      makeAishaVideoModelInfo({
+        model_key: 'known-i2v-b',
+        generation_modes: generationModes(['i2v'], {
+          i2v: { min: 1, max: 1, media_types: ['image'], roles: ['first_frame'] },
+        }),
+      }),
+    ]);
+
+    expect(resolveModelForMode(providers, 'i2v')).toBe('known-i2v-a');
+    expect(resolveModelForMode(providers, 'i2v', 'known-i2v-b')).toBe('known-i2v-b');
   });
 });
 

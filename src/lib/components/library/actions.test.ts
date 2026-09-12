@@ -15,7 +15,7 @@ import {
   makeGrokVideoModelInfo,
   generationModes,
 } from '../../../mocks/factories/providers';
-import { enabledRoles } from '$lib/utils/generationModes';
+import { enabledModes, enabledRoles } from '$lib/utils/generationModes';
 import type { components } from '$lib/api/types';
 
 const { addToastMock } = vi.hoisted(() => ({ addToastMock: vi.fn() }));
@@ -280,6 +280,20 @@ function grokVideoOnlyProviders(): ProvidersResponse {
     ],
     user_context: null,
   };
+}
+
+function modelWithUnknownI2vRole(model_key = 'aisha-video') {
+  return makeAishaVideoModelInfo({
+    model_key,
+    generation_modes: generationModes(['i2v'], {
+      i2v: {
+        min: 1,
+        max: 2,
+        media_types: ['image'],
+        roles: ['first_frame', 'future_magic_slot'] as never,
+      },
+    }),
+  });
 }
 
 function namedReferenceOnlyProviders(modelKey = 'reference-edit'): ProvidersResponse {
@@ -577,6 +591,51 @@ describe('Phase 4 — Animate role assignment follows the target contract, never
     expect(get(generationStore)).toMatchObject({
       mode: 'i2v',
       sourceMedia: [{ role: null }],
+    });
+  });
+
+  it('hides Animate and refuses navigation when only an unknown-role i2v contract exists', async () => {
+    const unknownRoleProviders = aishaVideoProviders();
+    unknownRoleProviders.providers[0].models = [modelWithUnknownI2vRole()];
+    const actionDeps = deps([]);
+    actionDeps.providers = unknownRoleProviders;
+
+    expect(
+      filterVisibleLibraryActions(['animate'], {
+        availableModes: enabledModes(unknownRoleProviders),
+        saveCapabilities: ['download'],
+      }),
+    ).toEqual([]);
+    await resolveLibraryAction('animate', asset, {}, actionDeps)?.();
+    expect(actionDeps.navigate).not.toHaveBeenCalled();
+    expect(get(generationStore).sourceMedia).toEqual([]);
+  });
+
+  it('keeps Animate usable when another enabled model has a fully-known i2v contract', async () => {
+    const mixedProviders = aishaVideoProviders();
+    mixedProviders.providers[0].models = [
+      modelWithUnknownI2vRole('unknown-i2v'),
+      makeAishaVideoModelInfo({
+        model_key: 'known-i2v',
+        generation_modes: generationModes(['i2v'], {
+          i2v: { min: 1, max: 1, media_types: ['image'], roles: ['first_frame'] },
+        }),
+      }),
+    ];
+    const actionDeps = deps([]);
+    actionDeps.providers = mixedProviders;
+
+    expect(
+      filterVisibleLibraryActions(['animate'], {
+        availableModes: enabledModes(mixedProviders),
+        saveCapabilities: ['download'],
+      }),
+    ).toEqual(['animate']);
+    await resolveLibraryAction('animate', asset, {}, actionDeps)?.();
+    expect(actionDeps.navigate).toHaveBeenCalled();
+    expect(get(generationStore)).toMatchObject({
+      model: 'known-i2v',
+      sourceMedia: [{ role: 'first_frame' }],
     });
   });
 });

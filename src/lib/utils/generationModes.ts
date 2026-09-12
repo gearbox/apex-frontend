@@ -1,5 +1,6 @@
 import type { components } from '$lib/api/types';
 import type { GenerationMode } from '$lib/stores/generation';
+import { sourceMediaPolicy } from './modelCapabilities';
 import { knownMediaSlots, mediaKindForSlot, type MediaSlot } from './mediaSlots';
 
 export type { GenerationMode };
@@ -29,6 +30,23 @@ export function createSupportedModes(modelInfo: ModelInfo | null | undefined): G
 }
 
 /**
+ * Whether this frontend can execute an advertised mode contract. Unknown
+ * positional roles make the whole mode unusable, but remain visible to the
+ * raw Create resolver so it can classify a retained draft as incompatible.
+ */
+export function isExecutableModeContract(
+  modelInfo: ModelInfo | null | undefined,
+  mode: GenerationMode,
+): boolean {
+  const modes = modelInfo?.generation_modes;
+  return (
+    modes !== undefined &&
+    Object.hasOwn(modes, mode) &&
+    !sourceMediaPolicy(modelInfo, mode).hasUnknownRoles
+  );
+}
+
+/**
  * Every mode `resolveModelForMode` can satisfy with at least one enabled model, across
  * all providers. This must remain the exact visibility predicate for the resolver: an action
  * that is visible for a mode must always have a model it can select.
@@ -39,7 +57,7 @@ export function enabledModes(providers: ProvidersResponse | null | undefined): S
     for (const model of provider.models) {
       if (!model.is_enabled) continue;
       for (const mode of Object.keys(model.generation_modes)) {
-        if (isGenerationMode(mode)) modes.add(mode);
+        if (isGenerationMode(mode) && isExecutableModeContract(model, mode)) modes.add(mode);
       }
     }
   }
@@ -176,7 +194,7 @@ export function findModelInfo(
 }
 
 function isCapableEnabledModel(model: ModelInfo, mode: GenerationMode): boolean {
-  return model.is_enabled && mode in model.generation_modes;
+  return model.is_enabled && isExecutableModeContract(model, mode);
 }
 
 /**
