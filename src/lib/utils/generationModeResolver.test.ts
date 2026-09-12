@@ -13,12 +13,28 @@ import type { components } from '$lib/api/types';
 
 type GenerationModeInfo = components['schemas']['GenerationModeInfo'];
 
-function image(assetRef: string, available = true): ResolverSource {
-  return { assetRef, mediaType: 'image', available };
+function image(
+  assetRef: string,
+  opts: { available?: boolean; role?: ResolverSource['role'] } = {},
+): ResolverSource {
+  return {
+    assetRef,
+    mediaType: 'image',
+    available: opts.available ?? true,
+    role: opts.role ?? null,
+  };
 }
 
-function video(assetRef: string, available = true): ResolverSource {
-  return { assetRef, mediaType: 'video', available };
+function video(
+  assetRef: string,
+  opts: { available?: boolean; role?: ResolverSource['role'] } = {},
+): ResolverSource {
+  return {
+    assetRef,
+    mediaType: 'video',
+    available: opts.available ?? true,
+    role: opts.role ?? null,
+  };
 }
 
 describe('resolveGenerationMode — no-source resolution', () => {
@@ -81,12 +97,12 @@ describe('resolveGenerationMode — explicit Type intent / incomplete drafts', (
     ).toMatchObject({ status: 'incomplete', mode: 'v2v' });
   });
 
-  it('keeps an explicit FLF2V preference incomplete with only one of two required images', () => {
+  it('keeps an explicit FLF2V preference incomplete with only one of two required role-tagged images', () => {
     const modelInfo = makeAishaVideoModelInfo(); // flf2v: min 2, max 2, [first_frame, last_frame]
     expect(
       resolveGenerationMode({
         modelInfo,
-        sourceMedia: [image('upload:1')],
+        sourceMedia: [image('upload:1', { role: 'first_frame' })],
         preferredMode: 'flf2v',
       }),
     ).toMatchObject({ status: 'incomplete', mode: 'flf2v' });
@@ -193,10 +209,9 @@ describe('resolveGenerationMode — invalid resolution', () => {
 });
 
 describe('resolveGenerationMode — model switching', () => {
-  it('recomputes purely from the new contract for the same sources, without mutating them', () => {
+  it('recomputes purely from the new contract for the same generic source, without mutating it', () => {
     const source: ResolverSource[] = [image('upload:1')];
-    const modelA = makeGrokImageModelInfo(); // i2i accepts 1 image
-    const modelB = makeAishaVideoModelInfo(); // i2v accepts 1 image (first_frame role)
+    const modelA = makeGrokImageModelInfo(); // i2i accepts 1 generic image
     const modelC = makeGrokVideoModelInfo({
       generation_modes: generationModes(['t2v', 'v2v']), // no image-accepting mode
     });
@@ -205,18 +220,33 @@ describe('resolveGenerationMode — model switching', () => {
       status: 'resolved',
       mode: 'i2i',
     });
-    expect(resolveGenerationMode({ modelInfo: modelB, sourceMedia: source })).toMatchObject({
-      status: 'resolved',
-      mode: 'i2v',
-    });
     expect(resolveGenerationMode({ modelInfo: modelC, sourceMedia: source }).status).toBe(
       'invalid',
     );
     expect(source).toEqual([image('upload:1')]);
   });
+
+  it('a retained generic source becomes incompatible after switching to a model whose only accepting mode is positional', () => {
+    // Phase 4: switching from a roles:null model to Aisha Video must never
+    // silently reinterpret a generic source as `first_frame` — the draft
+    // stays incompatible until the user explicitly re-assigns or replaces it.
+    const source: ResolverSource[] = [image('upload:1')];
+    const aishaVideo = makeAishaVideoModelInfo();
+    expect(resolveGenerationMode({ modelInfo: aishaVideo, sourceMedia: source }).status).toBe(
+      'invalid',
+    );
+  });
+
+  it('the same asset resolves i2v once explicitly re-assigned the first_frame role for the new model', () => {
+    const roleTagged: ResolverSource[] = [image('upload:1', { role: 'first_frame' })];
+    const aishaVideo = makeAishaVideoModelInfo();
+    expect(resolveGenerationMode({ modelInfo: aishaVideo, sourceMedia: roleTagged })).toMatchObject(
+      { status: 'resolved', mode: 'i2v' },
+    );
+  });
 });
 
-describe('resolveGenerationMode — mandatory ambiguity regression: generic I2V vs FLF2V', () => {
+describe('resolveGenerationMode — Phase 4 mandatory ambiguity regression: generic I2V vs positional FLF2V', () => {
   const syntheticModes: Record<string, GenerationModeInfo> = {
     i2v: { source_media: { min: 1, max: 2, media_types: ['image'], roles: null } },
     flf2v: {
@@ -233,25 +263,62 @@ describe('resolveGenerationMode — mandatory ambiguity regression: generic I2V 
     i2v: syntheticModes.i2v,
   };
 
-  it('treats one image as a complete i2v with flf2v as a compatible incomplete expansion', () => {
+  it('one generic image cleanly resolves i2v — flf2v is incompatible, not incomplete, without a role', () => {
     const modelInfo = makeModelInfo({ generation_modes: syntheticModes });
     const result = resolveGenerationMode({ modelInfo, sourceMedia: [image('upload:1')] });
     expect(result).toMatchObject({ status: 'resolved', mode: 'i2v' });
     expect(result.completeCandidates).toEqual(['i2v']);
-    expect(result.incompleteCandidates).toEqual(['flf2v']);
+    expect(result.incompleteCandidates).toEqual([]);
   });
 
-  it('is ambiguous with two images and no semantic/preferred intent — must not resolve by key order', () => {
+  it('a second generic image ("Add reference") still cleanly resolves i2v — no source-count ambiguity', () => {
     const modelInfo = makeModelInfo({ generation_modes: syntheticModes });
     const result = resolveGenerationMode({
       modelInfo,
       sourceMedia: [image('upload:1'), image('upload:2')],
     });
-    expect(result.status).toBe('ambiguous');
-    if (result.status === 'ambiguous') expect(result.candidates).toEqual(['flf2v', 'i2v']);
+    // Cardinality alone must never manufacture ambiguity: with both sources
+    // still generic, flf2v never becomes a candidate at all (it requires a
+    // role each source doesn't have) — i2v resolves uniquely.
+    expect(result).toMatchObject({ status: 'resolved', mode: 'i2v' });
+    expect(result.completeCandidates).toEqual(['i2v']);
   });
 
-  it('keeps a preferred i2v resolved with two generic images', () => {
+  it('resolves flf2v once both sources carry their positional roles ("Add end frame")', () => {
+    const modelInfo = makeModelInfo({ generation_modes: syntheticModes });
+    const result = resolveGenerationMode({
+      modelInfo,
+      sourceMedia: [
+        image('upload:1', { role: 'first_frame' }),
+        image('upload:2', { role: 'last_frame' }),
+      ],
+    });
+    expect(result).toMatchObject({ status: 'resolved', mode: 'flf2v' });
+    expect(result.completeCandidates).toEqual(['flf2v']);
+  });
+
+  it('a lone first_frame role resolves incomplete flf2v — the roleless i2v candidate rejects it', () => {
+    const modelInfo = makeModelInfo({ generation_modes: syntheticModes });
+    const result = resolveGenerationMode({
+      modelInfo,
+      sourceMedia: [image('upload:1', { role: 'first_frame' })],
+    });
+    expect(result).toMatchObject({ status: 'incomplete', mode: 'flf2v' });
+    expect(result.completeCandidates).toEqual([]);
+  });
+
+  it('a generic source does not silently satisfy the positional flf2v candidate', () => {
+    const modelInfo = makeModelInfo({ generation_modes: syntheticModes });
+    const result = resolveGenerationMode({
+      modelInfo,
+      sourceMedia: [image('upload:1'), image('upload:2', { role: 'last_frame' })],
+    });
+    // flf2v rejects the mixed selection (one source has no role); i2v rejects
+    // it too (one source is role-tagged). Nothing satisfies either candidate.
+    expect(result.status).toBe('invalid');
+  });
+
+  it('a preferred mode is preserved as a resolved tie-break even though it is no longer strictly needed for count-only ambiguity', () => {
     const modelInfo = makeModelInfo({ generation_modes: syntheticModes });
     const result = resolveGenerationMode({
       modelInfo,
@@ -261,33 +328,175 @@ describe('resolveGenerationMode — mandatory ambiguity regression: generic I2V 
     expect(result).toMatchObject({ status: 'resolved', mode: 'i2v' });
   });
 
-  it('resolves the generic reference candidate (i2v) from a reference semantic intent', () => {
-    const modelInfo = makeModelInfo({ generation_modes: syntheticModes });
-    const result = resolveGenerationMode({
-      modelInfo,
-      sourceMedia: [image('upload:1'), image('upload:2')],
-      semanticIntent: { kind: 'reference' },
-    });
-    expect(result).toMatchObject({ status: 'resolved', mode: 'i2v' });
-  });
+  it('resolution is unaffected by advertised key order, for both the generic and the positional case', () => {
+    const forward = makeModelInfo({ generation_modes: syntheticModes });
+    const reversed = makeModelInfo({ generation_modes: reversedModes });
+    const generic = [image('upload:1'), image('upload:2')];
+    const positional = [
+      image('upload:1', { role: 'first_frame' }),
+      image('upload:2', { role: 'last_frame' }),
+    ];
 
-  it('resolves flf2v from a last_frame semantic role intent', () => {
+    expect(resolveGenerationMode({ modelInfo: forward, sourceMedia: generic })).toEqual(
+      resolveGenerationMode({ modelInfo: reversed, sourceMedia: generic }),
+    );
+    expect(resolveGenerationMode({ modelInfo: forward, sourceMedia: positional })).toEqual(
+      resolveGenerationMode({ modelInfo: reversed, sourceMedia: positional }),
+    );
+  });
+});
+
+describe('resolveGenerationMode — genuine positional ambiguity (two roleful candidates)', () => {
+  // A deliberately synthetic pair of modes sharing the same single role: real
+  // registry vocabulary never advertises two candidates this way, but the
+  // resolver must still refuse to guess between them by key order.
+  const syntheticModes: Record<string, GenerationModeInfo> = {
+    'edit-a': { source_media: { min: 1, max: 1, media_types: ['image'], roles: ['reference'] } },
+    'edit-b': { source_media: { min: 1, max: 1, media_types: ['image'], roles: ['reference'] } },
+  };
+  const reversedModes: Record<string, GenerationModeInfo> = {
+    'edit-b': syntheticModes['edit-b'],
+    'edit-a': syntheticModes['edit-a'],
+  };
+
+  it('is ambiguous when two roleful candidates both accept the same role assignment', () => {
     const modelInfo = makeModelInfo({ generation_modes: syntheticModes });
     const result = resolveGenerationMode({
       modelInfo,
-      sourceMedia: [image('upload:1'), image('upload:2')],
-      semanticIntent: { kind: 'role', role: 'last_frame' },
+      sourceMedia: [image('upload:1', { role: 'reference' })],
     });
-    expect(result).toMatchObject({ status: 'resolved', mode: 'flf2v' });
+    expect(result.status).toBe('ambiguous');
+    if (result.status === 'ambiguous') expect(result.candidates).toEqual(['edit-a', 'edit-b']);
   });
 
   it('is unaffected by advertised key order', () => {
     const forward = makeModelInfo({ generation_modes: syntheticModes });
     const reversed = makeModelInfo({ generation_modes: reversedModes });
-    const sources = [image('upload:1'), image('upload:2')];
+    const sources = [image('upload:1', { role: 'reference' })];
 
     expect(resolveGenerationMode({ modelInfo: forward, sourceMedia: sources })).toEqual(
       resolveGenerationMode({ modelInfo: reversed, sourceMedia: sources }),
     );
+  });
+
+  it('a preferred mode breaks the tie explicitly', () => {
+    const modelInfo = makeModelInfo({ generation_modes: syntheticModes });
+    const result = resolveGenerationMode({
+      modelInfo,
+      sourceMedia: [image('upload:1', { role: 'reference' })],
+      preferredMode: 'edit-b',
+    });
+    expect(result).toMatchObject({ status: 'resolved', mode: 'edit-b' });
+  });
+});
+
+describe('resolveGenerationMode — duplicate roles and wrong role media kind', () => {
+  it('rejects two sources claiming the same role', () => {
+    const modelInfo = makeAishaVideoModelInfo();
+    const result = resolveGenerationMode({
+      modelInfo,
+      sourceMedia: [
+        image('upload:1', { role: 'first_frame' }),
+        image('upload:2', { role: 'first_frame' }),
+      ],
+    });
+    expect(result.status).toBe('invalid');
+  });
+
+  it('rejects a role assigned to a source of the wrong media kind', () => {
+    const modelInfo = makeAishaVideoModelInfo();
+    const result = resolveGenerationMode({
+      modelInfo,
+      sourceMedia: [video('upload:1', { role: 'last_frame' })],
+    });
+    expect(result.status).toBe('invalid');
+  });
+
+  it('fails closed on an unrecognized future role name rather than guessing its media kind', () => {
+    const modelInfo = makeAishaVideoModelInfo();
+    const result = resolveGenerationMode({
+      modelInfo,
+      sourceMedia: [
+        {
+          assetRef: 'upload:1',
+          mediaType: 'image',
+          available: true,
+          role: 'middle_frame' as never,
+        },
+      ],
+    });
+    expect(result.status).toBe('invalid');
+  });
+
+  it('fails closed when the provider contract itself advertises an unrecognized role', () => {
+    const modelInfo = makeModelInfo({
+      generation_modes: {
+        'future-edit': {
+          source_media: {
+            min: 1,
+            max: 1,
+            media_types: ['image'],
+            roles: ['future_magic_slot'] as never,
+          },
+        },
+      },
+    });
+
+    expect(resolveGenerationMode({ modelInfo, sourceMedia: [image('upload:1')] }).status).toBe(
+      'invalid',
+    );
+  });
+});
+
+describe('resolveGenerationMode — direct Aisha Video regression (Phase 3 cleanup P3.3)', () => {
+  it('no source resolves t2v', () => {
+    const modelInfo = makeAishaVideoModelInfo();
+    expect(resolveGenerationMode({ modelInfo, sourceMedia: [] })).toMatchObject({
+      status: 'resolved',
+      mode: 't2v',
+    });
+  });
+
+  it('a role-tagged first_frame image resolves i2v', () => {
+    const modelInfo = makeAishaVideoModelInfo();
+    const result = resolveGenerationMode({
+      modelInfo,
+      sourceMedia: [image('upload:1', { role: 'first_frame' })],
+    });
+    expect(result).toMatchObject({ status: 'resolved', mode: 'i2v' });
+    expect(result.incompleteCandidates).toEqual(['flf2v']);
+  });
+
+  it('a lone role-tagged last_frame image is an incomplete flf2v draft', () => {
+    const modelInfo = makeAishaVideoModelInfo();
+    const result = resolveGenerationMode({
+      modelInfo,
+      sourceMedia: [image('upload:1', { role: 'last_frame' })],
+    });
+    expect(result).toMatchObject({ status: 'incomplete', mode: 'flf2v' });
+  });
+
+  it('first_frame + last_frame role-tagged images resolve flf2v', () => {
+    const modelInfo = makeAishaVideoModelInfo();
+    const result = resolveGenerationMode({
+      modelInfo,
+      sourceMedia: [
+        image('upload:1', { role: 'first_frame' }),
+        image('upload:2', { role: 'last_frame' }),
+      ],
+    });
+    expect(result).toMatchObject({ status: 'resolved', mode: 'flf2v' });
+  });
+
+  it('last_frame + first_frame in reverse selection order still resolves flf2v with roles intact', () => {
+    const modelInfo = makeAishaVideoModelInfo();
+    const result = resolveGenerationMode({
+      modelInfo,
+      sourceMedia: [
+        image('upload:2', { role: 'last_frame' }),
+        image('upload:1', { role: 'first_frame' }),
+      ],
+    });
+    expect(result).toMatchObject({ status: 'resolved', mode: 'flf2v' });
   });
 });

@@ -18,12 +18,14 @@
     libraryActionGroup,
     libraryActionLabel,
     filterVisibleLibraryActions,
+    canUseLibraryReference,
     LIBRARY_ACTION_ICONS,
     type LibraryActionDeps,
   } from './actions';
   import { createActionController, type ActionController } from './actionController.svelte';
   import { prewarmMedia } from '$lib/media/save/prewarm';
   import type { GenerationMode } from '$lib/utils/generationModes';
+  import type { MediaSlot } from '$lib/utils/mediaSlots';
   import { EXPIRES_SOON_MS } from '$lib/utils/constants';
   import { timeAgo, formatCountdown } from '$lib/utils/format';
   import { assetLabel } from '$lib/utils/assetName';
@@ -44,6 +46,7 @@
     onToggleSelect,
     bulkError = false,
     availableModes,
+    availableRoles = new Set<MediaSlot>(),
     providersReady = true,
     actionDeps,
     actionController = createActionController(),
@@ -62,6 +65,8 @@
     bulkError?: boolean;
     /** Gates navigation actions (remix/animate/extend/etc.) to modes an enabled model supports. */
     availableModes: ReadonlySet<GenerationMode>;
+    /** Gates role-based actions (use_as_first_frame/use_as_last_frame) to actually-enabled role capability. */
+    availableRoles?: ReadonlySet<MediaSlot>;
     /** Avoids context-menu actions appearing after the providers query settles. */
     providersReady?: boolean;
     actionDeps: LibraryActionDeps;
@@ -77,6 +82,9 @@
 
   const queryClient = useQueryClient();
   const favoriteMutation = createMutation(() => favoriteMutationOptions(queryClient));
+  const canUseReference = $derived(
+    canUseLibraryReference(actionDeps.providers, item.media.media_type),
+  );
 
   function toggleFavorite() {
     favoriteMutation.mutate({ assetRef: item.asset_ref, favorite: !item.is_favorite });
@@ -140,6 +148,8 @@
     (providersReady
       ? filterVisibleLibraryActions(item.available_actions, {
           availableModes,
+          availableRoles,
+          canUseReference,
           generationType: item.generation_type,
         })
       : []

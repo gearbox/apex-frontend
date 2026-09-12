@@ -21,10 +21,13 @@ import { parseAssetRef } from '$lib/utils/assetRef';
 import { saveMedia, resolveSaveCapabilities, type SaveCapability } from '$lib/media/save';
 import { toastSaveError } from '$lib/media/save/toastSaveError';
 import { addToast } from '$lib/stores/toasts';
-import { type GenerationMode } from '$lib/utils/generationModes';
+import { resolveModelForReference, type GenerationMode } from '$lib/utils/generationModes';
 import type { components } from '$lib/api/types';
 import * as m from '$paraglide/messages';
+import type { MediaSlot } from '$lib/utils/mediaSlots';
 import {
+  prefillRoleSourceForGeneration,
+  prefillReferenceSourceForGeneration,
   prefillSourceForGeneration,
   replayGenerationPrefill,
   sourceMediaDraft,
@@ -71,40 +74,53 @@ export interface LibraryActionDeps {
   navigate?: (path: string) => void | Promise<void>;
 }
 
-type SourceAction =
-  | 'remix'
-  | 'create_variation'
-  | 'animate'
-  | 'extend'
-  | 'use_as_reference'
-  | 'use_as_first_frame'
-  | 'use_as_last_frame';
+type ModeSourceAction = 'remix' | 'create_variation' | 'animate' | 'extend';
+type RoleSourceAction = 'use_as_first_frame' | 'use_as_last_frame';
 
 /** The prompt policy is deliberately explicit: source-only actions preserve the user's draft,
  * while provenance actions replace it with the original generation text from asset detail. */
-const SOURCE_ACTION_POLICY: Record<
-  SourceAction,
+const MODE_ACTION_POLICY: Record<
+  ModeSourceAction,
   { mode: GenerationMode; prompt: 'copy-provenance' | 'preserve-draft' }
 > = {
   remix: { mode: 'i2i', prompt: 'copy-provenance' },
   create_variation: { mode: 'i2i', prompt: 'copy-provenance' },
   animate: { mode: 'i2v', prompt: 'copy-provenance' },
   extend: { mode: 'v2v', prompt: 'copy-provenance' },
-  use_as_reference: { mode: 'i2i', prompt: 'preserve-draft' },
-  use_as_first_frame: { mode: 'flf2v', prompt: 'preserve-draft' },
-  use_as_last_frame: { mode: 'flf2v', prompt: 'preserve-draft' },
 };
 
-/** The generation mode each navigation action prefills toward. Also drives visibility. */
+/**
+ * `use_as_first_frame` / `use_as_last_frame` have no single fixed target mode
+ * — they mean "select an enabled model capable of this named role, and tag
+ * the source with it." The actual effective generation mode (i2v vs flf2v,
+ * complete vs incomplete) is then resolved by Create itself from the
+ * resulting draft, exactly like any other source-driven selection. Always
+ * `preserve-draft`: these are source-only actions, never provenance replays.
+ */
+const ROLE_ACTION_POLICY: Record<RoleSourceAction, { role: MediaSlot }> = {
+  use_as_first_frame: { role: 'first_frame' },
+  use_as_last_frame: { role: 'last_frame' },
+};
+
+/** The generation mode each mode-based navigation action prefills toward. Also drives visibility. */
 export const ACTION_MODE: Partial<Record<LibraryAction, GenerationMode>> = {
-  remix: SOURCE_ACTION_POLICY.remix.mode,
-  create_variation: SOURCE_ACTION_POLICY.create_variation.mode,
-  use_as_reference: SOURCE_ACTION_POLICY.use_as_reference.mode,
-  animate: SOURCE_ACTION_POLICY.animate.mode,
-  extend: SOURCE_ACTION_POLICY.extend.mode,
-  // Deferred — no model exposes flf2v yet, so filterVisibleLibraryActions hides them.
-  use_as_first_frame: SOURCE_ACTION_POLICY.use_as_first_frame.mode,
-  use_as_last_frame: SOURCE_ACTION_POLICY.use_as_last_frame.mode,
+  remix: MODE_ACTION_POLICY.remix.mode,
+  create_variation: MODE_ACTION_POLICY.create_variation.mode,
+  animate: MODE_ACTION_POLICY.animate.mode,
+  extend: MODE_ACTION_POLICY.extend.mode,
+};
+
+/**
+ * The named role each role-based action targets. Visibility for these
+ * actions must come from actual enabled role capability
+ * (`enabledRoles`/`availableRoles`), never from `availableModes.has('flf2v')`
+ * — there is no fixed mode name to check. `use_as_reference` is resolved by
+ * `resolveModelForReference` instead because it supports both roleless i2i
+ * and an explicitly named `reference` role.
+ */
+export const ACTION_ROLE: Partial<Record<LibraryAction, MediaSlot>> = {
+  use_as_first_frame: ROLE_ACTION_POLICY.use_as_first_frame.role,
+  use_as_last_frame: ROLE_ACTION_POLICY.use_as_last_frame.role,
 };
 
 async function saveAsset(asset: LibraryActionAsset, mode: SaveCapability) {
@@ -138,28 +154,48 @@ function replayFailureMessage(reason: ReplayFailureReason): string {
   }
 }
 
+function sourceLabelFor(assetRef: string): string {
+  return assetRef.startsWith('output:') ? 'From generated' : 'From uploads';
+}
+
+async function runSourcePrefill(
+  deps: LibraryActionDeps,
+  prefill: () => boolean | Promise<boolean>,
+): Promise<void> {
+  try {
+    if (!(await prefill())) {
+      addToast({ type: 'error', message: m.library_action_no_model() });
+      return;
+    }
+    await Promise.resolve((deps.navigate ?? goto)(ROUTES.create));
+  } catch {
+    // Handlers are intentionally safe for ContextMenu's fire-and-forget use.
+    addToast({ type: 'error', message: m.error_generic() });
+  }
+}
+
 /** Prefills the generation store with this asset as the source image and navigates to Create.
  * Provenance actions fetch detail first because list summaries intentionally omit prompt fields. */
-async function useAsSource(
-  action: SourceAction,
+async function useAsModeSource(
+  action: ModeSourceAction,
   asset: LibraryActionAsset,
   deps: LibraryActionDeps,
 ): Promise<void> {
-  const policy = SOURCE_ACTION_POLICY[action];
+  const policy = MODE_ACTION_POLICY[action];
 
-  try {
+  await runSourcePrefill(deps, async () => {
     // A summary's missing field is not equivalent to a detail's explicit null. Only provenance
     // actions need generation metadata; source-only actions intentionally preserve draft text.
     const sourceAsset =
       policy.prompt === 'copy-provenance' ? await deps.loadDetail(asset.asset_ref) : asset;
-    const didPrefill = prefillSourceForGeneration({
+    return prefillSourceForGeneration({
       providers: deps.providers,
       mode: policy.mode,
       preferredModel: sourceAsset.model,
       source: sourceMediaDraft(
         sourceAsset.asset_ref,
         sourceAsset.media,
-        sourceAsset.asset_ref.startsWith('output:') ? 'From generated' : 'From uploads',
+        sourceLabelFor(sourceAsset.asset_ref),
       ),
       ...(policy.prompt === 'copy-provenance'
         ? {
@@ -170,16 +206,39 @@ async function useAsSource(
           }
         : {}),
     });
-    if (!didPrefill) {
-      addToast({ type: 'error', message: m.library_action_no_model() });
-      return;
-    }
-    await Promise.resolve((deps.navigate ?? goto)(ROUTES.create));
-  } catch {
-    // This includes detail resolution and navigation. All handlers are safe to invoke
-    // fire-and-forget by ContextMenu, so failures must be surfaced rather than rejected.
-    addToast({ type: 'error', message: m.error_generic() });
-  }
+  });
+}
+
+/**
+ * Role-based counterpart of `useAsModeSource` for `use_as_first_frame` /
+ * `use_as_last_frame`. Always source-only (`preserve-draft`): the asset list
+ * summary already carries everything needed, so no detail fetch happens.
+ */
+async function useAsRoleSource(
+  action: RoleSourceAction,
+  asset: LibraryActionAsset,
+  deps: LibraryActionDeps,
+): Promise<void> {
+  const { role } = ROLE_ACTION_POLICY[action];
+  await runSourcePrefill(deps, () =>
+    prefillRoleSourceForGeneration({
+      providers: deps.providers,
+      role,
+      preferredModel: asset.model,
+      source: sourceMediaDraft(asset.asset_ref, asset.media, sourceLabelFor(asset.asset_ref)),
+    }),
+  );
+}
+
+/** “Use as reference” has a roleless i2i and named-reference route. */
+async function useAsReference(asset: LibraryActionAsset, deps: LibraryActionDeps): Promise<void> {
+  await runSourcePrefill(deps, () =>
+    prefillReferenceSourceForGeneration({
+      providers: deps.providers,
+      preferredModel: asset.model,
+      source: sourceMediaDraft(asset.asset_ref, asset.media, sourceLabelFor(asset.asset_ref)),
+    }),
+  );
 }
 
 /**
@@ -244,10 +303,12 @@ export function resolveLibraryAction(
     case 'create_variation':
     case 'animate':
     case 'extend':
+      return () => useAsModeSource(action, asset, deps);
     case 'use_as_reference':
+      return () => useAsReference(asset, deps);
     case 'use_as_first_frame':
     case 'use_as_last_frame':
-      return () => useAsSource(action, asset, deps);
+      return () => useAsRoleSource(action, asset, deps);
     case 'reproduce':
       return () => reproduce(asset, deps);
     default:
@@ -255,11 +316,17 @@ export function resolveLibraryAction(
   }
 }
 
+const SOURCE_ACTIONS = new Set<LibraryUiAction>([
+  ...(Object.keys(MODE_ACTION_POLICY) as ModeSourceAction[]),
+  ...(Object.keys(ROLE_ACTION_POLICY) as RoleSourceAction[]),
+  'use_as_reference',
+]);
+
 /** The controller policy for Library actions. Navigation is globally serialized per owner;
  * saves are scoped by the caller-provided action key so different assets remain independent. */
 export function libraryActionGroup(action: LibraryUiAction): LibraryActionGroup | null {
   if (action === 'share' || action === 'download') return 'save';
-  if (action === 'reproduce' || action in SOURCE_ACTION_POLICY) return 'navigate';
+  if (action === 'reproduce' || SOURCE_ACTIONS.has(action)) return 'navigate';
   return null;
 }
 
@@ -286,22 +353,36 @@ export const LIBRARY_ACTION_ICONS: Record<LibraryUiAction, LucideIcon> = {
  * at both render sites (AssetCard menu, AssetDetailsSheet menu) so they never diverge.
  * A present `download` expands into the platform-resolved save capabilities (share before
  * download), in place, since `share` has no backend representation of its own.
+ *
+ * `availableRoles` is the Phase 4 role-capability predicate
+ * (`enabledRoles(providers)`): `use_as_first_frame` / `use_as_last_frame`
+ * have no fixed mode name, so `availableModes` alone can never gate them.
+ * `use_as_reference` is visible only when `resolveModelForReference` has an
+ * executable target — the same condition its handler uses.
  */
 export function filterVisibleLibraryActions(
   actions: LibraryAction[],
   opts: {
     availableModes: ReadonlySet<GenerationMode>;
+    availableRoles?: ReadonlySet<MediaSlot>;
+    canUseReference?: boolean;
     generationType?: GenerationType | null;
     saveCapabilities?: SaveCapability[];
   },
 ): LibraryUiAction[] {
+  const availableRoles = opts.availableRoles ?? new Set<MediaSlot>();
   const filtered = actions.filter((action) => {
     // Duplicate of `remix` with the current API surface — deferred until a real
     // create-variation prefill (denoise/seed) is implemented.
     if (action === 'create_variation') return false;
+    if (action === 'use_as_reference') return opts.canUseReference === true;
     const mode = ACTION_MODE[action];
-    if (mode && !opts.availableModes.has(mode)) return false;
-    return true;
+    const role = ACTION_ROLE[action];
+    if (mode === undefined && role === undefined) return true;
+    return (
+      (mode !== undefined && opts.availableModes.has(mode)) ||
+      (role !== undefined && availableRoles.has(role))
+    );
   });
 
   const capabilities = opts.saveCapabilities ?? resolveSaveCapabilities();
@@ -309,6 +390,14 @@ export function filterVisibleLibraryActions(
   return filtered.flatMap((action): LibraryUiAction[] =>
     action === 'download' ? capabilities : [action],
   );
+}
+
+/** Shared visibility predicate for the Library’s reference action. */
+export function canUseLibraryReference(
+  providers: ProvidersResponse | null | undefined,
+  mediaType: string | null | undefined,
+): boolean {
+  return mediaType === 'image' && resolveModelForReference(providers) !== null;
 }
 
 export function libraryActionLabel(action: LibraryUiAction, isFavorite = false): string {

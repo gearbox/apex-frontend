@@ -8,7 +8,11 @@ import {
   projectSourceMedia,
 } from './generatePayload';
 import type { GenerationState, SourceMediaDraft } from '$lib/stores/generation';
-import { makeGrokImageModelInfo, generationModes } from '../../mocks/factories/providers';
+import {
+  makeAishaVideoModelInfo,
+  makeGrokImageModelInfo,
+  generationModes,
+} from '../../mocks/factories/providers';
 
 const upload: SourceMediaDraft = {
   assetRef: 'upload:11111111-1111-1111-1111-111111111111',
@@ -16,6 +20,7 @@ const upload: SourceMediaDraft = {
   previewUrl: '/upload.png',
   label: 'upload',
   available: true,
+  role: null,
 };
 const output: SourceMediaDraft = {
   assetRef: 'output:22222222-2222-2222-2222-222222222222',
@@ -23,6 +28,7 @@ const output: SourceMediaDraft = {
   previewUrl: '/output.png',
   label: 'output',
   available: true,
+  role: null,
 };
 const video: SourceMediaDraft = {
   assetRef: 'upload:33333333-3333-3333-3333-333333333333',
@@ -30,6 +36,7 @@ const video: SourceMediaDraft = {
   previewUrl: '/video.png',
   label: 'video',
   available: true,
+  role: null,
 };
 
 const baseState: GenerationState = {
@@ -88,21 +95,44 @@ describe('canonical source_media payload projection', () => {
     expect(payload).not.toHaveProperty('input_video_url');
   });
 
-  it('omits owned media entirely when the latest model declares source_media null for the mode', () => {
+  it('omits source_media for an empty draft when the latest model declares source_media null', () => {
     const noSourceModel = model({
       generation_modes: generationModes(['t2i', 'i2i'], { i2i: null }),
     });
-    const payload = buildGeneratePayload(
-      { ...baseState, mode: 'i2i', sourceMedia: [upload] },
-      noSourceModel,
-    );
+    const state = { ...baseState, mode: 'i2i' as const, sourceMedia: [] };
+    const payload = buildGeneratePayload(state, noSourceModel);
+
     expect(payload.source_media).toBeUndefined();
-    expect(
-      validateSourceMedia({ ...baseState, mode: 'i2i', sourceMedia: [upload] }, noSourceModel),
-    ).toEqual({
+    expect(validateSourceMedia(state, noSourceModel)).toEqual({
       valid: true,
       message: null,
     });
+  });
+
+  it('rejects a retained generic source for a source-free mode instead of dropping it', () => {
+    const noSourceModel = model({
+      generation_modes: generationModes(['t2i', 'i2i'], { i2i: null }),
+    });
+    const state = { ...baseState, mode: 'i2i' as const, sourceMedia: [upload] };
+
+    expect(validateSourceMedia(state, noSourceModel).valid).toBe(false);
+    expect(projectSourceMedia(state, noSourceModel)).toMatchObject({ valid: false });
+    expect(() => sourceMediaForRequest(state, noSourceModel)).toThrow();
+    expect(sourceMediaCountForRequest(state, noSourceModel)).toBeNull();
+    expect(() => buildGeneratePayload(state, noSourceModel)).toThrow();
+  });
+
+  it('rejects a retained role source for a source-free mode', () => {
+    const noSourceModel = model({
+      generation_modes: generationModes(['t2i', 'i2i'], { i2i: null }),
+    });
+    const state = {
+      ...baseState,
+      mode: 'i2i' as const,
+      sourceMedia: [{ ...upload, role: 'first_frame' as const }],
+    };
+
+    expect(validateSourceMedia(state, noSourceModel).valid).toBe(false);
   });
 
   it('treats an over-capacity draft as invalid instead of truncating it into a smaller request', () => {
@@ -352,5 +382,113 @@ describe('general payload normalization regressions', () => {
     expect(
       buildGeneratePayload({ ...baseState, mode: 't2v', editAspectRatio: '16:9' }, model()),
     ).toMatchObject({ aspect_ratio: '1:1' });
+  });
+});
+
+describe('positional role projection (Phase 4)', () => {
+  const firstFrame: SourceMediaDraft = { ...upload, role: 'first_frame' };
+  const lastFrame: SourceMediaDraft = { ...output, role: 'last_frame' };
+
+  it('reorders a store draft entered out of contract order into the advertised role order', () => {
+    // Store order is last_frame then first_frame — the wire request must
+    // still be [first_frame, last_frame] per the advertised roles array.
+    const state = { ...baseState, mode: 'flf2v' as const, sourceMedia: [lastFrame, firstFrame] };
+    const flf2vModel = makeAishaVideoModelInfo();
+    expect(projectSourceMedia(state, flf2vModel)).toMatchObject({
+      valid: true,
+      sourceMedia: [{ asset_ref: firstFrame.assetRef }, { asset_ref: lastFrame.assetRef }],
+    });
+    expect(buildGeneratePayload(state, flf2vModel).source_media).toEqual([
+      { asset_ref: firstFrame.assetRef },
+      { asset_ref: lastFrame.assetRef },
+    ]);
+  });
+
+  it('never leaks a role field into the wire payload', () => {
+    const state = { ...baseState, mode: 'flf2v' as const, sourceMedia: [firstFrame, lastFrame] };
+    const payload = buildGeneratePayload(state, makeAishaVideoModelInfo());
+    for (const item of payload.source_media ?? []) {
+      expect(item).not.toHaveProperty('role');
+      expect(Object.keys(item)).toEqual(['asset_ref']);
+    }
+  });
+
+  it('preserves roleless insertion order exactly (no positional reordering for roles: null)', () => {
+    const state = { ...baseState, mode: 'i2i' as const, sourceMedia: [output, upload] };
+    expect(projectSourceMedia(state, model())).toMatchObject({
+      valid: true,
+      sourceMedia: [{ asset_ref: output.assetRef }, { asset_ref: upload.assetRef }],
+    });
+  });
+
+  it('rejects a named-role source for a roleless contract instead of erasing its semantic assignment', () => {
+    const state = { ...baseState, mode: 'i2i' as const, sourceMedia: [firstFrame] };
+
+    expect(validateSourceMedia(state, model())).toEqual({
+      valid: false,
+      message: 'This source is assigned to a role this model does not support.',
+    });
+    expect(projectSourceMedia(state, model())).toMatchObject({ valid: false });
+    expect(() => sourceMediaForRequest(state, model())).toThrow();
+    expect(() => buildGeneratePayload(state, model())).toThrow();
+  });
+
+  it('rejects a generic source for a positional contract', () => {
+    const state = { ...baseState, mode: 'flf2v' as const, sourceMedia: [upload, output] };
+
+    expect(validateSourceMedia(state, makeAishaVideoModelInfo()).valid).toBe(false);
+    expect(projectSourceMedia(state, makeAishaVideoModelInfo())).toMatchObject({ valid: false });
+  });
+
+  it('rejects a draft missing a required role instead of sending a partial list', () => {
+    const state = { ...baseState, mode: 'flf2v' as const, sourceMedia: [firstFrame] };
+    const flf2vModel = makeAishaVideoModelInfo();
+    expect(validateSourceMedia(state, flf2vModel).valid).toBe(false);
+    expect(projectSourceMedia(state, flf2vModel)).toMatchObject({ valid: false });
+    expect(() => sourceMediaForRequest(state, flf2vModel)).toThrow();
+  });
+
+  it('rejects a duplicate role assignment', () => {
+    const state = {
+      ...baseState,
+      mode: 'flf2v' as const,
+      sourceMedia: [firstFrame, { ...output, role: 'first_frame' as const }],
+    };
+    expect(validateSourceMedia(state, makeAishaVideoModelInfo()).valid).toBe(false);
+  });
+
+  it('rejects a source whose role this model contract does not advertise', () => {
+    const state = {
+      ...baseState,
+      mode: 'flf2v' as const,
+      sourceMedia: [firstFrame, { ...output, role: 'reference' as const }],
+    };
+    expect(validateSourceMedia(state, makeAishaVideoModelInfo()).valid).toBe(false);
+  });
+
+  it('rejects an unrecognized/future role name rather than guessing its media kind', () => {
+    const state = {
+      ...baseState,
+      mode: 'flf2v' as const,
+      sourceMedia: [firstFrame, { ...output, role: 'middle_frame' as never }],
+    };
+    expect(validateSourceMedia(state, makeAishaVideoModelInfo()).valid).toBe(false);
+  });
+
+  it('rejects an unavailable role-tagged source instead of silently replaying a shorter list', () => {
+    const state = {
+      ...baseState,
+      mode: 'flf2v' as const,
+      sourceMedia: [firstFrame, { ...lastFrame, available: false }],
+    };
+    const flf2vModel = makeAishaVideoModelInfo();
+    expect(validateSourceMedia(state, flf2vModel)).toMatchObject({ valid: false });
+    expect(projectSourceMedia(state, flf2vModel)).toMatchObject({ valid: false });
+  });
+
+  it('never sends input_video_url for v2v, with or without roles', () => {
+    const videoSource: SourceMediaDraft = { ...video, role: null };
+    const state = { ...baseState, mode: 'v2v' as const, sourceMedia: [videoSource] };
+    expect(buildGeneratePayload(state, model())).not.toHaveProperty('input_video_url');
   });
 });

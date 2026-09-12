@@ -14,6 +14,7 @@ const upload: SourceMediaDraft = {
   previewUrl: '/upload.png',
   label: 'upload',
   available: true,
+  role: null,
 };
 const output: SourceMediaDraft = {
   assetRef: 'output:22222222-2222-2222-2222-222222222222',
@@ -21,6 +22,7 @@ const output: SourceMediaDraft = {
   previewUrl: '/output.png',
   label: 'output',
   available: true,
+  role: null,
 };
 
 beforeEach(() => generationStore.reset());
@@ -89,6 +91,33 @@ describe('generationStore source media', () => {
     expect(get(generationDraftIsDirty)).toBe(true);
     markGenerationDraftSaved();
     expect(get(generationDraftIsDirty)).toBe(false);
+  });
+
+  it('setSourceRole reassigns a role in place without disturbing identity or position', () => {
+    generationStore.setSourceMedia([upload, output]);
+    generationStore.setSourceRole(0, 'first_frame');
+    expect(get(generationStore).sourceMedia).toMatchObject([
+      { assetRef: upload.assetRef, role: 'first_frame' },
+      { assetRef: output.assetRef, role: null },
+    ]);
+    generationStore.setSourceRole(0, null);
+    expect(get(generationStore).sourceMedia[0].role).toBeNull();
+  });
+
+  it('setSourceRole ignores an out-of-range index', () => {
+    generationStore.setSourceMedia([upload]);
+    generationStore.setSourceRole(5, 'first_frame');
+    expect(get(generationStore).sourceMedia).toEqual([upload]);
+  });
+
+  it('includes role assignment in the draft fingerprint so a role-only change is never lost', () => {
+    const before = get(generationStore);
+    const roleless = generationDraftFingerprint({ ...before, sourceMedia: [upload] });
+    const withRole = generationDraftFingerprint({
+      ...before,
+      sourceMedia: [{ ...upload, role: 'first_frame' }],
+    });
+    expect(withRole).not.toBe(roleless);
   });
 });
 

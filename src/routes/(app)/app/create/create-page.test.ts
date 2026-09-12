@@ -4,7 +4,10 @@ import { get } from 'svelte/store';
 import type { components } from '$lib/api/types';
 import { generationStore } from '$lib/stores/generation';
 import { setEventStreamStatus } from '$lib/stores/eventStream';
-import { makeGrokVideoModelInfo } from '../../../../mocks/factories/providers';
+import {
+  makeAishaVideoModelInfo,
+  makeGrokVideoModelInfo,
+} from '../../../../mocks/factories/providers';
 
 type ProvidersResponse = components['schemas']['ProvidersResponse'];
 type PricingRuleResponse = components['schemas']['PricingRuleResponse'];
@@ -154,6 +157,22 @@ function generateButtons(): HTMLButtonElement[] {
   return screen
     .getAllByRole('button')
     .filter((btn): btn is HTMLButtonElement => /generate/i.test(btn.textContent ?? ''));
+}
+
+function pricingRule(overrides: Partial<PricingRuleResponse> = {}): PricingRuleResponse {
+  return {
+    id: '00000000-0000-0000-0000-000000000001',
+    provider: 'grok',
+    generation_type: 't2i',
+    model: 'grok-imagine-image',
+    token_cost: 7,
+    input_token_cost: 0,
+    is_active: true,
+    effective_from: '2026-05-01T00:00:00Z',
+    effective_until: null,
+    notes: null,
+    ...overrides,
+  };
 }
 
 describe('/app/create page — generate gating during providers load', () => {
@@ -313,6 +332,7 @@ describe('/app/create page — generate gating during providers load', () => {
         previewUrl: null,
         label: null,
         available: true,
+        role: null,
       },
     ]);
     pricingData = [
@@ -366,6 +386,7 @@ describe('/app/create page — generate gating during providers load', () => {
         previewUrl: null,
         label: null,
         available: true,
+        role: null,
       },
     ]);
     pricingData = [
@@ -438,20 +459,7 @@ describe('/app/create page — generate gating during providers load', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-06-01T00:00:00Z'));
     providersData = GROK_PROVIDERS;
-    pricingData = [
-      {
-        id: '00000000-0000-0000-0000-000000000001',
-        provider: 'grok',
-        generation_type: 't2i',
-        model: 'grok-imagine-image',
-        token_cost: 7,
-        input_token_cost: 0,
-        is_active: true,
-        effective_from: '2026-05-01T00:00:00Z',
-        effective_until: '2026-06-01T00:01:00Z',
-        notes: null,
-      },
-    ];
+    pricingData = [pricingRule({ effective_until: '2026-06-01T00:01:00Z' })];
 
     render(Page);
     expect(screen.getByText('Est. ◈ 7 tokens')).toBeTruthy();
@@ -470,20 +478,7 @@ describe('/app/create page — generate gating during providers load', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-06-01T00:00:00Z'));
     providersData = GROK_PROVIDERS;
-    pricingData = [
-      {
-        id: '00000000-0000-0000-0000-000000000001',
-        provider: 'grok',
-        generation_type: 't2i',
-        model: 'grok-imagine-image',
-        token_cost: 7,
-        input_token_cost: 0,
-        is_active: true,
-        effective_from: '2026-05-01T00:00:00Z',
-        effective_until: '2026-06-01T00:01:00Z',
-        notes: null,
-      },
-    ];
+    pricingData = [pricingRule({ effective_until: '2026-06-01T00:01:00Z' })];
 
     render(Page);
     expect(screen.getByText('Est. ◈ 7 tokens')).toBeTruthy();
@@ -491,18 +486,11 @@ describe('/app/create page — generate gating during providers load', () => {
     // Simulate the Create-only query's minute refetch returning the rule that
     // was not effective when the previous response was fetched.
     pricingData = [
-      {
+      pricingRule({
         id: '00000000-0000-0000-0000-000000000002',
-        provider: 'grok',
-        generation_type: 't2i',
-        model: 'grok-imagine-image',
         token_cost: 11,
-        input_token_cost: 0,
-        is_active: true,
         effective_from: '2026-06-01T00:01:00Z',
-        effective_until: null,
-        notes: null,
-      },
+      }),
     ];
     await vi.advanceTimersByTimeAsync(60_000);
 
@@ -589,6 +577,7 @@ describe('/app/create page — source-driven generation mode (Phase 3)', () => {
         previewUrl: null,
         label: null,
         available: true,
+        role: null,
       },
     ]);
 
@@ -615,5 +604,170 @@ describe('/app/create page — source-driven generation mode (Phase 3)', () => {
     const accept = fileInput?.getAttribute('accept') ?? '';
     expect(accept).toContain('image/');
     expect(accept).toContain('video/');
+  });
+});
+
+// `always_on` sidesteps GPU-session gating entirely (deriveCardState returns
+// READY unconditionally for it) so these tests can isolate role/pricing
+// resolution without standing up session/runtime fixtures.
+const AISHA_VIDEO_PROVIDERS: ProvidersResponse = {
+  providers: [
+    {
+      provider: 'aisha',
+      name: 'Aisha',
+      available: true,
+      provisioning_mode: 'always_on',
+      models: [makeAishaVideoModelInfo()],
+    },
+  ],
+  user_context: null,
+} as unknown as ProvidersResponse;
+
+const AISHA_VIDEO_PRICING: PricingRuleResponse[] = (['t2v', 'i2v', 'flf2v'] as const).map(
+  (generation_type, index) => ({
+    id: `00000000-0000-0000-0000-00000000000${index + 1}`,
+    provider: 'aisha',
+    generation_type,
+    model: 'aisha-video',
+    token_cost: 10 + index,
+    input_token_cost: 0,
+    is_active: true,
+    effective_from: '2026-01-01T00:00:00Z',
+    effective_until: null,
+    notes: null,
+  }),
+);
+
+describe('/app/create page — positional role source resolution (Phase 4, Aisha Video)', () => {
+  beforeEach(() => {
+    providersData = AISHA_VIDEO_PROVIDERS;
+    pricingData = AISHA_VIDEO_PRICING;
+    generationStore.setModel('aisha-video');
+  });
+
+  it('no source resolves T2V', () => {
+    render(Page);
+    expect(screen.getByText('Est. ◈ 10 tokens')).toBeTruthy();
+    for (const btn of generateButtons()) expect(btn.disabled).toBe(false);
+  });
+
+  it('a first_frame role source resolves I2V', () => {
+    generationStore.setSourceMedia([
+      {
+        assetRef: 'upload:first',
+        mediaType: 'image',
+        previewUrl: null,
+        label: null,
+        available: true,
+        role: 'first_frame',
+      },
+    ]);
+
+    render(Page);
+    expect(screen.getByText('Est. ◈ 11 tokens')).toBeTruthy();
+    for (const btn of generateButtons()) expect(btn.disabled).toBe(false);
+  });
+
+  it('first_frame + last_frame resolves FLF2V', () => {
+    generationStore.setSourceMedia([
+      {
+        assetRef: 'upload:first',
+        mediaType: 'image',
+        previewUrl: null,
+        label: null,
+        available: true,
+        role: 'first_frame',
+      },
+      {
+        assetRef: 'upload:last',
+        mediaType: 'image',
+        previewUrl: null,
+        label: null,
+        available: true,
+        role: 'last_frame',
+      },
+    ]);
+
+    render(Page);
+    expect(screen.getByText('Est. ◈ 12 tokens')).toBeTruthy();
+    for (const btn of generateButtons()) expect(btn.disabled).toBe(false);
+  });
+
+  it('removing last_frame from a complete FLF2V draft falls back to I2V', async () => {
+    generationStore.setSourceMedia([
+      {
+        assetRef: 'upload:first',
+        mediaType: 'image',
+        previewUrl: null,
+        label: null,
+        available: true,
+        role: 'first_frame',
+      },
+      {
+        assetRef: 'upload:last',
+        mediaType: 'image',
+        previewUrl: null,
+        label: null,
+        available: true,
+        role: 'last_frame',
+      },
+    ]);
+
+    render(Page);
+    expect(screen.getByText('Est. ◈ 12 tokens')).toBeTruthy();
+
+    generationStore.removeSourceMedia(1);
+
+    await waitFor(() => expect(screen.getByText('Est. ◈ 11 tokens')).toBeTruthy());
+    for (const btn of generateButtons()) expect(btn.disabled).toBe(false);
+  });
+
+  it('removing first_frame while last_frame remains leaves an incomplete positional draft — Generate disabled', async () => {
+    generationStore.setSourceMedia([
+      {
+        assetRef: 'upload:first',
+        mediaType: 'image',
+        previewUrl: null,
+        label: null,
+        available: true,
+        role: 'first_frame',
+      },
+      {
+        assetRef: 'upload:last',
+        mediaType: 'image',
+        previewUrl: null,
+        label: null,
+        available: true,
+        role: 'last_frame',
+      },
+    ]);
+
+    render(Page);
+    generationStore.removeSourceMedia(0);
+
+    await waitFor(() => expect(screen.getAllByText('Cost unavailable').length).toBeGreaterThan(0));
+    for (const btn of generateButtons()) expect(btn.disabled).toBe(true);
+    // stale `generationStore.mode` (still whatever it defaulted to) must never
+    // resurrect a resolved price for an incomplete positional draft.
+    expect(screen.queryByText(/Est\. ◈/)).toBeNull();
+  });
+
+  it('removing the final positional source returns to T2V', async () => {
+    generationStore.setSourceMedia([
+      {
+        assetRef: 'upload:last',
+        mediaType: 'image',
+        previewUrl: null,
+        label: null,
+        available: true,
+        role: 'last_frame',
+      },
+    ]);
+
+    render(Page);
+    generationStore.removeSourceMedia(0);
+
+    await waitFor(() => expect(screen.getByText('Est. ◈ 10 tokens')).toBeTruthy());
+    for (const btn of generateButtons()) expect(btn.disabled).toBe(false);
   });
 });

@@ -25,8 +25,13 @@
     favoriteMutationOptions,
   } from '$lib/queries/library';
   import { providersQueryOptions } from '$lib/queries/providers';
-  import { enabledModes } from '$lib/utils/generationModes';
-  import { resolveLibraryAction, libraryActionLabel, filterVisibleLibraryActions } from './actions';
+  import { enabledModes, enabledRoles } from '$lib/utils/generationModes';
+  import {
+    resolveLibraryAction,
+    libraryActionLabel,
+    filterVisibleLibraryActions,
+    canUseLibraryReference,
+  } from './actions';
   import { createLibraryActionDeps } from './actionDeps';
   import { createActionController } from './actionController.svelte';
   import { resolveSaveCapabilities, type SaveCapability } from '$lib/media/save';
@@ -140,6 +145,10 @@
   // fixed-height placeholder until it resolves so navigation actions never pop into the row.
   const providersQuery = createQuery(() => providersQueryOptions());
   const availableModes = $derived(enabledModes(providersQuery.data));
+  const availableRoles = $derived(enabledRoles(providersQuery.data));
+  const canUseReference = $derived(
+    canUseLibraryReference(providersQuery.data, currentDetail?.media.media_type),
+  );
   const providersReady = $derived(providersQuery.data !== undefined || !providersQuery.isLoading);
 
   const actionDeps = createLibraryActionDeps(() => providersQuery.data, queryClient);
@@ -325,6 +334,8 @@
     currentDetail
       ? filterVisibleLibraryActions(currentDetail.available_actions, {
           availableModes,
+          availableRoles,
+          canUseReference,
           generationType: currentDetail.generation_type,
         })
           .filter(

@@ -2,8 +2,17 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { get } from 'svelte/store';
 import type { components } from '$lib/api/types';
 import { generationStore, type SourceMediaDraft } from '$lib/stores/generation';
-import { prefillSourceForGeneration, replayGenerationPrefill } from './generationPrefill';
-import { makeGrokImageModelInfo, generationModes } from '../../mocks/factories/providers';
+import {
+  prefillRoleSourceForGeneration,
+  prefillSourceForGeneration,
+  replayGenerationPrefill,
+} from './generationPrefill';
+import {
+  makeAishaVideoModelInfo,
+  makeGrokImageModelInfo,
+  makeGrokVideoModelInfo,
+  generationModes,
+} from '../../mocks/factories/providers';
 
 type ProvidersResponse = components['schemas']['ProvidersResponse'];
 type LibraryGroupDetail = components['schemas']['LibraryGroupDetail'];
@@ -14,6 +23,7 @@ const source: SourceMediaDraft = {
   previewUrl: '/v1/content/outputs/source-a',
   label: 'From generated',
   available: true,
+  role: null,
 };
 
 function providers(models: components['schemas']['ModelInfo'][]): ProvidersResponse {
@@ -215,6 +225,97 @@ describe('replayGenerationPrefill', () => {
     ).toEqual({ ok: false, reason: 'incompatible-source-policy' });
   });
 
+  it('fails closed when the live roleless minimum increases beyond the historical source count', () => {
+    const discovery = providers([
+      makeGrokImageModelInfo({
+        generation_modes: generationModes(['custom-edit'], {
+          'custom-edit': { min: 2, max: 2, media_types: ['image'], roles: null },
+        }),
+      }),
+    ]);
+
+    expect(
+      replayGenerationPrefill(
+        { generation_type: 'custom-edit', model: 'grok-imagine-image', prompt: 'original prompt' },
+        discovery,
+        group({
+          source_media: [
+            {
+              position: 0,
+              asset_ref: 'upload:first',
+              available: true,
+              media: sourceMedia('image'),
+            },
+          ],
+        }),
+      ),
+    ).toEqual({ ok: false, reason: 'incompatible-source-policy' });
+  });
+
+  it('fails closed when a zero-source historical group replays into a mode that now requires source media', () => {
+    const discovery = providers([
+      makeGrokImageModelInfo({
+        generation_modes: generationModes(['i2i'], {
+          i2i: { min: 1, max: 4, media_types: ['image'], roles: null },
+        }),
+      }),
+    ]);
+
+    expect(
+      replayGenerationPrefill(
+        { generation_type: 'i2i', model: 'grok-imagine-image', prompt: 'original prompt' },
+        discovery,
+        group({ generation_type: 'i2i', source_media: [] }),
+      ),
+    ).toEqual({ ok: false, reason: 'incompatible-source-policy' });
+  });
+
+  it('replays a zero-source historical group into a still source-free mode', () => {
+    const discovery = providers([
+      makeGrokVideoModelInfo({ generation_modes: generationModes(['t2v']) }),
+    ]);
+
+    const result = replayGenerationPrefill(
+      { generation_type: 't2v', model: 'grok-imagine-video', prompt: 'original prompt' },
+      discovery,
+      group({ generation_type: 't2v', media_type: 'video', source_media: [] }),
+    );
+
+    expect(result).toMatchObject({ ok: true });
+    if (result.ok) {
+      expect(result.params.sourceMedia).toEqual([]);
+    }
+  });
+
+  it('replays a valid roleless source count that satisfies the live min/max', () => {
+    const discovery = providers([
+      makeGrokImageModelInfo({
+        generation_modes: generationModes(['custom-edit'], {
+          'custom-edit': { min: 1, max: 3, media_types: ['image'], roles: null },
+        }),
+      }),
+    ]);
+
+    const result = replayGenerationPrefill(
+      { generation_type: 'custom-edit', model: 'grok-imagine-image', prompt: 'original prompt' },
+      discovery,
+      group({
+        source_media: [
+          { position: 0, asset_ref: 'upload:first', available: true, media: sourceMedia('image') },
+          { position: 1, asset_ref: 'upload:second', available: true, media: sourceMedia('image') },
+        ],
+      }),
+    );
+
+    expect(result).toMatchObject({ ok: true });
+    if (result.ok) {
+      expect(result.params.sourceMedia?.map((item) => item.assetRef)).toEqual([
+        'upload:first',
+        'upload:second',
+      ]);
+    }
+  });
+
   it('requires every available persisted media kind to be accepted by the replay model', () => {
     const discovery = providers([
       makeGrokImageModelInfo({
@@ -328,8 +429,228 @@ describe('replayGenerationPrefill', () => {
     expect(result).toMatchObject({ ok: true });
     if (result.ok) {
       expect(result.params.mode).toBe('v2v');
-      expect(result.params.sourceMedia).toMatchObject([{ assetRef: 'upload:video-1' }]);
+      expect(result.params.sourceMedia).toMatchObject([{ assetRef: 'upload:video-1', role: null }]);
     }
+  });
+
+  it('hydrates positional roles from the live model contract, by historical position', () => {
+    const discovery = providers([makeAishaVideoModelInfo()]);
+    const result = replayGenerationPrefill(
+      { generation_type: 'flf2v', model: 'aisha-video', prompt: 'original prompt' },
+      discovery,
+      group({
+        generation_type: 'flf2v',
+        model: 'aisha-video',
+        media_type: 'video',
+        source_media: [
+          groupSource(0, 'upload:first', 'image'),
+          groupSource(1, 'upload:last', 'image'),
+        ],
+      }),
+    );
+    expect(result).toMatchObject({ ok: true });
+    if (result.ok) {
+      expect(result.params.sourceMedia).toMatchObject([
+        { assetRef: 'upload:first', role: 'first_frame' },
+        { assetRef: 'upload:last', role: 'last_frame' },
+      ]);
+    }
+  });
+
+  it('preserves the semantic role on an unavailable replay position', () => {
+    const discovery = providers([makeAishaVideoModelInfo()]);
+    const result = replayGenerationPrefill(
+      { generation_type: 'flf2v', model: 'aisha-video', prompt: 'original prompt' },
+      discovery,
+      group({
+        generation_type: 'flf2v',
+        model: 'aisha-video',
+        media_type: 'video',
+        source_media: [
+          groupSource(0, 'upload:first', 'image'),
+          groupSource(1, 'upload:last', 'image', false),
+        ],
+      }),
+    );
+    expect(result).toMatchObject({ ok: true });
+    if (result.ok) {
+      expect(result.params.sourceMedia).toMatchObject([
+        { assetRef: 'upload:first', role: 'first_frame', available: true },
+        { assetRef: 'upload:last', role: 'last_frame', available: false },
+      ]);
+    }
+  });
+
+  it('reordered group entries are sorted by position before role assignment', () => {
+    const discovery = providers([makeAishaVideoModelInfo()]);
+    const result = replayGenerationPrefill(
+      { generation_type: 'flf2v', model: 'aisha-video', prompt: 'original prompt' },
+      discovery,
+      group({
+        generation_type: 'flf2v',
+        model: 'aisha-video',
+        media_type: 'video',
+        source_media: [
+          groupSource(1, 'upload:last', 'image'),
+          groupSource(0, 'upload:first', 'image'),
+        ],
+      }),
+    );
+    expect(result).toMatchObject({ ok: true });
+    if (result.ok) {
+      expect(result.params.sourceMedia).toMatchObject([
+        { assetRef: 'upload:first', role: 'first_frame' },
+        { assetRef: 'upload:last', role: 'last_frame' },
+      ]);
+    }
+  });
+
+  it('fails closed when the live positional role count no longer matches the historical position count', () => {
+    const discovery = providers([makeAishaVideoModelInfo()]);
+    const result = replayGenerationPrefill(
+      { generation_type: 'flf2v', model: 'aisha-video', prompt: 'original prompt' },
+      discovery,
+      group({
+        generation_type: 'flf2v',
+        model: 'aisha-video',
+        media_type: 'video',
+        // Only one historical position, but the live flf2v contract fixes
+        // exactly two roles — must never silently replay a shorter list.
+        source_media: [groupSource(0, 'upload:first', 'image')],
+      }),
+    );
+    expect(result).toEqual({ ok: false, reason: 'incompatible-source-policy' });
+  });
+
+  it('replays a mixed-kind positional contract only when every persisted position matches its role kind', () => {
+    const discovery = providers([
+      makeGrokImageModelInfo({
+        generation_modes: generationModes(['mixed-positional'], {
+          'mixed-positional': {
+            min: 2,
+            max: 2,
+            media_types: ['image', 'video'],
+            roles: ['first_frame', 'source'],
+          },
+        }),
+      }),
+    ]);
+    const result = replayGenerationPrefill(
+      {
+        generation_type: 'mixed-positional',
+        model: 'grok-imagine-image',
+        prompt: 'original prompt',
+      },
+      discovery,
+      group({
+        source_media: [
+          groupSource(0, 'upload:first', 'image'),
+          groupSource(1, 'upload:source', 'video'),
+        ],
+      }),
+    );
+
+    expect(result).toMatchObject({ ok: true });
+    if (result.ok) {
+      expect(result.params.sourceMedia).toMatchObject([
+        { assetRef: 'upload:first', role: 'first_frame' },
+        { assetRef: 'upload:source', role: 'source' },
+      ]);
+    }
+  });
+
+  it('rejects a mixed-kind positional replay with the source kinds reversed', () => {
+    const discovery = providers([
+      makeGrokImageModelInfo({
+        generation_modes: generationModes(['mixed-positional'], {
+          'mixed-positional': {
+            min: 2,
+            max: 2,
+            media_types: ['image', 'video'],
+            roles: ['first_frame', 'source'],
+          },
+        }),
+      }),
+    ]);
+
+    expect(
+      replayGenerationPrefill(
+        {
+          generation_type: 'mixed-positional',
+          model: 'grok-imagine-image',
+          prompt: 'original prompt',
+        },
+        discovery,
+        group({
+          source_media: [
+            groupSource(0, 'upload:source', 'video'),
+            groupSource(1, 'upload:first', 'image'),
+          ],
+        }),
+      ),
+    ).toEqual({ ok: false, reason: 'incompatible-source-policy' });
+  });
+});
+
+describe('prefillSourceForGeneration — role derived from the resolved model contract', () => {
+  it('tags the source with the resolved mode’s sole advertised role', () => {
+    const discovery = providers([makeAishaVideoModelInfo()]);
+    expect(prefillSourceForGeneration({ providers: discovery, mode: 'i2v', source })).toBe(true);
+    expect(get(generationStore).sourceMedia).toMatchObject([{ role: 'first_frame' }]);
+  });
+
+  it('keeps the source generic for a roleless target mode', () => {
+    const discovery = providers([makeGrokVideoModelInfo()]);
+    expect(prefillSourceForGeneration({ providers: discovery, mode: 'i2v', source })).toBe(true);
+    expect(get(generationStore).sourceMedia).toMatchObject([{ role: null }]);
+  });
+
+  it('does not mutate the draft for a target mode with an unknown positional role', () => {
+    generationStore.prefill({ model: 'grok-imagine-image', prompt: 'keep this draft' });
+    const before = get(generationStore);
+    const discovery = providers([
+      makeAishaVideoModelInfo({
+        generation_modes: generationModes(['i2v'], {
+          i2v: {
+            min: 1,
+            max: 2,
+            media_types: ['image'],
+            roles: ['first_frame', 'future_magic_slot'] as never,
+          },
+        }),
+      }),
+    ]);
+
+    expect(prefillSourceForGeneration({ providers: discovery, mode: 'i2v', source })).toBe(false);
+    expect(get(generationStore)).toEqual(before);
+  });
+});
+
+describe('prefillRoleSourceForGeneration', () => {
+  it('resolves a role-capable enabled model and tags the source with the requested role', () => {
+    const discovery = providers([makeAishaVideoModelInfo()]);
+    expect(
+      prefillRoleSourceForGeneration({ providers: discovery, role: 'last_frame', source }),
+    ).toBe(true);
+    expect(get(generationStore)).toMatchObject({
+      model: 'aisha-video',
+      sourceMedia: [{ ...source, role: 'last_frame' }],
+    });
+  });
+
+  it('preserves the existing draft prompt (does not overwrite it)', () => {
+    generationStore.prefill({ prompt: 'my draft in progress' });
+    const discovery = providers([makeAishaVideoModelInfo()]);
+    prefillRoleSourceForGeneration({ providers: discovery, role: 'first_frame', source });
+    expect(get(generationStore).prompt).toBe('my draft in progress');
+  });
+
+  it('returns false and does not touch the draft when no enabled model supports the role', () => {
+    const discovery = providers([makeGrokVideoModelInfo()]); // roles: null everywhere
+    expect(
+      prefillRoleSourceForGeneration({ providers: discovery, role: 'first_frame', source }),
+    ).toBe(false);
+    expect(get(generationStore).sourceMedia).toEqual([]);
   });
 });
 
@@ -342,5 +663,19 @@ function sourceMedia(media_type: 'image' | 'video'): components['schemas']['Medi
       size_bytes: 1,
     },
     variants: [],
+  };
+}
+
+function groupSource(
+  position: number,
+  assetRef: string,
+  mediaType: 'image' | 'video',
+  available = true,
+) {
+  return {
+    position,
+    asset_ref: assetRef,
+    available,
+    media: available ? sourceMedia(mediaType) : null,
   };
 }

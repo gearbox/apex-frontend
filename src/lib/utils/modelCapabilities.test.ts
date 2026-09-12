@@ -71,8 +71,25 @@ describe('provider capabilities', () => {
         max: 0,
         mediaTypes: [],
         roles: null,
+        hasUnknownRoles: false,
       });
     }
+  });
+
+  it('marks an unknown runtime role so request and replay boundaries can fail closed', () => {
+    const model = makeGrokImageModelInfo({
+      generation_modes: generationModes(['future-edit'], {
+        'future-edit': {
+          min: 1,
+          max: 1,
+          media_types: ['image'],
+          roles: ['future_magic_slot'] as never,
+        },
+      }),
+    });
+    const policy = sourceMediaPolicy(model, 'future-edit');
+
+    expect(policy).toMatchObject({ roles: [], hasUnknownRoles: true });
   });
 });
 

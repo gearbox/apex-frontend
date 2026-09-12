@@ -18,6 +18,11 @@ const ALL_MODES: ReadonlySet<GenerationMode> = new Set([
   'flf2v',
 ]);
 const NO_MODES: ReadonlySet<GenerationMode> = new Set();
+const FRAME_ROLES: ReadonlySet<components['schemas']['MediaSlot']> = new Set([
+  'first_frame',
+  'last_frame',
+]);
+const NO_ROLES: ReadonlySet<components['schemas']['MediaSlot']> = new Set();
 
 function makeActionDeps(overrides: Partial<LibraryActionDeps> = {}): LibraryActionDeps {
   return {
@@ -298,10 +303,10 @@ describe('AssetCard', () => {
       expect(screen.getByRole('menuitem', { name: /^remix$/i })).toBeTruthy();
     });
 
-    it('hides first/last-frame actions by default (no flf2v-capable model)', async () => {
+    it('hides first/last-frame actions by default (no role-capable enabled model)', async () => {
       const { container } = renderCard(
         { available_actions: ['use_as_first_frame', 'use_as_last_frame', 'download'] },
-        { availableModes: NO_MODES },
+        { availableModes: NO_MODES, availableRoles: NO_ROLES },
       );
       const wrapper = container.querySelector('[role="presentation"]');
       await fireEvent.contextMenu(wrapper!, { clientX: 10, clientY: 10 });
@@ -311,10 +316,25 @@ describe('AssetCard', () => {
       expect(screen.getByRole('menuitem', { name: /download/i })).toBeTruthy();
     });
 
-    it('shows first/last-frame actions when an enabled model supports flf2v', async () => {
+    it('Phase 4: does not show first/last-frame actions from availableModes.has("flf2v") alone', async () => {
+      // A mode named "flf2v" being available is not proof of role capability —
+      // only `availableRoles` (derived from actual advertised `roles` arrays)
+      // may gate these actions.
       const { container } = renderCard(
         { available_actions: ['use_as_first_frame', 'use_as_last_frame', 'download'] },
-        { availableModes: ALL_MODES },
+        { availableModes: ALL_MODES, availableRoles: NO_ROLES },
+      );
+      const wrapper = container.querySelector('[role="presentation"]');
+      await fireEvent.contextMenu(wrapper!, { clientX: 10, clientY: 10 });
+
+      expect(screen.queryByRole('menuitem', { name: /first frame/i })).toBeNull();
+      expect(screen.queryByRole('menuitem', { name: /last frame/i })).toBeNull();
+    });
+
+    it('shows first/last-frame actions when an enabled model actually advertises those roles', async () => {
+      const { container } = renderCard(
+        { available_actions: ['use_as_first_frame', 'use_as_last_frame', 'download'] },
+        { availableModes: NO_MODES, availableRoles: FRAME_ROLES },
       );
       const wrapper = container.querySelector('[role="presentation"]');
       await fireEvent.contextMenu(wrapper!, { clientX: 10, clientY: 10 });

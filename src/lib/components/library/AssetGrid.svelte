@@ -4,6 +4,7 @@
   import type { LibraryActionDeps } from './actions';
   import { createActionController } from './actionController.svelte';
   import type { GenerationMode } from '$lib/utils/generationModes';
+  import type { MediaSlot } from '$lib/utils/mediaSlots';
   import type { components } from '$lib/api/types';
 
   type LibraryAssetItem = components['schemas']['LibraryAssetItem'];
@@ -22,6 +23,7 @@
     bulkErrorRefs = new Set<string>(),
     onToggleSelect,
     availableModes,
+    availableRoles = new Set<MediaSlot>(),
     providersReady = true,
     actionDeps,
   }: {
@@ -38,6 +40,7 @@
     bulkErrorRefs?: ReadonlySet<string>;
     onToggleSelect?: (item: LibraryAssetItem) => void;
     availableModes: ReadonlySet<GenerationMode>;
+    availableRoles?: ReadonlySet<MediaSlot>;
     providersReady?: boolean;
     actionDeps: LibraryActionDeps;
   } = $props();
@@ -61,6 +64,7 @@
       bulkError={bulkErrorRefs.has(item.asset_ref)}
       {onToggleSelect}
       {availableModes}
+      {availableRoles}
       {providersReady}
       {actionDeps}
       {actionController}

@@ -6,12 +6,22 @@ import {
   type GenerationState,
   type SourceMediaDraft,
 } from '$lib/stores/generation';
-import { findModelInfo, isGenerationMode, resolveModelForMode } from '$lib/utils/generationModes';
+import {
+  findModelInfo,
+  isExecutableModeContract,
+  isGenerationMode,
+  modeForRole,
+  resolveModelForReference,
+  resolveModelForMode,
+  resolveModelForRole,
+  soleAdvertisedRole,
+} from '$lib/utils/generationModes';
 import {
   getEditAspectRatios,
   KNOWN_ASPECT_RATIOS,
   sourceMediaPolicy,
 } from '$lib/utils/modelCapabilities';
+import { mediaKindForSlot, type MediaSlot } from '$lib/utils/mediaSlots';
 
 type AspectRatio = components['schemas']['AspectRatio'];
 type LibraryGroupDetail = components['schemas']['LibraryGroupDetail'];
@@ -33,15 +43,81 @@ export interface SourcePrefillRequest {
  * Applies a source-driven draft only after resolving an enabled model capable
  * of the target mode. Navigation intentionally remains the caller's concern:
  * callers may only navigate after this succeeds.
+ *
+ * The source's role is always re-derived from the *resolved model's own*
+ * mode contract (`soleAdvertisedRole`), never taken from the caller or
+ * inferred from the mode name: a roleless target mode (e.g. Grok's `i2v`)
+ * keeps the source generic, while a target mode with exactly one advertised
+ * role (e.g. Aisha's `i2v` -> `first_frame`) tags it automatically. A mode
+ * advertising more than one role has no single deterministic assignment for
+ * a lone incoming source, so it is left generic and the resulting (now
+ * positional-vs-generic mismatched) draft is surfaced as incompatible by the
+ * resolver rather than guessed here.
  */
 export function prefillSourceForGeneration(request: SourcePrefillRequest): boolean {
   const model = resolveModelForMode(request.providers, request.mode, request.preferredModel);
   if (!model) return false;
+  const modelInfo = findModelInfo(request.providers, model);
+  if (!isExecutableModeContract(modelInfo, request.mode)) return false;
 
   generationStore.prefill({
     model,
     mode: request.mode,
-    sourceMedia: [request.source],
+    sourceMedia: [{ ...request.source, role: soleAdvertisedRole(modelInfo, request.mode) }],
+    ...(request.prompt === undefined ? {} : { prompt: request.prompt }),
+    ...(request.negativePrompt === undefined ? {} : { negativePrompt: request.negativePrompt }),
+  });
+  return true;
+}
+
+export interface RoleSourcePrefillRequest {
+  providers: ProvidersResponse | null | undefined;
+  role: MediaSlot;
+  preferredModel?: string | null;
+  source: SourceMediaDraft;
+  prompt?: string;
+  negativePrompt?: string;
+}
+
+/**
+ * The role-based counterpart to `prefillSourceForGeneration`, for Library
+ * actions with no single target mode name (`use_as_first_frame` /
+ * `use_as_last_frame`): resolves an enabled model actually capable of the
+ * named role, tags the source with that exact role, and leaves the
+ * *effective* generation mode to Create's own resolver — `mode` here is only
+ * informational compatibility metadata for model-guide-style consumers.
+ */
+export function prefillRoleSourceForGeneration(request: RoleSourcePrefillRequest): boolean {
+  const model = resolveModelForRole(request.providers, request.role, request.preferredModel);
+  if (!model) return false;
+  const modelInfo = findModelInfo(request.providers, model);
+
+  generationStore.prefill({
+    model,
+    mode: modeForRole(modelInfo, request.role) ?? request.role,
+    sourceMedia: [{ ...request.source, role: request.role }],
+    ...(request.prompt === undefined ? {} : { prompt: request.prompt }),
+    ...(request.negativePrompt === undefined ? {} : { negativePrompt: request.negativePrompt }),
+  });
+  return true;
+}
+
+/**
+ * Prefills an executable reference target. The target may be the legacy
+ * roleless i2i route or a provider-defined positional `reference` role;
+ * visibility uses the same resolver before presenting this action.
+ */
+export function prefillReferenceSourceForGeneration(
+  request: Omit<SourcePrefillRequest, 'mode'>,
+): boolean {
+  if (request.source.mediaType !== 'image') return false;
+  const target = resolveModelForReference(request.providers, request.preferredModel);
+  if (!target) return false;
+
+  generationStore.prefill({
+    model: target.model,
+    mode: target.mode,
+    sourceMedia: [{ ...request.source, role: target.role }],
     ...(request.prompt === undefined ? {} : { prompt: request.prompt }),
     ...(request.negativePrompt === undefined ? {} : { negativePrompt: request.negativePrompt }),
   });
@@ -52,6 +128,7 @@ export function sourceMediaDraft(
   assetRef: string,
   media: MediaObject,
   label: string | null,
+  role: MediaSlot | null = null,
 ): SourceMediaDraft {
   return {
     assetRef,
@@ -59,6 +136,7 @@ export function sourceMediaDraft(
     previewUrl: mediaFallbackSrc(media, 512),
     label,
     available: true,
+    role,
   };
 }
 
@@ -94,6 +172,16 @@ function isEnabledModeModel(model: ModelInfo, mode: GenerationMode): boolean {
   return model.is_enabled && mode in model.generation_modes;
 }
 
+/**
+ * Re-Generate preserves the *complete* historical request shape against the
+ * *current* live contract — this is all-or-nothing contract preservation,
+ * never Create's incomplete-draft semantics. A source-consuming contract
+ * (`policy.accepted`) requires `policy.min <= historical count <=
+ * policy.max`; a source-free contract (`!policy.accepted`, whether the mode
+ * is missing from discovery or explicitly advertises no source media)
+ * requires exactly zero historical sources. Never navigate into a draft that
+ * is merely *possible* to complete later — only one that already is.
+ */
 function acceptsReplaySources(
   model: ModelInfo,
   mode: GenerationMode,
@@ -102,15 +190,42 @@ function acceptsReplaySources(
   if (!isEnabledModeModel(model, mode)) return false;
 
   const policy = sourceMediaPolicy(model, mode);
-  if (!policy.accepted || policy.max < sourceMedia.length) return false;
+  if (!policy.accepted) return sourceMedia.length === 0;
+  if (
+    policy.hasUnknownRoles ||
+    sourceMedia.length < policy.min ||
+    sourceMedia.length > policy.max
+  ) {
+    return false;
+  }
 
   // A missing media object is expected for unavailable historical positions.
   // Keep that position intact and let the Create UI require the user to replace it.
+  const positionalRoles = policy.roles;
+  if (positionalRoles !== null) {
+    return sourceMedia.every((source, index) => {
+      if (!source.available) return true;
+      const expectedRole = positionalRoles[index];
+      return source.mediaType !== null && source.mediaType === mediaKindForSlot(expectedRole);
+    });
+  }
+
   return sourceMedia.every(
     (source) =>
       !source.available ||
       (source.mediaType !== null && policy.mediaTypes.includes(source.mediaType)),
   );
+}
+
+/** Assigns the live model's advertised role order onto replay positions — `null` for a roleless contract. */
+function withReplayRoles(
+  sourceMedia: readonly SourceMediaDraft[],
+  modelInfo: ModelInfo | null,
+  mode: GenerationMode,
+): SourceMediaDraft[] {
+  const { roles, hasUnknownRoles } = sourceMediaPolicy(modelInfo, mode);
+  if (roles === null || hasUnknownRoles) return [...sourceMedia];
+  return sourceMedia.map((source, index) => ({ ...source, role: roles[index] }));
 }
 
 /**
@@ -198,7 +313,9 @@ export function replayGenerationPrefill(
     : 't2i';
   if (!group) return { ok: false, reason: 'missing-source' };
 
-  const sourceMedia = [...(group.source_media ?? [])]
+  // Roles are unknown until a live model is resolved below — every position
+  // starts generic here, purely for duplicate/model-fit checks.
+  const positionalSourceMedia = [...(group.source_media ?? [])]
     .sort((a, b) => a.position - b.position)
     .map<SourceMediaDraft>((item) => ({
       assetRef: item.asset_ref,
@@ -206,29 +323,37 @@ export function replayGenerationPrefill(
       previewUrl: item.media ? mediaFallbackSrc(item.media, 512) : null,
       label: sourceMediaLabel(item.asset_ref),
       available: item.available,
+      role: null,
     }));
-  if (new Set(sourceMedia.map((item) => item.assetRef)).size !== sourceMedia.length) {
+  if (
+    new Set(positionalSourceMedia.map((item) => item.assetRef)).size !==
+    positionalSourceMedia.length
+  ) {
     return { ok: false, reason: 'duplicate-source' };
   }
 
-  const model =
-    sourceMedia.length > 0
-      ? resolveModelForReplay({
-          providers,
-          mode,
-          preferredModel: source.model,
-          sourceMedia,
-        })
-      : resolveModelForMode(providers, mode, source.model);
+  // Always resolved through the same source-policy-aware path, whether or
+  // not the historical group owned any sources: a zero-source historical
+  // request must still fail closed against a live mode that now requires
+  // source media, exactly like a nonzero-source request would.
+  const model = resolveModelForReplay({
+    providers,
+    mode,
+    preferredModel: source.model,
+    sourceMedia: positionalSourceMedia,
+  });
   if (!model) {
     return {
       ok: false,
-      reason:
-        sourceMedia.length > 0 && hasEnabledModeModel(providers, mode)
-          ? 'incompatible-source-policy'
-          : 'no-model',
+      reason: hasEnabledModeModel(providers, mode) ? 'incompatible-source-policy' : 'no-model',
     };
   }
+
+  // Hydrate roles from the *live* resolved model's contract, by historical
+  // position — `resolveModelForReplay` already guaranteed the role count
+  // matches exactly when the contract is positional, so this never leaves a
+  // position without its role.
+  const sourceMedia = withReplayRoles(positionalSourceMedia, findModelInfo(providers, model), mode);
 
   return {
     ok: true,

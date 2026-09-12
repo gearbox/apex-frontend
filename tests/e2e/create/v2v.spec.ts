@@ -267,7 +267,9 @@ test.describe('Create — V2V submission', () => {
     expect(capturedBody).toBeNull();
 
     // 9-11: recovery — replace the video with a valid image for Aisha's own I2I.
-    await page.getByRole('button', { name: 'Remove image' }).click();
+    // Phase 3 cleanup (P3.1): a retained *video* is never labelled "Remove
+    // image" just because the new model's own contract is single-image-shaped.
+    await page.getByRole('button', { name: 'Remove source media' }).click();
     const chooseFromLibraryBtn = page.getByRole('button', { name: 'Choose from library' });
     await expect(chooseFromLibraryBtn).toBeVisible();
     await chooseFromLibraryBtn.click();
