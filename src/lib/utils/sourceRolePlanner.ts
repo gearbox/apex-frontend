@@ -1,6 +1,6 @@
 import type { components } from '$lib/api/types';
 import type { SourceMediaDraft } from '$lib/stores/generation';
-import { isMediaSlot, mediaKindForSlot, type MediaSlot } from './mediaSlots';
+import { knownMediaSlots, mediaKindForSlot, type MediaSlot } from './mediaSlots';
 
 type ModelInfo = components['schemas']['ModelInfo'];
 
@@ -33,8 +33,8 @@ function roleCandidatesFor(
 ): RoleCandidate[] {
   const candidates: RoleCandidate[] = [];
   for (const modeInfo of Object.values(modelInfo?.generation_modes ?? {})) {
-    const roles = modeInfo?.source_media?.roles;
-    if (roles != null && roles.every(isMediaSlot) && roles.includes(role)) {
+    const roles = knownMediaSlots(modeInfo?.source_media?.roles);
+    if (roles?.includes(role)) {
       candidates.push({ roles });
     }
   }
@@ -102,7 +102,6 @@ export function planRoleSelection(
     .filter((source) => source.role === null);
 
   const plans = new Map<string, Array<{ index: number; role: MediaSlot }>>();
-  let sawCompatibleCandidate = false;
 
   for (const candidate of roleCandidatesFor(modelInfo, role)) {
     // Every already-fixed role must belong to this candidate, or it can never
@@ -111,13 +110,16 @@ export function planRoleSelection(
 
     const remainingRoles = candidate.roles.filter((r) => r !== role && !fixedRoles.has(r));
     for (const mapping of bijections(free, remainingRoles)) {
-      sawCompatibleCandidate = true;
       plans.set(planKey(mapping), mapping);
     }
   }
 
+  // `plans` only ever gains an entry alongside setting a candidate as
+  // compatible, so an empty result here always means no candidate could
+  // accommodate the draft at all — never a "saw compatible, still failed"
+  // state distinct from `incompatible`.
   if (plans.size === 0) {
-    return { allowed: false, reason: sawCompatibleCandidate ? 'ambiguous' : 'incompatible' };
+    return { allowed: false, reason: 'incompatible' };
   }
   if (plans.size > 1) {
     return { allowed: false, reason: 'ambiguous' };

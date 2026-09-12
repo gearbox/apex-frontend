@@ -170,6 +170,16 @@ function isEnabledModeModel(model: ModelInfo, mode: GenerationMode): boolean {
   return model.is_enabled && mode in model.generation_modes;
 }
 
+/**
+ * Re-Generate preserves the *complete* historical request shape against the
+ * *current* live contract — this is all-or-nothing contract preservation,
+ * never Create's incomplete-draft semantics. A source-consuming contract
+ * (`policy.accepted`) requires `policy.min <= historical count <=
+ * policy.max`; a source-free contract (`!policy.accepted`, whether the mode
+ * is missing from discovery or explicitly advertises no source media)
+ * requires exactly zero historical sources. Never navigate into a draft that
+ * is merely *possible* to complete later — only one that already is.
+ */
 function acceptsReplaySources(
   model: ModelInfo,
   mode: GenerationMode,
@@ -178,12 +188,14 @@ function acceptsReplaySources(
   if (!isEnabledModeModel(model, mode)) return false;
 
   const policy = sourceMediaPolicy(model, mode);
-  if (!policy.accepted || policy.hasUnknownRoles || policy.max < sourceMedia.length) return false;
-  // A positional contract's role count is fixed cardinality (`len(roles) ===
-  // min === max`): a live contract that no longer has exactly as many roles
-  // as the historical group had positions can never preserve that request's
-  // semantics, so it must fail closed rather than partially replay it.
-  if (policy.roles !== null && policy.roles.length !== sourceMedia.length) return false;
+  if (!policy.accepted) return sourceMedia.length === 0;
+  if (
+    policy.hasUnknownRoles ||
+    sourceMedia.length < policy.min ||
+    sourceMedia.length > policy.max
+  ) {
+    return false;
+  }
 
   // A missing media object is expected for unavailable historical positions.
   // Keep that position intact and let the Create UI require the user to replace it.
@@ -318,22 +330,20 @@ export function replayGenerationPrefill(
     return { ok: false, reason: 'duplicate-source' };
   }
 
-  const model =
-    positionalSourceMedia.length > 0
-      ? resolveModelForReplay({
-          providers,
-          mode,
-          preferredModel: source.model,
-          sourceMedia: positionalSourceMedia,
-        })
-      : resolveModelForMode(providers, mode, source.model);
+  // Always resolved through the same source-policy-aware path, whether or
+  // not the historical group owned any sources: a zero-source historical
+  // request must still fail closed against a live mode that now requires
+  // source media, exactly like a nonzero-source request would.
+  const model = resolveModelForReplay({
+    providers,
+    mode,
+    preferredModel: source.model,
+    sourceMedia: positionalSourceMedia,
+  });
   if (!model) {
     return {
       ok: false,
-      reason:
-        positionalSourceMedia.length > 0 && hasEnabledModeModel(providers, mode)
-          ? 'incompatible-source-policy'
-          : 'no-model',
+      reason: hasEnabledModeModel(providers, mode) ? 'incompatible-source-policy' : 'no-model',
     };
   }
 

@@ -26,6 +26,44 @@ export function isMediaSlot(value: string | null | undefined): value is MediaSlo
   return value != null && Object.hasOwn(SLOT_MEDIA_KIND, value);
 }
 
+export interface RoleFilterResult {
+  /** The recognized subset, or `null` when the raw array itself was `null`/`undefined`. */
+  roles: MediaSlot[] | null;
+  /** Whether the raw array contained any value outside the closed vocabulary. */
+  hasUnknownRoles: boolean;
+}
+
+/**
+ * Parses a raw wire-format role array against the closed vocabulary, once,
+ * for every module that reads `source_media.roles` off `ModelInfo`/provider
+ * discovery (the resolver, `sourceMediaPolicy`, and capability helpers all
+ * need this exact recognized-subset-plus-unknown-flag shape).
+ */
+export function filterKnownRoles(rawRoles: readonly string[] | null | undefined): RoleFilterResult {
+  if (rawRoles == null) return { roles: null, hasUnknownRoles: false };
+  return {
+    roles: rawRoles.filter(isMediaSlot),
+    hasUnknownRoles: rawRoles.some((role) => !isMediaSlot(role)),
+  };
+}
+
+/**
+ * Whole-array role validation shared by every capability/affordance helper
+ * that inspects `source_media.roles`. A mode's role array is only ever
+ * usable in full: `null`/`undefined` (a roleless/interchangeable contract)
+ * and "contains any unknown role" (a future/partially-understood positional
+ * contract this frontend cannot safely act on) both yield `null` here, so a
+ * caller that only consumes the non-null case never salvages a single known
+ * role (e.g. `first_frame`) out of a mode whose sibling role is unknown —
+ * the whole mode contributes nothing to role-driven affordances.
+ */
+export function knownMediaSlots(
+  roles: readonly string[] | null | undefined,
+): readonly MediaSlot[] | null {
+  const filtered = filterKnownRoles(roles);
+  return filtered.hasUnknownRoles ? null : filtered.roles;
+}
+
 /** Canonical display order for positional slot UI — first/last frame precede the standalone roles. */
 export const ROLE_DISPLAY_ORDER: readonly MediaSlot[] = [
   'first_frame',

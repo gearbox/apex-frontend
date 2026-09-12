@@ -141,6 +141,25 @@ describe('enabledRoles', () => {
     const providers = singleProviderProviders([makeGrokVideoModelInfo()]);
     expect(enabledRoles(providers)).toEqual(new Set());
   });
+
+  it('fails closed per mode: a partially-unknown role array contributes no known roles, even first_frame', () => {
+    const providers = singleProviderProviders([
+      makeAishaVideoModelInfo({
+        generation_modes: generationModes(['t2v', 'i2v', 'flf2v'], {
+          i2v: { min: 1, max: 1, media_types: ['image'], roles: ['first_frame'] },
+          flf2v: {
+            min: 2,
+            max: 2,
+            media_types: ['image'],
+            roles: ['first_frame', 'future_magic_slot'] as never,
+          },
+        }),
+      }),
+    ]);
+    // flf2v's first_frame must not leak through even though a companion role
+    // is unknown — but i2v still fully and separately advertises first_frame.
+    expect(enabledRoles(providers)).toEqual(new Set(['first_frame']));
+  });
 });
 
 describe('resolveModelForRole', () => {
@@ -195,6 +214,22 @@ describe('resolveModelForRole', () => {
       }),
     ]);
     expect(resolveModelForRole(providers, 'last_frame')).toBeNull();
+  });
+
+  it('fails closed per mode: never resolves a model through a mode whose role array also contains an unknown role', () => {
+    const providers = singleProviderProviders([
+      makeAishaVideoModelInfo({
+        generation_modes: generationModes(['t2v', 'flf2v'], {
+          flf2v: {
+            min: 2,
+            max: 2,
+            media_types: ['image'],
+            roles: ['first_frame', 'future_magic_slot'] as never,
+          },
+        }),
+      }),
+    ]);
+    expect(resolveModelForRole(providers, 'first_frame')).toBeNull();
   });
 });
 
@@ -252,6 +287,24 @@ describe('resolveModelForReference', () => {
       resolveModelForReference(singleProviderProviders([makeAishaVideoModelInfo()])),
     ).toBeNull();
   });
+
+  it('fails closed per mode: ignores a mode advertising reference alongside an unknown companion role', () => {
+    const providers = singleProviderProviders([
+      makeGrokImageModelInfo({
+        model_key: 'broken-reference-edit',
+        generation_modes: generationModes(['t2i', 'custom-edit'], {
+          t2i: null,
+          'custom-edit': {
+            min: 2,
+            max: 2,
+            media_types: ['image'],
+            roles: ['reference', 'future_magic_slot'] as never,
+          },
+        }),
+      }),
+    ]);
+    expect(resolveModelForReference(providers)).toBeNull();
+  });
 });
 
 describe('modeForRole', () => {
@@ -262,6 +315,35 @@ describe('modeForRole', () => {
 
   it('returns null when no mode advertises the role', () => {
     expect(modeForRole(makeGrokVideoModelInfo(), 'first_frame')).toBeNull();
+  });
+
+  it('fails closed per mode: skips a mode whose role array contains an unknown companion role', () => {
+    const model = makeAishaVideoModelInfo({
+      generation_modes: generationModes(['t2v', 'flf2v'], {
+        flf2v: {
+          min: 2,
+          max: 2,
+          media_types: ['image'],
+          roles: ['first_frame', 'future_magic_slot'] as never,
+        },
+      }),
+    });
+    expect(modeForRole(model, 'first_frame')).toBeNull();
+  });
+
+  it('still finds the role through a separate, fully-known mode when another mode is partially unknown', () => {
+    const model = makeAishaVideoModelInfo({
+      generation_modes: generationModes(['t2v', 'i2v', 'flf2v'], {
+        i2v: { min: 1, max: 1, media_types: ['image'], roles: ['first_frame'] },
+        flf2v: {
+          min: 2,
+          max: 2,
+          media_types: ['image'],
+          roles: ['first_frame', 'future_magic_slot'] as never,
+        },
+      }),
+    });
+    expect(modeForRole(model, 'first_frame')).toBe('i2v');
   });
 });
 
@@ -294,5 +376,19 @@ describe('soleAdvertisedRole', () => {
       }),
     });
     expect(soleAdvertisedRole(model, 'future-edit')).toBeNull();
+  });
+
+  it('never salvages a known role from a mode array that also contains an unknown role', () => {
+    const model = makeAishaVideoModelInfo({
+      generation_modes: generationModes(['t2v', 'flf2v'], {
+        flf2v: {
+          min: 2,
+          max: 2,
+          media_types: ['image'],
+          roles: ['first_frame', 'future_magic_slot'] as never,
+        },
+      }),
+    });
+    expect(soleAdvertisedRole(model, 'flf2v')).toBeNull();
   });
 });

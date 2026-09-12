@@ -6,6 +6,7 @@
     source,
     detail,
     removeLabel,
+    replaceLabel,
     onremove,
     onreplace,
     position = null,
@@ -13,6 +14,7 @@
     source: SourceMediaDraft;
     detail: string;
     removeLabel: string;
+    replaceLabel: string;
     onremove: () => void;
     onreplace?: (() => void) | undefined;
     position?: string | number | null;
@@ -51,7 +53,7 @@
     <button
       type="button"
       onclick={onreplace}
-      class="rounded-md px-2 py-1 text-xs text-accent hover:bg-accent/10">Replace</button
+      class="rounded-md px-2 py-1 text-xs text-accent hover:bg-accent/10">{replaceLabel}</button
     >
   {/if}
   <button

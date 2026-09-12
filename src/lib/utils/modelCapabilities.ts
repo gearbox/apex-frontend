@@ -1,5 +1,5 @@
 import type { components } from '$lib/api/types';
-import { isMediaSlot } from './mediaSlots';
+import { filterKnownRoles } from './mediaSlots';
 
 type ModelInfo = components['schemas']['ModelInfo'];
 type AspectRatio = components['schemas']['AspectRatio'];
@@ -29,15 +29,15 @@ export function sourceMediaPolicy(
 ): SourceMediaPolicy {
   const constraints = modelInfo?.generation_modes?.[generationType]?.source_media;
   if (constraints) {
-    const rawRoles = constraints.roles ?? null;
+    const { roles, hasUnknownRoles } = filterKnownRoles(constraints.roles);
     return {
       accepted: true,
       required: constraints.min > 0,
       min: constraints.min,
       max: constraints.max,
       mediaTypes: constraints.media_types,
-      roles: rawRoles === null ? null : rawRoles.filter(isMediaSlot),
-      hasUnknownRoles: rawRoles?.some((role) => !isMediaSlot(role)) ?? false,
+      roles,
+      hasUnknownRoles,
     };
   }
 

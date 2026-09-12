@@ -344,6 +344,7 @@
             ? (occupant.mediaType ?? 'unknown')
             : m.create_source_role_unavailable()}
           removeLabel={m.create_source_remove_role({ role: roleLabel(role).toLowerCase() })}
+          replaceLabel={m.create_source_replace()}
           onremove={() =>
             occupantIndex !== null && generationStore.removeSourceMedia(occupantIndex)}
           onreplace={occupant.available ? undefined : () => openRolePicker(role)}
@@ -396,6 +397,7 @@
           entry.source.mediaType === 'image'
             ? m.create_source_remove_image()
             : m.create_source_remove_media()}
+          replaceLabel={m.create_source_replace()}
           onremove={() => generationStore.removeSourceMedia(entry.index)}
           onreplace={entry.source.available ? undefined : () => openPicker(entry.index)}
         />
@@ -412,6 +414,7 @@
             role: roleDescription(entry.source.role),
           })}
           removeLabel={m.create_source_remove_media()}
+          replaceLabel={m.create_source_replace()}
           onremove={() => generationStore.removeSourceMedia(entry.index)}
         />
       {/each}

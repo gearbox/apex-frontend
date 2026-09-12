@@ -188,6 +188,41 @@ describe('roleSlotsForModel', () => {
     });
     expect(roleSlotsForModel(modelInfo)).toEqual([]);
   });
+
+  it('fails closed per mode: ignores the entire partially-unknown mode, not merely its unknown role', () => {
+    const modelInfo = makeModelInfo({
+      generation_modes: {
+        flf2v: {
+          source_media: {
+            min: 2,
+            max: 2,
+            media_types: ['image'],
+            roles: ['first_frame', 'future_magic_slot'] as never,
+          },
+        },
+      },
+    });
+    // first_frame must not leak through even though it is individually known —
+    // its sibling role in the same mode is unknown, so the whole mode is unusable.
+    expect(roleSlotsForModel(modelInfo)).toEqual([]);
+  });
+
+  it('still exposes a role through a separate, fully-known mode when another mode is partially unknown', () => {
+    const modelInfo = makeModelInfo({
+      generation_modes: {
+        i2v: { source_media: { min: 1, max: 1, media_types: ['image'], roles: ['first_frame'] } },
+        flf2v: {
+          source_media: {
+            min: 2,
+            max: 2,
+            media_types: ['image'],
+            roles: ['first_frame', 'future_magic_slot'] as never,
+          },
+        },
+      },
+    });
+    expect(roleSlotsForModel(modelInfo)).toEqual(['first_frame']);
+  });
 });
 
 describe('sourceIndexForRole / interchangeableSourceMedia', () => {

@@ -225,6 +225,97 @@ describe('replayGenerationPrefill', () => {
     ).toEqual({ ok: false, reason: 'incompatible-source-policy' });
   });
 
+  it('fails closed when the live roleless minimum increases beyond the historical source count', () => {
+    const discovery = providers([
+      makeGrokImageModelInfo({
+        generation_modes: generationModes(['custom-edit'], {
+          'custom-edit': { min: 2, max: 2, media_types: ['image'], roles: null },
+        }),
+      }),
+    ]);
+
+    expect(
+      replayGenerationPrefill(
+        { generation_type: 'custom-edit', model: 'grok-imagine-image', prompt: 'original prompt' },
+        discovery,
+        group({
+          source_media: [
+            {
+              position: 0,
+              asset_ref: 'upload:first',
+              available: true,
+              media: sourceMedia('image'),
+            },
+          ],
+        }),
+      ),
+    ).toEqual({ ok: false, reason: 'incompatible-source-policy' });
+  });
+
+  it('fails closed when a zero-source historical group replays into a mode that now requires source media', () => {
+    const discovery = providers([
+      makeGrokImageModelInfo({
+        generation_modes: generationModes(['i2i'], {
+          i2i: { min: 1, max: 4, media_types: ['image'], roles: null },
+        }),
+      }),
+    ]);
+
+    expect(
+      replayGenerationPrefill(
+        { generation_type: 'i2i', model: 'grok-imagine-image', prompt: 'original prompt' },
+        discovery,
+        group({ generation_type: 'i2i', source_media: [] }),
+      ),
+    ).toEqual({ ok: false, reason: 'incompatible-source-policy' });
+  });
+
+  it('replays a zero-source historical group into a still source-free mode', () => {
+    const discovery = providers([
+      makeGrokVideoModelInfo({ generation_modes: generationModes(['t2v']) }),
+    ]);
+
+    const result = replayGenerationPrefill(
+      { generation_type: 't2v', model: 'grok-imagine-video', prompt: 'original prompt' },
+      discovery,
+      group({ generation_type: 't2v', media_type: 'video', source_media: [] }),
+    );
+
+    expect(result).toMatchObject({ ok: true });
+    if (result.ok) {
+      expect(result.params.sourceMedia).toEqual([]);
+    }
+  });
+
+  it('replays a valid roleless source count that satisfies the live min/max', () => {
+    const discovery = providers([
+      makeGrokImageModelInfo({
+        generation_modes: generationModes(['custom-edit'], {
+          'custom-edit': { min: 1, max: 3, media_types: ['image'], roles: null },
+        }),
+      }),
+    ]);
+
+    const result = replayGenerationPrefill(
+      { generation_type: 'custom-edit', model: 'grok-imagine-image', prompt: 'original prompt' },
+      discovery,
+      group({
+        source_media: [
+          { position: 0, asset_ref: 'upload:first', available: true, media: sourceMedia('image') },
+          { position: 1, asset_ref: 'upload:second', available: true, media: sourceMedia('image') },
+        ],
+      }),
+    );
+
+    expect(result).toMatchObject({ ok: true });
+    if (result.ok) {
+      expect(result.params.sourceMedia?.map((item) => item.assetRef)).toEqual([
+        'upload:first',
+        'upload:second',
+      ]);
+    }
+  });
+
   it('requires every available persisted media kind to be accepted by the replay model', () => {
     const discovery = providers([
       makeGrokImageModelInfo({

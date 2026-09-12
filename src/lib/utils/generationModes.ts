@@ -1,6 +1,6 @@
 import type { components } from '$lib/api/types';
 import type { GenerationMode } from '$lib/stores/generation';
-import { isMediaSlot, mediaKindForSlot, type MediaSlot } from './mediaSlots';
+import { knownMediaSlots, mediaKindForSlot, type MediaSlot } from './mediaSlots';
 
 export type { GenerationMode };
 
@@ -60,8 +60,8 @@ export function enabledRoles(providers: ProvidersResponse | null | undefined): S
     for (const model of provider.models) {
       if (!model.is_enabled) continue;
       for (const modeInfo of Object.values(model.generation_modes)) {
-        for (const role of modeInfo?.source_media?.roles ?? []) {
-          if (isMediaSlot(role)) roles.add(role);
+        for (const role of knownMediaSlots(modeInfo?.source_media?.roles) ?? []) {
+          roles.add(role);
         }
       }
     }
@@ -74,11 +74,9 @@ function isCapableEnabledModelForRole(model: ModelInfo, role: MediaSlot): boolea
   const mediaKind = mediaKindForSlot(role);
   return Object.values(model.generation_modes).some((modeInfo) => {
     const constraints = modeInfo?.source_media;
+    if (!constraints) return false;
     return (
-      constraints?.roles != null &&
-      constraints.roles.some(
-        (advertisedRole) => isMediaSlot(advertisedRole) && advertisedRole === role,
-      ) &&
+      knownMediaSlots(constraints.roles)?.includes(role) === true &&
       constraints.media_types.includes(mediaKind)
     );
   });
@@ -144,13 +142,9 @@ export function modeForRole(
   role: MediaSlot,
 ): GenerationMode | null {
   const modes = Object.entries(modelInfo?.generation_modes ?? {})
-    .filter(([, info]) =>
-      info?.source_media?.roles?.some(
-        (advertisedRole) => isMediaSlot(advertisedRole) && advertisedRole === role,
-      ),
-    )
+    .filter(([, info]) => knownMediaSlots(info?.source_media?.roles)?.includes(role) === true)
     .map(([mode]) => mode)
-    .sort();
+    .sort((a, b) => a.localeCompare(b));
   return modes[0] ?? null;
 }
 
@@ -165,8 +159,8 @@ export function soleAdvertisedRole(
   modelInfo: ModelInfo | null | undefined,
   mode: GenerationMode,
 ): MediaSlot | null {
-  const roles = modelInfo?.generation_modes?.[mode]?.source_media?.roles;
-  return roles != null && roles.length === 1 && isMediaSlot(roles[0]) ? roles[0] : null;
+  const roles = knownMediaSlots(modelInfo?.generation_modes?.[mode]?.source_media?.roles);
+  return roles?.length === 1 ? roles[0] : null;
 }
 
 export function findModelInfo(
@@ -218,24 +212,21 @@ function referenceTargetForModel(model: ModelInfo): Omit<ReferenceModelTarget, '
   // reference role remains available for providers that expose a future
   // reference-shaped mode without i2i.
   const rolelessI2i = model.generation_modes.i2i?.source_media;
-  if (
-    rolelessI2i &&
-    (rolelessI2i?.roles ?? null) === null &&
-    rolelessI2i.media_types.includes('image')
-  ) {
+  if (rolelessI2i?.roles == null && rolelessI2i?.media_types.includes('image')) {
     return { mode: 'i2i', role: null };
   }
 
   const namedReferenceMode = Object.entries(model.generation_modes)
     .filter(([, modeInfo]) => {
       const constraints = modeInfo?.source_media;
+      if (!constraints) return false;
       return (
-        constraints?.roles?.some((role) => isMediaSlot(role) && role === 'reference') === true &&
+        knownMediaSlots(constraints.roles)?.includes('reference') === true &&
         constraints.media_types.includes(mediaKindForSlot('reference'))
       );
     })
     .map(([mode]) => mode)
-    .sort()[0];
+    .sort((a, b) => a.localeCompare(b))[0];
   return namedReferenceMode ? { mode: namedReferenceMode, role: 'reference' } : null;
 }
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   compareRoleDisplayOrder,
   isMediaSlot,
+  knownMediaSlots,
   mediaKindForSlot,
   ROLE_DISPLAY_ORDER,
   roleLabel,
@@ -43,6 +44,22 @@ describe('ROLE_DISPLAY_ORDER / compareRoleDisplayOrder', () => {
     for (const role of ['reference', 'first_frame', 'last_frame', 'source'] as const) {
       expect(ROLE_DISPLAY_ORDER).toContain(role);
     }
+  });
+});
+
+describe('knownMediaSlots', () => {
+  it('returns null for a null/undefined role array (roleless/interchangeable contract)', () => {
+    expect(knownMediaSlots(null)).toBeNull();
+    expect(knownMediaSlots(undefined)).toBeNull();
+  });
+
+  it('returns the typed array when every role is known', () => {
+    expect(knownMediaSlots(['first_frame', 'last_frame'])).toEqual(['first_frame', 'last_frame']);
+  });
+
+  it('fails closed to null when any role in the array is unknown, even alongside known ones', () => {
+    expect(knownMediaSlots(['first_frame', 'future_magic_slot'])).toBeNull();
+    expect(knownMediaSlots(['future_magic_slot'])).toBeNull();
   });
 });
 

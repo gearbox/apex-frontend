@@ -1,5 +1,5 @@
 import type { components } from '$lib/api/types';
-import { isMediaSlot, mediaKindForSlot, type MediaSlot } from './mediaSlots';
+import { filterKnownRoles, isMediaSlot, mediaKindForSlot, type MediaSlot } from './mediaSlots';
 
 type ModelInfo = components['schemas']['ModelInfo'];
 type SourceMediaModeConstraints = components['schemas']['SourceMediaModeConstraints'];
@@ -71,14 +71,8 @@ function toConstraints(
   raw: SourceMediaModeConstraints | null | undefined,
 ): SourceConstraints | null {
   if (raw == null) return null;
-  const rawRoles = raw.roles ?? null;
-  return {
-    min: raw.min,
-    max: raw.max,
-    mediaTypes: raw.media_types,
-    roles: rawRoles === null ? null : rawRoles.filter(isMediaSlot),
-    hasUnknownRoles: rawRoles?.some((role) => !isMediaSlot(role)) ?? false,
-  };
+  const { roles, hasUnknownRoles } = filterKnownRoles(raw.roles);
+  return { min: raw.min, max: raw.max, mediaTypes: raw.media_types, roles, hasUnknownRoles };
 }
 
 /**

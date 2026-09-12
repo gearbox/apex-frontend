@@ -149,6 +149,22 @@ describe('planRoleSelection — ambiguous promotion', () => {
     expect(plan).toEqual({ allowed: false, reason: 'ambiguous' });
   });
 
+  it('fails closed per mode: a mode with an unknown companion role is never a candidate, even for its known role', () => {
+    const modes: Record<string, GenerationModeInfo> = {
+      flf2v: {
+        source_media: {
+          min: 2,
+          max: 2,
+          media_types: ['image'],
+          roles: ['first_frame', 'future_magic_slot'] as never,
+        },
+      },
+    };
+    const modelInfo = makeModelInfo({ generation_modes: modes });
+    const plan = planRoleSelection(modelInfo, [], 'first_frame');
+    expect(plan).toEqual({ allowed: false, reason: 'incompatible' });
+  });
+
   it('does not drop a free source that cannot fit any remaining role', () => {
     const modes: Record<string, GenerationModeInfo> = {
       pair: {
