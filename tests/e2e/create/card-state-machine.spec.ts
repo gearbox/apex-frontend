@@ -1,64 +1,29 @@
 import { test, expect } from '../fixtures/auth.fixture';
 import { test as anonTest, type Page } from '@playwright/test';
+import type { components } from '../../../src/lib/api/types';
+import { generationModes, makeGrokImageModelInfo } from '../../../src/mocks/factories/providers';
+import {
+  makeDeploymentResponse,
+  makeGpuSessionListResponse,
+  makeGpuSessionResponse,
+  makeStopConfirmationResponse,
+} from '../../../src/mocks/factories/session';
+import {
+  makeAishaProviderResponse,
+  makeGrokProviderResponse,
+  makeModelRuntime,
+} from '../helpers/providers';
 
-// Shared providers helper
-function makeAishaProvider(state: string, available = true) {
-  return {
-    providers: [
-      {
-        provider: 'aisha',
-        name: 'Aisha',
-        available,
-        provisioning_mode: 'on_demand',
-        models: [
-          {
-            model_key: 'aisha-image',
-            name: 'Aisha',
-            description: 'Aisha image model',
-            generation_modes: {
-              t2i: { source_media: null },
-              i2i: { source_media: { min: 1, max: 4, media_types: ['image'], roles: null } },
-            },
-            is_enabled: true,
-            max_images: 4,
-            max_prompt_length: 4096,
-            supports_negative_prompt: true,
-            aspect_ratios: ['1:1'],
-            image: null,
-            video: null,
-            runtime: {
-              state,
-              session_id: state === 'none' ? null : 'sess_mock',
-              deployment_id: state === 'none' ? null : 'deploy_mock',
-              operation_id: state === 'provisioning' ? 'op_mock' : null,
-            },
-          },
-        ],
-      },
-    ],
-    user_context: null,
-  };
-}
+type GpuSessionStatus = components['schemas']['GpuSessionStatus'];
 
-const makeSession = (status: string, id = 'sess_mock') => ({
-  id,
-  user_id: 'usr_001',
-  product_id: 'prod_001',
-  status,
-  tunnel_hostname: status === 'active' ? 'tunnel.example.com' : null,
-  vastai_gpu_name: 'RTX 4090',
-  vastai_cost_per_hour_micros: 50000,
-  created_at: '2026-06-20T00:00:00Z',
-  started_at: status === 'active' ? '2026-06-20T00:01:00Z' : null,
-  paused_at: null,
-  resumed_at: null,
-  stopped_at: null,
-  error_message: null,
-  in_flight_job_count: 0,
-  deployments: [
-    { id: 'deploy_mock', model_type: 'aisha-image', status: 'active', is_primary: true },
-  ],
-});
+const makeSession = (status: GpuSessionStatus, id = 'sess_mock') =>
+  makeGpuSessionResponse({
+    id,
+    status,
+    tunnel_hostname: status === 'active' ? 'tunnel.example.com' : null,
+    started_at: status === 'active' ? '2026-06-20T00:01:00Z' : null,
+    deployments: [makeDeploymentResponse({ id: 'deploy_mock' })],
+  });
 
 function setupCommonRoutes(page: Page) {
   return Promise.all([
@@ -95,7 +60,7 @@ anonTest(
       r.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify(makeAishaProvider('none')),
+        body: JSON.stringify(makeAishaProviderResponse()),
       }),
     );
     await page.route('**/v1/sessions', (r) =>
@@ -123,7 +88,7 @@ test('Unavailable model shows no Start CTA (finding-#3 regression guard)', async
     r.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(makeAishaProvider('none', false)),
+      body: JSON.stringify(makeAishaProviderResponse({ available: false })),
     }),
   );
   await page.route('**/v1/sessions', (r) =>
@@ -147,12 +112,12 @@ test('NEEDS_SESSION: Start triggers mutation and shows Cancel during provisionin
 }) => {
   await setupCommonRoutes(page);
 
-  let sessionState = 'none';
+  let sessionState: components['schemas']['RuntimeState'] = 'none';
   await page.route('**/v1/providers', (r) =>
     r.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(makeAishaProvider(sessionState as never)),
+      body: JSON.stringify(makeAishaProviderResponse({ runtime: makeModelRuntime(sessionState) })),
     }),
   );
 
@@ -171,9 +136,11 @@ test('NEEDS_SESSION: Start triggers mutation and shows Cancel during provisionin
         await r.fulfill({
           status: 200,
           contentType: 'application/json',
-          body: JSON.stringify({
-            sessions: sessionState === 'none' ? [] : [makeSession('provisioning')],
-          }),
+          body: JSON.stringify(
+            sessionState === 'none'
+              ? { sessions: [] }
+              : makeGpuSessionListResponse([makeSession('provisioning')]),
+          ),
         });
       }
     },
@@ -205,7 +172,9 @@ test('runtime session ID drives Cancel while the sessions-list snapshot is empty
     r.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(makeAishaProvider('provisioning')),
+      body: JSON.stringify(
+        makeAishaProviderResponse({ runtime: makeModelRuntime('provisioning') }),
+      ),
     }),
   );
   // Deliberately disagree with the authoritative runtime association.
@@ -231,16 +200,13 @@ test('runtime session ID drives Cancel while the sessions-list snapshot is empty
     await r.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({
-        session_id: 'sess_mock',
-        model_type: 'aisha-image',
-        vastai_gpu_name: 'RTX 4090',
-        vastai_cost_per_hour_micros: 50000,
-        active_duration_seconds: 0,
-        paused_duration_seconds: 0,
-        estimated_final_tokens: 0,
-        message: 'Cancel this session.',
-      }),
+      body: JSON.stringify(
+        makeStopConfirmationResponse({
+          active_duration_seconds: 0,
+          estimated_final_tokens: 0,
+          message: 'Cancel this session.',
+        }),
+      ),
     });
   });
 
@@ -265,32 +231,19 @@ test('always_on model is READY — Generate enabled, no session panel chrome', a
     r.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({
-        providers: [
-          {
-            provider: 'grok',
-            name: 'xAI Grok',
-            available: true,
-            provisioning_mode: 'always_on',
-            models: [
-              {
-                model_key: 'grok-imagine-image',
-                name: 'Grok Imagine',
-                description: 'Fast model',
-                generation_modes: { t2i: { source_media: null } },
-                is_enabled: true,
-                max_images: 4,
-                max_prompt_length: 4096,
-                supports_negative_prompt: false,
-                aspect_ratios: ['1:1'],
-                image: null,
-                video: null,
-              },
-            ],
-          },
-        ],
-        user_context: null,
-      }),
+      body: JSON.stringify(
+        makeGrokProviderResponse({
+          models: [
+            makeGrokImageModelInfo({
+              description: 'Fast model',
+              generation_modes: generationModes(['t2i']),
+              max_images: 4,
+              aspect_ratios: ['1:1'],
+              image: null,
+            }),
+          ],
+        }),
+      ),
     }),
   );
   await page.route('**/v1/sessions', (r) =>
@@ -321,7 +274,7 @@ test('READY (on_demand active session): Stop button visible and Generate enabled
     r.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(makeAishaProvider('active')),
+      body: JSON.stringify(makeAishaProviderResponse({ runtime: makeModelRuntime('active') })),
     }),
   );
   await page.route(
@@ -330,7 +283,7 @@ test('READY (on_demand active session): Stop button visible and Generate enabled
       r.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ sessions: [makeSession('active')] }),
+        body: JSON.stringify(makeGpuSessionListResponse([makeSession('active')])),
       }),
   );
   await page.route('**/v1/sessions/*', (r) =>
@@ -357,14 +310,14 @@ test('STALE session: Stop button visible and Generate disabled', async ({
     r.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(makeAishaProvider('stale')),
+      body: JSON.stringify(makeAishaProviderResponse({ runtime: makeModelRuntime('stale') })),
     }),
   );
   await page.route('**/v1/sessions', (r) =>
     r.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ sessions: [makeSession('stale')] }),
+      body: JSON.stringify(makeGpuSessionListResponse([makeSession('stale')])),
     }),
   );
   await page.route('**/v1/sessions/*', (r) =>
@@ -391,7 +344,7 @@ test('Stop button opens StopSessionModal; confirm calls stop endpoint', async ({
     r.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(makeAishaProvider('active')),
+      body: JSON.stringify(makeAishaProviderResponse({ runtime: makeModelRuntime('active') })),
     }),
   );
   await page.route(
@@ -401,7 +354,7 @@ test('Stop button opens StopSessionModal; confirm calls stop endpoint', async ({
         await r.fulfill({
           status: 200,
           contentType: 'application/json',
-          body: JSON.stringify({ sessions: [makeSession('active')] }),
+          body: JSON.stringify(makeGpuSessionListResponse([makeSession('active')])),
         });
       }
     },
@@ -419,16 +372,7 @@ test('Stop button opens StopSessionModal; confirm calls stop endpoint', async ({
       await r.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({
-          session_id: 'sess_mock',
-          model_type: 'aisha-image',
-          vastai_gpu_name: 'RTX 4090',
-          vastai_cost_per_hour_micros: 50000,
-          active_duration_seconds: 3600,
-          paused_duration_seconds: 0,
-          estimated_final_tokens: 500,
-          message: 'Stopping this session will finalize billing.',
-        }),
+        body: JSON.stringify(makeStopConfirmationResponse()),
       });
     } else {
       await r.fulfill({

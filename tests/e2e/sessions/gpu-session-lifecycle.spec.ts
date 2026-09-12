@@ -1,6 +1,10 @@
 import { test, expect } from '../fixtures/auth.fixture';
 import { jsonRoute } from '../helpers/api';
-import { GpuSessionScenario } from '../helpers/gpuSessionScenario';
+import {
+  attachScenarioModelFromSessionsPage,
+  GpuSessionScenario,
+  startActiveGpuSessionScenario,
+} from '../helpers/gpuSessionScenario';
 
 /**
  * Phase 3 workstream 1 — cross-surface lifecycle integration.
@@ -66,12 +70,7 @@ test.describe('GPU session cross-surface lifecycle', () => {
     });
 
     await test.step('C. Attach another model — none -> provisioning -> suspended -> active', async () => {
-      await page.goto('/app/sessions');
-      await expect(page.getByRole('button', { name: 'Add model' })).toBeVisible({ timeout: 8000 });
-      await page.getByRole('button', { name: 'Add model' }).click();
-      await page.getByRole('dialog').getByText('Aisha Lite').click();
-
-      await expect.poll(() => scenario.attachRequestBodies().length).toBe(1);
+      await attachScenarioModelFromSessionsPage(page, scenario, 'Aisha Lite');
       expect(scenario.attachRequestBodies().at(-1)).toEqual({ model: 'aisha-image-lite' });
       // The operation is immediately visible from the canonical cache on attach's 202 response.
       await expect(page.getByText('Deploying')).toBeVisible({ timeout: 5000 });
@@ -197,20 +196,16 @@ test.describe('GPU session failure and recovery', () => {
     authenticatedPage: page,
   }) => {
     await setupCommon(page);
-    const scenario = new GpuSessionScenario([
-      { modelType: 'aisha-image', name: 'Aisha' },
-      { modelType: 'aisha-image-lite', name: 'Aisha Lite' },
-    ]);
-    await scenario.install(page);
+    const scenario = await startActiveGpuSessionScenario(
+      page,
+      [
+        { modelType: 'aisha-image', name: 'Aisha' },
+        { modelType: 'aisha-image-lite', name: 'Aisha Lite' },
+      ],
+      'aisha-image',
+    );
 
-    scenario.startSession('aisha-image');
-    scenario.completeBootstrap();
-
-    await page.goto('/app/sessions');
-    await expect(page.getByRole('button', { name: 'Add model' })).toBeVisible({ timeout: 8000 });
-    await page.getByRole('button', { name: 'Add model' }).click();
-    await page.getByRole('dialog').getByText('Aisha Lite').click();
-    await expect.poll(() => scenario.attachRequestBodies().length).toBe(1);
+    await attachScenarioModelFromSessionsPage(page, scenario, 'Aisha Lite');
     await expect(page.getByText('Deploying')).toBeVisible({ timeout: 5000 });
 
     scenario.failAttach('aisha-image-lite', 'Bundle provisioning failed: disk quota exceeded');
@@ -237,11 +232,11 @@ test.describe('GPU session failure and recovery', () => {
     authenticatedPage: page,
   }) => {
     await setupCommon(page);
-    const scenario = new GpuSessionScenario([{ modelType: 'aisha-image', name: 'Aisha' }]);
-    await scenario.install(page);
-
-    scenario.startSession('aisha-image');
-    scenario.completeBootstrap();
+    const scenario = await startActiveGpuSessionScenario(
+      page,
+      [{ modelType: 'aisha-image', name: 'Aisha' }],
+      'aisha-image',
+    );
 
     await page.goto('/app/create?prompt=lifecycle+test');
     await page.getByRole('button', { name: /Aisha$/ }).click();

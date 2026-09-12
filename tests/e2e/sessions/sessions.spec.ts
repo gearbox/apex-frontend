@@ -1,130 +1,78 @@
 import { test, expect } from '../fixtures/auth.fixture';
+import type { Page, Route } from '@playwright/test';
+import type { components } from '../../../src/lib/api/types';
+import {
+  makeAishaImageLiteModelInfo,
+  makeAishaImageModelInfo,
+} from '../../../src/mocks/factories/providers';
+import {
+  makeDeploymentResponse,
+  makeGpuSessionListResponse,
+  makeGpuSessionResponse,
+  makeOperationResponse,
+  makeStopConfirmationResponse,
+} from '../../../src/mocks/factories/session';
 import { jsonRoute } from '../helpers/api';
+import { makeAishaProviderResponse, makeModelRuntime } from '../helpers/providers';
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
 
-const mockProviders = {
-  providers: [
-    {
-      provider: 'aisha',
-      name: 'Aisha',
-      available: true,
-      provisioning_mode: 'on_demand',
-      models: [
-        {
-          model_key: 'aisha-image',
-          name: 'Aisha',
-          generation_modes: {
-            t2i: { source_media: null },
-            i2i: { source_media: { min: 1, max: 1, media_types: ['image'], roles: null } },
-          },
-          is_enabled: true,
-          max_images: 4,
-          max_prompt_length: 4096,
-          supports_negative_prompt: true,
-          aspect_ratios: ['1:1'],
-          image: null,
-          video: null,
-          runtime: {
-            state: 'none',
-            session_id: null,
-            deployment_id: null,
-            operation_id: null,
-          },
-          provisioning: {
-            typical_bootstrap_seconds: 600,
-            typical_attach_seconds: 360,
-          },
-        },
-      ],
-    },
-  ],
-  user_context: null,
-};
+type GpuSessionResponse = components['schemas']['GpuSessionResponse'];
+type DeploymentResponse = components['schemas']['DeploymentResponse'];
 
-const mockProvidersWithDistinctProvisioningHints = {
-  ...mockProviders,
-  providers: [
-    {
-      ...mockProviders.providers[0],
-      models: [
-        ...mockProviders.providers[0].models,
-        {
-          model_key: 'aisha-image-lite',
-          name: 'Aisha Lite',
-          generation_modes: { t2i: { source_media: null } },
-          is_enabled: true,
-          max_images: 4,
-          max_prompt_length: 4096,
-          supports_negative_prompt: false,
-          unsupported_parameters: ['negative_prompt'],
-          requires_age_verification: true,
-          aspect_ratios: ['1:1'],
-          image: null,
-          video: null,
-          runtime: {
-            state: 'none',
-            session_id: null,
-            deployment_id: null,
-            operation_id: null,
-          },
-          provisioning: {
-            typical_bootstrap_seconds: 180,
-            typical_attach_seconds: 120,
-          },
-        },
-      ],
-    },
-  ],
-};
+const mockProviders = makeAishaProviderResponse();
 
-const mockProvisioningSession = {
+const mockProvidersWithDistinctProvisioningHints = makeAishaProviderResponse({
+  models: [
+    makeAishaImageModelInfo({
+      runtime: makeModelRuntime(),
+      provisioning: { typical_bootstrap_seconds: 600, typical_attach_seconds: 360 },
+    }),
+    makeAishaImageLiteModelInfo({
+      runtime: makeModelRuntime(),
+      provisioning: { typical_bootstrap_seconds: 180, typical_attach_seconds: 120 },
+    }),
+  ],
+});
+
+const mockProvisioningSession = makeGpuSessionResponse({
   id: 'sess_prov',
-  user_id: 'usr_001',
-  product_id: 'prod_001',
   status: 'provisioning',
   tunnel_hostname: null,
   vastai_gpu_name: null,
-  vastai_cost_per_hour_micros: 50000,
-  created_at: '2026-06-20T00:00:00Z',
   started_at: null,
-  paused_at: null,
-  resumed_at: null,
-  stopped_at: null,
-  error_message: null,
-  in_flight_job_count: 0,
   deployments: [
-    { id: 'deploy_prov', model_type: 'aisha-image', status: 'deploying', is_primary: true },
+    makeDeploymentResponse({ id: 'deploy_prov', status: 'deploying', activated_at: null }),
+  ],
+});
+
+const mockActiveSession: GpuSessionResponse & { deployments: DeploymentResponse[] } = {
+  ...makeGpuSessionResponse({
+    id: 'sess_active',
+    status: 'active',
+    tunnel_hostname: 'tunnel.example.com',
+    vastai_gpu_name: 'RTX 4090',
+    started_at: '2026-06-20T00:01:00Z',
+  }),
+  // Existing focused specs intentionally model an active session while its primary deployment
+  // still reconciles as deploying; keep that state explicit rather than hiding it in the factory.
+  deployments: [
+    makeDeploymentResponse({ id: 'deploy_prov', status: 'deploying', activated_at: null }),
   ],
 };
 
-const mockActiveSession = {
-  ...mockProvisioningSession,
-  id: 'sess_active',
-  status: 'active',
-  tunnel_hostname: 'tunnel.example.com',
-  vastai_gpu_name: 'RTX 4090',
-  started_at: '2026-06-20T00:01:00Z',
-};
-
-const mockStopPreview = {
+const mockStopPreview = makeStopConfirmationResponse({
   session_id: 'sess_active',
-  model_type: 'aisha-image',
-  vastai_gpu_name: 'RTX 4090',
-  vastai_cost_per_hour_micros: 50000,
-  active_duration_seconds: 3600,
-  paused_duration_seconds: 0,
-  estimated_final_tokens: 500,
   message: 'This will stop your session.',
-};
+});
 
 // Helper: route handler that dispatches on pathname + method
 function makeSessionRouter(opts: {
-  sessions?: (typeof mockActiveSession)[];
-  onStart?: () => object;
-  stopPreview?: object;
+  sessions?: GpuSessionResponse[];
+  onStart?: () => GpuSessionResponse;
+  stopPreview?: components['schemas']['StopConfirmationResponse'];
 }) {
-  return async (route: import('@playwright/test').Route) => {
+  return async (route: Route) => {
     const url = new URL(route.request().url());
     const method = route.request().method();
     const path = url.pathname;
@@ -168,14 +116,65 @@ function makeSessionRouter(opts: {
     return route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ sessions: list }),
+      body: JSON.stringify(makeGpuSessionListResponse(list)),
     });
   };
 }
 
+async function installDeploymentRemovalRoutes(
+  page: Page,
+  {
+    detail,
+    targetDeployment,
+    operationId,
+    deleteUrls,
+  }: {
+    detail: GpuSessionResponse;
+    targetDeployment: DeploymentResponse;
+    operationId: string;
+    deleteUrls: string[];
+  },
+): Promise<void> {
+  const list = makeGpuSessionListResponse([detail]);
+  await page.route(
+    (url) => url.pathname.startsWith('/v1/sessions'),
+    async (route) => {
+      const url = new URL(route.request().url());
+      if (route.request().method() === 'DELETE') {
+        deleteUrls.push(url.toString());
+        return route.fulfill({
+          status: 202,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            deployment: { ...targetDeployment, status: 'removing' },
+            operation: makeOperationResponse({
+              id: operationId,
+              session_id: detail.id,
+              deployment_id: targetDeployment.id,
+              kind: 'bundle_removal',
+            }),
+          }),
+        });
+      }
+      if (url.pathname === `/v1/sessions/${detail.id}`) {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(detail),
+        });
+      }
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(list),
+      });
+    },
+  );
+}
+
 // ── beforeEach shared setup ───────────────────────────────────────────────────
 
-async function setupCommon(page: import('@playwright/test').Page) {
+async function setupCommon(page: Page) {
   // Function-predicate routing is the most reliable (no glob query-param issues)
   await page.route((url) => url.pathname === '/v1/providers', jsonRoute(mockProviders));
   await page.route((url) => url.pathname === '/v1/billing/pricing', jsonRoute([]));
@@ -257,7 +256,7 @@ test.describe('Sessions page', () => {
           return route.fulfill({
             status: 200,
             contentType: 'application/json',
-            body: JSON.stringify({ sessions }),
+            body: JSON.stringify(makeGpuSessionListResponse(sessions)),
           });
         },
       );
@@ -320,11 +319,10 @@ test.describe('Sessions page', () => {
   });
 
   test('6. Unavailable provider does not offer Start', async ({ authenticatedPage: page }) => {
-    const unavailableProviders = {
-      providers: [{ ...mockProviders.providers[0], available: false }],
-      user_context: null,
-    };
-    await page.route((url) => url.pathname === '/v1/providers', jsonRoute(unavailableProviders));
+    await page.route(
+      (url) => url.pathname === '/v1/providers',
+      jsonRoute(makeAishaProviderResponse({ available: false })),
+    );
     await page.route((url) => url.pathname.startsWith('/v1/sessions'), jsonRoute({ sessions: [] }));
 
     await page.goto('/app/sessions');
@@ -338,87 +336,23 @@ test.describe('Sessions page', () => {
     '7. Final-active removal warns about billing and sends force only after confirmation',
     { tag: '@cross-browser' },
     async ({ authenticatedPage: page }) => {
-      const activeDeployment = {
-        id: 'deploy_active',
-        model_type: 'aisha-image',
-        bundle_name: 'aisha',
-        bundle_version: null,
-        status: 'active',
-        pending_restart: false,
-        routing_suspended: false,
-        is_primary: true,
-        created_at: '2026-06-20T00:00:00Z',
-        activated_at: '2026-06-20T00:01:00Z',
-      };
-      const deployingSibling = {
-        ...activeDeployment,
+      const activeDeployment = makeDeploymentResponse({ id: 'deploy_active' });
+      const deployingSibling = makeDeploymentResponse({
         id: 'deploy_deploying',
         model_type: 'aisha-image-lite',
         status: 'deploying',
         is_primary: false,
-      };
+        activated_at: null,
+      });
       const detail = { ...mockActiveSession, deployments: [activeDeployment, deployingSibling] };
-      const list = [
-        {
-          id: detail.id,
-          product_id: detail.product_id,
-          status: detail.status,
-          created_at: detail.created_at,
-          started_at: detail.started_at,
-          deployments: detail.deployments.map(({ id, model_type, status, is_primary }) => ({
-            id,
-            model_type,
-            status,
-            is_primary,
-          })),
-        },
-      ];
       const deleteUrls: string[] = [];
 
-      await page.route(
-        (url) => url.pathname.startsWith('/v1/sessions'),
-        async (route) => {
-          const url = new URL(route.request().url());
-          if (route.request().method() === 'DELETE') {
-            deleteUrls.push(url.toString());
-            return route.fulfill({
-              status: 202,
-              contentType: 'application/json',
-              body: JSON.stringify({
-                deployment: { ...activeDeployment, status: 'removing' },
-                operation: {
-                  id: 'op_remove',
-                  session_id: detail.id,
-                  deployment_id: activeDeployment.id,
-                  kind: 'bundle_removal',
-                  status: 'queued',
-                  phase: null,
-                  revision: 0,
-                  target: null,
-                  progress: null,
-                  message: null,
-                  error: null,
-                  started_at: null,
-                  updated_at: '2026-06-20T00:02:00Z',
-                  finished_at: null,
-                },
-              }),
-            });
-          }
-          if (url.pathname === `/v1/sessions/${detail.id}`) {
-            return route.fulfill({
-              status: 200,
-              contentType: 'application/json',
-              body: JSON.stringify(detail),
-            });
-          }
-          return route.fulfill({
-            status: 200,
-            contentType: 'application/json',
-            body: JSON.stringify({ sessions: list }),
-          });
-        },
-      );
+      await installDeploymentRemovalRoutes(page, {
+        detail,
+        targetDeployment: activeDeployment,
+        operationId: 'op_remove',
+        deleteUrls,
+      });
 
       await page.goto('/app/sessions');
       const remove = page.getByRole('button', { name: 'Remove' });
@@ -441,15 +375,15 @@ test.describe('Sessions page', () => {
     '8. Invalid session and deployment states do not expose Remove',
     { tag: '@cross-browser' },
     async ({ authenticatedPage: page }) => {
-      const paused = {
+      const paused = makeGpuSessionResponse({
         ...mockActiveSession,
         id: 'sess_paused',
         status: 'paused',
         deployments: [
           { ...mockActiveSession.deployments[0], id: 'paused_active', status: 'active' },
         ],
-      };
-      const activeWithInvalidDeployments = {
+      });
+      const activeWithInvalidDeployments = makeGpuSessionResponse({
         ...mockActiveSession,
         id: 'sess_invalid_deployments',
         deployments: [
@@ -457,19 +391,12 @@ test.describe('Sessions page', () => {
           { ...mockActiveSession.deployments[0], id: 'failed', status: 'failed' },
           { ...mockActiveSession.deployments[0], id: 'removing', status: 'removing' },
         ],
-      };
+      });
       const details = new Map([
         [paused.id, paused],
         [activeWithInvalidDeployments.id, activeWithInvalidDeployments],
       ]);
-      const list = [...details.values()].map((session) => ({
-        id: session.id,
-        product_id: session.product_id,
-        status: session.status,
-        created_at: session.created_at,
-        started_at: session.started_at,
-        deployments: session.deployments,
-      }));
+      const list = makeGpuSessionListResponse([...details.values()]);
 
       await page.route(
         (url) => url.pathname.startsWith('/v1/sessions'),
@@ -479,7 +406,7 @@ test.describe('Sessions page', () => {
           return route.fulfill({
             status: 200,
             contentType: 'application/json',
-            body: JSON.stringify(detail ?? { sessions: list }),
+            body: JSON.stringify(detail ?? list),
           });
         },
       );
@@ -534,7 +461,7 @@ test.describe('Sessions page', () => {
           return route.fulfill({
             status: 200,
             contentType: 'application/json',
-            body: JSON.stringify({ sessions: [{ ...mockActiveSession, status }] }),
+            body: JSON.stringify(makeGpuSessionListResponse([{ ...mockActiveSession, status }])),
           });
         },
       );
@@ -561,70 +488,32 @@ test.describe('Sessions page', () => {
     '10. Attach sends the correct POST body and shows the new deployment provisioning',
     { tag: '@cross-browser' },
     async ({ authenticatedPage: page }) => {
-      const providersWithSecondModel = {
-        providers: [
-          {
-            ...mockProviders.providers[0],
-            models: [
-              ...mockProviders.providers[0].models,
-              {
-                model_key: 'aisha-image-lite',
-                name: 'Aisha Lite',
-                generation_modes: { t2i: { source_media: null } },
-                is_enabled: true,
-                max_images: 4,
-                max_prompt_length: 4096,
-                supports_negative_prompt: false,
-                unsupported_parameters: ['negative_prompt'],
-                requires_age_verification: true,
-                aspect_ratios: ['1:1'],
-                image: null,
-                video: null,
-                runtime: {
-                  state: 'none',
-                  session_id: null,
-                  deployment_id: null,
-                  operation_id: null,
-                },
-              },
-            ],
-          },
+      const providersWithSecondModel = makeAishaProviderResponse({
+        models: [
+          makeAishaImageModelInfo({ runtime: makeModelRuntime() }),
+          makeAishaImageLiteModelInfo({ runtime: makeModelRuntime() }),
         ],
-        user_context: null,
-      };
+      });
       await page.route(
         (url) => url.pathname === '/v1/providers',
         jsonRoute(providersWithSecondModel),
       );
 
-      const attachedDeployment = {
+      const attachOperation = makeOperationResponse({
+        id: 'op_attach',
+        session_id: mockActiveSession.id,
+        deployment_id: 'deploy_new',
+        kind: 'bundle_provision',
+      });
+      const attachedDeployment = makeDeploymentResponse({
         id: 'deploy_new',
         model_type: 'aisha-image-lite',
-        bundle_name: 'aisha',
-        bundle_version: null,
         status: 'deploying',
-        pending_restart: false,
-        routing_suspended: false,
         is_primary: false,
         created_at: '2026-06-20T00:02:00Z',
         activated_at: null,
-        current_operation: {
-          id: 'op_attach',
-          session_id: mockActiveSession.id,
-          deployment_id: 'deploy_new',
-          kind: 'bundle_provision',
-          status: 'queued',
-          phase: null,
-          revision: 0,
-          target: null,
-          progress: null,
-          message: null,
-          error: null,
-          started_at: null,
-          updated_at: '2026-06-20T00:02:00Z',
-          finished_at: null,
-        },
-      };
+        current_operation: attachOperation,
+      });
       const attachRequestBodies: unknown[] = [];
       let attached = false;
 
@@ -642,7 +531,7 @@ test.describe('Sessions page', () => {
               contentType: 'application/json',
               body: JSON.stringify({
                 deployment: attachedDeployment,
-                operation: attachedDeployment.current_operation,
+                operation: attachOperation,
               }),
             });
           }
@@ -659,7 +548,7 @@ test.describe('Sessions page', () => {
           return route.fulfill({
             status: 200,
             contentType: 'application/json',
-            body: JSON.stringify({ sessions: [mockActiveSession] }),
+            body: JSON.stringify(makeGpuSessionListResponse([mockActiveSession])),
           });
         },
       );
@@ -693,37 +582,12 @@ test.describe('Sessions page', () => {
         (url) => url.pathname === '/v1/events/sse-ticket',
         (route) => route.fulfill({ status: 503 }),
       );
-      const providersWithSecondModel = {
-        providers: [
-          {
-            ...mockProviders.providers[0],
-            models: [
-              ...mockProviders.providers[0].models,
-              {
-                model_key: 'aisha-image-lite',
-                name: 'Aisha Lite',
-                generation_modes: { t2i: { source_media: null } },
-                is_enabled: true,
-                max_images: 4,
-                max_prompt_length: 4096,
-                supports_negative_prompt: false,
-                unsupported_parameters: ['negative_prompt'],
-                requires_age_verification: true,
-                aspect_ratios: ['1:1'],
-                image: null,
-                video: null,
-                runtime: {
-                  state: 'none',
-                  session_id: null,
-                  deployment_id: null,
-                  operation_id: null,
-                },
-              },
-            ],
-          },
+      const providersWithSecondModel = makeAishaProviderResponse({
+        models: [
+          makeAishaImageModelInfo({ runtime: makeModelRuntime() }),
+          makeAishaImageLiteModelInfo({ runtime: makeModelRuntime() }),
         ],
-        user_context: null,
-      };
+      });
       await page.route(
         (url) => url.pathname === '/v1/providers',
         jsonRoute(providersWithSecondModel),
@@ -752,7 +616,9 @@ test.describe('Sessions page', () => {
           return route.fulfill({
             status: 200,
             contentType: 'application/json',
-            body: JSON.stringify({ sessions: [{ ...mockActiveSession, status: sessionStatus }] }),
+            body: JSON.stringify(
+              makeGpuSessionListResponse([{ ...mockActiveSession, status: sessionStatus }]),
+            ),
           });
         },
       );
@@ -776,81 +642,21 @@ test.describe('Sessions page', () => {
     '12. Normal non-force remove: active target with another active sibling omits force',
     { tag: '@cross-browser' },
     async ({ authenticatedPage: page }) => {
-      const targetDeployment = {
-        id: 'deploy_target',
-        model_type: 'aisha-image',
-        bundle_name: 'aisha',
-        bundle_version: null,
-        status: 'active',
-        pending_restart: false,
-        routing_suspended: false,
-        is_primary: true,
-        created_at: '2026-06-20T00:00:00Z',
-        activated_at: '2026-06-20T00:01:00Z',
-      };
-      const activeSibling = {
-        ...targetDeployment,
+      const targetDeployment = makeDeploymentResponse({ id: 'deploy_target' });
+      const activeSibling = makeDeploymentResponse({
         id: 'deploy_sibling',
         model_type: 'aisha-image-lite',
         is_primary: false,
-      };
+      });
       const detail = { ...mockActiveSession, deployments: [targetDeployment, activeSibling] };
-      const list = [
-        {
-          id: detail.id,
-          product_id: detail.product_id,
-          status: detail.status,
-          created_at: detail.created_at,
-          started_at: detail.started_at,
-          deployments: detail.deployments,
-        },
-      ];
       const deleteUrls: string[] = [];
 
-      await page.route(
-        (url) => url.pathname.startsWith('/v1/sessions'),
-        async (route) => {
-          const url = new URL(route.request().url());
-          if (route.request().method() === 'DELETE') {
-            deleteUrls.push(url.toString());
-            return route.fulfill({
-              status: 202,
-              contentType: 'application/json',
-              body: JSON.stringify({
-                deployment: { ...targetDeployment, status: 'removing' },
-                operation: {
-                  id: 'op_remove_normal',
-                  session_id: detail.id,
-                  deployment_id: targetDeployment.id,
-                  kind: 'bundle_removal',
-                  status: 'queued',
-                  phase: null,
-                  revision: 0,
-                  target: null,
-                  progress: null,
-                  message: null,
-                  error: null,
-                  started_at: null,
-                  updated_at: '2026-06-20T00:02:00Z',
-                  finished_at: null,
-                },
-              }),
-            });
-          }
-          if (url.pathname === `/v1/sessions/${detail.id}`) {
-            return route.fulfill({
-              status: 200,
-              contentType: 'application/json',
-              body: JSON.stringify(detail),
-            });
-          }
-          return route.fulfill({
-            status: 200,
-            contentType: 'application/json',
-            body: JSON.stringify({ sessions: list }),
-          });
-        },
-      );
+      await installDeploymentRemovalRoutes(page, {
+        detail,
+        targetDeployment,
+        operationId: 'op_remove_normal',
+        deleteUrls,
+      });
 
       await page.goto('/app/sessions');
       const remove = page.getByRole('button', { name: 'Remove Aisha' }).first();
@@ -899,25 +705,12 @@ test.describe('Sessions page — create page hook', () => {
     authenticatedPage: page,
   }) => {
     // Provider with an active runtime (so Generate is enabled).
-    const activeSessionProviders = {
-      providers: [
-        {
-          ...mockProviders.providers[0],
-          models: [
-            {
-              ...mockProviders.providers[0].models[0],
-              runtime: {
-                state: 'active',
-                session_id: 'sess_active',
-                deployment_id: 'deploy_active',
-                operation_id: null,
-              },
-            },
-          ],
-        },
-      ],
-      user_context: null,
-    };
+    const activeSessionProviders = makeAishaProviderResponse({
+      runtime: makeModelRuntime('active', {
+        session_id: 'sess_active',
+        deployment_id: 'deploy_active',
+      }),
+    });
     await page.route((url) => url.pathname === '/v1/providers', jsonRoute(activeSessionProviders));
     await page.route(
       (url) => url.pathname === '/v1/generate',

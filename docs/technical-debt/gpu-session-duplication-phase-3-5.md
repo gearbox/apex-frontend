@@ -142,3 +142,93 @@ require a component-hierarchy redesign.
 
 Do not set a fake target solely to satisfy this handoff. If Phase 3.5 starts with a different,
 already-configured quality-gate tool, use that tool's own baseline instead of this one.
+
+## Phase 3.5 completion — 2026-09-13
+
+This cleanup was measured against the source revisions named in the Phase-3.5 prompt:
+
+- **Frontend starting `main` SHA:** `4171905612f73c711cb63a48640f44c683fecec7`
+  (`origin/main` was fetched and matched exactly before editing).
+- **Backend `master` SHA checked:** `74d235ebb7db32c5de9d11eac2b4e6142c512d58`
+  (`origin/master` was fetched and matched exactly).
+- **Final frontend revision:** the cleanup is an uncommitted worktree on top of the starting SHA;
+  no feature branch or commit was created as part of this task. The after measurements below are
+  from that worktree, not an invented commit SHA.
+
+### Reproducible measurement
+
+- **Analyzer:** `jscpd 5.2.0`, run ad hoc with `pnpm dlx jscpd@5.2.0`; it remains neither a
+  dependency nor a CI gate.
+- **Settings:** `--min-lines 5 --min-tokens 40`.
+- **Whole-project command:**
+
+  ```bash
+  pnpm dlx jscpd@5.2.0 src tests --min-lines 5 --min-tokens 40 \
+    --ignore 'src/lib/api/types.ts,src/lib/api/schema.json,src/paraglide/**,**/*.test.ts'
+  ```
+
+  This excludes generated API/Paraglide output and ordinary `*.test.ts` files; E2E `*.spec.ts`
+  files remain included.
+- **Feature scope:** the current sessions components, session/operation queries, event store and
+  utilities, session/event API modules, provider/session mock factories, `tests/e2e/sessions/**`,
+  `tests/e2e/create/card-state-machine.spec.ts`, and both shared helpers
+  (`gpuSessionScenario.ts`, `providers.ts`). The before run had 55 sources; the after run has 56
+  because the new helper is intentionally included.
+
+| Scope | Run | Sources | Duplicated lines | Duplicated tokens |
+| --- | --- | ---: | ---: | ---: |
+| Whole project | Before | 601 | 4,823 (5.22%) | 25,644 (6.85%) |
+| Whole project | After | 602 | 4,560 (4.94%) | 24,020 (6.43%) |
+| GPU-session/Create feature scope | Before | 55 | 549 (5.38%) | 3,485 (8.44%) |
+| GPU-session/Create feature scope | After | 56 | 295 (2.92%) | 1,921 (4.74%) |
+
+The whole-project result is down **263 duplicated lines (5.45%)** and **1,624 duplicated tokens
+(6.33%)**. The feature result is down **254 lines (46.27%)** and **1,564 tokens (44.88%)**, and
+has reached the sub-5% duplicated-token objective without excluding any handwritten feature code.
+
+### Cleanup completed
+
+- Added a small typed E2E provider-response builder that composes the existing provider factories.
+  It accepts runtime, availability, provisioning-hint, model, and provider-list variations while
+  preserving current `generation_modes`, source-media constraints, and positional roles.
+- Replaced the large inline Aisha/Grok provider payloads in the sessions and card-state specs with
+  the contract-shaped builders. The old `capabilities: [...]` fixture shape was not introduced.
+- Extended the existing session mock factory with deployment/list-projection primitives and reused
+  them for session details, list responses, operations, stop previews, and deployment removals.
+- Consolidated the mirrored removal route harnesses and duplicated Add Model/active-scenario/mobile
+  dialog setup without forcing focused state tests through the full lifecycle fake.
+- Consolidated pause, resume, and confirmed-stop query options through a small typed session-ID
+  mutation helper; success reconciliation, invalidation, and mutation variable types are unchanged.
+
+The major pre-cleanup clone groups removed were the inline provider/model payloads, repeated
+session/operation response literals, paired deployment-removal route handlers, repeated
+`GpuSessionScenario` install/bootstrap setup, and mobile viewport/stop-dialog plumbing.
+
+Small, assertion-oriented route fragments remain in the card-state and session specs where folding
+them into a general route framework would obscure the state under test. The whole-project leaders
+remain repeated modal CSS in admin/profile components; that is genuine but deliberately out of
+scope for the GPU-session cleanup.
+
+### Architecture and dead-code audit
+
+`TypeSelector` remains absent. A reference audit found no selector component, selector CSS, or
+legacy model `capabilities` arrays. The one historical TypeSelector mention is an explanatory
+comment in a Create-page test, not executable selector code.
+
+`generationStore.mode`, `setMode`, prefill/replay/remix flows, draft fingerprinting,
+`effectiveMode`, `isGenerationMode`, and `resolveGenerationMode` remain intentionally in place.
+Current Create still resolves submission mode from provider-advertised `generation_modes` and
+normalized source media; no user-selectable generation type or first-provider-key fallback was
+added. Positional `first_frame`/`last_frame` roles continue to be emitted by the shared typed
+provider factories.
+
+### Validation completed
+
+- `pnpm check`, `pnpm lint`, `pnpm test:unit` (163 files / 1,684 tests), `pnpm build`, and
+  `pnpm format:check` passed.
+- Sessions/card-state E2E passed in desktop Chromium (26 tests), mobile layout passed in Chrome
+  and WebKit (14 tests), and mobile cross-browser session paths passed (14 tests).
+- Source-driven Create coverage passed in desktop Chromium (23 tests), including image/video
+  sources and positional first/last-frame roles.
+- PWA validation passed in mobile Chrome and WebKit (8 tests).
+- GitHub Verify was not run from this local worktree; CI status is therefore not claimed here.

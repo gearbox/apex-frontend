@@ -5,6 +5,26 @@ type GpuSessionListItemResponse = components['schemas']['GpuSessionListItemRespo
 type StopConfirmationResponse = components['schemas']['StopConfirmationResponse'];
 type OperationResponse = components['schemas']['OperationResponse'];
 type DeploymentMutationResponse = components['schemas']['DeploymentMutationResponse'];
+type DeploymentResponse = components['schemas']['DeploymentResponse'];
+
+export function makeDeploymentResponse(
+  overrides: Partial<DeploymentResponse> = {},
+): DeploymentResponse {
+  return {
+    id: 'deploy_mock_001',
+    model_type: 'aisha-image',
+    bundle_name: 'aisha',
+    bundle_version: null,
+    status: 'active',
+    pending_restart: false,
+    routing_suspended: false,
+    is_primary: true,
+    created_at: '2026-06-20T00:00:00Z',
+    activated_at: '2026-06-20T00:01:00Z',
+    current_operation: null,
+    ...overrides,
+  };
+}
 
 export function makeGpuSessionResponse(
   overrides: Partial<GpuSessionResponse> = {},
@@ -24,21 +44,7 @@ export function makeGpuSessionResponse(
     stopped_at: null,
     error_message: null,
     in_flight_job_count: 0,
-    deployments: [
-      {
-        id: 'deploy_mock_001',
-        model_type: 'aisha-image',
-        bundle_name: 'aisha',
-        bundle_version: null,
-        status: 'active',
-        pending_restart: false,
-        routing_suspended: false,
-        is_primary: true,
-        created_at: '2026-06-20T00:00:00Z',
-        activated_at: '2026-06-20T00:01:00Z',
-        current_operation: null,
-      },
-    ],
+    deployments: [makeDeploymentResponse()],
     ...overrides,
   };
 }
@@ -58,6 +64,29 @@ export function makeGpuSessionListItemResponse(
     ],
     ...overrides,
   };
+}
+
+/** Projects a detailed session fixture into the intentionally thinner list contract. */
+export function makeGpuSessionListItemFromSession(
+  session: GpuSessionResponse,
+): GpuSessionListItemResponse {
+  return makeGpuSessionListItemResponse({
+    id: session.id,
+    status: session.status,
+    product_id: session.product_id,
+    created_at: session.created_at,
+    started_at: session.started_at ?? null,
+    deployments: (session.deployments ?? []).map(({ id, model_type, status, is_primary }) => ({
+      id,
+      model_type,
+      status,
+      is_primary,
+    })),
+  });
+}
+
+export function makeGpuSessionListResponse(sessions: readonly GpuSessionResponse[]) {
+  return { sessions: sessions.map(makeGpuSessionListItemFromSession) };
 }
 
 export function makeStopConfirmationResponse(
@@ -102,19 +131,15 @@ export function makeDeploymentMutationResponse(
   overrides: Partial<DeploymentMutationResponse> = {},
 ): DeploymentMutationResponse {
   return {
-    deployment: {
+    deployment: makeDeploymentResponse({
       id: 'deploy_mock_002',
       model_type: 'aisha-image-lite',
-      bundle_name: 'aisha',
-      bundle_version: null,
       status: 'deploying',
-      pending_restart: false,
-      routing_suspended: false,
       is_primary: false,
       created_at: '2026-06-20T00:02:00Z',
       activated_at: null,
       current_operation: makeOperationResponse(),
-    },
+    }),
     operation: makeOperationResponse(),
     ...overrides,
   };

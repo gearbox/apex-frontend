@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 import type { components } from '../../../src/lib/api/types';
 import {
   makeGpuSessionResponse,
@@ -30,6 +30,31 @@ function emptyRuntime(): ModelRuntimeResponse {
 export interface ScenarioModel {
   modelType: ModelType;
   name: string;
+}
+
+/** Installs the stateful lifecycle fake without concealing any state transition. */
+export async function createInstalledGpuSessionScenario(
+  page: Page,
+  models: ScenarioModel[],
+): Promise<GpuSessionScenario> {
+  const scenario = new GpuSessionScenario(models);
+  await scenario.install(page);
+  return scenario;
+}
+
+/**
+ * For tests that require an already-active session but do not verify bootstrap itself. Tests
+ * covering bootstrap transitions should keep `startSession()` and `completeBootstrap()` explicit.
+ */
+export async function startActiveGpuSessionScenario(
+  page: Page,
+  models: ScenarioModel[],
+  primaryModel: ModelType,
+): Promise<GpuSessionScenario> {
+  const scenario = await createInstalledGpuSessionScenario(page, models);
+  scenario.startSession(primaryModel);
+  scenario.completeBootstrap();
+  return scenario;
 }
 
 /**
@@ -536,4 +561,17 @@ export class GpuSessionScenario {
       },
     );
   }
+}
+
+/** Drives the focused Add Model UI flow while leaving the scenario transition under test visible. */
+export async function attachScenarioModelFromSessionsPage(
+  page: Page,
+  scenario: GpuSessionScenario,
+  modelName: string,
+): Promise<void> {
+  await page.goto('/app/sessions');
+  await expect(page.getByRole('button', { name: 'Add model' })).toBeVisible({ timeout: 8000 });
+  await page.getByRole('button', { name: 'Add model' }).click();
+  await page.getByRole('dialog').getByText(modelName).click();
+  await expect.poll(() => scenario.attachRequestBodies().length).toBe(1);
 }

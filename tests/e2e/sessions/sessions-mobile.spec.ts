@@ -1,6 +1,10 @@
 import { test, expect } from '../fixtures/auth.fixture';
+import type { Locator, Page } from '@playwright/test';
 import { jsonRoute } from '../helpers/api';
-import { GpuSessionScenario } from '../helpers/gpuSessionScenario';
+import {
+  createInstalledGpuSessionScenario,
+  startActiveGpuSessionScenario,
+} from '../helpers/gpuSessionScenario';
 
 /**
  * Phase 3 workstream 3 — mobile/PWA closure.
@@ -16,32 +20,46 @@ async function setupCommon(page: import('@playwright/test').Page) {
 }
 
 /**
- * The Sessions page is an ordinarily tall, vertically-scrollable page — content further down is
- * expected to sit below the first screen's fold. Only horizontal containment is a layout bug here.
+ * The Sessions page is ordinarily vertically scrollable, so callers opt into vertical bounds only
+ * for dialogs. Page content otherwise only needs horizontal containment.
  */
-async function boundsWithinHorizontalViewport(
+async function boundsWithinViewport(
   page: import('@playwright/test').Page,
   locator: import('@playwright/test').Locator,
+  requireVerticalContainment = false,
 ) {
   const [box, viewport] = await Promise.all([locator.boundingBox(), page.viewportSize()]);
   if (!box || !viewport) throw new Error('Element or viewport is not measurable');
   expect(box.x).toBeGreaterThanOrEqual(0);
   expect(box.x + box.width).toBeLessThanOrEqual(viewport.width + 1);
+  if (requireVerticalContainment) {
+    expect(box.y).toBeGreaterThanOrEqual(0);
+    expect(box.y + box.height).toBeLessThanOrEqual(viewport.height + 1);
+  }
   return box;
 }
 
-/** Dialogs are designed to fit entirely within the viewport (own internal scroll, safe-area padding). */
-async function boundsFitViewport(
-  page: import('@playwright/test').Page,
-  locator: import('@playwright/test').Locator,
-) {
-  const [box, viewport] = await Promise.all([locator.boundingBox(), page.viewportSize()]);
-  if (!box || !viewport) throw new Error('Element or viewport is not measurable');
-  expect(box.x).toBeGreaterThanOrEqual(0);
-  expect(box.y).toBeGreaterThanOrEqual(0);
-  expect(box.x + box.width).toBeLessThanOrEqual(viewport.width + 1);
-  expect(box.y + box.height).toBeLessThanOrEqual(viewport.height + 1);
-  return box;
+async function openStopSessionDialog(page: Page): Promise<Locator> {
+  await page.goto('/app/sessions');
+  await expect(page.getByRole('button', { name: 'Stop' })).toBeVisible({ timeout: 8000 });
+  await page.getByRole('button', { name: 'Stop' }).click();
+
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByText('Estimated final tokens')).toBeVisible({ timeout: 5000 });
+  return dialog;
+}
+
+async function startMobileScenarioWithAttachedAishaLite(page: Page): Promise<void> {
+  await setupCommon(page);
+  const scenario = await startActiveGpuSessionScenario(
+    page,
+    [
+      { modelType: 'aisha-image', name: 'Aisha' },
+      { modelType: 'aisha-image-lite', name: 'Aisha Lite' },
+    ],
+    'aisha-image',
+  );
+  scenario.attachModel('aisha-image-lite');
 }
 
 test.describe('GPU sessions — mobile layout', () => {
@@ -49,15 +67,7 @@ test.describe('GPU sessions — mobile layout', () => {
     'Sessions page fits the mobile viewport with no horizontal overflow, and action rows wrap',
     { tag: '@mobile' },
     async ({ authenticatedPage: page }) => {
-      await setupCommon(page);
-      const scenario = new GpuSessionScenario([
-        { modelType: 'aisha-image', name: 'Aisha' },
-        { modelType: 'aisha-image-lite', name: 'Aisha Lite' },
-      ]);
-      await scenario.install(page);
-      scenario.startSession('aisha-image');
-      scenario.completeBootstrap();
-      scenario.attachModel('aisha-image-lite');
+      await startMobileScenarioWithAttachedAishaLite(page);
 
       await page.goto('/app/sessions');
       await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible({ timeout: 8000 });
@@ -69,7 +79,7 @@ test.describe('GPU sessions — mobile layout', () => {
 
       const actionsRow = page.locator('.card-actions').first();
       await expect(actionsRow).toHaveCSS('flex-wrap', 'wrap');
-      await boundsWithinHorizontalViewport(page, actionsRow);
+      await boundsWithinViewport(page, actionsRow);
     },
   );
 
@@ -77,21 +87,13 @@ test.describe('GPU sessions — mobile layout', () => {
     'Deployment rows remain readable at mobile width',
     { tag: '@mobile' },
     async ({ authenticatedPage: page }) => {
-      await setupCommon(page);
-      const scenario = new GpuSessionScenario([
-        { modelType: 'aisha-image', name: 'Aisha' },
-        { modelType: 'aisha-image-lite', name: 'Aisha Lite' },
-      ]);
-      await scenario.install(page);
-      scenario.startSession('aisha-image');
-      scenario.completeBootstrap();
-      scenario.attachModel('aisha-image-lite');
+      await startMobileScenarioWithAttachedAishaLite(page);
 
       await page.goto('/app/sessions');
       const rows = page.getByLabel('Deployed models').locator('article');
       await expect(rows).toHaveCount(2, { timeout: 8000 });
       for (const row of await rows.all()) {
-        await boundsWithinHorizontalViewport(page, row);
+        await boundsWithinViewport(page, row);
       }
     },
   );
@@ -101,15 +103,16 @@ test.describe('GPU sessions — mobile layout', () => {
     { tag: '@mobile' },
     async ({ authenticatedPage: page }) => {
       await setupCommon(page);
-      const scenario = new GpuSessionScenario([
-        { modelType: 'aisha-image', name: 'Aisha' },
-        { modelType: 'aisha-image-lite', name: 'Aisha Lite' },
-        { modelType: 'aisha-video', name: 'Aisha Video' },
-        { modelType: 'grok-imagine-image', name: 'Grok Imagine' },
-      ]);
-      await scenario.install(page);
-      scenario.startSession('aisha-image');
-      scenario.completeBootstrap();
+      await startActiveGpuSessionScenario(
+        page,
+        [
+          { modelType: 'aisha-image', name: 'Aisha' },
+          { modelType: 'aisha-image-lite', name: 'Aisha Lite' },
+          { modelType: 'aisha-video', name: 'Aisha Video' },
+          { modelType: 'grok-imagine-image', name: 'Grok Imagine' },
+        ],
+        'aisha-image',
+      );
 
       await page.goto('/app/sessions');
       await expect(page.getByRole('button', { name: 'Add model' })).toBeVisible({ timeout: 8000 });
@@ -119,7 +122,7 @@ test.describe('GPU sessions — mobile layout', () => {
       await expect(sheet).toBeVisible();
       await expect(sheet.getByText('Aisha Lite')).toBeVisible();
       await expect(sheet).toHaveCSS('overflow', 'auto');
-      const box = await boundsFitViewport(page, sheet);
+      const box = await boundsWithinViewport(page, sheet, true);
       expect(box.height).toBeGreaterThan(0);
 
       // Reachable: every offered model option is scrolled-to-able and clickable within the sheet.
@@ -140,13 +143,14 @@ test.describe('GPU sessions — mobile layout', () => {
     { tag: '@mobile' },
     async ({ authenticatedPage: page }) => {
       await setupCommon(page);
-      const scenario = new GpuSessionScenario([
-        { modelType: 'aisha-image', name: 'Aisha' },
-        { modelType: 'aisha-image-lite', name: 'Aisha Lite' },
-      ]);
-      await scenario.install(page);
-      scenario.startSession('aisha-image');
-      scenario.completeBootstrap();
+      const scenario = await startActiveGpuSessionScenario(
+        page,
+        [
+          { modelType: 'aisha-image', name: 'Aisha' },
+          { modelType: 'aisha-image-lite', name: 'Aisha Lite' },
+        ],
+        'aisha-image',
+      );
       scenario.attachModel('aisha-image-lite');
       const restartOp = scenario.beginCohortRestart(['aisha-image', 'aisha-image-lite']);
       scenario.completeAttach('aisha-image-lite', restartOp);
@@ -158,7 +162,7 @@ test.describe('GPU sessions — mobile layout', () => {
 
       const dialog = page.getByRole('dialog');
       await expect(dialog).toBeVisible();
-      await boundsFitViewport(page, dialog);
+      await boundsWithinViewport(page, dialog, true);
 
       const viewport = page.viewportSize();
       const confirmBox = await dialog.getByRole('button', { name: 'Remove model' }).boundingBox();
@@ -172,18 +176,14 @@ test.describe('GPU sessions — mobile layout', () => {
     { tag: '@mobile' },
     async ({ authenticatedPage: page }) => {
       await setupCommon(page);
-      const scenario = new GpuSessionScenario([{ modelType: 'aisha-image', name: 'Aisha' }]);
-      await scenario.install(page);
-      scenario.startSession('aisha-image');
-      scenario.completeBootstrap();
+      await startActiveGpuSessionScenario(
+        page,
+        [{ modelType: 'aisha-image', name: 'Aisha' }],
+        'aisha-image',
+      );
 
-      await page.goto('/app/sessions');
-      await expect(page.getByRole('button', { name: 'Stop' })).toBeVisible({ timeout: 8000 });
-      await page.getByRole('button', { name: 'Stop' }).click();
-
-      const dialog = page.getByRole('dialog');
-      await expect(dialog.getByText('Estimated final tokens')).toBeVisible({ timeout: 5000 });
-      await boundsFitViewport(page, dialog);
+      const dialog = await openStopSessionDialog(page);
+      await boundsWithinViewport(page, dialog, true);
 
       const viewport = page.viewportSize();
       const cancelBox = await dialog.getByRole('button', { name: 'Keep Running' }).boundingBox();
@@ -201,17 +201,13 @@ test.describe('GPU sessions — mobile layout', () => {
     { tag: '@mobile' },
     async ({ authenticatedPage: page }) => {
       await setupCommon(page);
-      const scenario = new GpuSessionScenario([{ modelType: 'aisha-image', name: 'Aisha' }]);
-      await scenario.install(page);
-      scenario.startSession('aisha-image');
-      scenario.completeBootstrap();
+      await startActiveGpuSessionScenario(
+        page,
+        [{ modelType: 'aisha-image', name: 'Aisha' }],
+        'aisha-image',
+      );
 
-      await page.goto('/app/sessions');
-      await expect(page.getByRole('button', { name: 'Stop' })).toBeVisible({ timeout: 8000 });
-      await page.getByRole('button', { name: 'Stop' }).click();
-
-      const dialog = page.getByRole('dialog');
-      await expect(dialog.getByText('Estimated final tokens')).toBeVisible({ timeout: 5000 });
+      const dialog = await openStopSessionDialog(page);
       await page.keyboard.press('Escape');
       await expect(dialog).toHaveCount(0);
 
@@ -228,8 +224,9 @@ test.describe('GPU sessions — mobile layout', () => {
     { tag: '@mobile' },
     async ({ authenticatedPage: page }) => {
       await setupCommon(page);
-      const scenario = new GpuSessionScenario([{ modelType: 'aisha-image', name: 'Aisha' }]);
-      await scenario.install(page);
+      const scenario = await createInstalledGpuSessionScenario(page, [
+        { modelType: 'aisha-image', name: 'Aisha' },
+      ]);
       scenario.startSession('aisha-image');
 
       await page.goto('/app/create?prompt=lifecycle+test');

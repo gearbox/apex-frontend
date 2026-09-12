@@ -91,18 +91,22 @@ function writeSessionMutationSnapshot(queryClient: QueryClient, session: GpuSess
   queryClient.invalidateQueries({ queryKey: providerKeys.catalog() });
 }
 
-export function pauseSessionMutationOptions(queryClient: QueryClient) {
+function sessionIdMutationOptions(
+  queryClient: QueryClient,
+  mutationFn: (sessionId: string) => Promise<GpuSessionResponse>,
+) {
   return {
-    mutationFn: (sessionId: string) => pauseSession(sessionId),
+    mutationFn,
     onSuccess: (session: GpuSessionResponse) => writeSessionMutationSnapshot(queryClient, session),
   };
 }
 
+export function pauseSessionMutationOptions(queryClient: QueryClient) {
+  return sessionIdMutationOptions(queryClient, pauseSession);
+}
+
 export function resumeSessionMutationOptions(queryClient: QueryClient) {
-  return {
-    mutationFn: (sessionId: string) => resumeSession(sessionId),
-    onSuccess: (session: GpuSessionResponse) => writeSessionMutationSnapshot(queryClient, session),
-  };
+  return sessionIdMutationOptions(queryClient, resumeSession);
 }
 
 interface DeploymentMutationVariables {
@@ -157,8 +161,5 @@ export function stopPreviewMutationOptions() {
  * callback (e.g. closing the modal) passed to `.mutate()`'s own `onSuccess`.
  */
 export function confirmedStopMutationOptions(queryClient: QueryClient) {
-  return {
-    mutationFn: (sessionId: string) => stopSession(sessionId),
-    onSuccess: (session: GpuSessionResponse) => writeSessionMutationSnapshot(queryClient, session),
-  };
+  return sessionIdMutationOptions(queryClient, stopSession);
 }
