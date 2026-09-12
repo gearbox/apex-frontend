@@ -76,10 +76,41 @@ function isCapableEnabledModelForRole(model: ModelInfo, role: MediaSlot): boolea
     const constraints = modeInfo?.source_media;
     return (
       constraints?.roles != null &&
-      constraints.roles.includes(role) &&
+      constraints.roles.some(
+        (advertisedRole) => isMediaSlot(advertisedRole) && advertisedRole === role,
+      ) &&
       constraints.media_types.includes(mediaKind)
     );
   });
+}
+
+function resolveEnabledModel(
+  providers: ProvidersResponse | null | undefined,
+  predicate: (model: ModelInfo) => boolean,
+  preferred?: string | null,
+): ModelInfo | null {
+  const providerList = providers?.providers ?? [];
+  const isCandidate = (model: ModelInfo) => model.is_enabled && predicate(model);
+
+  if (preferred) {
+    const model = findModelInfo(providers, preferred);
+    if (model && isCandidate(model)) return model;
+  }
+
+  if (preferred) {
+    const preferredProvider = providerList.find((provider) =>
+      provider.models.some((model) => model.model_key === preferred),
+    );
+    const match = preferredProvider?.models.find(isCandidate);
+    if (match) return match;
+  }
+
+  for (const provider of providerList) {
+    const match = provider.models.find(isCandidate);
+    if (match) return match;
+  }
+
+  return null;
 }
 
 /**
@@ -94,29 +125,12 @@ export function resolveModelForRole(
   role: MediaSlot,
   preferred?: string | null,
 ): ModelType | null {
-  const providerList = providers?.providers ?? [];
-
-  if (preferred) {
-    const model = findModelInfo(providers, preferred);
-    if (model && isCapableEnabledModelForRole(model, role)) return preferred as ModelType;
-  }
-
-  if (preferred) {
-    const preferredProvider = providerList.find((provider) =>
-      provider.models.some((model) => model.model_key === preferred),
-    );
-    const match = preferredProvider?.models.find((model) =>
-      isCapableEnabledModelForRole(model, role),
-    );
-    if (match) return match.model_key as ModelType;
-  }
-
-  for (const provider of providerList) {
-    const match = provider.models.find((model) => isCapableEnabledModelForRole(model, role));
-    if (match) return match.model_key as ModelType;
-  }
-
-  return null;
+  const model = resolveEnabledModel(
+    providers,
+    (candidate) => isCapableEnabledModelForRole(candidate, role),
+    preferred,
+  );
+  return model ? (model.model_key as ModelType) : null;
 }
 
 /**
@@ -130,7 +144,11 @@ export function modeForRole(
   role: MediaSlot,
 ): GenerationMode | null {
   const modes = Object.entries(modelInfo?.generation_modes ?? {})
-    .filter(([, info]) => info?.source_media?.roles?.includes(role))
+    .filter(([, info]) =>
+      info?.source_media?.roles?.some(
+        (advertisedRole) => isMediaSlot(advertisedRole) && advertisedRole === role,
+      ),
+    )
     .map(([mode]) => mode)
     .sort();
   return modes[0] ?? null;
@@ -148,7 +166,7 @@ export function soleAdvertisedRole(
   mode: GenerationMode,
 ): MediaSlot | null {
   const roles = modelInfo?.generation_modes?.[mode]?.source_media?.roles;
-  return roles != null && roles.length === 1 ? roles[0] : null;
+  return roles != null && roles.length === 1 && isMediaSlot(roles[0]) ? roles[0] : null;
 }
 
 export function findModelInfo(
@@ -181,25 +199,60 @@ export function resolveModelForMode(
   mode: GenerationMode,
   preferred?: string | null,
 ): ModelType | null {
-  const providerList = providers?.providers ?? [];
+  const model = resolveEnabledModel(
+    providers,
+    (candidate) => isCapableEnabledModel(candidate, mode),
+    preferred,
+  );
+  return model ? (model.model_key as ModelType) : null;
+}
 
-  if (preferred) {
-    const model = findModelInfo(providers, preferred);
-    if (model && isCapableEnabledModel(model, mode)) return preferred as ModelType;
+export interface ReferenceModelTarget {
+  model: ModelType;
+  mode: GenerationMode;
+  role: null | 'reference';
+}
+
+function referenceTargetForModel(model: ModelInfo): Omit<ReferenceModelTarget, 'model'> | null {
+  // Preserve the current i2i behavior when it is explicitly roleless. A named
+  // reference role remains available for providers that expose a future
+  // reference-shaped mode without i2i.
+  const rolelessI2i = model.generation_modes.i2i?.source_media;
+  if (
+    rolelessI2i &&
+    (rolelessI2i?.roles ?? null) === null &&
+    rolelessI2i.media_types.includes('image')
+  ) {
+    return { mode: 'i2i', role: null };
   }
 
-  if (preferred) {
-    const preferredProvider = providerList.find((provider) =>
-      provider.models.some((model) => model.model_key === preferred),
-    );
-    const match = preferredProvider?.models.find((model) => isCapableEnabledModel(model, mode));
-    if (match) return match.model_key as ModelType;
-  }
+  const namedReferenceMode = Object.entries(model.generation_modes)
+    .filter(([, modeInfo]) => {
+      const constraints = modeInfo?.source_media;
+      return (
+        constraints?.roles?.some((role) => isMediaSlot(role) && role === 'reference') === true &&
+        constraints.media_types.includes(mediaKindForSlot('reference'))
+      );
+    })
+    .map(([mode]) => mode)
+    .sort()[0];
+  return namedReferenceMode ? { mode: namedReferenceMode, role: 'reference' } : null;
+}
 
-  for (const provider of providerList) {
-    const match = provider.models.find((model) => isCapableEnabledModel(model, mode));
-    if (match) return match.model_key as ModelType;
-  }
-
-  return null;
+/**
+ * Resolves the one target that the Library's “Use as reference” action can
+ * actually prefill. This is shared by action visibility and execution so an
+ * advertised action is never a dead end.
+ */
+export function resolveModelForReference(
+  providers: ProvidersResponse | null | undefined,
+  preferred?: string | null,
+): ReferenceModelTarget | null {
+  const model = resolveEnabledModel(
+    providers,
+    (candidate) => referenceTargetForModel(candidate) !== null,
+    preferred,
+  );
+  const target = model ? referenceTargetForModel(model) : null;
+  return model && target ? { model: model.model_key as ModelType, ...target } : null;
 }

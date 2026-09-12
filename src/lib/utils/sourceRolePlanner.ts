@@ -1,6 +1,6 @@
 import type { components } from '$lib/api/types';
 import type { SourceMediaDraft } from '$lib/stores/generation';
-import { mediaKindForSlot, type MediaSlot } from './mediaSlots';
+import { isMediaSlot, mediaKindForSlot, type MediaSlot } from './mediaSlots';
 
 type ModelInfo = components['schemas']['ModelInfo'];
 
@@ -34,7 +34,9 @@ function roleCandidatesFor(
   const candidates: RoleCandidate[] = [];
   for (const modeInfo of Object.values(modelInfo?.generation_modes ?? {})) {
     const roles = modeInfo?.source_media?.roles;
-    if (roles != null && roles.includes(role)) candidates.push({ roles });
+    if (roles != null && roles.every(isMediaSlot) && roles.includes(role)) {
+      candidates.push({ roles });
+    }
   }
   return candidates;
 }

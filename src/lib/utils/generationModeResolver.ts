@@ -61,7 +61,8 @@ interface SourceConstraints {
   max: number;
   mediaTypes: readonly string[];
   /** null means positions are interchangeable (a generic reference-based mode). */
-  roles: readonly string[] | null;
+  roles: readonly MediaSlot[] | null;
+  hasUnknownRoles: boolean;
 }
 
 type CandidateStatus = 'complete' | 'incomplete' | 'incompatible';
@@ -70,7 +71,14 @@ function toConstraints(
   raw: SourceMediaModeConstraints | null | undefined,
 ): SourceConstraints | null {
   if (raw == null) return null;
-  return { min: raw.min, max: raw.max, mediaTypes: raw.media_types, roles: raw.roles ?? null };
+  const rawRoles = raw.roles ?? null;
+  return {
+    min: raw.min,
+    max: raw.max,
+    mediaTypes: raw.media_types,
+    roles: rawRoles === null ? null : rawRoles.filter(isMediaSlot),
+    hasUnknownRoles: rawRoles?.some((role) => !isMediaSlot(role)) ?? false,
+  };
 }
 
 /**
@@ -102,6 +110,7 @@ function classifyCandidate(
   if (constraints === null) {
     return sourceMedia.length === 0 ? 'complete' : 'incompatible';
   }
+  if (constraints.hasUnknownRoles) return 'incompatible';
 
   const count = sourceMedia.length;
   if (count > constraints.max) return 'incompatible';

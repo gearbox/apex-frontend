@@ -172,6 +172,22 @@ describe('roleSlotsForModel', () => {
   it('returns no slots for a model with no generation modes at all', () => {
     expect(roleSlotsForModel(null)).toEqual([]);
   });
+
+  it('ignores an unknown runtime role instead of exposing a slot with guessed semantics', () => {
+    const modelInfo = makeModelInfo({
+      generation_modes: {
+        'future-edit': {
+          source_media: {
+            min: 1,
+            max: 1,
+            media_types: ['image'],
+            roles: ['future_magic_slot'] as never,
+          },
+        },
+      },
+    });
+    expect(roleSlotsForModel(modelInfo)).toEqual([]);
+  });
 });
 
 describe('sourceIndexForRole / interchangeableSourceMedia', () => {

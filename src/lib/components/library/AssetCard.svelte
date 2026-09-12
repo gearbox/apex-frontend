@@ -18,6 +18,7 @@
     libraryActionGroup,
     libraryActionLabel,
     filterVisibleLibraryActions,
+    canUseLibraryReference,
     LIBRARY_ACTION_ICONS,
     type LibraryActionDeps,
   } from './actions';
@@ -81,6 +82,9 @@
 
   const queryClient = useQueryClient();
   const favoriteMutation = createMutation(() => favoriteMutationOptions(queryClient));
+  const canUseReference = $derived(
+    canUseLibraryReference(actionDeps.providers, item.media.media_type),
+  );
 
   function toggleFavorite() {
     favoriteMutation.mutate({ assetRef: item.asset_ref, favorite: !item.is_favorite });
@@ -145,6 +149,7 @@
       ? filterVisibleLibraryActions(item.available_actions, {
           availableModes,
           availableRoles,
+          canUseReference,
           generationType: item.generation_type,
         })
       : []

@@ -398,6 +398,25 @@ describe('positional role projection (Phase 4)', () => {
     });
   });
 
+  it('rejects a named-role source for a roleless contract instead of erasing its semantic assignment', () => {
+    const state = { ...baseState, mode: 'i2i' as const, sourceMedia: [firstFrame] };
+
+    expect(validateSourceMedia(state, model())).toEqual({
+      valid: false,
+      message: 'This source is assigned to a role this model does not support.',
+    });
+    expect(projectSourceMedia(state, model())).toMatchObject({ valid: false });
+    expect(() => sourceMediaForRequest(state, model())).toThrow();
+    expect(() => buildGeneratePayload(state, model())).toThrow();
+  });
+
+  it('rejects a generic source for a positional contract', () => {
+    const state = { ...baseState, mode: 'flf2v' as const, sourceMedia: [upload, output] };
+
+    expect(validateSourceMedia(state, makeAishaVideoModelInfo()).valid).toBe(false);
+    expect(projectSourceMedia(state, makeAishaVideoModelInfo())).toMatchObject({ valid: false });
+  });
+
   it('rejects a draft missing a required role instead of sending a partial list', () => {
     const state = { ...baseState, mode: 'flf2v' as const, sourceMedia: [firstFrame] };
     const flf2vModel = makeAishaVideoModelInfo();

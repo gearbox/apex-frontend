@@ -10,6 +10,7 @@ import {
   findModelInfo,
   isGenerationMode,
   modeForRole,
+  resolveModelForReference,
   resolveModelForMode,
   resolveModelForRole,
   soleAdvertisedRole,
@@ -19,7 +20,7 @@ import {
   KNOWN_ASPECT_RATIOS,
   sourceMediaPolicy,
 } from '$lib/utils/modelCapabilities';
-import type { MediaSlot } from '$lib/utils/mediaSlots';
+import { mediaKindForSlot, type MediaSlot } from '$lib/utils/mediaSlots';
 
 type AspectRatio = components['schemas']['AspectRatio'];
 type LibraryGroupDetail = components['schemas']['LibraryGroupDetail'];
@@ -99,6 +100,28 @@ export function prefillRoleSourceForGeneration(request: RoleSourcePrefillRequest
   return true;
 }
 
+/**
+ * Prefills an executable reference target. The target may be the legacy
+ * roleless i2i route or a provider-defined positional `reference` role;
+ * visibility uses the same resolver before presenting this action.
+ */
+export function prefillReferenceSourceForGeneration(
+  request: Omit<SourcePrefillRequest, 'mode'>,
+): boolean {
+  if (request.source.mediaType !== 'image') return false;
+  const target = resolveModelForReference(request.providers, request.preferredModel);
+  if (!target) return false;
+
+  generationStore.prefill({
+    model: target.model,
+    mode: target.mode,
+    sourceMedia: [{ ...request.source, role: target.role }],
+    ...(request.prompt === undefined ? {} : { prompt: request.prompt }),
+    ...(request.negativePrompt === undefined ? {} : { negativePrompt: request.negativePrompt }),
+  });
+  return true;
+}
+
 export function sourceMediaDraft(
   assetRef: string,
   media: MediaObject,
@@ -155,7 +178,7 @@ function acceptsReplaySources(
   if (!isEnabledModeModel(model, mode)) return false;
 
   const policy = sourceMediaPolicy(model, mode);
-  if (!policy.accepted || policy.max < sourceMedia.length) return false;
+  if (!policy.accepted || policy.hasUnknownRoles || policy.max < sourceMedia.length) return false;
   // A positional contract's role count is fixed cardinality (`len(roles) ===
   // min === max`): a live contract that no longer has exactly as many roles
   // as the historical group had positions can never preserve that request's
@@ -164,6 +187,15 @@ function acceptsReplaySources(
 
   // A missing media object is expected for unavailable historical positions.
   // Keep that position intact and let the Create UI require the user to replace it.
+  const positionalRoles = policy.roles;
+  if (positionalRoles !== null) {
+    return sourceMedia.every((source, index) => {
+      if (!source.available) return true;
+      const expectedRole = positionalRoles[index];
+      return source.mediaType !== null && source.mediaType === mediaKindForSlot(expectedRole);
+    });
+  }
+
   return sourceMedia.every(
     (source) =>
       !source.available ||
@@ -177,8 +209,8 @@ function withReplayRoles(
   modelInfo: ModelInfo | null,
   mode: GenerationMode,
 ): SourceMediaDraft[] {
-  const { roles } = sourceMediaPolicy(modelInfo, mode);
-  if (roles === null) return [...sourceMedia];
+  const { roles, hasUnknownRoles } = sourceMediaPolicy(modelInfo, mode);
+  if (roles === null || hasUnknownRoles) return [...sourceMedia];
   return sourceMedia.map((source, index) => ({ ...source, role: roles[index] }));
 }
 

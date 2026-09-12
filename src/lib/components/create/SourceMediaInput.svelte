@@ -1,8 +1,9 @@
 <script lang="ts">
   import { generationStore, type SourceMediaDraft } from '$lib/stores/generation';
   import { addToast } from '$lib/stores/toasts';
-  import { X, ImagePlus, GalleryHorizontalEnd, AlertTriangle } from '@lucide/svelte';
+  import { ImagePlus, GalleryHorizontalEnd, AlertTriangle } from '@lucide/svelte';
   import MediaPickerModal from './MediaPickerModal.svelte';
+  import SourceMediaRow from './SourceMediaRow.svelte';
   import type { MediaPickerSelection } from './MediaPickerModal.svelte';
   import { mediaFallbackSrc } from '$lib/media/index';
   import { uploadMedia } from '$lib/api/upload';
@@ -23,7 +24,7 @@
     toResolverSources,
   } from '$lib/utils/sourceMediaAffordance';
   import { planRoleSelection } from '$lib/utils/sourceRolePlanner';
-  import { mediaKindForSlot, roleLabel, type MediaSlot } from '$lib/utils/mediaSlots';
+  import { isMediaSlot, mediaKindForSlot, roleLabel, type MediaSlot } from '$lib/utils/mediaSlots';
   import type { components } from '$lib/api/types';
   import { shouldCopySourcePrompt } from '$lib/utils/sourcePromptPolicy';
   import * as m from '$paraglide/messages';
@@ -59,6 +60,19 @@
     sourceMedia
       .map((source, index) => ({ source, index }))
       .filter((entry) => entry.source.role === null),
+  );
+
+  // Sources retain their semantic role through model switches. If the current
+  // model cannot render that role as one of its slots, keep the real draft
+  // item in a neutral recovery row rather than hiding or downgrading it.
+  const unmatchedRoleEntries = $derived(
+    sourceMedia
+      .map((source, index) => ({ source, index }))
+      .filter(
+        (entry) =>
+          entry.source.role !== null &&
+          (!isMediaSlot(entry.source.role) || !roleSlots.includes(entry.source.role)),
+      ),
   );
 
   // A single kind ("image") capped at exactly one item across every advertised
@@ -110,11 +124,11 @@
   function roleSelectionErrorMessage(reason: 'occupied' | 'incompatible' | 'ambiguous'): string {
     switch (reason) {
       case 'occupied':
-        return 'That slot is already filled.';
+        return m.create_source_slot_filled();
       case 'ambiguous':
-        return 'This selection could mean more than one thing — remove or change an existing source first.';
+        return m.create_source_selection_ambiguous();
       default:
-        return 'That media type is not accepted by this model.';
+        return m.create_source_media_type_unsupported();
     }
   }
 
@@ -125,7 +139,7 @@
       (item, index) => index !== occupantIndex && item.assetRef === draft.assetRef,
     );
     if (duplicate) {
-      addToast({ type: 'warning', message: 'That source is already selected.' });
+      addToast({ type: 'warning', message: m.create_source_duplicate() });
       return false;
     }
     if (occupantIndex !== null) {
@@ -150,20 +164,20 @@
         ? appendKinds
         : replacementMediaKinds(modelInfo, resolverSources, replacing);
     if (!source.mediaType || !allowedKinds.includes(source.mediaType)) {
-      addToast({ type: 'error', message: 'That media type is not accepted by this model.' });
+      addToast({ type: 'error', message: m.create_source_media_type_unsupported() });
       return false;
     }
     const duplicate = sourceMedia.some(
       (item, index) => index !== replacing && item.assetRef === source.assetRef,
     );
     if (duplicate) {
-      addToast({ type: 'warning', message: 'That source is already selected.' });
+      addToast({ type: 'warning', message: m.create_source_duplicate() });
       return false;
     }
     if (replacing === null && !canAddMore) {
       addToast({
         type: 'warning',
-        message: `This model accepts up to ${broadMax} source items.`,
+        message: m.create_source_max_count({ count: broadMax }),
       });
       return false;
     }
@@ -277,22 +291,16 @@
     replacementIndex = null;
     fileInput?.click();
   }
-</script>
 
-{#snippet mediaPreview(source: SourceMediaDraft)}
-  {#if source.available && source.previewUrl && (source.mediaType === 'image' || source.mediaType === 'video')}
-    <!-- Video preview URLs point at poster variants. -->
-    <img src={source.previewUrl} alt="" class="h-12 w-12 rounded-lg object-cover" />
-  {:else if source.available}
-    <div
-      class="flex h-12 w-12 items-center justify-center rounded-lg bg-surface text-center text-[10px] text-text-dim"
-    >
-      Unsupported
-    </div>
-  {:else}
-    <AlertTriangle size={22} class="text-warning" aria-label="Source unavailable" />
-  {/if}
-{/snippet}
+  function roleDescription(role: SourceMediaDraft['role']): string {
+    return role !== null && isMediaSlot(role) ? roleLabel(role).toLowerCase() : String(role);
+  }
+
+  function genericSourceDetail(source: SourceMediaDraft, position: number): string {
+    if (!source.available) return 'Unavailable — replace to preserve this position';
+    return `${source.mediaType ?? 'unknown'}${position === 0 ? ' · Primary' : ''}`;
+  }
+</script>
 
 <div class="flex flex-col gap-2">
   {#if roleSlots.length === 0}
@@ -310,14 +318,15 @@
     <p
       class="flex items-center gap-2 rounded-lg border border-warning/60 bg-warning/10 px-2.5 py-2 text-xs text-warning"
     >
-      <AlertTriangle size={14} class="shrink-0" /> This model cannot use the current source media.
+      <AlertTriangle size={14} class="shrink-0" />
+      {m.create_source_current_incompatible()}
     </p>
   {:else if isAmbiguous}
     <p
       class="flex items-center gap-2 rounded-lg border border-warning/60 bg-warning/10 px-2.5 py-2 text-xs text-warning"
     >
-      <AlertTriangle size={14} class="shrink-0" /> This source combination needs a more specific workflow
-      choice.
+      <AlertTriangle size={14} class="shrink-0" />
+      {m.create_source_selection_ambiguous()}
     </p>
   {/if}
 
@@ -329,39 +338,16 @@
         >{roleLabel(role)}</span
       >
       {#if occupant}
-        <div
-          class="relative flex items-center gap-3 rounded-2.5 border p-3 {occupant.available
-            ? 'border-border bg-surface'
-            : 'border-warning/60 bg-warning/10'}"
-        >
-          {@render mediaPreview(occupant)}
-          <div class="min-w-0 flex-1">
-            <p class="truncate text-xs font-medium text-text">
-              {occupant.label ?? occupant.assetRef}
-            </p>
-            <p class="text-[11px] text-text-dim">
-              {occupant.available
-                ? (occupant.mediaType ?? 'unknown')
-                : m.create_source_role_unavailable()}
-            </p>
-          </div>
-          {#if !occupant.available}
-            <button
-              type="button"
-              onclick={() => openRolePicker(role)}
-              class="rounded-md px-2 py-1 text-xs text-accent hover:bg-accent/10"
-              >{m.create_source_replace()}</button
-            >
-          {/if}
-          <button
-            onclick={() =>
-              occupantIndex !== null && generationStore.removeSourceMedia(occupantIndex)}
-            class="shrink-0 rounded-md p-1 text-text-muted transition-colors hover:text-text"
-            aria-label={m.create_source_remove_role({ role: roleLabel(role).toLowerCase() })}
-          >
-            <X size={14} />
-          </button>
-        </div>
+        <SourceMediaRow
+          source={occupant}
+          detail={occupant.available
+            ? (occupant.mediaType ?? 'unknown')
+            : m.create_source_role_unavailable()}
+          removeLabel={m.create_source_remove_role({ role: roleLabel(role).toLowerCase() })}
+          onremove={() =>
+            occupantIndex !== null && generationStore.removeSourceMedia(occupantIndex)}
+          onreplace={occupant.available ? undefined : () => openRolePicker(role)}
+        />
       {:else}
         <div class="grid grid-cols-2 gap-2">
           <button
@@ -401,46 +387,33 @@
   {#if genericEntries.length > 0}
     <div class="flex flex-col gap-2">
       {#each genericEntries as entry, position (entry.source.assetRef)}
-        <div
-          class="relative flex items-center gap-3 rounded-2.5 border p-3 {entry.source.available
-            ? 'border-border bg-surface'
-            : 'border-warning/60 bg-warning/10'}"
-        >
-          <span
-            class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent/15 text-xs font-semibold text-accent"
-          >
-            {position + 1}
-          </span>
-          {@render mediaPreview(entry.source)}
-          <div class="min-w-0 flex-1">
-            <p class="truncate text-xs font-medium text-text">
-              {entry.source.label ?? entry.source.assetRef}
-            </p>
-            <p class="text-[11px] text-text-dim">
-              {entry.source.available
-                ? `${entry.source.mediaType ?? 'unknown'}${position === 0 ? ' · Primary' : ''}`
-                : 'Unavailable — replace to preserve this position'}
-            </p>
-          </div>
-          {#if !entry.source.available}
-            <button
-              type="button"
-              onclick={() => openPicker(entry.index)}
-              class="rounded-md px-2 py-1 text-xs text-accent hover:bg-accent/10">Replace</button
-            >
-          {/if}
-          <button
-            onclick={() => generationStore.removeSourceMedia(entry.index)}
-            class="shrink-0 rounded-md p-1 text-text-muted transition-colors hover:text-text"
-            aria-label={entry.source.available &&
-            isSingleImagePicker &&
-            entry.source.mediaType === 'image'
-              ? m.create_source_remove_image()
-              : m.create_source_remove_media()}
-          >
-            <X size={14} />
-          </button>
-        </div>
+        <SourceMediaRow
+          source={entry.source}
+          position={position + 1}
+          detail={genericSourceDetail(entry.source, position)}
+          removeLabel={entry.source.available &&
+          isSingleImagePicker &&
+          entry.source.mediaType === 'image'
+            ? m.create_source_remove_image()
+            : m.create_source_remove_media()}
+          onremove={() => generationStore.removeSourceMedia(entry.index)}
+          onreplace={entry.source.available ? undefined : () => openPicker(entry.index)}
+        />
+      {/each}
+    </div>
+  {/if}
+
+  {#if unmatchedRoleEntries.length > 0}
+    <div class="flex flex-col gap-2" data-testid="unmatched-role-sources">
+      {#each unmatchedRoleEntries as entry (entry.source.assetRef)}
+        <SourceMediaRow
+          source={entry.source}
+          detail={m.create_source_retained_incompatible({
+            role: roleDescription(entry.source.role),
+          })}
+          removeLabel={m.create_source_remove_media()}
+          onremove={() => generationStore.removeSourceMedia(entry.index)}
+        />
       {/each}
     </div>
   {/if}

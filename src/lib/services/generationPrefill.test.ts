@@ -432,6 +432,85 @@ describe('replayGenerationPrefill', () => {
     );
     expect(result).toEqual({ ok: false, reason: 'incompatible-source-policy' });
   });
+
+  it('replays a mixed-kind positional contract only when every persisted position matches its role kind', () => {
+    const discovery = providers([
+      makeGrokImageModelInfo({
+        generation_modes: generationModes(['mixed-positional'], {
+          'mixed-positional': {
+            min: 2,
+            max: 2,
+            media_types: ['image', 'video'],
+            roles: ['first_frame', 'source'],
+          },
+        }),
+      }),
+    ]);
+    const result = replayGenerationPrefill(
+      {
+        generation_type: 'mixed-positional',
+        model: 'grok-imagine-image',
+        prompt: 'original prompt',
+      },
+      discovery,
+      group({
+        source_media: [
+          { position: 0, asset_ref: 'upload:first', available: true, media: sourceMedia('image') },
+          { position: 1, asset_ref: 'upload:source', available: true, media: sourceMedia('video') },
+        ],
+      }),
+    );
+
+    expect(result).toMatchObject({ ok: true });
+    if (result.ok) {
+      expect(result.params.sourceMedia).toMatchObject([
+        { assetRef: 'upload:first', role: 'first_frame' },
+        { assetRef: 'upload:source', role: 'source' },
+      ]);
+    }
+  });
+
+  it('rejects a mixed-kind positional replay with the source kinds reversed', () => {
+    const discovery = providers([
+      makeGrokImageModelInfo({
+        generation_modes: generationModes(['mixed-positional'], {
+          'mixed-positional': {
+            min: 2,
+            max: 2,
+            media_types: ['image', 'video'],
+            roles: ['first_frame', 'source'],
+          },
+        }),
+      }),
+    ]);
+
+    expect(
+      replayGenerationPrefill(
+        {
+          generation_type: 'mixed-positional',
+          model: 'grok-imagine-image',
+          prompt: 'original prompt',
+        },
+        discovery,
+        group({
+          source_media: [
+            {
+              position: 0,
+              asset_ref: 'upload:source',
+              available: true,
+              media: sourceMedia('video'),
+            },
+            {
+              position: 1,
+              asset_ref: 'upload:first',
+              available: true,
+              media: sourceMedia('image'),
+            },
+          ],
+        }),
+      ),
+    ).toEqual({ ok: false, reason: 'incompatible-source-policy' });
+  });
 });
 
 describe('prefillSourceForGeneration — role derived from the resolved model contract', () => {

@@ -80,6 +80,10 @@ export function validateSourceMedia(
   const policy = sourceMediaPolicy(modelInfo, state.mode);
   if (!policy.accepted) return { valid: true, message: null };
 
+  if (policy.hasUnknownRoles) {
+    return { valid: false, message: m.error_source_role_unknown() };
+  }
+
   if (state.sourceMedia.some((source) => !source.available)) {
     const unavailableRole = state.sourceMedia.find((source) => !source.available)?.role;
     return {
@@ -104,6 +108,9 @@ export function validateSourceMedia(
   }
   if (state.sourceMedia.length > policy.max) {
     return { valid: false, message: `This model accepts at most ${policy.max} source items.` };
+  }
+  if (policy.roles === null && state.sourceMedia.some((source) => source.role !== null)) {
+    return { valid: false, message: m.error_source_role_unsupported() };
   }
   if (policy.roles !== null) {
     const roleValidation = validatePositionalRoles(state.sourceMedia, policy.roles);

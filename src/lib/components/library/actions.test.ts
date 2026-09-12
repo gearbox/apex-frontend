@@ -122,7 +122,7 @@ describe('Re-Generate source-media replay', () => {
     const action = resolveLibraryAction('use_as_reference', sourceAsset, {}, deps([]));
     await action?.();
     expect(get(generationStore).sourceMedia).toMatchObject([
-      { assetRef: SOURCE_B, available: true },
+      { assetRef: SOURCE_B, available: true, role: null },
     ]);
   });
 
@@ -215,6 +215,7 @@ describe('Library action visibility and provenance', () => {
     expect(libraryActionGroup('share')).toBe('save');
     expect(libraryActionGroup('download')).toBe('save');
     expect(libraryActionGroup('remix')).toBe('navigate');
+    expect(libraryActionGroup('use_as_reference')).toBe('navigate');
     expect(libraryActionGroup('reproduce')).toBe('navigate');
     expect(libraryActionGroup('favorite')).toBeNull();
   });
@@ -281,6 +282,33 @@ function grokVideoOnlyProviders(): ProvidersResponse {
   };
 }
 
+function namedReferenceOnlyProviders(modelKey = 'reference-edit'): ProvidersResponse {
+  return {
+    providers: [
+      {
+        provider: 'future',
+        name: 'Future provider',
+        available: true,
+        provisioning_mode: 'always_on',
+        models: [
+          makeGrokImageModelInfo({
+            model_key: modelKey,
+            generation_modes: generationModes(['custom-edit'], {
+              'custom-edit': {
+                min: 1,
+                max: 1,
+                media_types: ['image'],
+                roles: ['reference'],
+              },
+            }),
+          }),
+        ],
+      },
+    ],
+    user_context: null,
+  };
+}
+
 describe('Phase 4 — role-capability-driven Library visibility', () => {
   it('shows use_as_first_frame / use_as_last_frame when an enabled provider actually advertises those roles', () => {
     const availableRoles = enabledRoles(aishaVideoProviders());
@@ -340,9 +368,81 @@ describe('Phase 4 — role-capability-driven Library visibility', () => {
       filterVisibleLibraryActions(['use_as_reference'], {
         availableModes: new Set(['i2i']),
         availableRoles: new Set(),
+        canUseReference: true,
         saveCapabilities: ['download'],
       }),
     ).toEqual(['use_as_reference']);
+  });
+
+  it('hides use_as_reference when there is no executable reference target', () => {
+    expect(
+      filterVisibleLibraryActions(['use_as_reference'], {
+        availableModes: new Set(['i2i']),
+        availableRoles: new Set(['reference']),
+        canUseReference: false,
+        saveCapabilities: ['download'],
+      }),
+    ).toEqual([]);
+  });
+});
+
+describe('Phase 4 — reference capability parity', () => {
+  it('executes the named reference path without a hardcoded i2i mode and preserves the draft prompt', async () => {
+    generationStore.prefill({ prompt: 'draft prompt' });
+    const actionDeps = deps([]);
+    actionDeps.providers = namedReferenceOnlyProviders();
+
+    await resolveLibraryAction('use_as_reference', asset, {}, actionDeps)?.();
+
+    expect(actionDeps.navigate).toHaveBeenCalled();
+    expect(get(generationStore)).toMatchObject({
+      model: 'reference-edit',
+      mode: 'custom-edit',
+      prompt: 'draft prompt',
+      sourceMedia: [{ assetRef: asset.asset_ref, role: 'reference' }],
+    });
+  });
+
+  it('prefers the originating compatible reference model when roleless and named paths are both available', async () => {
+    const actionDeps = deps([]);
+    actionDeps.providers = {
+      providers: [
+        {
+          provider: 'mixed',
+          name: 'Mixed',
+          available: true,
+          provisioning_mode: 'always_on',
+          models: [
+            makeGrokImageModelInfo({ model_key: 'roleless-edit' }),
+            ...namedReferenceOnlyProviders('named-reference-edit').providers[0].models,
+          ],
+        },
+      ],
+      user_context: null,
+    };
+
+    await resolveLibraryAction(
+      'use_as_reference',
+      { ...asset, model: 'named-reference-edit' },
+      {},
+      actionDeps,
+    )?.();
+
+    expect(get(generationStore)).toMatchObject({
+      model: 'named-reference-edit',
+      mode: 'custom-edit',
+      sourceMedia: [{ role: 'reference' }],
+    });
+  });
+
+  it('does not navigate when no reference path exists', async () => {
+    const actionDeps = deps([]);
+    actionDeps.providers = aishaVideoProviders();
+
+    await resolveLibraryAction('use_as_reference', asset, {}, actionDeps)?.();
+
+    expect(actionDeps.navigate).not.toHaveBeenCalled();
+    expect(addToastMock).toHaveBeenCalled();
   });
 });
 

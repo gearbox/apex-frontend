@@ -6,6 +6,7 @@ import { activeProject } from '$lib/stores/activeProject.svelte';
 import {
   generationModes,
   makeAishaVideoModelInfo,
+  makeAishaImageLiteModelInfo,
   makeGrokVideoModelInfo,
   makeModelInfo,
 } from '../../../mocks/factories/providers';
@@ -161,6 +162,96 @@ describe('source-driven source picker', () => {
 });
 
 describe('positional role slots (Phase 4)', () => {
+  it('keeps a retained role source visible and removable after switching to a roleless model', async () => {
+    const firstFrame: SourceMediaDraft = {
+      assetRef: 'upload:first',
+      mediaType: 'image',
+      previewUrl: '/first.png',
+      label: 'first frame',
+      available: true,
+      role: 'first_frame',
+    };
+    generationStore.setSourceMedia([firstFrame]);
+    const view = render(SourceMediaInput, { modelInfo: makeAishaVideoModelInfo() });
+
+    await view.rerender({ modelInfo: makeGrokVideoModelInfo() });
+
+    expect(screen.getByText('This model cannot use the current source media.')).toBeTruthy();
+    expect(screen.getByTestId('unmatched-role-sources').textContent).toContain('first frame');
+    expect(screen.getByLabelText('Remove source media')).toBeTruthy();
+    await fireEvent.click(screen.getByLabelText('Remove source media'));
+    expect(get(generationStore).sourceMedia).toEqual([]);
+  });
+
+  it('keeps a retained role source visible and removable after switching to a source-free model', async () => {
+    generationStore.setSourceMedia([
+      {
+        assetRef: 'upload:first',
+        mediaType: 'image',
+        previewUrl: '/first.png',
+        label: 'first frame',
+        available: true,
+        role: 'first_frame',
+      },
+    ]);
+    const view = render(SourceMediaInput, { modelInfo: makeAishaVideoModelInfo() });
+
+    await view.rerender({ modelInfo: makeAishaImageLiteModelInfo() });
+
+    expect(screen.getByTestId('unmatched-role-sources').textContent).toContain('first frame');
+    expect(screen.queryByText(/\/\s*0/)).toBeNull();
+    await fireEvent.click(screen.getByLabelText('Remove source media'));
+    expect(get(generationStore).sourceMedia).toEqual([]);
+  });
+
+  it('keeps a generic retained source visible without silently assigning it a role after switching to a positional model', () => {
+    generationStore.setSourceMedia([
+      {
+        assetRef: 'upload:generic',
+        mediaType: 'image',
+        previewUrl: '/generic.png',
+        label: 'generic source',
+        available: true,
+        role: null,
+      },
+    ]);
+
+    render(SourceMediaInput, { modelInfo: makeAishaVideoModelInfo() });
+
+    expect(screen.getByText('generic source')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Add first frame/i })).toBeTruthy();
+    expect(get(generationStore).sourceMedia[0].role).toBeNull();
+  });
+
+  it('fails closed in the UI when a provider advertises an unknown runtime role', () => {
+    const futureRoleModel = makeModelInfo({
+      generation_modes: {
+        'future-edit': {
+          source_media: {
+            min: 1,
+            max: 1,
+            media_types: ['image'],
+            roles: ['future_magic_slot'] as never,
+          },
+        },
+      },
+    });
+    generationStore.setSourceMedia([
+      {
+        assetRef: 'upload:future',
+        mediaType: 'image',
+        previewUrl: '/future.png',
+        label: 'future source',
+        available: true,
+        role: 'future_magic_slot' as never,
+      },
+    ]);
+
+    expect(() => render(SourceMediaInput, { modelInfo: futureRoleModel })).not.toThrow();
+    expect(screen.queryByTestId('role-slot-future_magic_slot')).toBeNull();
+    expect(screen.getByTestId('unmatched-role-sources').textContent).toContain('future_magic_slot');
+  });
+
   it('renders First frame / Last frame slots for Aisha Video, both empty, from an empty draft', () => {
     render(SourceMediaInput, { modelInfo: makeAishaVideoModelInfo() });
     expect(screen.getByText('First frame')).toBeTruthy();

@@ -1,4 +1,5 @@
 import type { components } from '$lib/api/types';
+import { isMediaSlot } from './mediaSlots';
 
 type ModelInfo = components['schemas']['ModelInfo'];
 type AspectRatio = components['schemas']['AspectRatio'];
@@ -16,8 +17,10 @@ export interface SourceMediaPolicy {
   min: number;
   max: number;
   mediaTypes: readonly string[];
-  /** null means positions are interchangeable. Carried through, not consumed by UI yet. */
+  /** null means positions are interchangeable. */
   roles: readonly MediaSlot[] | null;
+  /** The provider advertised a role outside the frontend's closed protocol vocabulary. */
+  hasUnknownRoles: boolean;
 }
 
 export function sourceMediaPolicy(
@@ -26,20 +29,30 @@ export function sourceMediaPolicy(
 ): SourceMediaPolicy {
   const constraints = modelInfo?.generation_modes?.[generationType]?.source_media;
   if (constraints) {
+    const rawRoles = constraints.roles ?? null;
     return {
       accepted: true,
       required: constraints.min > 0,
       min: constraints.min,
       max: constraints.max,
       mediaTypes: constraints.media_types,
-      roles: constraints.roles ?? null,
+      roles: rawRoles === null ? null : rawRoles.filter(isMediaSlot),
+      hasUnknownRoles: rawRoles?.some((role) => !isMediaSlot(role)) ?? false,
     };
   }
 
   // A mode absent from discovery, or one whose source_media is explicitly
   // null, cannot safely imply media support. There is no cross-mode
   // requiredness list anymore — each mode's own `min` is the sole authority.
-  return { accepted: false, required: false, min: 0, max: 0, mediaTypes: [], roles: null };
+  return {
+    accepted: false,
+    required: false,
+    min: 0,
+    max: 0,
+    mediaTypes: [],
+    roles: null,
+    hasUnknownRoles: false,
+  };
 }
 
 /** Backend parameters with writable Create-draft controls. */

@@ -1,7 +1,10 @@
 import { Buffer } from 'node:buffer';
 import { test, expect } from '../fixtures/auth.fixture';
 import { jsonRoute } from '../helpers/api';
-import { makeAishaVideoModelInfo } from '../../../src/mocks/factories/providers';
+import {
+  makeAishaVideoModelInfo,
+  makeGrokVideoModelInfo,
+} from '../../../src/mocks/factories/providers';
 
 // Aisha Video always_on (generates without a GPU session) — real current contract:
 // t2v (no source), i2v ([first_frame]), flf2v ([first_frame, last_frame]).
@@ -13,6 +16,13 @@ const aishaVideoProvidersResponse = {
       available: true,
       provisioning_mode: 'always_on',
       models: [makeAishaVideoModelInfo()],
+    },
+    {
+      provider: 'grok',
+      name: 'Grok',
+      available: true,
+      provisioning_mode: 'always_on',
+      models: [makeGrokVideoModelInfo()],
     },
   ],
   user_context: null,
@@ -235,5 +245,29 @@ test.describe('Create — Aisha Video positional first/last frame roles', () => 
       generation_type: 'flf2v',
       source_media: [{ asset_ref: uploadA.asset_ref }, { asset_ref: uploadB.asset_ref }],
     });
+  });
+
+  test('keeps a retained first frame recoverable when switching to roleless Grok Video', async ({
+    authenticatedPage: page,
+  }) => {
+    await page.goto('/app/create?prompt=Recover+retained+frame');
+
+    const firstFrameSlot = page.getByTestId('role-slot-first_frame');
+    await firstFrameSlot.getByRole('button', { name: 'Library' }).click();
+    const picker = page.getByRole('dialog', { name: 'Choose from library' });
+    await expect(picker.locator('[aria-pressed]').first()).toBeVisible({ timeout: 5000 });
+    await picker.locator('[aria-pressed]').first().click();
+    await page.getByRole('button', { name: /Use Selected Image/i }).click();
+    await expect(firstFrameSlot.getByText('From uploads')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Grok Video' }).click();
+
+    await expect(page.getByText('This model cannot use the current source media.')).toBeVisible();
+    await expect(page.getByTestId('unmatched-role-sources')).toContainText('From uploads');
+    const generateBtn = page.getByRole('button', { name: /Generate/i }).first();
+    await expect(generateBtn).toBeDisabled();
+
+    await page.getByLabel('Remove source media').click();
+    await expect(generateBtn).toBeEnabled();
   });
 });

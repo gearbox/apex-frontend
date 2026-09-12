@@ -1,7 +1,7 @@
 import type { components } from '$lib/api/types';
 import type { SourceMediaDraft } from '$lib/stores/generation';
 import { resolveGenerationMode, type ResolverSource } from './generationModeResolver';
-import { ROLE_DISPLAY_ORDER, type MediaSlot } from './mediaSlots';
+import { isMediaSlot, ROLE_DISPLAY_ORDER, type MediaSlot } from './mediaSlots';
 
 type ModelInfo = components['schemas']['ModelInfo'];
 
@@ -146,7 +146,9 @@ export function replacementMediaKinds(
 export function roleSlotsForModel(modelInfo: ModelInfo | null | undefined): MediaSlot[] {
   const roles = new Set<MediaSlot>();
   for (const modeInfo of Object.values(modelInfo?.generation_modes ?? {})) {
-    for (const role of modeInfo?.source_media?.roles ?? []) roles.add(role);
+    for (const role of modeInfo?.source_media?.roles ?? []) {
+      if (isMediaSlot(role)) roles.add(role);
+    }
   }
   return [...roles].sort((a, b) => ROLE_DISPLAY_ORDER.indexOf(a) - ROLE_DISPLAY_ORDER.indexOf(b));
 }

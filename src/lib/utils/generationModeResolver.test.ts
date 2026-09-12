@@ -427,6 +427,25 @@ describe('resolveGenerationMode — duplicate roles and wrong role media kind', 
     });
     expect(result.status).toBe('invalid');
   });
+
+  it('fails closed when the provider contract itself advertises an unrecognized role', () => {
+    const modelInfo = makeModelInfo({
+      generation_modes: {
+        'future-edit': {
+          source_media: {
+            min: 1,
+            max: 1,
+            media_types: ['image'],
+            roles: ['future_magic_slot'] as never,
+          },
+        },
+      },
+    });
+
+    expect(resolveGenerationMode({ modelInfo, sourceMedia: [image('upload:1')] }).status).toBe(
+      'invalid',
+    );
+  });
 });
 
 describe('resolveGenerationMode — direct Aisha Video regression (Phase 3 cleanup P3.3)', () => {

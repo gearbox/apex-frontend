@@ -6,6 +6,7 @@ import {
   findModelInfo,
   modeForRole,
   resolveModelForMode,
+  resolveModelForReference,
   resolveModelForRole,
   soleAdvertisedRole,
 } from './generationModes';
@@ -197,6 +198,62 @@ describe('resolveModelForRole', () => {
   });
 });
 
+describe('resolveModelForReference', () => {
+  it('resolves a roleless i2i target and keeps the source role generic', () => {
+    const target = resolveModelForReference(singleProviderProviders([makeGrokImageModelInfo()]));
+    expect(target).toEqual({ model: 'grok-imagine-image', mode: 'i2i', role: null });
+  });
+
+  it('resolves a named reference role without requiring an i2i mode', () => {
+    const providers = singleProviderProviders([
+      makeGrokImageModelInfo({
+        model_key: 'reference-edit',
+        generation_modes: generationModes(['custom-edit'], {
+          'custom-edit': {
+            min: 1,
+            max: 1,
+            media_types: ['image'],
+            roles: ['reference'],
+          },
+        }),
+      }),
+    ]);
+    expect(resolveModelForReference(providers)).toEqual({
+      model: 'reference-edit',
+      mode: 'custom-edit',
+      role: 'reference',
+    });
+  });
+
+  it('prefers the originating compatible model when roleless and named-reference paths both exist', () => {
+    const providers = singleProviderProviders([
+      makeGrokImageModelInfo({ model_key: 'roleless-edit' }),
+      makeGrokImageModelInfo({
+        model_key: 'named-reference-edit',
+        generation_modes: generationModes(['custom-edit'], {
+          'custom-edit': {
+            min: 1,
+            max: 1,
+            media_types: ['image'],
+            roles: ['reference'],
+          },
+        }),
+      }),
+    ]);
+    expect(resolveModelForReference(providers, 'named-reference-edit')).toEqual({
+      model: 'named-reference-edit',
+      mode: 'custom-edit',
+      role: 'reference',
+    });
+  });
+
+  it('returns null when no enabled model exposes an executable reference path', () => {
+    expect(
+      resolveModelForReference(singleProviderProviders([makeAishaVideoModelInfo()])),
+    ).toBeNull();
+  });
+});
+
 describe('modeForRole', () => {
   it('picks the alphabetically-first advertised mode containing the role, deterministically', () => {
     expect(modeForRole(makeAishaVideoModelInfo(), 'first_frame')).toBe('flf2v');
@@ -223,5 +280,19 @@ describe('soleAdvertisedRole', () => {
 
   it('returns null for a source-free mode', () => {
     expect(soleAdvertisedRole(makeAishaVideoModelInfo(), 't2v')).toBeNull();
+  });
+
+  it('returns null for an unknown runtime role instead of passing it into the draft', () => {
+    const model = makeGrokImageModelInfo({
+      generation_modes: generationModes(['future-edit'], {
+        'future-edit': {
+          min: 1,
+          max: 1,
+          media_types: ['image'],
+          roles: ['future_magic_slot'] as never,
+        },
+      }),
+    });
+    expect(soleAdvertisedRole(model, 'future-edit')).toBeNull();
   });
 });
