@@ -151,9 +151,16 @@ This cleanup was measured against the source revisions named in the Phase-3.5 pr
   (`origin/main` was fetched and matched exactly before editing).
 - **Backend `master` SHA checked:** `74d235ebb7db32c5de9d11eac2b4e6142c512d58`
   (`origin/master` was fetched and matched exactly).
-- **Final frontend revision:** the cleanup is an uncommitted worktree on top of the starting SHA;
-  no feature branch or commit was created as part of this task. The after measurements below are
-  from that worktree, not an invented commit SHA.
+- **Implementation commit:** `283ec250666b080c6869ff80d1588ab93073e165` (`feat: Enhance GPU
+  session scenario helpers and tests`), on branch `fix/structural-duplication-cleanup`.
+- **Reviewed/final PR head (pre-remediation):** `e2ba3fbbc21445d788c413548f3c2b7b901a51ea`
+  (`chore: update version to 0.25.2 in package.json` — a version bump only; the measured
+  source/test tree corresponds to the implementation commit above). This is the head PR #106
+  was reviewed at for remediation round R1.
+- **R1 remediation commit:** `a14cf43f3fa0920fb1dc2d89f6ffefe90e1e7cd1` (`fix: enforce
+  deployment-mutation operation invariant in test fixtures`) — see
+  [Remediation R1](#remediation-r1-2026-09-13) below. This is the new branch head for PR #106
+  after this round.
 
 ### Reproducible measurement
 
@@ -169,7 +176,9 @@ This cleanup was measured against the source revisions named in the Phase-3.5 pr
 
   This excludes generated API/Paraglide output and ordinary `*.test.ts` files; E2E `*.spec.ts`
   files remain included.
-- **Feature scope:** the current sessions components, session/operation queries, event store and
+- **Feature scope (originally described in prose only — see
+  [Remediation R1](#remediation-r1-2026-09-13) for the exact reproducible command that replaces
+  this description):** the current sessions components, session/operation queries, event store and
   utilities, session/event API modules, provider/session mock factories, `tests/e2e/sessions/**`,
   `tests/e2e/create/card-state-machine.spec.ts`, and both shared helpers
   (`gpuSessionScenario.ts`, `providers.ts`). The before run had 55 sources; the after run has 56
@@ -185,6 +194,17 @@ This cleanup was measured against the source revisions named in the Phase-3.5 pr
 The whole-project result is down **263 duplicated lines (5.45%)** and **1,624 duplicated tokens
 (6.33%)**. The feature result is down **254 lines (46.27%)** and **1,564 tokens (44.88%)**, and
 has reached the sub-5% duplicated-token objective without excluding any handwritten feature code.
+
+The exact shell command for the feature-scope run above was not retained at the time. R1
+(2026-09-13) re-derived and recorded an exact, reproducible command for this scope — see
+[Remediation R1](#remediation-r1-2026-09-13). Re-running that command against `main`
+(`4171905612f73c711cb63a48640f44c683fecec7`, i.e. the pre-Phase-3.5 tree) reproduces this table's
+duplicated-lines and duplicated-tokens counts for the feature scope **exactly** (549 lines / 3,485
+tokens before), which corroborates that the file list below is the same scope used here; only the
+reported percentages differ slightly (the total-line/token denominator used for this table's
+percentages was not retained either). Treat R1's command and its percentages as the authoritative,
+reproducible ones going forward. This table's absolute duplicated-lines/duplicated-tokens counts
+and the whole-project row are left unchanged as the historical record.
 
 ### Cleanup completed
 
@@ -231,4 +251,119 @@ provider factories.
 - Source-driven Create coverage passed in desktop Chromium (23 tests), including image/video
   sources and positional first/last-frame roles.
 - PWA validation passed in mobile Chrome and WebKit (8 tests).
-- GitHub Verify was not run from this local worktree; CI status is therefore not claimed here.
+- GitHub Verify run **#91** for PR #106 at head `e2ba3fbbc21445d788c413548f3c2b7b901a51ea`
+  completed successfully.
+
+## Remediation R1 (2026-09-13)
+
+Review R1 (`agent_prompts/apex-frontend-phase-3-5-remediation-r1.md`) found one MEDIUM issue and
+two LOW documentation issues against PR #106 at `e2ba3fbbc21445d788c413548f3c2b7b901a51ea`. This
+section records the fix.
+
+### MEDIUM — deployment-mutation fixtures violated the backend embedded-operation invariant
+
+The backend embeds the same operation in both `deployment.current_operation` and the top-level
+`operation` for every async deployment mutation response. Two test fixtures didn't:
+
+- `installDeploymentRemovalRoutes()` in `tests/e2e/sessions/sessions.spec.ts` built the DELETE
+  response's `deployment` from `{ ...targetDeployment, status: 'removing' }` without setting
+  `current_operation`, so it stayed `null` (the default deployment fixture's value) while the
+  top-level `operation` carried the real `bundle_removal` operation.
+- `makeDeploymentMutationResponse()` in `src/mocks/factories/session.ts` constructed
+  `deployment.current_operation` and `operation` from two independent `makeOperationResponse()`
+  calls, so a caller overriding only `operation` produced a response with mismatched embedded and
+  top-level operations.
+
+**Fix:** `makeDeploymentMutationResponse()` now derives `operation` once and always overwrites the
+returned deployment's `current_operation` with that same value, regardless of what a caller passes
+for `deployment` — the invariant holds by construction rather than by caller discipline.
+`installDeploymentRemovalRoutes()` now calls this factory instead of hand-building the response, so
+both removal E2E tests (`7. Final-active removal…`, `12. Normal non-force remove…`) exercise a
+contract-shaped `DeploymentMutationResponse`. `src/mocks/handlers/sessions.ts` (the MSW attach/
+remove handlers) needed no change — both call sites already pass `operation` through the factory,
+so they now automatically produce coherent fixtures too.
+
+Files changed:
+
+- `src/mocks/factories/session.ts` — `makeDeploymentMutationResponse()` rewritten to enforce the
+  invariant by construction.
+- `tests/e2e/sessions/sessions.spec.ts` — `installDeploymentRemovalRoutes()` now builds its
+  response through the corrected factory.
+- `src/mocks/factories/session.test.ts` (new) — regression coverage for the invariant: an
+  overridden `operation` propagates to `deployment.current_operation` by value; the default
+  construction is self-consistent; and a caller-supplied `deployment.current_operation` cannot
+  survive if it disagrees with `operation`.
+
+### LOW — stale completion doc
+
+This document previously claimed the Phase 3.5 cleanup was an uncommitted worktree with no Verify
+run. Updated above with the real implementation commit
+(`283ec250666b080c6869ff80d1588ab93073e165`), the reviewed PR head
+(`e2ba3fbbc21445d788c413548f3c2b7b901a51ea`), and the actual GitHub Verify result (run #91, green).
+
+### LOW — feature-scope jscpd measurement reproducibility
+
+The original feature-scope command was not retained. Recorded here for future reruns:
+
+```bash
+pnpm dlx jscpd@5.2.0 \
+  src/lib/components/sessions \
+  src/lib/queries/sessions.ts \
+  src/lib/queries/operations.ts \
+  src/lib/stores/eventStream.ts \
+  src/lib/services/eventStream.ts \
+  src/lib/utils/sessionState.ts \
+  src/lib/utils/deploymentEligibility.ts \
+  src/lib/api/sessions.ts \
+  src/lib/api/events.ts \
+  src/mocks/factories/session.ts \
+  src/mocks/factories/providers.ts \
+  tests/e2e/sessions \
+  tests/e2e/create/card-state-machine.spec.ts \
+  tests/e2e/helpers/gpuSessionScenario.ts \
+  tests/e2e/helpers/providers.ts \
+  --min-lines 5 --min-tokens 40 \
+  --ignore '**/*.test.ts'
+```
+
+(Drop the last `tests/e2e/helpers/providers.ts` line to reproduce the pre-Phase-3.5 "Before" scope,
+since that helper did not exist on `main` yet.)
+
+Re-run against `main` (`4171905612f73c711cb63a48640f44c683fecec7`, via a throwaway `git worktree`)
+and against the current branch tip **after** R1's edits:
+
+| Scope | Sources analyzed | Duplicated lines | Duplicated tokens |
+| --- | ---: | ---: | ---: |
+| Before (main, pre-Phase-3.5) | 56 | 549 (4.96%) | 3,485 (7.56%) |
+| After Phase 3.5 + R1 | 57 | 295 (2.69%) | 1,921 (4.24%) |
+
+The absolute duplicated-lines and duplicated-tokens counts (549 → 295, 3,485 → 1,921) match the
+originally reported Phase 3.5 numbers exactly, confirming this command reproduces the same scope
+and the same clone set. The percentages differ slightly from the original table above because this
+command's total-line/token denominator was independently computed (the original denominator was
+not retained); this run's percentages are the reproducible ones going forward.
+
+**R1 does not change the feature-scope duplication metric.** Running this same command against the
+tree immediately before R1's edits (i.e. at `e2ba3fbbc21445d788c413548f3c2b7b901a51ea`) also
+produces 295 duplicated lines / 1,921 duplicated tokens — R1's fixture fix touches lines outside
+every detected clone pair, so the number is unchanged. No update to the "after" figures was
+needed.
+
+### Validation
+
+- `pnpm exec vitest run src/mocks/factories/session.test.ts` — 3 tests passed.
+- `pnpm check`, `pnpm lint`, `pnpm format:check` — clean.
+- `pnpm test:unit` — 164 files / 1,687 tests passed.
+- `pnpm build` — succeeded.
+- `pnpm exec playwright test tests/e2e/sessions/sessions.spec.ts tests/e2e/sessions/gpu-session-lifecycle.spec.ts` —
+  passed on `desktop-chrome` (15 + 3 tests) and the `@cross-browser`-tagged subset on
+  `mobile-safari` (7 tests).
+- `pnpm test:e2e:chromium` — 163 passed, 1 failed
+  (`tests/e2e/pwa/manifest.spec.ts` on `mobile-chrome`, `net::ERR_ABORTED` on `page.reload()`); a
+  standalone re-run of that single test with `--repeat-each=2` reproduced one pass and one failure
+  with the same error, confirming a pre-existing environment flake unrelated to this change (no
+  session/deployment/PWA files were touched by R1). The full `pnpm test:pwa` run below passed this
+  same test cleanly.
+- `pnpm test:e2e:webkit` — 36 passed.
+- `pnpm test:e2e:mobile` — 76 passed.
+- `pnpm test:pwa` — 8 passed (including `manifest.spec.ts` on `mobile-chrome`).

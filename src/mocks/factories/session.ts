@@ -127,20 +127,33 @@ export function makeOperationResponse(
   };
 }
 
+/**
+ * The backend embeds the same operation in both `deployment.current_operation` and the
+ * top-level `operation` for every async deployment mutation (attach/remove). This factory
+ * enforces that invariant by construction: the final `current_operation` always equals
+ * `operation` by value, even when a caller overrides only one of them.
+ */
 export function makeDeploymentMutationResponse(
   overrides: Partial<DeploymentMutationResponse> = {},
 ): DeploymentMutationResponse {
-  return {
-    deployment: makeDeploymentResponse({
+  const operation = overrides.operation ?? makeOperationResponse();
+
+  const deploymentBase =
+    overrides.deployment ??
+    makeDeploymentResponse({
       id: 'deploy_mock_002',
       model_type: 'aisha-image-lite',
       status: 'deploying',
       is_primary: false,
       created_at: '2026-06-20T00:02:00Z',
       activated_at: null,
-      current_operation: makeOperationResponse(),
-    }),
-    operation: makeOperationResponse(),
-    ...overrides,
+    });
+
+  return {
+    deployment: {
+      ...deploymentBase,
+      current_operation: operation,
+    },
+    operation,
   };
 }

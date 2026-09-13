@@ -6,6 +6,7 @@ import {
   makeAishaImageModelInfo,
 } from '../../../src/mocks/factories/providers';
 import {
+  makeDeploymentMutationResponse,
   makeDeploymentResponse,
   makeGpuSessionListResponse,
   makeGpuSessionResponse,
@@ -142,18 +143,21 @@ async function installDeploymentRemovalRoutes(
       const url = new URL(route.request().url());
       if (route.request().method() === 'DELETE') {
         deleteUrls.push(url.toString());
+        // Mirror the backend's DeploymentMutationResponse invariant: the same operation is
+        // embedded in both `deployment.current_operation` and the top-level `operation`.
+        const { deployment, operation } = makeDeploymentMutationResponse({
+          deployment: { ...targetDeployment, status: 'removing' },
+          operation: makeOperationResponse({
+            id: operationId,
+            session_id: detail.id,
+            deployment_id: targetDeployment.id,
+            kind: 'bundle_removal',
+          }),
+        });
         return route.fulfill({
           status: 202,
           contentType: 'application/json',
-          body: JSON.stringify({
-            deployment: { ...targetDeployment, status: 'removing' },
-            operation: makeOperationResponse({
-              id: operationId,
-              session_id: detail.id,
-              deployment_id: targetDeployment.id,
-              kind: 'bundle_removal',
-            }),
-          }),
+          body: JSON.stringify({ deployment, operation }),
         });
       }
       if (url.pathname === `/v1/sessions/${detail.id}`) {
