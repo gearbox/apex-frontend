@@ -157,7 +157,7 @@ This cleanup was measured against the source revisions named in the Phase-3.5 pr
   (`chore: update version to 0.25.2 in package.json` — a version bump only; the measured
   source/test tree corresponds to the implementation commit above). This is the head PR #106
   was reviewed at for remediation round R1.
-- **R1 remediation commit:** `a14cf43f3fa0920fb1dc2d89f6ffefe90e1e7cd1` (`fix: enforce
+- **R1 remediation commit:** `e231b69b46717fe1ae212fc182544516330f642d` (`fix: enforce
   deployment-mutation operation invariant in test fixtures`) — see
   [Remediation R1](#remediation-r1-2026-09-13) below. This is the new branch head for PR #106
   after this round.
@@ -256,7 +256,7 @@ provider factories.
 
 ## Remediation R1 (2026-09-13)
 
-Review R1 (`agent_prompts/apex-frontend-phase-3-5-remediation-r1.md`) found one MEDIUM issue and
+Review R1 found one MEDIUM issue and
 two LOW documentation issues against PR #106 at `e2ba3fbbc21445d788c413548f3c2b7b901a51ea`. This
 section records the fix.
 
@@ -299,7 +299,7 @@ Files changed:
 This document previously claimed the Phase 3.5 cleanup was an uncommitted worktree with no Verify
 run. Updated above with the real implementation commit
 (`283ec250666b080c6869ff80d1588ab93073e165`), the reviewed PR head
-(`e2ba3fbbc21445d788c413548f3c2b7b901a51ea`), and the actual GitHub Verify result (run #91, green).
+(`e2ba3fbbc21445d788c413548f3c2b7b901a51ea`), and the actual GitHub Verify result (run #92, green).
 
 ### LOW — feature-scope jscpd measurement reproducibility
 
