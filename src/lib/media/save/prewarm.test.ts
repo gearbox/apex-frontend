@@ -25,6 +25,10 @@ function media(overrides: Partial<MediaObject['original']> = {}): MediaObject {
   };
 }
 
+function cacheKeyOf(asset: MediaObject): string {
+  return toMediaSrc(asset.original.url) ?? asset.original.url;
+}
+
 beforeEach(() => {
   clearBlobCache();
   fetchOriginalBlobMock.mockReset();
@@ -39,7 +43,7 @@ describe('prewarmMedia', () => {
     prewarmMedia(asset);
     await vi.waitFor(() => expect(fetchOriginalBlobMock).toHaveBeenCalledTimes(1));
 
-    expect(getCachedBlob(toMediaSrc(asset.original.url), Date.now())).toBe(blob);
+    expect(getCachedBlob(cacheKeyOf(asset), Date.now())).toBe(blob);
   });
 
   it('skips media larger than PREWARM_MAX_BYTES', async () => {
@@ -119,7 +123,7 @@ describe('prewarmMedia', () => {
     await prewarmMediaWithSignal(asset, { signal: controller.signal, ttlMs: 5 * 60_000 });
 
     expect(fetchOriginalBlobMock).toHaveBeenCalledWith(asset, expect.any(AbortSignal), 'no-store');
-    expect(getCachedBlob(toMediaSrc(asset.original.url), 5 * 60_000 - 1)).toBe(blob);
+    expect(getCachedBlob(cacheKeyOf(asset), 5 * 60_000 - 1)).toBe(blob);
   });
 
   it('never hands the caller-supplied signal directly to fetchOriginalBlob — a viewer navigating away must not cancel a save/share that joined the same warm', async () => {

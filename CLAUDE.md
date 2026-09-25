@@ -269,23 +269,6 @@ The `docs/BACKEND_API_REFERENCE.md` document in this project's Claude Project kn
 
 ---
 
-## Gallery API
-
-The gallery uses purpose-built endpoints, not the jobs list. Data source changed from `GET /v1/users/me/jobs` (removed) to the Gallery API.
-
-### Endpoints
-
-| Endpoint                   | Returns                       | Used by                        |
-| -------------------------- | ----------------------------- | ------------------------------ |
-| `GET /v1/gallery`          | `CursorPage<GalleryGridItem>` | Gallery page (infinite scroll) |
-| `GET /v1/gallery/{job_id}` | `GalleryGroupDetail`          | Lightbox (detail view)         |
-
-### Key Schema Types
-
-- **`GalleryGridItem`** — grid card data: `job_id`, `cover_url`, `media_type`, `badge`, `output_count`, `aspect_ratio`, `prompt_snippet`
-- **`GalleryGroupDetail`** — lightbox data: `outputs[]` (content proxy URLs), `prompt`, `lineage`, `aspect_ratio`, `negative_prompt`
-- **`GalleryBadge`** — `"prompt"` (text-to-image/video) | `"image"` (image-to-image/video)
-
 ### Content Proxy URLs
 
 All gallery image/video URLs are `/v1/content/...` paths (auth-gated, `Cache-Control: immutable`). No more expiring presigned URLs in the gallery context.

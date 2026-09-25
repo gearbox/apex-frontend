@@ -192,3 +192,42 @@ describe('formatTimestampFromSeconds', () => {
     expect(formatTimestampFromSeconds(-Infinity)).toBe('--:--');
   });
 });
+
+describe('protected-content URL boundary', () => {
+  const FOREIGN = 'https://cdn.example.com/image.png';
+
+  it('imgAttrs has a null src and no request candidates for a foreign original', () => {
+    const attrs = imgAttrs(
+      makeMedia({ original: { ...makeMedia().original, url: FOREIGN }, variants: [] }),
+    );
+    expect(attrs.src).toBeNull();
+    expect(attrs.srcset).toBeUndefined();
+  });
+
+  it('imgAttrs drops a foreign variant from srcset but keeps valid ones', () => {
+    const attrs = imgAttrs(
+      makeMedia({
+        variants: [
+          { label: 'sm', width: 150, height: 113, url: FOREIGN },
+          { label: 'md', width: 512, height: 384, url: '/v1/content/outputs/orig_md' },
+        ],
+      }),
+    );
+    expect(attrs.srcset).toBe(`${ORIGIN}/v1/content/outputs/orig_md 512w`);
+    expect(attrs.srcset).not.toContain('cdn.example.com');
+  });
+
+  it('mediaFallbackSrc returns null instead of a foreign URL', () => {
+    expect(
+      mediaFallbackSrc(
+        makeMedia({ original: { ...makeMedia().original, url: FOREIGN }, variants: [] }),
+      ),
+    ).toBeNull();
+  });
+
+  it('posterSrc returns undefined for a foreign poster variant', () => {
+    expect(
+      posterSrc(makeMedia({ variants: [{ label: 'md', width: 512, height: 384, url: FOREIGN }] })),
+    ).toBeUndefined();
+  });
+});

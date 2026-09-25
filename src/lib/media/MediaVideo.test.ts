@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
-import { render } from '@testing-library/svelte';
+import { fireEvent, render } from '@testing-library/svelte';
 import { tick } from 'svelte';
 import MediaVideo from './MediaVideo.svelte';
 import { installMediaElementStubs } from './testing/mediaElementStubs';
@@ -8,6 +8,15 @@ import {
   __resetContentCookieServiceForTesting,
 } from '$lib/services/contentCookie';
 import type { components } from '$lib/api/types';
+import type { ContentAccessRecovery } from '$lib/media/contentAccessRecovery';
+
+const { recoverContentAccessMock } = vi.hoisted(() => ({
+  recoverContentAccessMock: vi.fn<() => Promise<ContentAccessRecovery>>(),
+}));
+
+vi.mock('$lib/media/contentAccessRecovery', () => ({
+  recoverContentAccess: recoverContentAccessMock,
+}));
 
 type MediaObject = components['schemas']['MediaObject'];
 
@@ -25,7 +34,24 @@ afterAll(() => {
 
 beforeEach(() => {
   __resetContentCookieServiceForTesting();
+  recoverContentAccessMock.mockReset().mockResolvedValue({ ok: true, via: 'remint' });
 });
+
+const MEDIA_ERR_ABORTED = 1;
+const MEDIA_ERR_NETWORK = 2;
+const MEDIA_ERR_DECODE = 3;
+const MEDIA_ERR_SRC_NOT_SUPPORTED = 4;
+
+function setMediaError(video: HTMLVideoElement, code: number | null): void {
+  Object.defineProperty(video, 'error', {
+    configurable: true,
+    value: code === null ? null : ({ code } as MediaError),
+  });
+}
+
+function flushMicrotasks(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
 
 function makeVideoMedia(overrides: Partial<MediaObject> = {}): MediaObject {
   return {
@@ -169,5 +195,147 @@ describe('MediaVideo', () => {
     await tick();
 
     expect(load).not.toHaveBeenCalled();
+  });
+});
+
+describe('MediaVideo — one-shot content-access recovery on a native error', () => {
+  it.each([MEDIA_ERR_NETWORK, MEDIA_ERR_SRC_NOT_SUPPORTED])(
+    'error code %i recovers once and retries the exact same source',
+    async (code) => {
+      const { container } = render(MediaVideo, { props: { media: makeVideoMedia() } });
+      const video = container.querySelector('video')!;
+      const load = vi.spyOn(video, 'load').mockImplementation(() => undefined);
+      setMediaError(video, code);
+
+      await fireEvent.error(video);
+      await flushMicrotasks();
+
+      expect(recoverContentAccessMock).toHaveBeenCalledOnce();
+      expect(load).toHaveBeenCalledOnce();
+      expect(video.getAttribute('src')).toBe(`${ORIGIN}/v1/content/outputs/vid`);
+    },
+  );
+
+  it('is bounded: a second error for the same URL never recovers again', async () => {
+    const { container } = render(MediaVideo, { props: { media: makeVideoMedia() } });
+    const video = container.querySelector('video')!;
+    const load = vi.spyOn(video, 'load').mockImplementation(() => undefined);
+    setMediaError(video, MEDIA_ERR_SRC_NOT_SUPPORTED);
+
+    await fireEvent.error(video);
+    await flushMicrotasks();
+    await fireEvent.error(video);
+    await fireEvent.error(video);
+    await flushMicrotasks();
+
+    expect(recoverContentAccessMock).toHaveBeenCalledOnce();
+    expect(load).toHaveBeenCalledOnce();
+  });
+
+  it.each([MEDIA_ERR_DECODE, MEDIA_ERR_ABORTED])(
+    'error code %i is never treated as a credential failure',
+    async (code) => {
+      const { container } = render(MediaVideo, { props: { media: makeVideoMedia() } });
+      const video = container.querySelector('video')!;
+      const load = vi.spyOn(video, 'load').mockImplementation(() => undefined);
+      setMediaError(video, code);
+
+      await fireEvent.error(video);
+      await flushMicrotasks();
+
+      expect(recoverContentAccessMock).not.toHaveBeenCalled();
+      expect(load).not.toHaveBeenCalled();
+    },
+  );
+
+  it('does not reload when recovery fails', async () => {
+    recoverContentAccessMock.mockResolvedValue({ ok: false, reason: 'transient' });
+    const { container } = render(MediaVideo, { props: { media: makeVideoMedia() } });
+    const video = container.querySelector('video')!;
+    const load = vi.spyOn(video, 'load').mockImplementation(() => undefined);
+    setMediaError(video, MEDIA_ERR_SRC_NOT_SUPPORTED);
+
+    await fireEvent.error(video);
+    await flushMicrotasks();
+
+    expect(load).not.toHaveBeenCalled();
+  });
+
+  it('a recovery that resolves after the media changed does not reload the new source', async () => {
+    let resolveRecovery!: (value: ContentAccessRecovery) => void;
+    recoverContentAccessMock.mockReturnValue(
+      new Promise<ContentAccessRecovery>((resolve) => (resolveRecovery = resolve)),
+    );
+    const first = makeVideoMedia();
+    const second = makeVideoMedia({
+      original: { ...first.original, url: '/v1/content/outputs/b' },
+    });
+    const { container, rerender } = render(MediaVideo, { props: { media: first } });
+    const video = container.querySelector('video')!;
+    const load = vi.spyOn(video, 'load').mockImplementation(() => undefined);
+    setMediaError(video, MEDIA_ERR_SRC_NOT_SUPPORTED);
+
+    await fireEvent.error(video);
+    await rerender({ media: second });
+    resolveRecovery({ ok: true, via: 'remint' });
+    await flushMicrotasks();
+
+    expect(load).not.toHaveBeenCalled();
+  });
+
+  it('does not double-load when the background service already recovered the element', async () => {
+    const { container } = render(MediaVideo, { props: { media: makeVideoMedia() } });
+    const video = container.querySelector('video')!;
+    Object.defineProperty(video, 'readyState', { configurable: true, value: 0 });
+    // A real load() clears the error and starts re-fetching (readyState 0, NETWORK_LOADING).
+    const load = vi.spyOn(video, 'load').mockImplementation(() => {
+      setMediaError(video, null);
+      Object.defineProperty(video, 'networkState', { configurable: true, value: 2 });
+    });
+    setMediaError(video, MEDIA_ERR_SRC_NOT_SUPPORTED);
+
+    await fireEvent.error(video);
+    __noteContentCredentialsRecoveryForTesting();
+    await tick();
+    await flushMicrotasks();
+
+    expect(load).toHaveBeenCalledOnce();
+  });
+
+  it('does not double-load when the background service recovers first', async () => {
+    let resolveRecovery!: (value: ContentAccessRecovery) => void;
+    recoverContentAccessMock.mockReturnValue(
+      new Promise<ContentAccessRecovery>((resolve) => (resolveRecovery = resolve)),
+    );
+    const { container } = render(MediaVideo, { props: { media: makeVideoMedia() } });
+    const video = container.querySelector('video')!;
+    const load = vi.spyOn(video, 'load').mockImplementation(() => {
+      setMediaError(video, null);
+      Object.defineProperty(video, 'networkState', { configurable: true, value: 2 });
+    });
+    setMediaError(video, MEDIA_ERR_SRC_NOT_SUPPORTED);
+
+    await fireEvent.error(video);
+    __noteContentCredentialsRecoveryForTesting();
+    await tick();
+    resolveRecovery({ ok: true, via: 'remint' });
+    await flushMicrotasks();
+
+    expect(load).toHaveBeenCalledOnce();
+  });
+
+  it('renders no source (and so issues no request) for a non-protected URL', async () => {
+    const media = makeVideoMedia({
+      original: { ...makeVideoMedia().original, url: 'https://cdn.example.com/leak.mp4' },
+      variants: [],
+    });
+    const { container } = render(MediaVideo, { props: { media } });
+    const video = container.querySelector('video')!;
+
+    expect(video.hasAttribute('src')).toBe(false);
+    setMediaError(video, MEDIA_ERR_SRC_NOT_SUPPORTED);
+    await fireEvent.error(video);
+    await flushMicrotasks();
+    expect(recoverContentAccessMock).not.toHaveBeenCalled();
   });
 });

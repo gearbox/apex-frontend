@@ -335,9 +335,10 @@
           .prefetchQuery(libraryAssetQueryOptions(neighbor.asset_ref))
           .catch(() => undefined);
       }
-      if (typeof Image !== 'undefined') {
+      const previewSrc = mediaFallbackSrc(neighbor.media, 512);
+      if (previewSrc && typeof Image !== 'undefined') {
         const preview = new Image();
-        preview.src = mediaFallbackSrc(neighbor.media, 512);
+        preview.src = previewSrc;
         previews.push(preview);
       }
     }

@@ -1,8 +1,10 @@
-import { API_BASE_URL } from '$lib/utils/constants';
+import { parseProtectedContentUrl } from './protectedContent';
 
-const apiOrigin = new URL(API_BASE_URL).origin;
-
-export function toMediaSrc(path: string): string {
-  if (path.startsWith('http://') || path.startsWith('https://')) return path;
-  return `${apiOrigin}${path}`;
+/**
+ * Resolves a `MediaObject` URL to its absolute stable content-proxy URL on the API origin.
+ * Returns null for anything that is not an Apex protected-content URL (see
+ * parseProtectedContentUrl); callers must render an unavailable state rather than request it.
+ */
+export function toMediaSrc(path: string): string | null {
+  return parseProtectedContentUrl(path)?.url ?? null;
 }

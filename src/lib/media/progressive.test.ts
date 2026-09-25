@@ -1,13 +1,16 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeMediaObject, makeVideoMediaObject } from '../../mocks/factories/media';
+import type { ContentCookieRemintResult } from '$lib/api/auth';
 
-const { silentRefreshMock } = vi.hoisted(() => ({
+const { silentRefreshMock, remintContentCookieMock } = vi.hoisted(() => ({
   silentRefreshMock: vi.fn<() => Promise<{ ok: true } | { ok: false; reason: string }>>(),
+  remintContentCookieMock: vi.fn<() => Promise<ContentCookieRemintResult>>(),
 }));
 
 vi.mock('$lib/api/auth', async (importOriginal) => ({
   ...(await importOriginal<typeof import('$lib/api/auth')>()),
   silentRefresh: silentRefreshMock,
+  remintContentCookie: remintContentCookieMock,
 }));
 
 import {
@@ -29,6 +32,11 @@ function streamedResponse(chunks: string[], headers: Record<string, string> = {}
     { status: 200, headers: { 'content-type': 'image/jpeg', ...headers } },
   );
 }
+
+beforeEach(() => {
+  silentRefreshMock.mockReset();
+  remintContentCookieMock.mockReset().mockResolvedValue({ kind: 'unauthorized' });
+});
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -53,10 +61,52 @@ describe('progressive originals', () => {
       { received: 2, total: 5 },
       { received: 5, total: 5 },
     ]);
-    expect(fetchMock.mock.calls[0][1]).toMatchObject({ cache: 'no-store' });
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ cache: 'no-store', credentials: 'include' });
+    expect(new Headers(fetchMock.mock.calls[0][1].headers).has('authorization')).toBe(false);
   });
 
-  it('refreshes once after 401 before retrying the protected original', async () => {
+  it('re-mints the content cookie once after 401 and retries without a refresh', async () => {
+    remintContentCookieMock.mockResolvedValue({ kind: 'ok', expiresAt: new Date('2026-12-31') });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 401 }))
+      .mockResolvedValueOnce(streamedResponse(['ok'], { 'content-length': '2' }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(fetchOriginalBytes(makeMediaObject())).resolves.toBeInstanceOf(Blob);
+    expect(remintContentCookieMock).toHaveBeenCalledTimes(1);
+    expect(silentRefreshMock).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1][0]).toBe(fetchMock.mock.calls[0][0]);
+  });
+
+  it('does not escalate a transient re-mint into a refresh', async () => {
+    remintContentCookieMock.mockResolvedValue({ kind: 'transient' });
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 401 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(fetchOriginalBytes(makeMediaObject())).rejects.toEqual(
+      expect.objectContaining<Partial<ProgressiveImageError>>({ reason: 'network' }),
+    );
+    expect(silentRefreshMock).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects a non-protected original URL without issuing a request', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const standard = makeMediaObject();
+    const foreign = makeMediaObject({
+      original: { ...standard.original, url: 'https://cdn.example.com/original.png' },
+    });
+
+    await expect(fetchOriginalBytes(foreign)).rejects.toEqual(
+      expect.objectContaining<Partial<ProgressiveImageError>>({ reason: 'request' }),
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('falls back to one refresh after a rejected re-mint before retrying the protected original', async () => {
     silentRefreshMock.mockResolvedValue({ ok: true });
     const fetchMock = vi
       .fn()

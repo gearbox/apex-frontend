@@ -5,7 +5,8 @@ type MediaObject = components['schemas']['MediaObject'];
 type ImageVariant = components['schemas']['ImageVariant'];
 
 export interface ImgAttrs {
-  src: string;
+  /** Null when the original is not a valid protected-content URL — render unavailable instead. */
+  src: string | null;
   srcset?: string;
   sizes?: string;
   width?: number;
@@ -14,7 +15,10 @@ export interface ImgAttrs {
 
 export function imgAttrs(m: MediaObject, sizes?: string): ImgAttrs {
   const src = toMediaSrc(m.original.url);
-  const srcsetParts = m.variants.map((v) => `${toMediaSrc(v.url)} ${v.width}w`);
+  const srcsetParts = m.variants.flatMap((v) => {
+    const variantSrc = toMediaSrc(v.url);
+    return variantSrc ? [`${variantSrc} ${v.width}w`] : [];
+  });
   const srcset = srcsetParts.length > 0 ? srcsetParts.join(', ') : undefined;
   return {
     src,
@@ -33,7 +37,7 @@ export function pickVariant(m: MediaObject, target: number): ImageVariant | unde
 }
 
 /** Single src for non-srcset contexts (background, poster). Falls back to original. */
-export function mediaFallbackSrc(m: MediaObject, target?: number): string {
+export function mediaFallbackSrc(m: MediaObject, target?: number): string | null {
   if (target !== undefined) {
     const v = pickVariant(m, target);
     if (v) return toMediaSrc(v.url);
@@ -47,7 +51,7 @@ export function mediaFallbackSrc(m: MediaObject, target?: number): string {
 export function posterSrc(m: MediaObject): string | undefined {
   if (m.variants.length === 0) return undefined;
   const v = pickVariant(m, 512);
-  return v ? toMediaSrc(v.url) : undefined;
+  return (v && toMediaSrc(v.url)) ?? undefined;
 }
 
 /** Frame-precision timestamp (mm:ss.mmm) for millisecond-based callers, e.g. FrameScrubber. */

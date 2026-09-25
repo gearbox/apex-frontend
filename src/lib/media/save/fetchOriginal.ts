@@ -1,7 +1,9 @@
-import { silentRefresh } from '$lib/api/auth';
-import { getAccessToken } from '$lib/stores/auth';
-import { toMediaSrc } from '$lib/media/toMediaSrc';
-import { validateProtectedMediaUrl } from '$lib/media/loadAuthenticatedMediaBlob';
+import { recoverContentAccess } from '$lib/media/contentAccessRecovery';
+import {
+  fetchProtectedContent,
+  parseProtectedContentUrl,
+  type ProtectedContentUrl,
+} from '$lib/media/protectedContent';
 import { SaveFailedError } from './types';
 import type { MediaObject, SaveFailedReason } from './types';
 
@@ -15,39 +17,22 @@ function reasonForStatus(status: number): SaveFailedReason {
 }
 
 async function requestBytes(
-  url: string,
-  authenticated: boolean,
-  signal?: AbortSignal,
-  cacheMode: RequestCache = 'no-store',
+  target: ProtectedContentUrl,
+  signal: AbortSignal | undefined,
+  cacheMode: RequestCache,
 ): Promise<Response> {
-  const headers: Record<string, string> = {};
-  if (authenticated) {
-    const token = getAccessToken();
-    if (token) headers.Authorization = `Bearer ${token}`;
-    if (import.meta.env.DEV) {
-      headers['X-Product-Id'] = import.meta.env.VITE_PRODUCT_ID || 'vex';
-    }
-  }
-
   try {
-    // Only force cookies onto the validated same-origin path. On the fallback path,
-    // fetch's default ('same-origin') is exactly right: a same-origin URL that merely
-    // failed the strict path-shape check still gets its cookie, while a genuinely
-    // foreign origin gets none. Do not change this to 'omit'.
-    return await fetch(url, {
-      headers,
-      ...(authenticated ? { credentials: 'include' as const } : {}),
-      cache: cacheMode,
-      signal,
-    });
+    return await fetchProtectedContent(target, { signal, cache: cacheMode });
   } catch {
     throw new SaveFailedError('network');
   }
 }
 
 /**
- * Fetches the original asset bytes, never a `variants[*]` preview. Authenticated originals always
- * use `no-store`; session isolation takes priority over a persistent browser-cache warm.
+ * Fetches the original asset bytes, never a `variants[*]` preview, from the stable content proxy
+ * with content-cookie credentials. A URL that is not a protected-content URL is rejected without
+ * issuing any request. Originals default to `no-store`; session isolation takes priority over a
+ * persistent browser-cache warm.
  */
 export async function fetchOriginalBlob(
   media: MediaObject,
@@ -59,24 +44,19 @@ export async function fetchOriginalBlob(
     throw new SaveFailedError('too-large');
   }
 
-  const absoluteUrl = toMediaSrc(media.original.url);
+  const target = parseProtectedContentUrl(media.original.url);
+  if (!target) throw new SaveFailedError('not-found');
 
-  let authenticated: boolean;
-  try {
-    validateProtectedMediaUrl(absoluteUrl);
-    authenticated = true;
-  } catch {
-    authenticated = false;
-  }
+  let response = await requestBytes(target, signal, cacheMode);
 
-  let response = await requestBytes(absoluteUrl, authenticated, signal, cacheMode);
-
-  if (authenticated && response.status === 401) {
-    const refreshed = await silentRefresh()
-      .then((result) => result.ok)
-      .catch(() => false);
-    if (!refreshed) throw new SaveFailedError('auth');
-    response = await requestBytes(absoluteUrl, authenticated, signal, cacheMode);
+  if (response.status === 401) {
+    const recovery = await recoverContentAccess({ signal });
+    if (!recovery.ok) {
+      // Matches requestBytes(): an outage or a detached caller is a network-class failure.
+      const networkClass = ['transient', 'rate_limited', 'aborted'].includes(recovery.reason);
+      throw new SaveFailedError(networkClass ? 'network' : 'auth');
+    }
+    response = await requestBytes(target, signal, cacheMode);
   }
 
   if (!response.ok) {

@@ -1,6 +1,10 @@
-import { silentRefresh } from '$lib/api/auth';
-import { getAccessToken } from '$lib/stores/auth';
-import { ACCEPTED_VIDEO_TYPES, API_BASE_URL } from '$lib/utils/constants';
+import { ACCEPTED_VIDEO_TYPES } from '$lib/utils/constants';
+import { recoverContentAccess } from './contentAccessRecovery';
+import {
+  fetchProtectedContent,
+  parseProtectedContentUrl,
+  type ProtectedContentUrl,
+} from './protectedContent';
 
 export type FrameMediaSource = 'output' | 'upload' | 'unknown';
 export type FrameMediaFailureCategory =
@@ -43,13 +47,10 @@ export interface LoadAuthenticatedMediaBlobOptions {
   maxSizeBytes?: number;
 }
 
-export interface ValidatedProtectedMediaUrl {
-  url: string;
-  source: 'output' | 'upload';
-}
+export type ValidatedProtectedMediaUrl = ProtectedContentUrl;
 
 interface LoadContext {
-  url: string;
+  target: ProtectedContentUrl;
   source: FrameMediaSource;
   signal?: AbortSignal;
   expectedSizeBytes?: number;
@@ -57,51 +58,22 @@ interface LoadContext {
   retryAttempted: boolean;
 }
 
-const apiUrl = new URL(API_BASE_URL);
-const protectedContentPath = /^\/v1\/content\/(outputs|uploads)\/([A-Za-z0-9][A-Za-z0-9._-]*)$/;
-
 /**
  * Deliberately contains only safe diagnostic fields. In particular, do not add
- * a URL or Authorization value here: both can be sensitive in other callers.
+ * a URL or credential value here: both can be sensitive in other callers.
  */
 function frameMediaDiagnostic(event: string, details: FrameMediaDiagnostic): void {
   console.debug(event, details);
 }
 
 /**
- * Resolves only the two API content routes that are allowed to receive a
- * bearer token. This must run before getAccessToken() or fetch().
+ * Resolves only the two API content routes that may receive content-cookie
+ * credentials. This must run before any request is issued.
  */
 export function validateProtectedMediaUrl(value: string): ValidatedProtectedMediaUrl {
-  if (!value || value !== value.trim() || value.startsWith('//') || value.startsWith('\\')) {
-    throw new AuthenticatedMediaLoadError('invalid-url');
-  }
-
-  let url: URL;
-  try {
-    url = new URL(value, API_BASE_URL);
-  } catch {
-    throw new AuthenticatedMediaLoadError('invalid-url');
-  }
-
-  if (
-    !['http:', 'https:'].includes(url.protocol) ||
-    url.origin !== apiUrl.origin ||
-    url.username ||
-    url.password ||
-    url.search ||
-    url.hash
-  ) {
-    throw new AuthenticatedMediaLoadError('invalid-url');
-  }
-
-  const match = protectedContentPath.exec(url.pathname);
-  if (!match) throw new AuthenticatedMediaLoadError('invalid-url');
-
-  return {
-    url: url.toString(),
-    source: match[1] === 'outputs' ? 'output' : 'upload',
-  };
+  const target = parseProtectedContentUrl(value);
+  if (!target) throw new AuthenticatedMediaLoadError('invalid-url');
+  return target;
 }
 
 function categoryForStatus(status: number): FrameMediaFailureCategory {
@@ -179,7 +151,8 @@ function createLoadContext(
   }
 
   return {
-    ...validated,
+    target: validated,
+    source: validated.source,
     signal: options.signal,
     expectedSizeBytes: options.expectedSizeBytes,
     maxSizeBytes,
@@ -216,26 +189,10 @@ function validateResponseSize(context: LoadContext, response: Response): void {
   }
 }
 
-async function requestMedia(context: LoadContext): Promise<Response> {
-  const headers: Record<string, string> = {};
-  const token = getAccessToken();
-  if (token) headers.Authorization = `Bearer ${token}`;
-  if (import.meta.env.DEV) {
-    headers['X-Product-Id'] = import.meta.env.VITE_PRODUCT_ID || 'vex';
-  }
-
-  return fetch(context.url, {
-    headers,
-    credentials: 'include',
-    cache: 'no-store',
-    signal: context.signal,
-  });
-}
-
 async function fetchWithDiagnostics(context: LoadContext): Promise<Response> {
   ensureNotAborted(context, 'request');
   try {
-    const response = await requestMedia(context);
+    const response = await fetchProtectedContent(context.target, { signal: context.signal });
     ensureNotAborted(context, 'request');
     return response;
   } catch (error) {
@@ -245,7 +202,8 @@ async function fetchWithDiagnostics(context: LoadContext): Promise<Response> {
   }
 }
 
-async function refreshAfterUnauthorized(context: LoadContext): Promise<void> {
+/** One-shot content-access recovery; the caller retries the same URL once on success. */
+async function recoverAfterUnauthorized(context: LoadContext): Promise<void> {
   context.retryAttempted = true;
   frameMediaDiagnostic('frame_media.refresh_attempted', {
     ...diagnostic(context, 'refresh'),
@@ -253,16 +211,15 @@ async function refreshAfterUnauthorized(context: LoadContext): Promise<void> {
   });
   ensureNotAborted(context, 'refresh');
 
-  let refreshed: boolean;
-  try {
-    refreshed = (await silentRefresh()).ok;
-  } catch (error) {
-    if (isAbort(error, context.signal)) throwAborted(context, 'refresh');
-    throwLoadError(context, 'network', null, 'refresh');
-  }
+  const recovery = await recoverContentAccess({ signal: context.signal });
 
   ensureNotAborted(context, 'refresh');
-  if (!refreshed) throwLoadError(context, 'authentication', 401, 'refresh');
+  if (recovery.ok) return;
+  if (recovery.reason === 'aborted') throwAborted(context, 'refresh');
+  if (recovery.reason === 'transient' || recovery.reason === 'rate_limited') {
+    throwLoadError(context, 'network', null, 'refresh');
+  }
+  throwLoadError(context, 'authentication', 401, 'refresh');
 }
 
 function validateVideoContentType(context: LoadContext, response: Response): string {
@@ -324,8 +281,9 @@ async function readBoundedBlob(
 }
 
 /**
- * Loads protected video bytes with the same bearer/refresh behavior as API
- * requests, then hands the decoder a same-origin blob URL. The explicit size
+ * Loads protected video bytes with content-cookie credentials (never a bearer
+ * header) and one-shot content-access recovery on 401, then hands the decoder
+ * a same-origin blob URL. The explicit size
  * cap bounds the client-side buffering required for authenticated decoding;
  * callers must revoke the returned object URL.
  */
@@ -355,7 +313,7 @@ export async function loadAuthenticatedMediaBlob(
 
   let response = await fetchWithDiagnostics(context);
   if (response.status === 401) {
-    await refreshAfterUnauthorized(context);
+    await recoverAfterUnauthorized(context);
     response = await fetchWithDiagnostics(context);
   }
 

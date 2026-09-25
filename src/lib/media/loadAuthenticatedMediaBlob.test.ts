@@ -2,13 +2,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { server } from '../../mocks/server';
 
-const { silentRefreshMock } = vi.hoisted(() => ({
+const { silentRefreshMock, remintContentCookieMock } = vi.hoisted(() => ({
   silentRefreshMock: vi.fn<() => Promise<{ ok: true } | { ok: false; reason: string }>>(),
+  remintContentCookieMock: vi.fn<() => Promise<ContentCookieRemintResult>>(),
 }));
 
 vi.mock('$lib/api/auth', async (importOriginal) => ({
   ...(await importOriginal<typeof import('$lib/api/auth')>()),
   silentRefresh: silentRefreshMock,
+  remintContentCookie: remintContentCookieMock,
 }));
 
 import {
@@ -18,6 +20,7 @@ import {
 } from './loadAuthenticatedMediaBlob';
 import * as authStore from '$lib/stores/auth';
 import { clearAuth, setAuth, type UserProfile } from '$lib/stores/auth';
+import type { ContentCookieRemintResult } from '$lib/api/auth';
 
 const BASE = 'http://localhost:8000';
 const profile: UserProfile = {
@@ -61,6 +64,9 @@ beforeEach(() => {
   localStorage.clear();
   silentRefreshMock.mockReset();
   silentRefreshMock.mockResolvedValue({ ok: false, reason: 'invalid_token' });
+  // Default: the re-mint rung is explicitly rejected, so the refresh rung is exercised.
+  remintContentCookieMock.mockReset();
+  remintContentCookieMock.mockResolvedValue({ kind: 'unauthorized' });
   createObjectUrl = vi.fn(() => 'blob:authenticated-video');
   revokeObjectUrl = vi.fn();
   previousCreateObjectUrl = Object.getOwnPropertyDescriptor(URL, 'createObjectURL');
@@ -83,7 +89,7 @@ afterEach(() => {
 
 describe('loadAuthenticatedMediaBlob', () => {
   it.each(['/v1/content/outputs/output-1', '/v1/content/uploads/upload-1'])(
-    'authenticates and creates a blob URL for %s',
+    'loads %s with content-cookie credentials and creates a blob URL',
     async (path) => {
       setSession();
       let authorization = '';
@@ -105,7 +111,8 @@ describe('loadAuthenticatedMediaBlob', () => {
         contentType: 'video/mp4',
       });
 
-      expect(authorization).toBe('Bearer frame-access-token');
+      // Protected media bytes authenticate with the content cookie, never the access token.
+      expect(authorization).toBe('');
       expect(credentials).toBe('include');
       expect(cache).toBe('no-store');
       if (import.meta.env.DEV) expect(productId).toBe(import.meta.env.VITE_PRODUCT_ID || 'vex');
@@ -114,7 +121,38 @@ describe('loadAuthenticatedMediaBlob', () => {
     },
   );
 
-  it('refreshes once after a 401 and retries with the new bearer token', async () => {
+  it('re-mints the content cookie once after a 401 and retries the same URL without a bearer header', async () => {
+    setSession('access-token');
+    remintContentCookieMock.mockResolvedValue({ kind: 'ok', expiresAt: new Date('2026-12-31') });
+    const authorizations: string[] = [];
+    const urls: string[] = [];
+    let contentRequests = 0;
+
+    server.use(
+      http.get(`${BASE}/v1/content/outputs/output-1`, ({ request }) => {
+        contentRequests += 1;
+        urls.push(request.url);
+        authorizations.push(request.headers.get('authorization') ?? '');
+        return contentRequests === 1 ? new HttpResponse(null, { status: 401 }) : videoResponse();
+      }),
+    );
+
+    await expect(loadAuthenticatedMediaBlob('/v1/content/outputs/output-1')).resolves.toMatchObject(
+      {
+        objectUrl: 'blob:authenticated-video',
+      },
+    );
+
+    expect(authorizations).toEqual(['', '']);
+    expect(urls).toEqual([
+      `${BASE}/v1/content/outputs/output-1`,
+      `${BASE}/v1/content/outputs/output-1`,
+    ]);
+    expect(remintContentCookieMock).toHaveBeenCalledOnce();
+    expect(silentRefreshMock).not.toHaveBeenCalled();
+  });
+
+  it('falls back to one silent refresh only after the re-mint is rejected, then retries once', async () => {
     setSession('expired-token');
     silentRefreshMock.mockImplementation(async () => {
       setSession('refreshed-token');
@@ -132,15 +170,37 @@ describe('loadAuthenticatedMediaBlob', () => {
     );
 
     await expect(loadAuthenticatedMediaBlob('/v1/content/outputs/output-1')).resolves.toMatchObject(
-      {
-        objectUrl: 'blob:authenticated-video',
-      },
+      { objectUrl: 'blob:authenticated-video' },
     );
 
-    expect(authorizations).toEqual(['Bearer expired-token', 'Bearer refreshed-token']);
+    expect(authorizations).toEqual(['', '']);
     expect(contentRequests).toBe(2);
+    expect(remintContentCookieMock).toHaveBeenCalledOnce();
     expect(silentRefreshMock).toHaveBeenCalledOnce();
   });
+
+  it.each([{ kind: 'transient' }, { kind: 'rate_limited', retryAfterMs: 60_000 }] as const)(
+    'maps a %j re-mint to a network error without a refresh or a second request',
+    async (remint) => {
+      setSession();
+      remintContentCookieMock.mockResolvedValue(remint);
+      let contentRequests = 0;
+      server.use(
+        http.get(`${BASE}/v1/content/outputs/output-1`, () => {
+          contentRequests += 1;
+          return new HttpResponse(null, { status: 401 });
+        }),
+      );
+
+      const error = await loadAuthenticatedMediaBlob('/v1/content/outputs/output-1').catch(
+        (err) => err,
+      );
+
+      expect(error).toMatchObject({ category: 'network', retryAttempted: true });
+      expect(contentRequests).toBe(1);
+      expect(silentRefreshMock).not.toHaveBeenCalled();
+    },
+  );
 
   it('returns an authentication error when refresh fails and does not retry the content request', async () => {
     setSession();
@@ -258,7 +318,7 @@ describe('loadAuthenticatedMediaBlob', () => {
       objectUrl: 'blob:authenticated-video',
       contentType: 'video/mp4',
     });
-    expect(authorization).toBe('Bearer frame-access-token');
+    expect(authorization).toBe('');
   });
 
   it.each([
@@ -269,7 +329,9 @@ describe('loadAuthenticatedMediaBlob', () => {
     '//attacker.example.test/v1/content/outputs/output-1',
     '/v1/content/outputs/',
     '/v1/content/outputs/output-1#fragment',
-  ])('rejects %s before it can receive a bearer token', async (value) => {
+    'https://bucket.r2.cloudflarestorage.com/outputs/output-1.mp4?X-Amz-Signature=abc',
+    '/v1/content/outputs/output-1?download=1',
+  ])('rejects %s before issuing any credentialed request', async (value) => {
     const token = 'never-send-this-token';
     setSession(token);
     const fetchSpy = vi.spyOn(globalThis, 'fetch');

@@ -24,7 +24,8 @@
   export interface MediaPickerSelection {
     assetRef: string;
     mediaType: string;
-    previewUrl: string;
+    /** Null when the asset has no valid protected-content preview; the draft row shows no thumb. */
+    previewUrl: string | null;
     prompt?: string | null;
   }
 

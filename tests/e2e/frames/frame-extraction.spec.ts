@@ -134,9 +134,10 @@ test.describe('Frame extraction (real media regression)', () => {
       let previewRequest: unknown;
       let extractionRequest: unknown;
       let frameModalOpen = false;
-      let authenticatedMediaFetches = 0;
-      let anonymousProtectedContentRequestsAfterFrameModalOpen = 0;
-      let authenticatedMedia401Responses = 0;
+      let cookieMediaFetches = 0;
+      let nativeProtectedContentRequestsAfterFrameModalOpen = 0;
+      let bearerProtectedContentRequests = 0;
+      let protectedMedia401Responses = 0;
       const pageErrors: Error[] = [];
 
       await page.route((url) => url.pathname === '/v1/library', jsonRoute(libraryPage));
@@ -153,20 +154,40 @@ test.describe('Frame extraction (real media regression)', () => {
           total_mb: 1,
         }),
       );
+      // Production authenticates protected media bytes with the HttpOnly content cookie
+      // (Path=/v1/content), never the access token. Seed that cookie the way the backend
+      // would have on login; the mocked proxy accepts only it, so a missing cookie or a
+      // reintroduced Bearer header fails this scenario.
+      await page.context().addCookies([
+        {
+          name: 'apex_content',
+          value: 'e2e-content-cookie',
+          domain: 'localhost',
+          path: '/v1/content',
+          httpOnly: true,
+          secure: false,
+          sameSite: 'Lax',
+        },
+      ]);
       // The authenticated loader fetches protected content once, then the hidden
-      // decoder consumes only the resulting blob URL. A missing bearer remains a
-      // natural 401 so a regression in that boundary fails this scenario.
-      await page.route('http://localhost:8000/v1/content/**', (route) => {
-        const authorization = route.request().headers().authorization;
-        if (authorization !== 'Bearer e2e-access-token') {
+      // decoder consumes only the resulting blob URL.
+      await page.route('http://localhost:8000/v1/content/**', async (route) => {
+        const request = route.request();
+        const headers = await request.allHeaders();
+        const isFetch = request.resourceType() === 'fetch';
+        if (headers.authorization) bearerProtectedContentRequests += 1;
+        if (frameModalOpen && !isFetch) nativeProtectedContentRequestsAfterFrameModalOpen += 1;
+        if (headers.authorization || !headers.cookie?.includes('apex_content=e2e-content-cookie')) {
+          if (frameModalOpen && isFetch) protectedMedia401Responses += 1;
           return route.fulfill({
             status: 401,
             contentType: 'application/json',
             body: '{"error":"unauthorized"}',
           });
         }
+        if (frameModalOpen && isFetch) cookieMediaFetches += 1;
 
-        const range = route.request().headers().range;
+        const range = headers.range;
         const match = range?.match(/bytes=(\d+)-(\d*)/);
         const start = match ? Number(match[1]) : 0;
         const end = match?.[2] ? Number(match[2]) : portraitVideo.length - 1;
@@ -183,31 +204,6 @@ test.describe('Frame extraction (real media regression)', () => {
           },
           body,
         });
-      });
-      page.on('request', (request) => {
-        if (!request.url().includes('/v1/content/')) return;
-        const authorization = request.headers().authorization;
-        if (!frameModalOpen) {
-          return;
-        }
-        if (!authorization) {
-          anonymousProtectedContentRequestsAfterFrameModalOpen += 1;
-          return;
-        }
-        if (request.resourceType() === 'fetch' && authorization === 'Bearer e2e-access-token') {
-          authenticatedMediaFetches += 1;
-        }
-      });
-      page.on('response', (response) => {
-        if (
-          frameModalOpen &&
-          response.url().includes('/v1/content/') &&
-          response.request().resourceType() === 'fetch' &&
-          response.request().headers().authorization === 'Bearer e2e-access-token' &&
-          response.status() === 401
-        ) {
-          authenticatedMedia401Responses += 1;
-        }
       });
       page.on('pageerror', (error) => pageErrors.push(error));
       await page.route('https://frame-previews.example.test/**', (route) =>
@@ -267,9 +263,10 @@ test.describe('Frame extraction (real media regression)', () => {
         .toEqual({ source_upload_id: SOURCE_ID, frame_count: 6 });
       await expect(extractionDialog.getByRole('button', { name: /^Automatic:/ })).toHaveCount(6);
       await expect(addButton).toBeEnabled({ timeout: 8_000 });
-      expect(authenticatedMediaFetches).toBeGreaterThan(0);
-      expect(authenticatedMedia401Responses).toBe(0);
-      expect(anonymousProtectedContentRequestsAfterFrameModalOpen).toBe(0);
+      expect(cookieMediaFetches).toBeGreaterThan(0);
+      expect(protectedMedia401Responses).toBe(0);
+      expect(nativeProtectedContentRequestsAfterFrameModalOpen).toBe(0);
+      expect(bearerProtectedContentRequests).toBe(0);
       const decoderSrc = await extractionDialog
         .locator('video')
         .evaluate((video) => (video as HTMLVideoElement).src);

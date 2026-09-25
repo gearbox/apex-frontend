@@ -42,7 +42,7 @@ export async function prewarmMediaWithSignal(
 ): Promise<void> {
   if (!isPrewarmEligible(media)) return;
 
-  const cacheKey = toMediaSrc(media.original.url);
+  const cacheKey = toMediaSrc(media.original.url) ?? media.original.url;
   await getOrFetchBlob(
     cacheKey,
     // Authenticated originals must not be deliberately written into the browser's persistent HTTP
