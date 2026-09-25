@@ -36,6 +36,12 @@
   {#if source.available && source.previewUrl && (source.mediaType === 'image' || source.mediaType === 'video')}
     <!-- Video preview URLs point at poster variants. -->
     <img src={source.previewUrl} alt="" class="h-12 w-12 rounded-lg object-cover" />
+  {:else if source.available && (source.mediaType === 'image' || source.mediaType === 'video')}
+    <div
+      class="flex h-12 w-12 items-center justify-center rounded-lg bg-surface text-center text-[10px] text-text-dim"
+    >
+      Preview unavailable
+    </div>
   {:else if source.available}
     <div
       class="flex h-12 w-12 items-center justify-center rounded-lg bg-surface text-center text-[10px] text-text-dim"

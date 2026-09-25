@@ -247,6 +247,66 @@ describe('MediaImage', () => {
   });
 });
 
+describe('MediaImage — protected-content boundary and stale recovery', () => {
+  beforeEach(() => {
+    __resetAuthFailureReasonForTesting();
+    remintContentCookieMock.mockReset().mockResolvedValue({ kind: 'unauthorized' });
+    silentRefreshMock.mockReset().mockResolvedValue({ ok: true });
+  });
+
+  it('renders the unavailable placeholder, not an <img>, for a non-protected original URL', () => {
+    const media = makeImageMedia({
+      original: { ...makeImageMedia().original, url: 'https://cdn.example.com/leak.png' },
+      variants: [],
+    });
+    const { container, getByRole } = render(MediaImage, { props: { media, alt: 'test' } });
+
+    expect(container.querySelector('img')).toBeNull();
+    expect(getByRole('img')).toBeTruthy();
+    expect(remintContentCookieMock).not.toHaveBeenCalled();
+  });
+
+  it('a recovery that resolves after the media URL changed does not touch the new image', async () => {
+    let resolveRemint!: (value: ContentCookieRemintResult) => void;
+    remintContentCookieMock.mockReturnValue(
+      new Promise<ContentCookieRemintResult>((resolve) => (resolveRemint = resolve)),
+    );
+    const first = makeImageMedia();
+    const second = makeImageMedia({
+      original: { ...first.original, url: '/v1/content/outputs/next' },
+      variants: [],
+    });
+    const { container, rerender } = render(MediaImage, { props: { media: first, alt: 'test' } });
+
+    await fireEvent.error(container.querySelector('img')!);
+    await vi.waitFor(() => expect(remintContentCookieMock).toHaveBeenCalledTimes(1));
+    await rerender({ media: second, alt: 'test' });
+
+    resolveRemint({ kind: 'unauthorized' });
+    await flushMicrotasks();
+
+    // The stale ladder stops before rung 2 affects anything and the new image stays healthy.
+    expect(container.querySelector('img')?.getAttribute('src')).toBe(
+      `${ORIGIN}/v1/content/outputs/next`,
+    );
+  });
+
+  it('a transient failure followed by another error never starts a second recovery', async () => {
+    remintContentCookieMock.mockResolvedValue({ kind: 'transient' });
+    const { container, getByRole } = render(MediaImage, {
+      props: { media: makeImageMedia(), alt: 'test' },
+    });
+
+    await fireEvent.error(container.querySelector('img')!);
+    await vi.waitFor(() => expect(getByRole('img')).toBeTruthy());
+    await flushMicrotasks();
+
+    expect(container.querySelector('img')).toBeNull();
+    expect(remintContentCookieMock).toHaveBeenCalledTimes(1);
+    expect(silentRefreshMock).not.toHaveBeenCalled();
+  });
+});
+
 describe('MediaImage — srcOverride', () => {
   beforeEach(() => {
     __resetAuthFailureReasonForTesting();
@@ -282,5 +342,50 @@ describe('MediaImage — srcOverride', () => {
     expect(silentRefreshMock).not.toHaveBeenCalled();
     // No placeholder — the owner is expected to drop srcOverride so the variant repaints.
     expect(container.querySelector('img')).not.toBeNull();
+  });
+
+  it('does not let a stale responsive recovery replace a newly active object URL', async () => {
+    let resolveRemint!: (value: ContentCookieRemintResult) => void;
+    remintContentCookieMock.mockReturnValue(
+      new Promise<ContentCookieRemintResult>((resolve) => (resolveRemint = resolve)),
+    );
+    const { container, rerender } = render(MediaImage, {
+      props: { media: makeImageMedia(), alt: 'test' },
+    });
+
+    await fireEvent.error(container.querySelector('img')!);
+    await vi.waitFor(() => expect(remintContentCookieMock).toHaveBeenCalledOnce());
+    await rerender({
+      media: makeImageMedia(),
+      alt: 'test',
+      srcOverride: 'blob:http://localhost/upgraded-image',
+    });
+
+    resolveRemint({ kind: 'ok', expiresAt: new Date(Date.now() + 86_400_000) });
+    await flushMicrotasks();
+
+    const img = container.querySelector('img')!;
+    expect(img.getAttribute('src')).toBe('blob:http://localhost/upgraded-image');
+    expect(img.getAttribute('srcset')).toBeNull();
+  });
+
+  it('allows the responsive source to recover after an object URL is removed', async () => {
+    const onObjectUrlError = vi.fn();
+    const { container, rerender } = render(MediaImage, {
+      props: {
+        media: makeImageMedia(),
+        alt: 'test',
+        srcOverride: 'blob:http://localhost/upgraded-image',
+        onObjectUrlError,
+      },
+    });
+
+    await fireEvent.error(container.querySelector('img')!);
+    expect(onObjectUrlError).toHaveBeenCalledOnce();
+
+    await rerender({ media: makeImageMedia(), alt: 'test', srcOverride: null, onObjectUrlError });
+    await fireEvent.error(container.querySelector('img')!);
+
+    await vi.waitFor(() => expect(remintContentCookieMock).toHaveBeenCalledOnce());
   });
 });

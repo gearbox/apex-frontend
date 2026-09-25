@@ -1,16 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fetchOriginalBlob, MAX_SAVE_BYTES } from './fetchOriginal';
+import { SaveFailedError } from './types';
 import type { MediaObject } from './types';
+import type { ContentAccessRecovery } from '$lib/media/contentAccessRecovery';
 
-const silentRefreshMock = vi.fn<() => Promise<{ ok: true } | { ok: false; reason: string }>>();
-const getAccessTokenMock = vi.fn<() => string | null>();
-
-vi.mock('$lib/api/auth', () => ({
-  silentRefresh: () => silentRefreshMock(),
+const { recoverContentAccessMock } = vi.hoisted(() => ({
+  recoverContentAccessMock: vi.fn<() => Promise<ContentAccessRecovery>>(),
 }));
 
-vi.mock('$lib/stores/auth', () => ({
-  getAccessToken: () => getAccessTokenMock(),
+vi.mock('$lib/media/contentAccessRecovery', () => ({
+  recoverContentAccess: recoverContentAccessMock,
 }));
 
 function fakeResponse(opts: {
@@ -57,9 +56,8 @@ function media(overrides: Partial<MediaObject['original']> = {}): MediaObject {
 describe('fetchOriginalBlob', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
-    silentRefreshMock.mockReset();
-    getAccessTokenMock.mockReset();
-    getAccessTokenMock.mockReturnValue('access-token');
+    recoverContentAccessMock.mockReset();
+    recoverContentAccessMock.mockResolvedValue({ ok: true, via: 'remint' });
   });
 
   it('requests the original url, never a variants[*] url', async () => {
@@ -76,43 +74,76 @@ describe('fetchOriginalBlob', () => {
     expect(requestedUrl).not.toContain('variant-should-never-be-fetched');
   });
 
-  it('retries once after a 401 via silentRefresh, then succeeds', async () => {
+  it('returns the original bytes and content type', async () => {
+    const original = new Blob(['original-bytes']);
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          fakeResponse({ ok: true, status: 200, contentType: 'image/png', blob: original }),
+        ),
+    );
+
+    const blob = await fetchOriginalBlob(media());
+
+    expect(await blob.text()).toBe('original-bytes');
+    expect(blob.type).toBe('image/png');
+  });
+
+  it('retries the same URL once after a 401 and a successful content-access recovery', async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(fakeResponse({ ok: false, status: 401 }))
       .mockResolvedValueOnce(fakeResponse({ ok: true, status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
-    silentRefreshMock.mockResolvedValue({ ok: true });
 
     const blob = await fetchOriginalBlob(media());
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(silentRefreshMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[1][0]).toBe(fetchMock.mock.calls[0][0]);
+    expect(recoverContentAccessMock).toHaveBeenCalledTimes(1);
     expect(blob).toBeInstanceOf(Blob);
   });
 
-  it('sends no Authorization header when validateProtectedMediaUrl rejects the url', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(fakeResponse({ ok: true, status: 200 }));
+  it('never recovers twice: a second 401 is an auth failure', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(fakeResponse({ ok: false, status: 401 }));
     vi.stubGlobal('fetch', fetchMock);
 
-    await fetchOriginalBlob(media({ url: 'https://evil.example.com/file.jpg' }));
+    await expect(fetchOriginalBlob(media())).rejects.toMatchObject({ reason: 'auth' });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(recoverContentAccessMock).toHaveBeenCalledTimes(1);
+  });
 
+  it.each([
+    ['unauthorized', 'auth'],
+    ['revoked', 'auth'],
+    ['stale', 'auth'],
+    ['transient', 'network'],
+    ['rate_limited', 'network'],
+    ['aborted', 'network'],
+  ] as const)('a %s recovery fails as %s without a second request', async (reason, expected) => {
+    const fetchMock = vi.fn().mockResolvedValue(fakeResponse({ ok: false, status: 401 }));
+    vi.stubGlobal('fetch', fetchMock);
+    recoverContentAccessMock.mockResolvedValue({ ok: false, reason });
+
+    await expect(fetchOriginalBlob(media())).rejects.toMatchObject({ reason: expected });
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [, requestInit] = fetchMock.mock.calls[0];
-    expect((requestInit.headers as Record<string, string>).Authorization).toBeUndefined();
   });
 
-  it('omits credentials: include for a foreign origin that fails validation', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(fakeResponse({ ok: true, status: 200 }));
+  it.each([
+    'https://evil.example.com/file.jpg',
+    'https://bucket.r2.cloudflarestorage.com/out.png?X-Amz-Signature=abc',
+    '/v1/users/me',
+  ])('rejects %s without issuing any request', async (url) => {
+    const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
 
-    await fetchOriginalBlob(media({ url: 'https://evil.example.com/file.jpg' }));
-
-    const [, requestInit] = fetchMock.mock.calls[0];
-    expect(requestInit.credentials).toBeUndefined();
+    await expect(fetchOriginalBlob(media({ url }))).rejects.toBeInstanceOf(SaveFailedError);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('sets credentials: include on the validated, authenticated path', async () => {
+  it('uses content-cookie credentials without an Authorization header', async () => {
     const fetchMock = vi.fn().mockResolvedValue(fakeResponse({ ok: true, status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
 
@@ -120,6 +151,18 @@ describe('fetchOriginalBlob', () => {
 
     const [, requestInit] = fetchMock.mock.calls[0];
     expect(requestInit.credentials).toBe('include');
+    expect(new Headers(requestInit.headers).has('authorization')).toBe(false);
+  });
+
+  it('defaults to no-store and honours an explicit cache mode', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(fakeResponse({ ok: true, status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await fetchOriginalBlob(media());
+    await fetchOriginalBlob(media(), undefined, 'default');
+
+    expect(fetchMock.mock.calls[0][1].cache).toBe('no-store');
+    expect(fetchMock.mock.calls[1][1].cache).toBe('default');
   });
 
   it('short-circuits without a request when size_bytes exceeds the cap', async () => {

@@ -5,7 +5,8 @@ type MediaObject = components['schemas']['MediaObject'];
 type ImageVariant = components['schemas']['ImageVariant'];
 
 export interface ImgAttrs {
-  src: string;
+  /** Null when the original is not a valid protected-content URL — render unavailable instead. */
+  src: string | null;
   srcset?: string;
   sizes?: string;
   width?: number;
@@ -14,7 +15,10 @@ export interface ImgAttrs {
 
 export function imgAttrs(m: MediaObject, sizes?: string): ImgAttrs {
   const src = toMediaSrc(m.original.url);
-  const srcsetParts = m.variants.map((v) => `${toMediaSrc(v.url)} ${v.width}w`);
+  const srcsetParts = m.variants.flatMap((v) => {
+    const variantSrc = toMediaSrc(v.url);
+    return variantSrc ? [`${variantSrc} ${v.width}w`] : [];
+  });
   const srcset = srcsetParts.length > 0 ? srcsetParts.join(', ') : undefined;
   return {
     src,
@@ -26,28 +30,47 @@ export function imgAttrs(m: MediaObject, sizes?: string): ImgAttrs {
 }
 
 /** Smallest variant whose width >= target, else largest variant, else undefined. */
+function pickVariantFrom<T extends Pick<ImageVariant, 'width'>>(
+  variants: readonly T[],
+  target: number,
+): T | undefined {
+  let fit: T | undefined;
+  let largest: T | undefined;
+
+  for (const variant of variants) {
+    if (!largest || variant.width > largest.width) largest = variant;
+    if (variant.width >= target && (!fit || variant.width < fit.width)) fit = variant;
+  }
+
+  return fit ?? largest;
+}
+
+/** Smallest variant whose width >= target, else largest variant, else undefined. */
 export function pickVariant(m: MediaObject, target: number): ImageVariant | undefined {
-  if (m.variants.length === 0) return undefined;
-  const fit = m.variants.find((v) => v.width >= target);
-  return fit ?? m.variants[m.variants.length - 1];
+  return pickVariantFrom(m.variants, target);
 }
 
 /** Single src for non-srcset contexts (background, poster). Falls back to original. */
-export function mediaFallbackSrc(m: MediaObject, target?: number): string {
-  if (target !== undefined) {
-    const v = pickVariant(m, target);
-    if (v) return toMediaSrc(v.url);
-  } else if (m.variants.length > 0) {
-    return toMediaSrc(m.variants[0].url);
-  }
+export function mediaFallbackSrc(m: MediaObject, target?: number): string | null {
+  const validVariants = m.variants.flatMap((variant) => {
+    const src = toMediaSrc(variant.url);
+    return src ? [{ ...variant, src }] : [];
+  });
+  const preferred =
+    target === undefined ? validVariants[0] : pickVariantFrom(validVariants, target);
+
+  if (preferred) return preferred.src;
   return toMediaSrc(m.original.url);
 }
 
 /** Poster src for <video>: prefer ~512 variant, else largest, else undefined. */
 export function posterSrc(m: MediaObject): string | undefined {
-  if (m.variants.length === 0) return undefined;
-  const v = pickVariant(m, 512);
-  return v ? toMediaSrc(v.url) : undefined;
+  const validPosters = m.variants.flatMap((variant) => {
+    const src = toMediaSrc(variant.url);
+    return src ? [{ ...variant, src }] : [];
+  });
+  // A video's original is video bytes, never an image poster. Do not fall back to it here.
+  return pickVariantFrom(validPosters, 512)?.src;
 }
 
 /** Frame-precision timestamp (mm:ss.mmm) for millisecond-based callers, e.g. FrameScrubber. */

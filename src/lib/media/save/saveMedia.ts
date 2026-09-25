@@ -1,8 +1,8 @@
-import { toMediaSrc } from '$lib/media/toMediaSrc';
 import { fetchOriginalBlob } from './fetchOriginal';
 import { buildSaveFilename } from './filename';
 import { resolveSaveCapabilities } from './capabilities';
 import { getOrFetchBlob } from './blobCache';
+import { protectedOriginalCacheKey } from './cacheKey';
 import { shareFile, downloadBlob } from './savers';
 import { SaveFailedError } from './types';
 import type { MediaObject, SaveCapability, SaveMediaDeps, SaveOutcome } from './types';
@@ -26,7 +26,8 @@ export async function saveMedia(
   const { fetchBlob, share, download, now, capabilities } = { ...defaultDeps, ...deps };
 
   const filename = buildSaveFilename(id, media);
-  const cacheKey = toMediaSrc(media.original.url);
+  const cacheKey = protectedOriginalCacheKey(media);
+  if (!cacheKey) throw new SaveFailedError('not-found');
 
   // `signal` only governs this caller's own attachment to the shared request (see
   // blobCache.getOrFetchBlob) — it can never be cancelled by an unrelated caller detaching.

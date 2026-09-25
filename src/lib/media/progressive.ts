@@ -1,7 +1,9 @@
-import { silentRefresh } from '$lib/api/auth';
-import { validateProtectedMediaUrl } from '$lib/media/loadAuthenticatedMediaBlob';
-import { toMediaSrc } from '$lib/media/toMediaSrc';
-import { getAccessToken } from '$lib/stores/auth';
+import { recoverContentAccess } from '$lib/media/contentAccessRecovery';
+import {
+  fetchProtectedContent,
+  parseProtectedContentUrl,
+  type ProtectedContentUrl,
+} from '$lib/media/protectedContent';
 import type { components } from '$lib/api/types';
 
 type MediaObject = components['schemas']['MediaObject'];
@@ -61,24 +63,14 @@ function isAbort(error: unknown, signal?: AbortSignal): boolean {
   return signal?.aborted === true || (error instanceof DOMException && error.name === 'AbortError');
 }
 
-function requestHeaders(): Record<string, string> {
-  const headers: Record<string, string> = {};
-  const token = getAccessToken();
-  if (token) headers.Authorization = `Bearer ${token}`;
-  if (import.meta.env.DEV) headers['X-Product-Id'] = import.meta.env.VITE_PRODUCT_ID || 'vex';
-  return headers;
-}
-
-async function requestOriginal(url: string, signal?: AbortSignal): Promise<Response> {
+async function requestOriginal(
+  target: ProtectedContentUrl,
+  signal?: AbortSignal,
+): Promise<Response> {
   try {
     // This original is private to the current session. Keep the progressive decoded blob only in
     // memory and never deliberately seed the browser's persistent HTTP cache.
-    return await fetch(url, {
-      headers: requestHeaders(),
-      credentials: 'include',
-      cache: 'no-store',
-      signal,
-    });
+    return await fetchProtectedContent(target, { cache: 'no-store', signal });
   } catch (error) {
     if (isAbort(error, signal)) throw error;
     throw new ProgressiveImageError('network');
@@ -149,8 +141,8 @@ async function readProgressively(
 
 /**
  * Streams an image original after the md variant has painted. Requests use the same protected
- * content validation, bearer header, cookie credentials, and one-time 401 refresh as other
- * authenticated media paths. A skip returns null so callers keep the responsive preview.
+ * content validation, content-cookie credentials, and one-shot 401 content-access recovery as
+ * other protected media paths. A skip returns null so callers keep the responsive preview.
  */
 export async function fetchOriginalBytes(
   media: MediaObject,
@@ -158,26 +150,23 @@ export async function fetchOriginalBytes(
 ): Promise<Blob | null> {
   if (!shouldUpgradeToOriginal(media)) return null;
 
-  const url = toMediaSrc(media.original.url);
-  try {
-    validateProtectedMediaUrl(url);
-  } catch {
-    throw new ProgressiveImageError('request');
-  }
+  const target = parseProtectedContentUrl(media.original.url);
+  if (!target) throw new ProgressiveImageError('request');
 
   if (options.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
-  let response = await requestOriginal(url, options.signal);
+  let response = await requestOriginal(target, options.signal);
   if (response.status === 401) {
-    let refreshed: boolean;
-    try {
-      refreshed = (await silentRefresh()).ok;
-    } catch (error) {
-      if (isAbort(error, options.signal)) throw error;
-      throw new ProgressiveImageError('network');
+    const recovery = await recoverContentAccess({ signal: options.signal });
+    if (!recovery.ok) {
+      if (recovery.reason === 'aborted') throw new DOMException('Aborted', 'AbortError');
+      throw new ProgressiveImageError(
+        recovery.reason === 'transient' || recovery.reason === 'rate_limited'
+          ? 'network'
+          : 'authentication',
+      );
     }
-    if (!refreshed) throw new ProgressiveImageError('authentication');
-    response = await requestOriginal(url, options.signal);
+    response = await requestOriginal(target, options.signal);
   }
 
   if (!response.ok)

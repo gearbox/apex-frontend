@@ -37,7 +37,7 @@
   const progressPercent = $derived(percentOf(progress));
 
   /** An object URL can never 401 — a failed upgrade drops back to the responsive variant
-   *  instead of running MediaImage's silentRefresh ladder against a source that can't 401. */
+   *  instead of running MediaImage's content-access recovery against a source that can't 401. */
   function handleUpgradedSourceError(): void {
     if (upgradedObjectUrl) URL.revokeObjectURL(upgradedObjectUrl);
     upgradedObjectUrl = null;

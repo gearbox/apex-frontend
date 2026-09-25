@@ -1,7 +1,7 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { imgAttrs } from '$lib/media/index';
-  import { silentRefresh, remintContentCookie, type SilentRefreshResult } from '$lib/api/auth';
-  import { getAuthFailureReason } from '$lib/stores/auth';
+  import { recoverContentAccess } from '$lib/media/contentAccessRecovery';
   import { ImageOff } from '@lucide/svelte';
   import * as m from '$paraglide/messages';
   import type { components } from '$lib/api/types';
@@ -26,7 +26,7 @@
      *  responsive srcset/sizes pair. The error/retry ladder below still applies to it. */
     srcOverride?: string | null;
     /** Called instead of the retry ladder when `srcOverride` fails to load — an object URL
-     *  can never 401, so silentRefresh would be pointless. */
+     *  can never 401, so content-access recovery would be pointless. */
     onObjectUrlError?: () => void;
   } = $props();
 
@@ -38,32 +38,46 @@
   const effectiveSrc = $derived(srcOverride ?? attrs.src);
   const effectiveSrcset = $derived(srcOverride ? undefined : attrs.srcset);
   const effectiveSizes = $derived(srcOverride ? undefined : attrs.sizes);
+  // This is the exact source currently painted by the element. Responsive candidates are only
+  // ever reloaded while this source is still active; an object URL changing it invalidates the
+  // pending recovery before it can write attributes imperatively.
+  const sourceContext = $derived(effectiveSrc);
 
-  // A successful token refresh must make a previously failed thumbnail eligible again, but an
-  // ordinary parent rerender that supplies a structurally-identical `media` object must not:
-  // this derived comparison (not an effect) only resets to 'idle' when the URL itself differs,
-  // regardless of how often the surrounding component tree rerenders.
+  // Content-access recovery is scoped to the failed rendered source, not merely the original
+  // URL. A parent can replace responsive candidates with an upgraded object URL while recovery
+  // is pending; that newer source must never be imperatively replaced by a stale retry.
   let failure = $state<{ url: string; state: RetryState } | null>(null);
   const retryState = $derived(failure?.url === originalUrl ? failure.state : 'idle');
+  // A URL that is not a protected-content URL never becomes a request: render unavailable.
+  const unavailable = $derived(retryState === 'failed' || (!srcOverride && attrs.src === null));
+  let lastSourceContext: string | null;
+  let sourceContextInitialized = false;
 
-  function reloadSameSource(): void {
-    if (!imageElement) return;
+  $effect(() => {
+    const currentContext = sourceContext;
+    if (!sourceContextInitialized) {
+      lastSourceContext = currentContext;
+      sourceContextInitialized = true;
+      return;
+    }
+    if (currentContext === lastSourceContext) return;
+    lastSourceContext = currentContext;
+
+    // An override replacing the failed responsive source makes its pending recovery stale right
+    // away. Do not let that stale `refreshing` marker prevent a later fallback from retrying.
+    if (untrack(() => failure)?.state === 'refreshing') failure = null;
+  });
+
+  function reloadSameSource(element: HTMLImageElement): void {
+    if (imageElement !== element || srcOverride) return;
 
     // Content-proxy URLs reject query strings. Clearing then re-setting the exact same
     // candidate list asks the browser to select/reload it without changing the URL contract.
-    imageElement.removeAttribute('src');
-    imageElement.removeAttribute('srcset');
-    if (attrs.srcset) imageElement.srcset = attrs.srcset;
-    if (attrs.sizes) imageElement.sizes = attrs.sizes;
-    imageElement.src = attrs.src;
-  }
-
-  /** A session already known to be revoked cannot be recovered by either rung below — retrying
-   *  it is pure noise against an endpoint that will only 401 again (B3). `invalid_token`/no
-   *  recorded reason keeps the existing ladder behavior. */
-  function isKnownRevoked(): boolean {
-    const reason = getAuthFailureReason();
-    return reason === 'token_reuse_detected' || reason === 'account_inactive';
+    element.removeAttribute('src');
+    element.removeAttribute('srcset');
+    if (attrs.srcset) element.srcset = attrs.srcset;
+    if (attrs.sizes) element.sizes = attrs.sizes;
+    if (attrs.src) element.src = attrs.src;
   }
 
   async function handleError(): Promise<void> {
@@ -82,54 +96,41 @@
     }
 
     const failedUrl = originalUrl;
-
-    if (isKnownRevoked()) {
-      failure = { url: failedUrl, state: 'failed' };
-      return;
-    }
-
+    const failedContext = sourceContext;
+    const element = imageElement;
+    if (!element) return;
     failure = { url: failedUrl, state: 'refreshing' };
 
-    // Rung 1: the content cookie may simply have lapsed while the access token is still good —
-    // the common case, and cheaper than a full token refresh (C3).
-    const remint = await remintContentCookie().catch(() => ({ kind: 'transient' }) as const);
-
-    // Ignore a stale response once the parent has already moved on to different media.
-    if (originalUrl !== failedUrl) return;
-
-    if (remint.kind === 'ok') {
-      failure = { url: failedUrl, state: 'retried' };
-      reloadSameSource();
-      return;
-    }
-
     // An image error is not proof of an expired credential: offline, 5xx, 429, decoding, and
-    // browser cache failures all land here. Only an explicit auth rejection may take the broader
-    // refresh rung; the normal placeholder UX remains intact for every transient outcome.
-    if (remint.kind !== 'unauthorized') {
-      failure = { url: failedUrl, state: 'failed' };
+    // browser cache failures all land here too. The shared primitive re-mints the content cookie
+    // first and escalates to a full refresh only after an explicit authorization rejection; a
+    // known-revoked session, transient, or stale outcome goes straight to the placeholder.
+    const recovery = await recoverContentAccess();
+
+    // Ignore a stale response once the parent has changed either the media or the rendered source
+    // context. Clearing this attempt's state means a later fallback from an object URL can still
+    // use its own bounded recovery path.
+    if (
+      originalUrl !== failedUrl ||
+      sourceContext !== failedContext ||
+      srcOverride ||
+      imageElement !== element
+    ) {
+      if (failure?.url === failedUrl && failure.state === 'refreshing') failure = null;
       return;
     }
 
-    // Rung 2: the re-mint endpoint explicitly rejected the access token.
-    const result = await silentRefresh().catch((): SilentRefreshResult => ({
-      ok: false,
-      reason: 'network',
-    }));
-
-    if (originalUrl !== failedUrl) return;
-
-    if (!result.ok) {
+    if (!recovery.ok) {
       failure = { url: failedUrl, state: 'failed' };
       return;
     }
 
     failure = { url: failedUrl, state: 'retried' };
-    reloadSameSource();
+    reloadSameSource(element);
   }
 </script>
 
-{#if retryState === 'failed'}
+{#if unavailable}
   <div
     role="img"
     aria-label={m.library_image_unavailable()}
