@@ -1,6 +1,6 @@
-import { toMediaSrc } from '$lib/media/toMediaSrc';
 import { fetchOriginalBlob } from './fetchOriginal';
 import { getOrFetchBlob } from './blobCache';
+import { protectedOriginalCacheKey } from './cacheKey';
 import type { MediaObject } from './types';
 
 /** Never speculatively pull a large video — only the click path should pay that cost. */
@@ -42,7 +42,10 @@ export async function prewarmMediaWithSignal(
 ): Promise<void> {
   if (!isPrewarmEligible(media)) return;
 
-  const cacheKey = toMediaSrc(media.original.url) ?? media.original.url;
+  const cacheKey = protectedOriginalCacheKey(media);
+  // A malformed original would be rejected by fetchOriginalBlob. Skip speculative work entirely
+  // instead of introducing a raw, unusable URL into the in-memory cache namespace.
+  if (!cacheKey) return;
   await getOrFetchBlob(
     cacheKey,
     // Authenticated originals must not be deliberately written into the browser's persistent HTTP

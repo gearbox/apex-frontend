@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fetchProtectedContent, parseProtectedContentUrl } from './protectedContent';
+import {
+  fetchProtectedContent,
+  parseProtectedContentUrl,
+  probeProtectedContent,
+} from './protectedContent';
 import { clearAuth, setAuth, type UserProfile } from '$lib/stores/auth';
 
 const ORIGIN = 'http://localhost:8000';
@@ -129,5 +133,25 @@ describe('fetchProtectedContent', () => {
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(init.cache).toBe('default');
     expect(init.signal).toBe(controller.signal);
+  });
+
+  it('probes a validated URL with a single-byte cookie-only request', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 206 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const controller = new AbortController();
+
+    await probeProtectedContent(parseProtectedContentUrl('/v1/content/uploads/up-1')!, {
+      signal: controller.signal,
+    });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`${ORIGIN}/v1/content/uploads/up-1`);
+    expect(init.credentials).toBe('include');
+    expect(init.cache).toBe('no-store');
+    expect(init.signal).toBe(controller.signal);
+    const headers = new Headers(init.headers);
+    expect(headers.get('range')).toBe('bytes=0-0');
+    expect(headers.has('authorization')).toBe(false);
+    expect(JSON.stringify(init)).not.toContain('access-token-that-must-not-leak');
   });
 });

@@ -113,6 +113,14 @@ describe('prewarmMedia', () => {
     expect(fetchOriginalBlobMock).toHaveBeenCalledWith(asset, expect.any(AbortSignal), 'no-store');
   });
 
+  it('skips an invalid original instead of creating a raw-URL cache entry', async () => {
+    const asset = media({ url: 'https://cdn.example.com/foreign.jpg' });
+
+    await prewarmMediaWithSignal(asset);
+
+    expect(fetchOriginalBlobMock).not.toHaveBeenCalled();
+  });
+
   it('passes viewer TTL through the abortable warm variant', async () => {
     vi.spyOn(Date, 'now').mockReturnValue(0);
     const asset = { ...media(), media_type: 'video' as const };

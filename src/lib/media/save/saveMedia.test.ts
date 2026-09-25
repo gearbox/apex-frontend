@@ -144,4 +144,17 @@ describe('saveMedia', () => {
 
     await expect(saveMedia('share', media(), 'id-4', deps)).resolves.toBe('cancelled');
   });
+
+  it('rejects an invalid original before it can become a raw-URL cache key', async () => {
+    const fetchBlob = vi.fn();
+    const invalid: MediaObject = {
+      ...media(),
+      original: { ...media().original, url: 'https://cdn.example.com/foreign.jpg' },
+    };
+
+    await expect(
+      saveMedia('download', invalid, 'id-invalid', makeDeps({ fetchBlob })),
+    ).rejects.toEqual(expect.objectContaining({ reason: 'not-found' }));
+    expect(fetchBlob).not.toHaveBeenCalled();
+  });
 });

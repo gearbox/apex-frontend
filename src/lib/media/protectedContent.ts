@@ -69,6 +69,17 @@ export interface FetchProtectedContentOptions {
   cache?: RequestCache;
 }
 
+export interface ProbeProtectedContentOptions {
+  signal?: AbortSignal;
+}
+
+function contentHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  const headers = { ...extra };
+  // Local dev serves every product from one API host; production resolves it from the origin.
+  if (import.meta.env.DEV) headers['X-Product-Id'] = import.meta.env.VITE_PRODUCT_ID || 'vex';
+  return headers;
+}
+
 /**
  * The single request path for protected media bytes. It authenticates with the HttpOnly content
  * cookie only: the access token is deliberately never attached to a `/v1/content/...` GET.
@@ -79,14 +90,27 @@ export function fetchProtectedContent(
   target: ProtectedContentUrl,
   options: FetchProtectedContentOptions = {},
 ): Promise<Response> {
-  const headers: Record<string, string> = {};
-  // Local dev serves every product from one API host; production resolves it from the origin.
-  if (import.meta.env.DEV) headers['X-Product-Id'] = import.meta.env.VITE_PRODUCT_ID || 'vex';
-
   return fetch(target.url, {
-    headers,
+    headers: contentHeaders(),
     credentials: 'include',
     cache: options.cache ?? 'no-store',
+    signal: options.signal,
+  });
+}
+
+/**
+ * Checks only whether the content cookie can access a validated media URL. The Range header is
+ * intentionally owned here so callers cannot turn this credential probe into an arbitrary fetch
+ * or a full-media download.
+ */
+export function probeProtectedContent(
+  target: ProtectedContentUrl,
+  options: ProbeProtectedContentOptions = {},
+): Promise<Response> {
+  return fetch(target.url, {
+    headers: contentHeaders({ Range: 'bytes=0-0' }),
+    credentials: 'include',
+    cache: 'no-store',
     signal: options.signal,
   });
 }

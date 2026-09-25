@@ -21,20 +21,30 @@
         {#if output.media.media_type === 'video'}
           <MediaVideo media={output.media} controls playsinline class="w-full rounded-lg" />
         {:else}
-          <a
-            href={toMediaSrc(output.media.original.url)}
-            target="_blank"
-            rel="noopener noreferrer"
-            class="block w-full"
-            aria-label="Open output {output.output_index + 1} in new tab"
-          >
+          {@const href = toMediaSrc(output.media.original.url)}
+          {#if href}
+            <a
+              {href}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="block w-full"
+              aria-label="Open output {output.output_index + 1} in new tab"
+            >
+              <MediaImage
+                media={output.media}
+                alt="Output {output.output_index + 1}"
+                sizes="(max-width: 768px) 50vw, 200px"
+                class="aspect-square w-full rounded-lg object-cover transition-opacity hover:opacity-90"
+              />
+            </a>
+          {:else}
             <MediaImage
               media={output.media}
               alt="Output {output.output_index + 1}"
               sizes="(max-width: 768px) 50vw, 200px"
               class="aspect-square w-full rounded-lg object-cover transition-opacity hover:opacity-90"
             />
-          </a>
+          {/if}
         {/if}
       </div>
     {/each}

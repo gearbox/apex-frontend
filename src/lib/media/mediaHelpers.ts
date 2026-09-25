@@ -30,28 +30,47 @@ export function imgAttrs(m: MediaObject, sizes?: string): ImgAttrs {
 }
 
 /** Smallest variant whose width >= target, else largest variant, else undefined. */
+function pickVariantFrom<T extends Pick<ImageVariant, 'width'>>(
+  variants: readonly T[],
+  target: number,
+): T | undefined {
+  let fit: T | undefined;
+  let largest: T | undefined;
+
+  for (const variant of variants) {
+    if (!largest || variant.width > largest.width) largest = variant;
+    if (variant.width >= target && (!fit || variant.width < fit.width)) fit = variant;
+  }
+
+  return fit ?? largest;
+}
+
+/** Smallest variant whose width >= target, else largest variant, else undefined. */
 export function pickVariant(m: MediaObject, target: number): ImageVariant | undefined {
-  if (m.variants.length === 0) return undefined;
-  const fit = m.variants.find((v) => v.width >= target);
-  return fit ?? m.variants[m.variants.length - 1];
+  return pickVariantFrom(m.variants, target);
 }
 
 /** Single src for non-srcset contexts (background, poster). Falls back to original. */
 export function mediaFallbackSrc(m: MediaObject, target?: number): string | null {
-  if (target !== undefined) {
-    const v = pickVariant(m, target);
-    if (v) return toMediaSrc(v.url);
-  } else if (m.variants.length > 0) {
-    return toMediaSrc(m.variants[0].url);
-  }
+  const validVariants = m.variants.flatMap((variant) => {
+    const src = toMediaSrc(variant.url);
+    return src ? [{ ...variant, src }] : [];
+  });
+  const preferred =
+    target === undefined ? validVariants[0] : pickVariantFrom(validVariants, target);
+
+  if (preferred) return preferred.src;
   return toMediaSrc(m.original.url);
 }
 
 /** Poster src for <video>: prefer ~512 variant, else largest, else undefined. */
 export function posterSrc(m: MediaObject): string | undefined {
-  if (m.variants.length === 0) return undefined;
-  const v = pickVariant(m, 512);
-  return (v && toMediaSrc(v.url)) ?? undefined;
+  const validPosters = m.variants.flatMap((variant) => {
+    const src = toMediaSrc(variant.url);
+    return src ? [{ ...variant, src }] : [];
+  });
+  // A video's original is video bytes, never an image poster. Do not fall back to it here.
+  return pickVariantFrom(validPosters, 512)?.src;
 }
 
 /** Frame-precision timestamp (mm:ss.mmm) for millisecond-based callers, e.g. FrameScrubber. */

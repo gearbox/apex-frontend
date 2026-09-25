@@ -343,4 +343,49 @@ describe('MediaImage — srcOverride', () => {
     // No placeholder — the owner is expected to drop srcOverride so the variant repaints.
     expect(container.querySelector('img')).not.toBeNull();
   });
+
+  it('does not let a stale responsive recovery replace a newly active object URL', async () => {
+    let resolveRemint!: (value: ContentCookieRemintResult) => void;
+    remintContentCookieMock.mockReturnValue(
+      new Promise<ContentCookieRemintResult>((resolve) => (resolveRemint = resolve)),
+    );
+    const { container, rerender } = render(MediaImage, {
+      props: { media: makeImageMedia(), alt: 'test' },
+    });
+
+    await fireEvent.error(container.querySelector('img')!);
+    await vi.waitFor(() => expect(remintContentCookieMock).toHaveBeenCalledOnce());
+    await rerender({
+      media: makeImageMedia(),
+      alt: 'test',
+      srcOverride: 'blob:http://localhost/upgraded-image',
+    });
+
+    resolveRemint({ kind: 'ok', expiresAt: new Date(Date.now() + 86_400_000) });
+    await flushMicrotasks();
+
+    const img = container.querySelector('img')!;
+    expect(img.getAttribute('src')).toBe('blob:http://localhost/upgraded-image');
+    expect(img.getAttribute('srcset')).toBeNull();
+  });
+
+  it('allows the responsive source to recover after an object URL is removed', async () => {
+    const onObjectUrlError = vi.fn();
+    const { container, rerender } = render(MediaImage, {
+      props: {
+        media: makeImageMedia(),
+        alt: 'test',
+        srcOverride: 'blob:http://localhost/upgraded-image',
+        onObjectUrlError,
+      },
+    });
+
+    await fireEvent.error(container.querySelector('img')!);
+    expect(onObjectUrlError).toHaveBeenCalledOnce();
+
+    await rerender({ media: makeImageMedia(), alt: 'test', srcOverride: null, onObjectUrlError });
+    await fireEvent.error(container.querySelector('img')!);
+
+    await vi.waitFor(() => expect(remintContentCookieMock).toHaveBeenCalledOnce());
+  });
 });

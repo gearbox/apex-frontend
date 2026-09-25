@@ -6,6 +6,7 @@ import { clearAuth, setAuth, type UserProfile } from '$lib/stores/auth';
 import { loadAuthenticatedMediaBlob } from './loadAuthenticatedMediaBlob';
 import { fetchOriginalBytes } from './progressive';
 import { fetchOriginalBlob } from './save/fetchOriginal';
+import { parseProtectedContentUrl, probeProtectedContent } from './protectedContent';
 
 /**
  * Architectural invariant: protected media bytes are fetched through stable `/v1/content/...`
@@ -34,6 +35,7 @@ interface CapturedRequest {
   url: string;
   authorization: string | null;
   credentials: RequestCredentials;
+  range: string | null;
 }
 
 let captured: CapturedRequest[];
@@ -45,6 +47,7 @@ function capture(contentType: string) {
       url: request.url,
       authorization: request.headers.get('authorization'),
       credentials: request.credentials,
+      range: request.headers.get('range'),
     });
     return new HttpResponse(new Blob(['bytes'], { type: contentType }), {
       headers: { 'content-type': contentType, 'content-length': '5' },
@@ -116,5 +119,14 @@ describe('protected media bytes use content-cookie credentials, never a Bearer h
     );
 
     expectCookieOnlyContentRequest('/v1/content/uploads/upload-1');
+  });
+
+  it('native video credential probe stays cookie-only and requests one byte', async () => {
+    server.use(capture('video/mp4'));
+
+    await probeProtectedContent(parseProtectedContentUrl('/v1/content/outputs/output-1')!);
+
+    expectCookieOnlyContentRequest('/v1/content/outputs/output-1');
+    expect(captured[0]?.range).toBe('bytes=0-0');
   });
 });

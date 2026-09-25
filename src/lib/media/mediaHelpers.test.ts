@@ -121,6 +121,58 @@ describe('mediaFallbackSrc', () => {
     const src = mediaFallbackSrc(makeMedia({ variants: [] }), 9999);
     expect(src).toBe(`${ORIGIN}/v1/content/outputs/orig`);
   });
+
+  it('falls back to the valid original when the preferred target variant is invalid', () => {
+    const src = mediaFallbackSrc(
+      makeMedia({
+        variants: [
+          { label: 'md', width: 512, height: 384, url: 'https://cdn.example.com/bad.png' },
+        ],
+      }),
+      512,
+    );
+
+    expect(src).toBe(`${ORIGIN}/v1/content/outputs/orig`);
+  });
+
+  it('skips an invalid first variant in favor of a later valid variant', () => {
+    const src = mediaFallbackSrc(
+      makeMedia({
+        variants: [
+          { label: 'sm', width: 150, height: 113, url: 'https://cdn.example.com/bad.png' },
+          { label: 'md', width: 512, height: 384, url: '/v1/content/outputs/orig_md' },
+        ],
+      }),
+    );
+
+    expect(src).toBe(`${ORIGIN}/v1/content/outputs/orig_md`);
+  });
+
+  it('falls back to the original when every variant is invalid', () => {
+    const src = mediaFallbackSrc(
+      makeMedia({
+        variants: [
+          { label: 'sm', width: 150, height: 113, url: 'https://cdn.example.com/bad-sm.png' },
+          { label: 'md', width: 512, height: 384, url: 'https://cdn.example.com/bad-md.png' },
+        ],
+      }),
+    );
+
+    expect(src).toBe(`${ORIGIN}/v1/content/outputs/orig`);
+  });
+
+  it('returns null when neither the variants nor original are protected content', () => {
+    const src = mediaFallbackSrc(
+      makeMedia({
+        original: { ...makeMedia().original, url: 'https://cdn.example.com/bad-original.png' },
+        variants: [
+          { label: 'sm', width: 150, height: 113, url: 'https://cdn.example.com/bad-sm.png' },
+        ],
+      }),
+    );
+
+    expect(src).toBeNull();
+  });
 });
 
 describe('posterSrc', () => {
@@ -138,6 +190,31 @@ describe('posterSrc', () => {
 
   it('returns undefined when no variants', () => {
     expect(posterSrc(makeMedia({ variants: [] }))).toBeUndefined();
+  });
+
+  it('skips an invalid preferred poster variant for a valid alternate', () => {
+    const video = makeMedia({
+      media_type: 'video',
+      original: { ...makeMedia().original, content_type: 'video/mp4' },
+      variants: [
+        { label: 'md', width: 512, height: 288, url: 'https://cdn.example.com/bad-poster.png' },
+        { label: 'lg', width: 1024, height: 576, url: '/v1/content/outputs/valid-poster' },
+      ],
+    });
+
+    expect(posterSrc(video)).toBe(`${ORIGIN}/v1/content/outputs/valid-poster`);
+  });
+
+  it('does not use a video original as a poster when every poster variant is invalid', () => {
+    const video = makeMedia({
+      media_type: 'video',
+      original: { ...makeMedia().original, content_type: 'video/mp4' },
+      variants: [
+        { label: 'md', width: 512, height: 288, url: 'https://cdn.example.com/bad-poster.png' },
+      ],
+    });
+
+    expect(posterSrc(video)).toBeUndefined();
   });
 });
 

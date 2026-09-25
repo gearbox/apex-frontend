@@ -1,6 +1,7 @@
 <script lang="ts">
   import { toMediaSrc, posterSrc } from '$lib/media/index';
   import { recoverContentAccess } from '$lib/media/contentAccessRecovery';
+  import { parseProtectedContentUrl, probeProtectedContent } from '$lib/media/protectedContent';
   import { contentCredentialsRevision } from '$lib/services/contentCookie';
   import type { components } from '$lib/api/types';
 
@@ -46,6 +47,14 @@
 
   let videoElement = $state<HTMLVideoElement | null>(null);
   let lastContentCredentialsRevision: number | undefined;
+  let sourceGeneration = 0;
+  let lastObservedSource: string | null;
+  let sourceObserved = false;
+  let probeController: AbortController | null = null;
+
+  type NativeFailureState = 'idle' | 'probing' | 'waiting-for-content-credentials' | 'permanent';
+  let nativeFailureState = $state<NativeFailureState>('idle');
+  let waitingForContentCredentials = $state<string | null>(null);
 
   $effect(() => {
     if (import.meta.env.DEV && media.media_type !== 'video') {
@@ -55,6 +64,30 @@
 
   $effect(() => {
     if (videoElement) onvideoelement?.(videoElement);
+  });
+
+  const resolvedPoster = $derived(poster ?? posterSrc(media));
+  // Null for a URL that is not protected content: the element then has no source to request.
+  const src = $derived(toMediaSrc(media.original.url));
+
+  $effect(() => {
+    const currentSource = src;
+    if (!sourceObserved) {
+      lastObservedSource = currentSource;
+      sourceObserved = true;
+      return;
+    }
+    if (currentSource === lastObservedSource) return;
+
+    // A source replacement invalidates any pending probe/recovery and its native-error
+    // classification. The native error event can arrive after a property update, so retain an
+    // explicit generation in addition to comparing the URL before reloading.
+    lastObservedSource = currentSource;
+    sourceGeneration += 1;
+    probeController?.abort();
+    probeController = null;
+    nativeFailureState = 'idle';
+    waitingForContentCredentials = null;
   });
 
   $effect(() => {
@@ -67,33 +100,43 @@
     if (revision === lastContentCredentialsRevision) return;
     lastContentCredentialsRevision = revision;
 
-    // A recovery can only fix a failed request or a preload="none" poster fetch. Do not restart
-    // healthy playback merely because credentials were renewed in the background, nor an element
-    // that is already re-fetching (e.g. after its own one-shot recovery below).
-    if (
-      videoElement &&
-      (videoElement.error !== null ||
-        (videoElement.readyState === 0 && videoElement.networkState !== NETWORK_LOADING))
-    ) {
+    const waitingForRecovery = waitingForContentCredentials === src;
+    const idlePreloadNone =
+      preload === 'none' &&
+      nativeFailureState !== 'permanent' &&
+      videoElement?.readyState === 0 &&
+      videoElement.networkState !== NETWORK_LOADING;
+
+    // A revision can only help a confirmed credential failure still waiting for credentials, or
+    // the intentional preload="none"/idle retry case. In particular, never restart a source that
+    // was successfully probed and classified as codec/source/playback failure.
+    if (videoElement && (waitingForRecovery || idlePreloadNone)) {
+      waitingForContentCredentials = null;
       videoElement.load();
     }
   });
-
-  const resolvedPoster = $derived(poster ?? posterSrc(media));
-  // Null for a URL that is not protected content: the element then has no source to request.
-  const src = $derived(toMediaSrc(media.original.url));
 
   // At most one recovery per media URL. Keyed on the URL (not the object) so a structurally
   // identical rerender cannot re-arm it, while navigating to different media does.
   let recoveryAttemptedFor: string | null = null;
 
-  /**
-   * A 401 on a native media request surfaces as MEDIA_ERR_NETWORK or MEDIA_ERR_SRC_NOT_SUPPORTED
-   * (the browser cannot tell an auth failure from an unplayable body). MEDIA_ERR_DECODE and
-   * MEDIA_ERR_ABORTED are never credential problems, so they never touch the auth layer.
-   */
+  /** Only ambiguous native errors receive a bounded cookie-only content access probe. */
   function isPossibleCredentialFailure(error: MediaError | null): boolean {
     return error?.code === MEDIA_ERR_NETWORK || error?.code === MEDIA_ERR_SRC_NOT_SUPPORTED;
+  }
+
+  function isCurrentAttempt(
+    failedSrc: string,
+    element: HTMLVideoElement,
+    generation: number,
+    controller: AbortController,
+  ): boolean {
+    return (
+      !controller.signal.aborted &&
+      sourceGeneration === generation &&
+      src === failedSrc &&
+      videoElement === element
+    );
   }
 
   async function handleError(): Promise<void> {
@@ -101,11 +144,45 @@
     const element = videoElement;
     if (!failedSrc || !element || recoveryAttemptedFor === failedSrc) return;
     if (!isPossibleCredentialFailure(element.error)) return;
-    recoveryAttemptedFor = failedSrc;
+    const target = parseProtectedContentUrl(failedSrc);
+    if (!target) return;
 
-    const recovery = await recoverContentAccess();
+    recoveryAttemptedFor = failedSrc;
+    nativeFailureState = 'probing';
+    const generation = sourceGeneration;
+    const controller = new AbortController();
+    probeController = controller;
+
+    let probe: Response;
+    try {
+      probe = await probeProtectedContent(target, { signal: controller.signal });
+    } catch {
+      // A transient probe failure says nothing about credentials. Preserve the native error and
+      // never escalate it into a token/content-cookie refresh.
+      if (isCurrentAttempt(failedSrc, element, generation, controller)) {
+        nativeFailureState = 'permanent';
+      }
+      return;
+    }
+
+    if (!isCurrentAttempt(failedSrc, element, generation, controller)) return;
+    if (probe.status !== 401) {
+      // 200/206 prove the cookie is accepted; 403/404 and server failures likewise are not proof
+      // of an expired credential. Leave the browser's native playback failure in place.
+      nativeFailureState = 'permanent';
+      return;
+    }
+
+    nativeFailureState = 'waiting-for-content-credentials';
+    waitingForContentCredentials = failedSrc;
+
+    const recovery = await recoverContentAccess({ signal: controller.signal });
     // A stale answer must not reload an element that has since moved to other media.
-    if (!recovery.ok || src !== failedSrc || videoElement !== element) return;
+    if (!isCurrentAttempt(failedSrc, element, generation, controller)) return;
+    if (!recovery.ok) return;
+
+    waitingForContentCredentials = null;
+    nativeFailureState = 'idle';
     // Retry the exact same stable URL once; a second failure keeps the native error state.
     if (element.error !== null) element.load();
   }
