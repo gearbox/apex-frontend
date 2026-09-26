@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import { onMount } from 'svelte';
+  import { ChevronLeft } from '@lucide/svelte';
   import LanguageSelector from '$lib/components/shared/LanguageSelector.svelte';
   import { hasStoredSession } from '$lib/stores/auth';
   import { ROUTES } from '$lib/utils/routes';
@@ -16,10 +17,11 @@
   });
 </script>
 
-<div class="legal-page-shell">
+<div class="legal-page-shell" data-testid="legal-scroll">
   <header>
-    <a class="back-link" href={backHref}>
-      {m.legal_back_to_app()}
+    <a class="back-link" href={backHref} aria-label={m.legal_back_aria()}>
+      <ChevronLeft size={16} aria-hidden="true" />
+      {m.legal_back()}
     </a>
     <LanguageSelector />
   </header>
@@ -30,8 +32,12 @@
   .legal-page-shell {
     background: var(--apex-bg);
     box-sizing: border-box;
-    min-height: 100dvh;
-    padding: 1rem;
+    height: 100dvh;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+    padding: max(1rem, var(--safe-area-top)) max(1rem, var(--safe-area-right))
+      max(1.5rem, var(--safe-area-bottom)) max(1rem, var(--safe-area-left));
   }
 
   header,
@@ -48,9 +54,14 @@
   }
 
   .back-link {
+    align-items: center;
     color: var(--apex-accent);
+    display: inline-flex;
     font-size: 0.9rem;
     font-weight: 600;
+    gap: 0.2rem;
+    min-height: 44px;
+    padding: 0.5rem;
     text-decoration: none;
   }
 
@@ -63,7 +74,8 @@
 
   @media (min-width: 640px) {
     .legal-page-shell {
-      padding: 1.5rem;
+      padding: max(1.5rem, var(--safe-area-top)) max(1.5rem, var(--safe-area-right))
+        max(1.5rem, var(--safe-area-bottom)) max(1.5rem, var(--safe-area-left));
     }
   }
 </style>

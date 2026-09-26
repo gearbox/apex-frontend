@@ -1,7 +1,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { logout } from '$lib/api/auth';
-  import { productInfo } from '$lib/stores/product';
+  import { appDisplayName } from '$lib/stores/product';
   import ProfileFields from '$lib/components/profile/ProfileFields.svelte';
   import ThemeSelector from '$lib/components/profile/ThemeSelector.svelte';
   import ModeSelector from '$lib/components/profile/ModeSelector.svelte';
@@ -25,8 +25,7 @@
   let showDeleteAccount = $state(false);
   let checkingForUpdate = $state(false);
 
-  // Derive app title from productInfo for <title> tag
-  let appTitle = $derived($productInfo?.display_name ?? 'Apex');
+  let appTitle = $derived($appDisplayName);
 
   async function handleLogout() {
     loggingOut = true;

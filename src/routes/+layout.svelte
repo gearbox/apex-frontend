@@ -5,7 +5,7 @@
   import { getQueryClient } from '$lib/queries/queryClient';
   import { pwaInfo } from 'virtual:pwa-info';
   import { initTheme, setTheme } from '$lib/stores/theme';
-  import { productInfo } from '$lib/stores/product';
+  import { appDisplayName, productInfo } from '$lib/stores/product';
   import { initNetworkListener } from '$lib/stores/network';
   import { initPwaInstallListener } from '$lib/stores/pwaInstall';
   import NetworkToastWatcher from '$lib/components/ui/NetworkToastWatcher.svelte';
@@ -25,8 +25,7 @@
 
   const queryClient = getQueryClient();
 
-  // Derive app title from productInfo for <title> tag
-  let appTitle = $derived($productInfo?.display_name ?? 'Apex');
+  let appTitle = $derived($appDisplayName);
 
   // iOS standalone (measured on iOS, 2026-07, device screen 440×956):
   // during navigations that pass through a layout remount (e.g. auth-guard

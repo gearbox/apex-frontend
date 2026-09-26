@@ -11,8 +11,8 @@
   createQuery(() => currentLegalQueryOptions());
 </script>
 
-<div class="relative h-dvh overflow-y-auto">
-  <div class="absolute right-4 top-4 z-50">
+<div class="auth-page-shell relative h-dvh overflow-y-auto">
+  <div class="language-selector-wrapper absolute z-50">
     <LanguageSelector />
   </div>
   {@render children()}
@@ -26,8 +26,18 @@
 </div>
 
 <style>
+  .auth-page-shell {
+    padding-left: var(--safe-area-left);
+    padding-right: var(--safe-area-right);
+  }
+
+  .language-selector-wrapper {
+    right: max(1rem, var(--safe-area-right));
+    top: max(1rem, var(--safe-area-top));
+  }
+
   .legal-footer {
-    bottom: 1rem;
+    bottom: max(1rem, var(--safe-area-bottom));
     color: var(--apex-text-muted);
     display: flex;
     font-size: 0.76rem;
