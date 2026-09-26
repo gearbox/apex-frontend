@@ -11,13 +11,12 @@
   import SessionCardContainer from '$lib/components/sessions/SessionCardContainer.svelte';
   import StopSessionModal from '$lib/components/sessions/StopSessionModal.svelte';
   import type { GpuSessionResponse, ModelType } from '$lib/api/sessions';
-  import { productInfo } from '$lib/stores/product';
+  import { appDisplayName } from '$lib/stores/product';
   import * as m from '$paraglide/messages';
 
   const queryClient = useQueryClient();
 
-  // App title
-  let appTitle = $derived($productInfo?.display_name ?? 'Apex');
+  let appTitle = $derived($appDisplayName);
 
   // ── Providers query (to derive on-demand models + availability)
   const providerQuery = createQuery(() => providersQueryOptions($isSSEFallback ? 8000 : false));

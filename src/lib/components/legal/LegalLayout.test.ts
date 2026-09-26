@@ -46,7 +46,7 @@ describe('(legal) layout', () => {
     renderLegalLayout();
 
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Terms of Use' })).toBeTruthy());
-    expect(screen.getByRole('link', { name: /back to apex/i }).getAttribute('href')).toBe(
+    expect(screen.getByRole('link', { name: /back to the app/i }).getAttribute('href')).toBe(
       ROUTES.create,
     );
     expect(refreshRequests).toBe(0);
@@ -57,7 +57,7 @@ describe('(legal) layout', () => {
     renderLegalLayout();
 
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Terms of Use' })).toBeTruthy());
-    expect(screen.getByRole('link', { name: /back to apex/i }).getAttribute('href')).toBe('/');
+    expect(screen.getByRole('link', { name: /back to the app/i }).getAttribute('href')).toBe('/');
     expect(refreshRequests).toBe(0);
     expect(silentRefresh).not.toHaveBeenCalled();
   });

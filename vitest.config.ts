@@ -10,6 +10,9 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(APP_VERSION),
     __BUILD_SHA__: JSON.stringify(BUILD_SHA),
+    __PRODUCT_NAME__: JSON.stringify(
+      process.env.VITE_PRODUCT_ID === 'synthara' ? 'Synthara' : 'Vex.pics',
+    ),
   },
   resolve: {
     alias: {
@@ -21,7 +24,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
-    include: ['src/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'tests/unit/**/*.test.ts'],
     setupFiles: ['./src/tests/setup.ts'],
     environmentOptions: {
       jsdom: {

@@ -8,7 +8,7 @@
   import type { components } from '$lib/api/types';
   import type { JobListFilters } from '$lib/queries/jobs';
   import { isSSEConnected } from '$lib/stores/eventStream';
-  import { productInfo } from '$lib/stores/product';
+  import { appDisplayName } from '$lib/stores/product';
   import Spinner from '$lib/components/ui/Spinner.svelte';
 
   type UnifiedJobResponse = components['schemas']['UnifiedJobResponse'];
@@ -31,8 +31,7 @@
   let nextCursor = $state<string | null>(null);
   let loadingMore = $state(false);
 
-  // Derive app title from productInfo for <title> tag
-  let appTitle = $derived($productInfo?.display_name ?? 'Apex');
+  let appTitle = $derived($appDisplayName);
 
   // ── Query — auto-refresh while any non-terminal job exists
   const hasActiveJobs = $derived(accumulatedItems.some((j) => NON_TERMINAL.includes(j.status)));

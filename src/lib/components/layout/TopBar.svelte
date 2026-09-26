@@ -1,7 +1,7 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { currentUser } from '$lib/stores/auth';
-  import { productInfo } from '$lib/stores/product';
+  import { appDisplayName } from '$lib/stores/product';
   import * as m from '$paraglide/messages';
   import BalancePill from './BalancePill.svelte';
 
@@ -16,7 +16,7 @@
   };
 
   let pageTitle = $derived((pageTitleFns[$page.url.pathname] ?? (() => ''))());
-  let logoText = $derived($productInfo?.display_name ?? 'apex');
+  let logoText = $derived($appDisplayName);
   let initials = $derived(
     $currentUser?.display_name
       ? $currentUser.display_name.charAt(0).toUpperCase()
@@ -46,7 +46,7 @@
     align-items: center;
     justify-content: space-between;
     padding: 10px 16px;
-    padding-top: max(10px, env(safe-area-inset-top));
+    padding-top: max(10px, var(--safe-area-top));
     border-bottom: 1px solid var(--apex-border);
     flex-shrink: 0;
   }
@@ -55,7 +55,7 @@
   @media (min-width: 768px) {
     .topbar {
       padding: 12px 24px;
-      padding-top: max(12px, env(safe-area-inset-top));
+      padding-top: max(12px, var(--safe-area-top));
     }
   }
 

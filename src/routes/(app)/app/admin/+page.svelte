@@ -1,7 +1,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { currentUser, isAdmin, isSuperAdmin } from '$lib/stores/auth';
-  import { productInfo } from '$lib/stores/product';
+  import { appDisplayName } from '$lib/stores/product';
   import AdminTabBar from '$lib/components/admin/AdminTabBar.svelte';
   import AdminUsersTab from '$lib/components/admin/AdminUsersTab.svelte';
   import AdminOrgsTab from '$lib/components/admin/AdminOrgsTab.svelte';
@@ -16,8 +16,7 @@
 
   let activeTab = $state('users');
 
-  // Derive app title from productInfo for <title> tag
-  let appTitle = $derived($productInfo?.display_name ?? 'Apex');
+  let appTitle = $derived($appDisplayName);
 
   // Redirect non-admin users immediately
   $effect(() => {

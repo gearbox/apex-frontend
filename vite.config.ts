@@ -41,6 +41,7 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(APP_VERSION),
     __BUILD_SHA__: JSON.stringify(BUILD_SHA),
+    __PRODUCT_NAME__: JSON.stringify(manifest.name),
   },
   build: {
     // Product support is deliberately stricter than Vite's moving baseline.

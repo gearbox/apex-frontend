@@ -4,7 +4,7 @@
   import { page } from '$app/stores';
   import * as m from '$paraglide/messages';
   import { formatNumber } from '$lib/utils/format';
-  import { productInfo } from '$lib/stores/product';
+  import { appDisplayName, productInfo } from '$lib/stores/product';
   import { currentUser } from '$lib/stores/auth';
   import { isSSEConnected } from '$lib/stores/eventStream';
   import TopUpPanel from '$lib/components/billing/TopUpPanel.svelte';
@@ -113,7 +113,7 @@
     i2i: { icon: '◈', label: 'Image → Image' },
     i2v: { icon: '▶', label: 'Image → Video' },
   };
-  const appTitle = $derived($productInfo?.display_name ?? 'Apex');
+  const appTitle = $derived($appDisplayName);
 
   function truncatePaymentId(paymentId: string): string {
     return `${paymentId.slice(0, 8)}…`;

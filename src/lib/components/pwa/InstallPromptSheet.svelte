@@ -6,11 +6,11 @@
     triggerInstall,
     dismissInstallSheet,
   } from '$lib/stores/pwaInstall';
-  import { productInfo } from '$lib/stores/product';
+  import { appDisplayName } from '$lib/stores/product';
   import * as m from '$paraglide/messages';
 
   let installing = $state(false);
-  const appName = $derived($productInfo?.display_name ?? 'Apex');
+  const appName = $derived($appDisplayName);
   const platform = $derived($installPlatform);
 
   async function handleInstall() {
@@ -131,7 +131,7 @@
     border-radius: 20px 20px 0 0;
     width: 100%;
     max-width: 480px;
-    padding: 12px 0 max(24px, env(safe-area-inset-bottom));
+    padding: 12px 0 max(24px, var(--safe-area-bottom));
     animation: slideUp 0.25s ease-out;
   }
 

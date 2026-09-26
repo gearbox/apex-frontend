@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { get } from 'svelte/store';
-import { productInfo, isNsfwAllowed, type ProductInfo } from './product';
+import { appDisplayName, productInfo, isNsfwAllowed, type ProductInfo } from './product';
 
 const vexProduct: ProductInfo = {
   product: 'vex',
@@ -44,6 +44,17 @@ describe('productInfo', () => {
     productInfo.set(vexProduct);
     productInfo.set(null);
     expect(get(productInfo)).toBeNull();
+  });
+});
+
+describe('appDisplayName', () => {
+  it('uses the build manifest brand until product info is available', () => {
+    expect(get(appDisplayName)).toBe('Vex.pics');
+  });
+
+  it('uses the API display name once product info is available', () => {
+    productInfo.set(syntharaProduct);
+    expect(get(appDisplayName)).toBe('Synthara');
   });
 });
 
