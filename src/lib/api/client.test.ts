@@ -9,6 +9,8 @@ import { clearRateLimits, getRateLimitState } from '$lib/stores/rateLimit';
 import { __getAuthOperationCountForTesting } from '$lib/stores/authLifecycle';
 import { STORAGE_KEYS } from '$lib/utils/constants';
 import { ROUTES } from '$lib/utils/routes';
+import { get } from 'svelte/store';
+import { legalReacceptanceRequired } from '$lib/stores/legal';
 
 const BASE = 'http://localhost:8000';
 
@@ -69,6 +71,22 @@ describe('auth middleware', () => {
     expect(capturedAuth).toBe('Bearer test-access-token');
   });
 
+  it('detects a direct legal 428 without replaying the request', async () => {
+    let calls = 0;
+    server.use(
+      http.get(`${BASE}/v1/billing/balance`, () => {
+        calls += 1;
+        return HttpResponse.json({ error: 'legal_acceptance_required' }, { status: 428 });
+      }),
+    );
+
+    const { response } = await apiClient.GET('/v1/billing/balance');
+
+    expect(response.status).toBe(428);
+    expect(calls).toBe(1);
+    expect(get(legalReacceptanceRequired)).toBe(true);
+  });
+
   it('on 401: calls silentRefresh and retries with new token', async () => {
     // Use /v1/billing/balance to avoid conflating with the /v1/users/me call
     // that happens inside silentRefresh (which fetches the user profile).
@@ -98,6 +116,31 @@ describe('auth middleware', () => {
     expect(response.status).toBe(200);
     expect(balanceRequestCount).toBe(2);
     expect(lastAuthHeader).toBe('Bearer new-access-token');
+  });
+
+  it('detects a legal 428 returned by the post-refresh replay', async () => {
+    const refreshed = makeTokenResponse({ access_token: 'refreshed-access-token' });
+    let calls = 0;
+    setAuth(tokens('old-access-token', refreshed.refresh_token), makeUserProfile());
+
+    server.use(
+      http.get(`${BASE}/v1/billing/balance`, () => {
+        calls += 1;
+        if (calls === 1) return HttpResponse.json({ error: 'unauthorized' }, { status: 401 });
+        return HttpResponse.json(
+          { error: 'legal_acceptance_required', message: 'Review required', status_code: 428 },
+          { status: 428 },
+        );
+      }),
+      http.post(`${BASE}/v1/auth/refresh`, () => HttpResponse.json(refreshed)),
+      http.get(`${BASE}/v1/users/me`, () => HttpResponse.json(makeUserProfile())),
+    );
+
+    const { response } = await apiClient.GET('/v1/billing/balance');
+
+    expect(response.status).toBe(428);
+    expect(calls).toBe(2);
+    expect(get(legalReacceptanceRequired)).toBe(true);
   });
 
   it('on 401 and refresh fails: redirects to /login', async () => {
@@ -226,6 +269,28 @@ describe('rate limit middleware', () => {
     expect(authHeaders).toEqual(['Bearer original-access-token', 'Bearer original-access-token']);
     // After the retry the updated remaining count should be reflected in the store
     expect(getRateLimitState('/v1/billing/balance')).toMatchObject({ remaining: 1 });
+  });
+
+  it('detects a legal 428 returned by a 429 retry', async () => {
+    let calls = 0;
+    server.use(
+      http.get(`${BASE}/v1/billing/balance`, () => {
+        calls += 1;
+        if (calls === 1) {
+          return HttpResponse.json(
+            { error: 'rate_limit_exceeded', message: 'Wait', status_code: 429 },
+            { status: 429, headers: { 'Retry-After': '0' } },
+          );
+        }
+        return HttpResponse.json({ error: 'legal_acceptance_required' }, { status: 428 });
+      }),
+    );
+
+    const { response } = await apiClient.GET('/v1/billing/balance');
+
+    expect(response.status).toBe(428);
+    expect(calls).toBe(2);
+    expect(get(legalReacceptanceRequired)).toBe(true);
   });
 
   it('on 429: updates store with retryAfter from Retry-After header', async () => {

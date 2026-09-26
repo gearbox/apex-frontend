@@ -9,6 +9,7 @@ import { storageHandlers } from './storage';
 import { sessionHandlers } from './sessions';
 import { pushHandlers } from './push';
 import { frameHandlers } from './frames';
+import { legalHandlers } from './legal';
 
 export const handlers = [
   ...authHandlers,
@@ -22,4 +23,5 @@ export const handlers = [
   ...sessionHandlers,
   ...pushHandlers,
   ...frameHandlers,
+  ...legalHandlers,
 ];

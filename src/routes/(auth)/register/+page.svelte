@@ -1,6 +1,11 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { createQuery } from '@tanstack/svelte-query';
   import { register, AuthError, AuthOperationCancelledError } from '$lib/api/auth';
+  import { toAcceptedDocuments } from '$lib/api/legal';
+  import { currentLegalQueryOptions } from '$lib/queries/legal';
+  import { createExactDocuments } from '$lib/legal/exactDocuments.svelte';
+  import LegalAcceptanceFields from '$lib/components/legal/LegalAcceptanceFields.svelte';
   import { productInfo } from '$lib/stores/product';
   import { locale } from '$lib/stores/locale';
   import { updateUserLocale } from '$lib/api/user';
@@ -11,11 +16,43 @@
   let displayName = $state('');
   let error = $state('');
   let loading = $state(false);
+  let legalValid = $state(true);
+  let acceptanceFields = $state<LegalAcceptanceFields>();
+
+  const currentLegalQuery = createQuery(() => currentLegalQueryOptions());
+  const exactDocuments = createExactDocuments(() => currentLegalQuery.data, {
+    // A new `/current` set always needs an explicit, fresh acknowledgement.
+    onPayloadChange: () => {
+      acceptanceFields?.reset();
+      legalValid = (currentLegalQuery.data?.length ?? 0) === 0;
+    },
+  });
 
   // Only show email/password form if the product allows it (or product info not yet loaded)
   let allowsEmailPassword = $derived(
     !$productInfo || $productInfo.allowed_auth_methods.includes('email_password'),
   );
+  let currentLegal = $derived(currentLegalQuery.data ?? []);
+  let legalLoading = $derived(
+    currentLegalQuery.isPending || currentLegalQuery.isFetching || !exactDocuments.ready,
+  );
+  let canSubmit = $derived(
+    !loading &&
+      !currentLegalQuery.isPending &&
+      // A `/current` that is being replaced must not be echoed back to the API.
+      !currentLegalQuery.isFetching &&
+      !currentLegalQuery.isError &&
+      !exactDocuments.error &&
+      exactDocuments.ready &&
+      legalValid,
+  );
+
+  async function refreshLegalForm() {
+    acceptanceFields?.reset();
+    legalValid = currentLegal.length === 0;
+    await currentLegalQuery.refetch();
+    await exactDocuments.reload();
+  }
 
   async function handleSubmit(e: Event) {
     e.preventDefault();
@@ -23,7 +60,7 @@
     loading = true;
 
     try {
-      await register(email, password, displayName || undefined);
+      await register(email, password, displayName || undefined, toAcceptedDocuments(currentLegal));
       // Fire-and-forget locale sync — never blocks register flow
       void updateUserLocale($locale);
       goto('/app/create', { replaceState: true });
@@ -33,7 +70,14 @@
         return;
       }
       if (err instanceof AuthError) {
-        if (err.error === 'email_exists') {
+        if (err.error === 'legal_version_stale') {
+          error = m.legal_version_stale();
+          await refreshLegalForm();
+        } else if (err.error === 'legal_acceptance_incomplete') {
+          if (import.meta.env.DEV) console.error('Incomplete legal acceptance payload', err.detail);
+          error = m.legal_acceptance_incomplete();
+          await refreshLegalForm();
+        } else if (err.error === 'email_exists') {
           error = 'An account with this email already exists.';
         } else {
           error = err.message;
@@ -104,9 +148,29 @@
           />
         </label>
 
+        {#if currentLegalQuery.isError || exactDocuments.error}
+          <div
+            class="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger"
+          >
+            <p>{m.legal_documents_load_error()}</p>
+            <button class="mt-2 underline" type="button" onclick={refreshLegalForm}>
+              {m.common_retry()}
+            </button>
+          </div>
+        {:else if currentLegal.length > 0}
+          <LegalAcceptanceFields
+            bind:this={acceptanceFields}
+            current={currentLegal}
+            bind:valid={legalValid}
+          />
+          {#if legalLoading}
+            <p class="text-xs text-text-dim">{m.legal_documents_loading()}</p>
+          {/if}
+        {/if}
+
         <button
           type="submit"
-          disabled={loading}
+          disabled={!canSubmit}
           class="rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           {loading ? m.auth_register_creating() : m.auth_register_submit()}

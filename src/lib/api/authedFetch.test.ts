@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { withAuthOperation } from '$lib/api/authedFetch';
 import { clearAuth } from '$lib/stores/auth';
 import { invalidateAuthOperations } from '$lib/stores/authLifecycle';
+import { get } from 'svelte/store';
+import { legalReacceptanceRequired, resetLegalState } from '$lib/stores/legal';
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -13,6 +15,7 @@ function deferred<T>() {
 
 beforeEach(() => {
   clearAuth();
+  resetLegalState();
 });
 
 afterEach(() => {
@@ -54,5 +57,18 @@ describe('withAuthOperation', () => {
 
     await expect(operation).rejects.toMatchObject({ name: 'AbortError' });
     expect(handle).toHaveBeenCalledOnce();
+  });
+
+  it('detects a legal 428 on the final response before handing it to the caller', async () => {
+    const response = new Response(JSON.stringify({ error: 'legal_acceptance_required' }), {
+      status: 428,
+      headers: { 'content-type': 'application/json' },
+    });
+    const handle = vi.fn(async (received: Response) => received.status);
+
+    await expect(withAuthOperation(async () => response, handle)).resolves.toBe(428);
+
+    expect(get(legalReacceptanceRequired)).toBe(true);
+    expect(handle).toHaveBeenCalledWith(response);
   });
 });

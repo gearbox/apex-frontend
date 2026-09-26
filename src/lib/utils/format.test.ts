@@ -20,6 +20,7 @@ import {
   truncate,
   timeUntil,
   formatAspectRatio,
+  formatLegalVersion,
 } from './format';
 
 describe('formatNumber()', () => {
@@ -45,6 +46,12 @@ describe('formatDate()', () => {
   it('returns a non-empty string for Russian locale', () => {
     const result = formatDate('2026-03-14', 'ru');
     expect(result.length).toBeGreaterThan(0);
+  });
+});
+
+describe('formatLegalVersion()', () => {
+  it('formats a YYYY-MM-DD effective date in UTC, preserving the calendar day', () => {
+    expect(formatLegalVersion('2026-10-01', 'en-US')).toContain('October 1, 2026');
   });
 });
 

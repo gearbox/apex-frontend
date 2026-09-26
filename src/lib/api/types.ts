@@ -1341,6 +1341,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/provisioning/scripts/{variant}/{ref}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetScript */
+        get: operations["V1ProvisioningScriptsVariantRefGetScript"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/provisioning/webhook/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Webhook */
+        post: operations["V1ProvisioningWebhookSessionIdWebhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/storage/outputs/{output_id}/download": {
         parameters: {
             query?: never;
@@ -1845,10 +1879,85 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/legal/acceptances": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Accept */
+        post: operations["V1LegalAcceptancesAccept"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/legal/current": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetCurrent */
+        get: operations["V1LegalCurrentGetCurrent"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/legal/documents/{doc_type}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetDocument */
+        get: operations["V1LegalDocumentsDocTypeGetDocument"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/legal/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetStatus */
+        get: operations["V1LegalStatusGetStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AcceptedDocument */
+        AcceptedDocument: {
+            doc_type: components["schemas"]["LegalDocumentType"];
+            /** Format: date */
+            version: string;
+            sha256: string;
+        };
         /** AccountSummary */
         AccountSummary: {
             /** Format: uuid */
@@ -2422,6 +2531,55 @@ export interface components {
          * @enum {string}
          */
         JobStatus: "pending" | "queued" | "running" | "completed" | "failed" | "cancelled" | "moderated";
+        /** LegalAcceptanceRequest */
+        LegalAcceptanceRequest: {
+            accepted_documents: components["schemas"]["AcceptedDocument"][];
+        };
+        /** LegalCurrentResponse */
+        LegalCurrentResponse: {
+            documents: components["schemas"]["LegalDocumentMeta"][];
+        };
+        /** LegalDocumentMeta */
+        LegalDocumentMeta: {
+            doc_type: components["schemas"]["LegalDocumentType"];
+            /** Format: date */
+            version: string;
+            sha256: string;
+            requires_reacceptance: boolean;
+        };
+        /** LegalDocumentResponse */
+        LegalDocumentResponse: {
+            doc_type: components["schemas"]["LegalDocumentType"];
+            /** Format: date */
+            version: string;
+            requires_reacceptance: boolean;
+            sha256: string;
+            content_md: string;
+        };
+        /** LegalDocumentStatusItem */
+        LegalDocumentStatusItem: {
+            doc_type: components["schemas"]["LegalDocumentType"];
+            /** Format: date */
+            required_version: string;
+            /** Format: date */
+            current_version: string;
+            accepted_version: string | null;
+            accepted_at: string | null;
+            satisfied: boolean;
+        };
+        /**
+         * LegalDocumentType
+         * @description Versioned legal document kinds.
+         *
+         *     Values are also the directory names under ``legal/{product}/``.
+         * @enum {string}
+         */
+        LegalDocumentType: "terms" | "privacy" | "sensitive_data_consent";
+        /** LegalStatusResponse */
+        LegalStatusResponse: {
+            documents: components["schemas"]["LegalDocumentStatusItem"][];
+            all_satisfied: boolean;
+        };
         /**
          * LibraryAction
          * @description Actions a client may offer for a single library asset.
@@ -3017,6 +3175,14 @@ export interface components {
             providers: components["schemas"]["schemas_providers_ProviderInfo"][];
             user_context?: components["schemas"]["UserContext"] | null;
         };
+        /** ProvisionerFailureWebhookBody */
+        ProvisionerFailureWebhookBody: {
+            action: string;
+            manifest: string;
+            error: string;
+            container_id: string;
+            timestamp: string;
+        };
         /**
          * ProvisioningPhase
          * @description Stable identifiers for individual provisioning phases.
@@ -3080,6 +3246,7 @@ export interface components {
         RegisterRequest: {
             email: string;
             password: string;
+            accepted_documents: components["schemas"]["AcceptedDocument"][];
             display_name?: string | null;
         };
         /** ResetPasswordRequest */
@@ -6363,6 +6530,92 @@ export interface operations {
             };
         };
     };
+    V1ProvisioningScriptsVariantRefGetScript: {
+        parameters: {
+            query?: {
+                token?: string | null;
+                session?: string | null;
+            };
+            header?: never;
+            path: {
+                variant: string;
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1ProvisioningWebhookSessionIdWebhook: {
+        parameters: {
+            query?: {
+                token?: string | null;
+            };
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProvisionerFailureWebhookBody"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
     V1StorageOutputsOutputIdDownloadDownloadOutput: {
         parameters: {
             query?: never;
@@ -7954,6 +8207,125 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VapidPublicKeyResponse"] | unknown;
+                };
+            };
+        };
+    };
+    V1LegalAcceptancesAccept: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LegalAcceptanceRequest"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LegalStatusResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1LegalCurrentGetCurrent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LegalCurrentResponse"];
+                };
+            };
+        };
+    };
+    V1LegalDocumentsDocTypeGetDocument: {
+        parameters: {
+            query?: {
+                /** @description Exact version (effective date, YYYY-MM-DD). Omit for current. */
+                version?: string | null;
+            };
+            header?: never;
+            path: {
+                doc_type: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LegalDocumentResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
+    V1LegalStatusGetStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LegalStatusResponse"];
                 };
             };
         };

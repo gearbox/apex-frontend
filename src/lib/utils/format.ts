@@ -50,6 +50,14 @@ export function formatDate(iso: string, localeOverride?: string): string {
   }).format(new Date(iso));
 }
 
+/** Format a legal `YYYY-MM-DD` effective date without allowing a local timezone to move its day. */
+export function formatLegalVersion(version: string, localeOverride?: string): string {
+  return new Intl.DateTimeFormat(localeOverride ?? currentLocale(), {
+    dateStyle: 'long',
+    timeZone: 'UTC',
+  }).format(new Date(`${version}T00:00:00Z`));
+}
+
 /** Format a number with locale separators. e.g. 1247 → "1,247" (en) / "1.247" (sr) */
 export function formatNumber(n: number, localeOverride?: string): string {
   return new Intl.NumberFormat(localeOverride ?? currentLocale()).format(n);

@@ -11,6 +11,7 @@ import { updateRateLimit } from '$lib/stores/rateLimit';
 import { addToast } from '$lib/stores/toasts';
 import { ROUTES } from '$lib/utils/routes';
 import * as m from '$paraglide/messages';
+import { detectLegalRequired } from '$lib/api/legalRequired';
 import type { paths } from './types';
 
 const MAX_RATE_LIMIT_RETRIES = 3;
@@ -133,7 +134,7 @@ const authMiddleware: Middleware = {
     const metadata = retryMetadata.get(request);
     // A request may be constructed outside this middleware in a test/adapter. It receives the
     // response normally, but no raw retry can be performed without an owned template.
-    if (!metadata) return response;
+    if (!metadata) return detectLegalRequired(response);
 
     try {
       // Aborting fetch is not sufficient when a response was already in flight. Never hand a
@@ -179,7 +180,7 @@ const authMiddleware: Middleware = {
           if (current.status !== 429) break;
         }
         assertRetryLive(metadata);
-        return current;
+        return await detectLegalRequired(current);
       }
 
       if (response.status === 402) {
@@ -193,10 +194,10 @@ const authMiddleware: Middleware = {
             action: { label: 'Top up →', href: ROUTES.billingTopUp },
           });
         }
-        return response;
+        return await detectLegalRequired(response);
       }
 
-      if (response.status !== 401) return response;
+      if (response.status !== 401) return await detectLegalRequired(response);
 
       const replayed = await retryUnauthorized(
         metadata.auth,
@@ -213,7 +214,7 @@ const authMiddleware: Middleware = {
         () => new StaleSessionError(),
       );
       assertRetryLive(metadata);
-      return replayed;
+      return await detectLegalRequired(replayed);
     } finally {
       metadata.auth.finish();
     }

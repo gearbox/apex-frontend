@@ -5,6 +5,7 @@ import {
   finishAuthOperation,
   isAuthOperationCurrent,
 } from '$lib/stores/authLifecycle';
+import { detectLegalRequired } from '$lib/api/legalRequired';
 
 /**
  * Session-aware request invariant: only an epoch change blocks a replay; within an epoch, always
@@ -122,7 +123,8 @@ export async function withAuthOperation<T>(
     // A superseded operation must not run caller code at all — `handle` throws for any failing
     // status, which would pre-empt the assertion below and surface in the replacement session.
     assertCurrent(context, abortError);
-    const result = await handle(response);
+    const finalResponse = await detectLegalRequired(response);
+    const result = await handle(finalResponse);
     assertCurrent(context, abortError);
     return result;
   } finally {

@@ -95,6 +95,11 @@ export function getRefreshToken(): string | null {
   return localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
 }
 
+/** True when this browser holds a persisted session. A local read only: no network, no rotation. */
+export function hasStoredSession(): boolean {
+  return getRefreshToken() !== null;
+}
+
 export function getContentCookieExpiresAt(): Date | null {
   return get(contentCookieExpiresAt);
 }
