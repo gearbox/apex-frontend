@@ -748,6 +748,7 @@
   "legal_reaccept_accepting": "Čuvanje saglasnosti…",
   "legal_reaccept_success": "Hvala — možete nastaviti.",
   "legal_reaccept_error": "Nije moguće sačuvati saglasnost. Pokušajte ponovo.",
+  "legal_reaccept_refresh_failed": "Saglasnost je sačuvana, ali nije moguće osvežiti sesiju. Proverite vezu i pokušajte ponovo.",
   "legal_read": "Pročitaj",
   "legal_profile_title": "Pravno",
   "legal_profile_accepted_version": "Prihvaćena verzija: {version}",

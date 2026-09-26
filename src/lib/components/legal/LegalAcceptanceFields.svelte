@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createQuery } from '@tanstack/svelte-query';
-  import { ROUTES } from '$lib/utils/routes';
+  import { legalDocumentHref } from '$lib/utils/routes';
   import { legalDocumentQueryOptions } from '$lib/queries/legal';
   import type { LegalDocType, LegalDocumentMeta } from '$lib/api/legal';
   import LegalMarkdown from '$lib/components/legal/LegalMarkdown.svelte';
@@ -45,10 +45,6 @@
     agreedToTerms = false;
     agreedToSensitiveData = false;
   }
-
-  function versionedHref(type: 'terms' | 'privacy', version: string): string {
-    return `${type === 'terms' ? ROUTES.terms : ROUTES.privacy}?version=${encodeURIComponent(version)}`;
-  }
 </script>
 
 <div class="legal-acceptance-fields">
@@ -59,7 +55,7 @@
         {m.legal_terms_accept_prefix()}
         {#if termsDocument}
           <a
-            href={versionedHref('terms', termsDocument.version)}
+            href={legalDocumentHref('terms', termsDocument.version)}
             target="_blank"
             rel="noopener noreferrer">{m.legal_document_terms()}</a
           >
@@ -67,7 +63,7 @@
         {#if privacyDocument}
           {#if termsDocument}{m.legal_terms_accept_and_read()}{/if}
           <a
-            href={versionedHref('privacy', privacyDocument.version)}
+            href={legalDocumentHref('privacy', privacyDocument.version)}
             target="_blank"
             rel="noopener noreferrer">{m.legal_document_privacy()}</a
           >

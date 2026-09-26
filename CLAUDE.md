@@ -99,11 +99,14 @@ src/
 │   │   ├── admin.ts                  # Query key factory + query options for admin endpoints
 │   │   ├── user.ts                   # userKeys, userStatsQueryOptions, changePassword/logoutAll/deleteAccount mutation options
 │   │   └── legal.ts                  # Immutable version/current-alias legal query options
+│   ├── legal/
+│   │   └── exactDocuments.svelte.ts  # createExactDocuments(): exact-version prefetch gate for acceptance forms
 │   ├── themes/
 │   │   └── index.ts                  # Theme definitions + types
 │   └── utils/
 │       ├── breakpoints.ts            # Reactive viewport width store
 │       ├── format.ts                 # Number formatting, relative time
+│       ├── routes.ts                 # ROUTES constants + legalDocumentHref(type, version?)
 │       ├── constants.ts              # API base URL, storage keys
 │       └── idempotency.ts            # generateIdempotencyKey() for mutation endpoints
 ├── routes/
@@ -117,7 +120,8 @@ src/
 │   │   └── verify-email/+page.svelte
 │   ├── (legal)/
 │   │   ├── terms/+page.svelte        # Public current/exact-version Terms page
-│   │   └── privacy/+page.svelte      # Public current/exact-version Privacy page
+│   │   ├── privacy/+page.svelte      # Public current/exact-version Privacy page
+│   │   └── consent/+page.svelte      # Public sensitive-data consent page (versioned "Read" links only; not in nav)
 │   └── (app)/
 │       ├── +layout.svelte            # AppShell + auth guard
 │       └── app/

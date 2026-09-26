@@ -4,16 +4,12 @@
   import { hasLegalDocuments, markLegalReacceptanceRequired } from '$lib/stores/legal';
   import type { LegalDocType } from '$lib/api/legal';
   import { formatDate, formatLegalVersion } from '$lib/utils/format';
-  import { ROUTES } from '$lib/utils/routes';
+  import { legalDocumentHref } from '$lib/utils/routes';
   import * as m from '$paraglide/messages';
 
   let { oncloseaccount }: { oncloseaccount: () => void } = $props();
 
   const statusQuery = createQuery(() => legalStatusQueryOptions());
-
-  function documentHref(type: LegalDocType, version: string): string {
-    return `${type === 'privacy' ? ROUTES.privacy : ROUTES.terms}?version=${encodeURIComponent(version)}`;
-  }
 
   function labelFor(type: LegalDocType): string {
     if (type === 'terms') return m.legal_document_terms();
@@ -47,7 +43,7 @@
           </div>
           {#if document.accepted_version}
             <a
-              href={documentHref(document.doc_type, document.accepted_version)}
+              href={legalDocumentHref(document.doc_type, document.accepted_version)}
               target="_blank"
               rel="noopener noreferrer">{m.legal_read()}</a
             >

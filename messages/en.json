@@ -748,6 +748,7 @@
   "legal_reaccept_accepting": "Saving acceptance…",
   "legal_reaccept_success": "Thanks — you can continue.",
   "legal_reaccept_error": "We couldn't save your acceptance. Please try again.",
+  "legal_reaccept_refresh_failed": "Your acceptance was saved, but we couldn't refresh your session. Check your connection and try again.",
   "legal_read": "Read",
   "legal_profile_title": "Legal",
   "legal_profile_accepted_version": "Accepted version: {version}",

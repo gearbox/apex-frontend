@@ -9,7 +9,13 @@ import { creditWarnings, upsertCreditWarning } from './creditWarnings';
 import { toasts, addToast } from './toasts';
 import { notifications, addNotification } from './notifications';
 import { eventStreamStatus, setEventStreamStatus } from './eventStream';
-import { legalReacceptanceRequired, markLegalReacceptanceRequired } from './legal';
+import {
+  hasLegalDocuments,
+  legalReacceptanceRequired,
+  markLegalReacceptanceRequired,
+  requiresSensitiveConsent,
+  setCurrentLegalDocuments,
+} from './legal';
 import { makeUserProfile } from '../../mocks/factories/user';
 import { LEGACY_CONTENT_MEDIA_CACHE_NAME } from '$lib/utils/cacheNames';
 import { STORAGE_KEYS } from '$lib/utils/constants';
@@ -99,6 +105,14 @@ describe('resetAppState()', () => {
     });
     setEventStreamStatus('connected');
     markLegalReacceptanceRequired();
+    setCurrentLegalDocuments([
+      {
+        doc_type: 'sensitive_data_consent',
+        version: '2026-10-01',
+        sha256: 'c'.repeat(64),
+        requires_reacceptance: true,
+      },
+    ]);
 
     resetAppState();
 
@@ -112,6 +126,8 @@ describe('resetAppState()', () => {
     expect(getStoreValue(notifications)).toEqual([]);
     expect(getStoreValue(eventStreamStatus)).toBe('disconnected');
     expect(getStoreValue(legalReacceptanceRequired)).toBe(false);
+    expect(getStoreValue(hasLegalDocuments)).toBe(false);
+    expect(getStoreValue(requiresSensitiveConsent)).toBe(false);
   });
 
   it('a throwing step does not prevent the rest of the reset (A5)', () => {

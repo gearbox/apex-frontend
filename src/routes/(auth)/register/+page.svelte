@@ -1,9 +1,10 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { createQuery, useQueryClient } from '@tanstack/svelte-query';
+  import { createQuery } from '@tanstack/svelte-query';
   import { register, AuthError, AuthOperationCancelledError } from '$lib/api/auth';
   import { toAcceptedDocuments } from '$lib/api/legal';
-  import { currentLegalQueryOptions, legalDocumentQueryOptions } from '$lib/queries/legal';
+  import { currentLegalQueryOptions } from '$lib/queries/legal';
+  import { createExactDocuments } from '$lib/legal/exactDocuments.svelte';
   import LegalAcceptanceFields from '$lib/components/legal/LegalAcceptanceFields.svelte';
   import { productInfo } from '$lib/stores/product';
   import { locale } from '$lib/stores/locale';
@@ -16,60 +17,41 @@
   let error = $state('');
   let loading = $state(false);
   let legalValid = $state(true);
-  let exactDocumentsReady = $state(false);
-  let exactDocumentsError = $state(false);
   let acceptanceFields = $state<LegalAcceptanceFields>();
 
-  const queryClient = useQueryClient();
   const currentLegalQuery = createQuery(() => currentLegalQueryOptions());
+  const exactDocuments = createExactDocuments(() => currentLegalQuery.data, {
+    // A new `/current` set always needs an explicit, fresh acknowledgement.
+    onPayloadChange: () => {
+      acceptanceFields?.reset();
+      legalValid = (currentLegalQuery.data?.length ?? 0) === 0;
+    },
+  });
 
   // Only show email/password form if the product allows it (or product info not yet loaded)
   let allowsEmailPassword = $derived(
     !$productInfo || $productInfo.allowed_auth_methods.includes('email_password'),
   );
   let currentLegal = $derived(currentLegalQuery.data ?? []);
-  let legalLoading = $derived(currentLegalQuery.isPending || !exactDocumentsReady);
+  let legalLoading = $derived(
+    currentLegalQuery.isPending || currentLegalQuery.isFetching || !exactDocuments.ready,
+  );
   let canSubmit = $derived(
     !loading &&
       !currentLegalQuery.isPending &&
+      // A `/current` that is being replaced must not be echoed back to the API.
+      !currentLegalQuery.isFetching &&
       !currentLegalQuery.isError &&
-      !exactDocumentsError &&
-      exactDocumentsReady &&
+      !exactDocuments.error &&
+      exactDocuments.ready &&
       legalValid,
   );
-
-  /** Load immutable copies before enabling a legal submission. */
-  async function loadExactDocuments() {
-    const documents = currentLegalQuery.data;
-    if (!documents) return;
-
-    // A new `/current` payload always needs an explicit, fresh acknowledgement.
-    legalValid = documents.length === 0;
-    exactDocumentsReady = false;
-    exactDocumentsError = false;
-    try {
-      await Promise.all(
-        documents.map((document) =>
-          queryClient.fetchQuery(legalDocumentQueryOptions(document.doc_type, document.version)),
-        ),
-      );
-      // Do not make a stale `/current` response submit-ready after a refetch replaced it.
-      if (documents === currentLegalQuery.data) exactDocumentsReady = true;
-    } catch {
-      if (documents === currentLegalQuery.data) exactDocumentsError = true;
-    }
-  }
-
-  $effect(() => {
-    if (currentLegalQuery.data) void loadExactDocuments();
-  });
 
   async function refreshLegalForm() {
     acceptanceFields?.reset();
     legalValid = currentLegal.length === 0;
-    exactDocumentsReady = false;
-    exactDocumentsError = false;
     await currentLegalQuery.refetch();
+    await exactDocuments.reload();
   }
 
   async function handleSubmit(e: Event) {
@@ -166,7 +148,7 @@
           />
         </label>
 
-        {#if currentLegalQuery.isError || exactDocumentsError}
+        {#if currentLegalQuery.isError || exactDocuments.error}
           <div
             class="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger"
           >

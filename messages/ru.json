@@ -748,6 +748,7 @@
   "legal_reaccept_accepting": "Сохраняем согласие…",
   "legal_reaccept_success": "Спасибо — можно продолжать.",
   "legal_reaccept_error": "Не удалось сохранить согласие. Повторите попытку.",
+  "legal_reaccept_refresh_failed": "Согласие сохранено, но не удалось обновить сессию. Проверьте подключение и повторите попытку.",
   "legal_read": "Прочитать",
   "legal_profile_title": "Юридическая информация",
   "legal_profile_accepted_version": "Принятая версия: {version}",

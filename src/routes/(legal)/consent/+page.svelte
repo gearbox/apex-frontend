@@ -6,6 +6,6 @@
   let version = $derived(page.url.searchParams.get('version') ?? undefined);
 </script>
 
-<svelte:head><title>{m.legal_document_privacy()}</title></svelte:head>
+<svelte:head><title>{m.legal_document_sensitive_data_consent()}</title></svelte:head>
 
-<LegalDocumentView docType="privacy" {version} />
+<LegalDocumentView docType="sensitive_data_consent" {version} />

@@ -2,8 +2,10 @@
   import { createMutation } from '@tanstack/svelte-query';
   import { AlertTriangle, X } from '@lucide/svelte';
   import { goto } from '$app/navigation';
+  import { onMount } from 'svelte';
   import { deleteAccountMutationOptions } from '$lib/queries/user';
   import { clearAuth } from '$lib/stores/auth';
+  import { requiresSensitiveConsent } from '$lib/stores/legal';
   import { ApiRequestError } from '$lib/api/errors';
   import * as m from '$paraglide/messages';
 
@@ -15,6 +17,10 @@
 
   let confirmText = $state('');
   let errorMsg = $state('');
+  let confirmInput = $state<HTMLInputElement>();
+
+  // It can replace the legal blocker, which owned focus; move focus into this dialog on open.
+  onMount(() => confirmInput?.focus());
 
   const mutation = createMutation(() => deleteAccountMutationOptions());
 
@@ -59,13 +65,16 @@
     </div>
 
     <p class="confirm-text danger-text">{m.profile_delete_confirm_text()}</p>
-    <p class="confirm-text danger-text">{m.legal_delete_account_note()}</p>
+    {#if $requiresSensitiveConsent}
+      <p class="confirm-text danger-text">{m.legal_delete_account_note()}</p>
+    {/if}
 
     <div class="field">
       <label class="field-label" for="delete-confirm">
         {m.profile_delete_type_prompt({ confirmWord })}
       </label>
       <input
+        bind:this={confirmInput}
         id="delete-confirm"
         type="text"
         class="field-input"
