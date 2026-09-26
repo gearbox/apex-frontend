@@ -16,7 +16,8 @@ this frontend documentation and it disagree.
   `/consent` (`sensitive_data_consent`). `?version=` pins an immutable version. Build links with
   `legalDocumentHref()` in `src/lib/utils/routes.ts`, whose `Record<LegalDocType, string>` map makes
   a new document type a compile error. `/consent` is reached only through versioned "Read" links
-  and is intentionally absent from navigation.
+  and is intentionally absent from navigation. The `(legal)` route group is session-free: it only
+  calls public legal endpoints and must never initialize or refresh authentication.
 - **Re-acceptance display rule.** The blocker shows every document whose
   `accepted_version !== current_version` (unsatisfied documents are a subset), not only
   `satisfied === false`. The full current set is submitted, and the backend records an acceptance

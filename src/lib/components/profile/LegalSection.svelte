@@ -1,7 +1,11 @@
 <script lang="ts">
   import { createQuery } from '@tanstack/svelte-query';
   import { legalStatusQueryOptions } from '$lib/queries/legal';
-  import { hasLegalDocuments, markLegalReacceptanceRequired } from '$lib/stores/legal';
+  import {
+    hasLegalDocuments,
+    markLegalReacceptanceRequired,
+    requiresSensitiveConsent,
+  } from '$lib/stores/legal';
   import type { LegalDocType } from '$lib/api/legal';
   import { formatDate, formatLegalVersion } from '$lib/utils/format';
   import { legalDocumentHref } from '$lib/utils/routes';
@@ -58,10 +62,12 @@
       </button>
     {/if}
 
-    <p class="withdrawal-note">
-      {m.legal_withdrawal_note()}
-      <button type="button" onclick={oncloseaccount}>{m.legal_close_account()}</button>
-    </p>
+    {#if $requiresSensitiveConsent}
+      <p class="withdrawal-note">
+        {m.legal_withdrawal_note()}
+        <button type="button" onclick={oncloseaccount}>{m.legal_close_account()}</button>
+      </p>
+    {/if}
   </section>
 {/if}
 

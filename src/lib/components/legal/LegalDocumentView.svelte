@@ -14,6 +14,7 @@
     sensitive_data_consent: m.legal_document_sensitive_data_consent,
   };
 
+  // Public legal pages only request `/v1/legal/documents/*`, so they never need session refresh.
   const documentQuery = createQuery(() => legalDocumentQueryOptions(docType, version));
 </script>
 

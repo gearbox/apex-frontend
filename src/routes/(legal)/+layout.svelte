@@ -2,23 +2,23 @@
   import type { Snippet } from 'svelte';
   import { onMount } from 'svelte';
   import LanguageSelector from '$lib/components/shared/LanguageSelector.svelte';
-  import { initAuth } from '$lib/api/auth';
-  import { isAuthenticated } from '$lib/stores/auth';
+  import { hasStoredSession } from '$lib/stores/auth';
   import { ROUTES } from '$lib/utils/routes';
   import * as m from '$paraglide/messages';
 
   let { children }: { children: Snippet } = $props();
+  let backHref = $state('/');
 
-  // This minimal public layout does not mount the app auth guard, but a returning user should
-  // still get the useful in-app destination once their persisted session is restored.
+  // Public pages never refresh: rotating the shared refresh token from a second tab is treated as
+  // token theft by the backend. The (app) layout authenticates if the user follows the back link.
   onMount(() => {
-    void initAuth();
+    if (hasStoredSession()) backHref = ROUTES.create;
   });
 </script>
 
 <div class="legal-page-shell">
   <header>
-    <a class="back-link" href={$isAuthenticated ? ROUTES.create : '/'}>
+    <a class="back-link" href={backHref}>
       {m.legal_back_to_app()}
     </a>
     <LanguageSelector />

@@ -7,6 +7,7 @@ import {
   setUser,
   getAccessToken,
   getRefreshToken,
+  hasStoredSession,
   currentUser,
   isAuthenticated,
   isAdmin,
@@ -123,6 +124,16 @@ describe('getRefreshToken()', () => {
   it('returns stored refresh token from localStorage', () => {
     localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, 'stored-refresh-token');
     expect(getRefreshToken()).toBe('stored-refresh-token');
+  });
+});
+
+describe('hasStoredSession()', () => {
+  it('only reads persisted storage and reports whether a refresh token exists', () => {
+    expect(hasStoredSession()).toBe(false);
+
+    localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, 'stored-refresh-token');
+
+    expect(hasStoredSession()).toBe(true);
   });
 });
 
