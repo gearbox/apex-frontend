@@ -60,7 +60,7 @@ beforeEach(() => {
 });
 
 describe('register()', () => {
-  it('sends only email, password, display_name — no age fields', async () => {
+  it('sends display name and the required empty legal set — no age fields', async () => {
     const tokenRes = makeTokenResponse();
     const profile = makeUserProfile();
     let capturedBody: Record<string, unknown> = {};
@@ -79,6 +79,7 @@ describe('register()', () => {
       email: 'new@example.com',
       password: 'password123',
       display_name: 'Jane Doe',
+      accepted_documents: [],
     });
     expect(capturedBody).not.toHaveProperty('age_confirmed');
     expect(capturedBody).not.toHaveProperty('date_of_birth');
@@ -103,10 +104,32 @@ describe('register()', () => {
     expect(capturedBody).toEqual({
       email: 'new@example.com',
       password: 'password123',
-      display_name: undefined,
+      accepted_documents: [],
     });
     expect(capturedBody).not.toHaveProperty('age_confirmed');
     expect(capturedBody).not.toHaveProperty('date_of_birth');
+  });
+
+  it('echoes the accepted legal metadata verbatim', async () => {
+    const tokenRes = makeTokenResponse();
+    const profile = makeUserProfile();
+    let capturedBody: Record<string, unknown> = {};
+    const acceptedDocuments = [
+      { doc_type: 'terms' as const, version: '2026-10-01', sha256: 'a'.repeat(64) },
+      { doc_type: 'privacy' as const, version: '2026-10-01', sha256: 'b'.repeat(64) },
+    ];
+
+    server.use(
+      http.post(`${BASE}/v1/auth/register`, async ({ request }) => {
+        capturedBody = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(tokenRes, { status: 201 });
+      }),
+      http.get(`${BASE}/v1/users/me`, () => HttpResponse.json(profile)),
+    );
+
+    await register('new@example.com', 'password123', undefined, acceptedDocuments);
+
+    expect(capturedBody.accepted_documents).toEqual(acceptedDocuments);
   });
 
   it('failure (400 email_exists): throws AuthError with email_exists code', async () => {

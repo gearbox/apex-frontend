@@ -9,6 +9,7 @@ import { creditWarnings, upsertCreditWarning } from './creditWarnings';
 import { toasts, addToast } from './toasts';
 import { notifications, addNotification } from './notifications';
 import { eventStreamStatus, setEventStreamStatus } from './eventStream';
+import { legalReacceptanceRequired, markLegalReacceptanceRequired } from './legal';
 import { makeUserProfile } from '../../mocks/factories/user';
 import { LEGACY_CONTENT_MEDIA_CACHE_NAME } from '$lib/utils/cacheNames';
 import { STORAGE_KEYS } from '$lib/utils/constants';
@@ -97,6 +98,7 @@ describe('resetAppState()', () => {
       expires_at: null,
     });
     setEventStreamStatus('connected');
+    markLegalReacceptanceRequired();
 
     resetAppState();
 
@@ -109,6 +111,7 @@ describe('resetAppState()', () => {
     expect(getStoreValue(toasts)).toEqual([]);
     expect(getStoreValue(notifications)).toEqual([]);
     expect(getStoreValue(eventStreamStatus)).toBe('disconnected');
+    expect(getStoreValue(legalReacceptanceRequired)).toBe(false);
   });
 
   it('a throwing step does not prevent the rest of the reset (A5)', () => {

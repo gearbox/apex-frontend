@@ -25,6 +25,7 @@ import {
 import { parseApiError, AuthError } from '$lib/api/errors';
 import { parseRateLimitHeaders, endpointKey } from '$lib/api/rateLimit';
 import { updateRateLimit } from '$lib/stores/rateLimit';
+import type { AcceptedDocument } from '$lib/api/legal';
 
 // Re-export so existing callers (login/register pages) don't need to change their imports
 export { AuthError };
@@ -174,11 +175,13 @@ export async function register(
   email: string,
   password: string,
   displayName?: string,
+  acceptedDocuments: AcceptedDocument[] = [],
 ): Promise<void> {
   await completeFreshAuth('/v1/auth/register', {
     email,
     password,
     display_name: displayName,
+    accepted_documents: acceptedDocuments,
   });
 }
 

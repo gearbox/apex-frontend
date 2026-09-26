@@ -59,6 +59,7 @@
     </div>
 
     <p class="confirm-text danger-text">{m.profile_delete_confirm_text()}</p>
+    <p class="confirm-text danger-text">{m.legal_delete_account_note()}</p>
 
     <div class="field">
       <label class="field-label" for="delete-confirm">

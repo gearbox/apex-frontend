@@ -2,12 +2,14 @@
   import { onDestroy } from 'svelte';
   import { moreSheetOpen, closeMoreSheet } from '$lib/stores/ui';
   import { isAdmin } from '$lib/stores/auth';
+  import { hasLegalDocuments } from '$lib/stores/legal';
   import * as m from '$paraglide/messages';
   import { Coins, Activity, User, Shield, ChevronRight } from '@lucide/svelte';
   import AppVersionBadge from '$lib/components/shared/AppVersionBadge.svelte';
   import MobileNavSheet from './MobileNavSheet.svelte';
   import { viewportDebug } from '$lib/stores/debug.svelte';
   import { addToast } from '$lib/stores/toasts';
+  import { ROUTES } from '$lib/utils/routes';
 
   const DEBUG_TAP_THRESHOLD = 5;
   const DEBUG_TAP_WINDOW_MS = 2000;
@@ -55,6 +57,19 @@
         <span class="sheet-item-label">{m.nav_profile()}</span>
         <span class="sheet-item-chevron"><ChevronRight size={16} /></span>
       </a>
+
+      {#if $hasLegalDocuments}
+        <div class="sheet-admin-divider"></div>
+        <p class="sheet-group-title">{m.legal_nav_title()}</p>
+        <a href={ROUTES.terms} onclick={closeMoreSheet} class="sheet-item">
+          <span class="sheet-item-label">{m.legal_document_terms()}</span>
+          <span class="sheet-item-chevron"><ChevronRight size={16} /></span>
+        </a>
+        <a href={ROUTES.privacy} onclick={closeMoreSheet} class="sheet-item">
+          <span class="sheet-item-label">{m.legal_document_privacy()}</span>
+          <span class="sheet-item-chevron"><ChevronRight size={16} /></span>
+        </a>
+      {/if}
 
       {#if $isAdmin}
         <div class="sheet-admin-divider"></div>
@@ -113,6 +128,15 @@
   .sheet-admin-divider {
     border-top: 1px solid var(--apex-border);
     margin: 4px 24px;
+  }
+
+  .sheet-group-title {
+    color: var(--apex-text-muted);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    margin: 12px 24px 0;
+    text-transform: uppercase;
   }
 
   .sheet-cancel-wrap {

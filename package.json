@@ -1,6 +1,6 @@
 {
   "name": "apex-frontend",
-  "version": "0.25.2",
+  "version": "0.26.0",
   "private": true,
   "type": "module",
   "description": "Apex AI Content Studio — Progressive Web App",
@@ -82,6 +82,8 @@
   "dependencies": {
     "@lucide/svelte": "^1.28.0",
     "@tanstack/svelte-query": "^6.1.38",
+    "dompurify": "3.2.6",
+    "marked": "15.0.12",
     "openapi-fetch": "^0.17.0"
   },
   "msw": {

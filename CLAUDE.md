@@ -36,11 +36,14 @@ src/
 │   │   ├── upload.ts              # uploadMedia() — multipart upload wrapper (raw fetch, static auth)
 │   │   ├── user.ts                # fetchUserStats, changePassword, logoutAllDevices, deleteAccount
 │   │   ├── billing.ts             # topUpStripe, topUpNowPayments — billing mutation wrappers
+│   │   ├── legal.ts               # Versioned legal documents and acceptance API wrappers
+│   │   ├── legalRequired.ts       # Final-response 428 legal re-acceptance detector
 │   │   ├── types.ts               # Generated from backend OpenAPI schema
 │   │   └── schema.json            # Exported OpenAPI schema (source of truth)
 │   ├── stores/
 │   │   ├── auth.ts                # Auth state: user, tokens, isAuthenticated
 │   │   ├── theme.ts               # Theme + mode persistence (localStorage)
+│   │   ├── legal.ts               # Current legal set + blocking re-acceptance state
 │   │   └── ui.ts                  # Sidebar collapsed state, mobile nav
 │   ├── components/
 │   │   ├── layout/
@@ -50,6 +53,11 @@ src/
 │   │   │   ├── MobileMoreSheet.svelte
 │   │   │   ├── TopBar.svelte
 │   │   │   └── BalancePill.svelte    # Token balance → links to /app/billing
+│   │   ├── legal/
+│   │   │   ├── LegalMarkdown.svelte         # Sanitized API markdown renderer
+│   │   │   ├── LegalDocumentView.svelte     # Public current/exact-version document view
+│   │   │   ├── LegalAcceptanceFields.svelte # Shared signup/re-acceptance checkboxes
+│   │   │   └── LegalReacceptanceModal.svelte # Blocking stale-token re-acceptance flow
 │   │   ├── create/
 │   │   │   ├── ModelSelector.svelte
 │   │   │   ├── PromptInput.svelte
@@ -89,7 +97,8 @@ src/
 │   │   ├── gallery.ts                # galleryKeys, galleryListInfiniteQueryOptions, galleryDetailQueryOptions, deleteContentMutationOptions
 │   │   ├── storage.ts                # storageKeys, uploadsInfiniteQueryOptions
 │   │   ├── admin.ts                  # Query key factory + query options for admin endpoints
-│   │   └── user.ts                   # userKeys, userStatsQueryOptions, changePassword/logoutAll/deleteAccount mutation options
+│   │   ├── user.ts                   # userKeys, userStatsQueryOptions, changePassword/logoutAll/deleteAccount mutation options
+│   │   └── legal.ts                  # Immutable version/current-alias legal query options
 │   ├── themes/
 │   │   └── index.ts                  # Theme definitions + types
 │   └── utils/
@@ -106,6 +115,9 @@ src/
 │   │   ├── register/+page.svelte
 │   │   ├── forgot-password/+page.svelte
 │   │   └── verify-email/+page.svelte
+│   ├── (legal)/
+│   │   ├── terms/+page.svelte        # Public current/exact-version Terms page
+│   │   └── privacy/+page.svelte      # Public current/exact-version Privacy page
 │   └── (app)/
 │       ├── +layout.svelte            # AppShell + auth guard
 │       └── app/

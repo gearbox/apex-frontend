@@ -2,7 +2,7 @@
   import { onMount, onDestroy, type Snippet } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
-  import { useQueryClient } from '@tanstack/svelte-query';
+  import { createQuery, useQueryClient } from '@tanstack/svelte-query';
   import { currentAuthStatus, currentUser } from '$lib/stores/auth';
   import { initAuth } from '$lib/api/auth';
   import { EventStreamService } from '$lib/services/eventStream';
@@ -21,11 +21,16 @@
   import { isStandalone } from '$lib/utils/platform';
   import { startPendingPaymentsStorageListener } from '$lib/stores/pendingPayments';
   import Spinner from '$lib/components/ui/Spinner.svelte';
+  import LegalReacceptanceModal from '$lib/components/legal/LegalReacceptanceModal.svelte';
+  import { currentLegalQueryOptions } from '$lib/queries/legal';
+  import { legalReacceptanceRequired } from '$lib/stores/legal';
 
   let { children }: { children: Snippet } = $props();
   let checking = $state(true);
 
   const queryClient = useQueryClient();
+  // Keeps the shared legal-navigation store in sync with the product's `/current` response.
+  createQuery(() => currentLegalQueryOptions());
   let eventStream: EventStreamService | null = null;
   let eventStreamUserId: string | undefined;
   let pushInitializedForUserId: string | undefined;
@@ -145,6 +150,9 @@
   <ToastContainer />
   <InstallPromptSheet />
   <PushNudgeBanner />
+  {#if $legalReacceptanceRequired}
+    <LegalReacceptanceModal />
+  {/if}
 {/if}
 
 <style>

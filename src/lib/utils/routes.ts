@@ -4,4 +4,6 @@ export const ROUTES = {
   billingTopUp: '/app/billing?tab=buy',
   create: '/app/create',
   library: '/app/library',
+  terms: '/terms',
+  privacy: '/privacy',
 } as const;

@@ -3,6 +3,7 @@
   import { sidebarCollapsed, toggleSidebar } from '$lib/stores/ui';
   import { isAdmin } from '$lib/stores/auth';
   import { productInfo } from '$lib/stores/product';
+  import { hasLegalDocuments } from '$lib/stores/legal';
   import ProjectNav from '$lib/components/library/ProjectNav.svelte';
   import * as m from '$paraglide/messages';
   import { ROUTES } from '$lib/utils/routes';
@@ -17,6 +18,7 @@
     Server,
     ChevronLeft,
     ChevronRight,
+    Scale,
   } from '@lucide/svelte';
 
   const iconMap: Record<string, typeof Plus> = {
@@ -28,6 +30,7 @@
     user: User,
     shield: Shield,
     server: Server,
+    scale: Scale,
   };
 
   const mainItems = [
@@ -40,6 +43,10 @@
 
   const adminItem = { label: () => m.nav_admin(), href: '/app/admin', icon: 'shield' };
   const profileItem = { label: () => m.topbar_profile(), href: '/app/profile', icon: 'user' };
+  const legalItems = [
+    { label: () => m.legal_document_terms(), href: ROUTES.terms },
+    { label: () => m.legal_document_privacy(), href: ROUTES.privacy },
+  ];
 
   let logoText = $derived($productInfo?.display_name ?? 'apex');
   let logoLetter = $derived(($productInfo?.display_name ?? 'apex').charAt(0).toUpperCase());
@@ -123,6 +130,20 @@
           <span class="nav-label">{profileItem.label()}</span>
         {/if}
       </a>
+    {/if}
+    {#if $hasLegalDocuments}
+      <div class="legal-divider"></div>
+      {#each legalItems as item (item.href)}
+        <a
+          href={item.href}
+          class="nav-item"
+          class:collapsed={$sidebarCollapsed}
+          title={$sidebarCollapsed ? item.label() : undefined}
+        >
+          <span class="nav-icon"><Scale size={18} strokeWidth={1.75} /></span>
+          {#if !$sidebarCollapsed}<span class="nav-label">{item.label()}</span>{/if}
+        </a>
+      {/each}
     {/if}
     <button
       onclick={toggleSidebar}
@@ -209,6 +230,11 @@
   }
 
   .admin-divider {
+    border-top: 1px solid var(--apex-border);
+    margin: 8px 12px;
+  }
+
+  .legal-divider {
     border-top: 1px solid var(--apex-border);
     margin: 8px 12px;
   }

@@ -12,6 +12,7 @@
   import DeleteAccountModal from '$lib/components/profile/DeleteAccountModal.svelte';
   import InstallAppButton from '$lib/components/pwa/InstallAppButton.svelte';
   import PushNotificationToggle from '$lib/components/profile/PushNotificationToggle.svelte';
+  import LegalSection from '$lib/components/profile/LegalSection.svelte';
   import { applyPwaUpdate, checkForAppUpdate, pwaUpdateStatus } from '$lib/services/pwaUpdate';
   import { appIsDirty } from '$lib/services/appDirty';
   import { APP_VERSION, BUILD_SHA } from '$lib/utils/appVersion';
@@ -76,6 +77,8 @@
 
   <UserStats />
 
+  <LegalSection oncloseaccount={() => (showDeleteAccount = true)} />
+
   <!-- Appearance -->
   <div class="appearance-section">
     <p class="section-header">{m.profile_section_appearance()}</p>
@@ -128,7 +131,7 @@
     <button onclick={handleLogout} disabled={loggingOut} class="action-btn">
       {loggingOut ? m.profile_signing_out() : m.profile_logout()}
     </button>
-    <button class="action-btn danger" onclick={() => (showDeleteAccount = true)}
+    <button id="delete-account" class="action-btn danger" onclick={() => (showDeleteAccount = true)}
       >{m.profile_delete_account()}</button
     >
   </div>
