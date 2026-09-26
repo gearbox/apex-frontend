@@ -40,7 +40,7 @@
   import SelectionToolbar from '$lib/components/library/SelectionToolbar.svelte';
   import TagPickerSheet from '$lib/components/library/TagPickerSheet.svelte';
   import { LibrarySelection } from '$lib/components/library/selection.svelte';
-  import { productInfo } from '$lib/stores/product';
+  import { appDisplayName } from '$lib/stores/product';
   import Spinner from '$lib/components/ui/Spinner.svelte';
   import { mediaFallbackSrc } from '$lib/media/mediaHelpers';
   import type { components } from '$lib/api/types';
@@ -52,7 +52,7 @@
   const MAX_SIZE_BYTES = 20 * 1024 * 1024; // 20 MB
   const ACCEPTED_TYPES = [...ACCEPTED_IMAGE_TYPES, ...ACCEPTED_VIDEO_TYPES];
 
-  let appTitle = $derived($productInfo?.display_name ?? 'Apex');
+  let appTitle = $derived($appDisplayName);
 
   /* ─── URL-driven filter state ─── */
 

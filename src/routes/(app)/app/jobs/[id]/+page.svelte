@@ -7,13 +7,12 @@
   import JobStatusBadge from '$lib/components/jobs/JobStatusBadge.svelte';
   import JobOutputGrid from '$lib/components/jobs/JobOutputGrid.svelte';
   import type { components } from '$lib/api/types';
-  import { productInfo } from '$lib/stores/product';
+  import { appDisplayName } from '$lib/stores/product';
   import { formatAspectRatio } from '$lib/utils/format';
 
   type JobStatus = components['schemas']['JobStatus'];
 
-  // Derive app title from productInfo for <title> tag
-  let appTitle = $derived($productInfo?.display_name ?? 'Apex');
+  let appTitle = $derived($appDisplayName);
 
   const TERMINAL = new Set<JobStatus>(['completed', 'failed', 'cancelled', 'moderated']);
 

@@ -2,7 +2,7 @@
   import { page } from '$app/stores';
   import { sidebarCollapsed, toggleSidebar } from '$lib/stores/ui';
   import { isAdmin } from '$lib/stores/auth';
-  import { productInfo } from '$lib/stores/product';
+  import { appDisplayName } from '$lib/stores/product';
   import { hasLegalDocuments } from '$lib/stores/legal';
   import ProjectNav from '$lib/components/library/ProjectNav.svelte';
   import * as m from '$paraglide/messages';
@@ -48,8 +48,8 @@
     { label: () => m.legal_document_privacy(), href: ROUTES.privacy },
   ];
 
-  let logoText = $derived($productInfo?.display_name ?? 'apex');
-  let logoLetter = $derived(($productInfo?.display_name ?? 'apex').charAt(0).toUpperCase());
+  let logoText = $derived($appDisplayName);
+  let logoLetter = $derived($appDisplayName.charAt(0).toUpperCase());
 </script>
 
 <aside class="sidebar" class:collapsed={$sidebarCollapsed}>

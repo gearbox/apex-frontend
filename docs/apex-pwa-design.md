@@ -160,6 +160,11 @@ Retina handling: CSS logical pixels throughout. An iPhone 15 Pro (393 logical px
 
 ### Mobile Layout
 
+Every full-screen root outside the app shell must pad against `var(--safe-area-top)`,
+`var(--safe-area-right)`, `var(--safe-area-bottom)`, and `var(--safe-area-left)`, and own its
+scroll container. The document `body` is intentionally `overflow: hidden`, so public and auth
+shells cannot rely on document scrolling to reveal overflowing content.
+
 **Bottom tab bar** — 3 items (extensible `TAB_ITEMS` array):
 
 | Tab     | Icon         | Action                     |

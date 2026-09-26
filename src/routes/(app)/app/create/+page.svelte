@@ -14,7 +14,7 @@
   import { addToast } from '$lib/stores/toasts';
   import { estimatePricingRuleCost, findPricingRule } from '$lib/utils/pricing';
   import { createJobPoller } from '$lib/services/jobPoller';
-  import { productInfo } from '$lib/stores/product';
+  import { appDisplayName } from '$lib/stores/product';
   import { isAgeVerified, isAuthenticated, setUser } from '$lib/stores/auth';
   import { isSSEFallback } from '$lib/stores/eventStream';
   import {
@@ -282,8 +282,7 @@
       : null,
   );
 
-  // Derive app title from productInfo for <title> tag
-  let appTitle = $derived($productInfo?.display_name ?? 'Apex');
+  let appTitle = $derived($appDisplayName);
 
   type ModelType = components['schemas']['ModelType'];
 
