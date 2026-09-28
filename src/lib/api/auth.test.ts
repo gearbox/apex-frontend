@@ -19,7 +19,11 @@ import {
   remintContentCookie,
   initAuth,
   register,
+  exchangeOAuthCode,
+  completeOAuthSignup,
+  fetchOAuthSignupInfo,
   AuthError,
+  OAuthCodeAlreadyUsedError,
 } from './auth';
 import {
   clearAuth,
@@ -212,6 +216,71 @@ describe('login()', () => {
     expect(err.error).toBe('invalid_credentials');
     expect(err.message).toBe('Invalid email or password');
     expect(err.status_code).toBe(401);
+  });
+});
+
+describe('OAuth auth endpoints', () => {
+  it('exchanges a handoff with cookies and installs the standard fresh session', async () => {
+    const tokenRes = makeTokenResponse({ access_token: 'oauth-access' });
+    let credentials: RequestCredentials | undefined;
+    server.use(
+      http.post(`${BASE}/v1/auth/oauth/exchange`, ({ request }) => {
+        credentials = request.credentials;
+        return HttpResponse.json(tokenRes);
+      }),
+      http.get(`${BASE}/v1/users/me`, () => HttpResponse.json(makeUserProfile())),
+    );
+
+    await exchangeOAuthCode('oauth-code-unit');
+
+    expect(credentials).toBe('include');
+    expect(getAccessToken()).toBe('oauth-access');
+  });
+
+  it('never sends a code to the network twice', async () => {
+    let exchanges = 0;
+    server.use(
+      http.post(`${BASE}/v1/auth/oauth/exchange`, () => {
+        exchanges += 1;
+        return HttpResponse.json(makeTokenResponse());
+      }),
+      http.get(`${BASE}/v1/users/me`, () => HttpResponse.json(makeUserProfile())),
+    );
+
+    await exchangeOAuthCode('oauth-code-single-use');
+    await expect(exchangeOAuthCode('oauth-code-single-use')).rejects.toBeInstanceOf(
+      OAuthCodeAlreadyUsedError,
+    );
+    expect(exchanges).toBe(1);
+  });
+
+  it('uses cookie-bound signup info and complete-signup endpoints', async () => {
+    let signupInfoCredentials: RequestCredentials | undefined;
+    let completeBody: Record<string, unknown> | undefined;
+    server.use(
+      http.post(`${BASE}/v1/auth/oauth/signup-info`, ({ request }) => {
+        signupInfoCredentials = request.credentials;
+        return HttpResponse.json({ email: 'google@example.com', provider: 'google' });
+      }),
+      http.post(`${BASE}/v1/auth/oauth/complete-signup`, async ({ request }) => {
+        completeBody = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(makeTokenResponse(), { status: 201 });
+      }),
+      http.get(`${BASE}/v1/users/me`, () => HttpResponse.json(makeUserProfile())),
+    );
+
+    await expect(fetchOAuthSignupInfo('oauth-ticket')).resolves.toEqual({
+      email: 'google@example.com',
+      provider: 'google',
+    });
+    await completeOAuthSignup('oauth-ticket', [], 'Jane');
+
+    expect(signupInfoCredentials).toBe('include');
+    expect(completeBody).toEqual({
+      ticket: 'oauth-ticket',
+      accepted_documents: [],
+      display_name: 'Jane',
+    });
   });
 });
 

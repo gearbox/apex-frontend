@@ -16,6 +16,7 @@ const mockUserProfile = {
   display_name: 'E2E User',
   subscription_tier: 'free',
   email_verified: true,
+  has_password: true,
   created_at: '2025-01-01T00:00:00Z',
   updated_at: '2025-01-01T00:00:00Z',
 };

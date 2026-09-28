@@ -21,6 +21,16 @@ export const authHandlers = [
     HttpResponse.json(makeTokenResponse(), { status: 201 }),
   ),
 
+  http.post(`${BASE}/v1/auth/oauth/exchange`, () => HttpResponse.json(makeTokenResponse())),
+
+  http.post(`${BASE}/v1/auth/oauth/signup-info`, () =>
+    HttpResponse.json({ email: 'google@example.com', provider: 'google' }),
+  ),
+
+  http.post(`${BASE}/v1/auth/oauth/complete-signup`, () =>
+    HttpResponse.json(makeTokenResponse(), { status: 201 }),
+  ),
+
   http.post(`${BASE}/v1/auth/refresh`, () => HttpResponse.json(makeTokenResponse())),
 
   http.post(`${BASE}/v1/auth/logout`, () =>
@@ -134,6 +144,55 @@ export const syntharaProductHandler = http.get(`${BASE}/v1/auth/product-info`, (
 /** Override: vex product with no age gate (for simplified test scenarios). */
 export const vexNoAgeGateProductHandler = http.get(`${BASE}/v1/auth/product-info`, () =>
   HttpResponse.json({ ...vexProductInfo, age_gate: 'none' }),
+);
+
+/** Override: Vex product with the Google provider configured. */
+export const vexGoogleProductHandler = http.get(`${BASE}/v1/auth/product-info`, () =>
+  HttpResponse.json({
+    ...vexProductInfo,
+    allowed_auth_methods: ['email_password', 'google_oauth'],
+  }),
+);
+
+export const invalidHandoffHandler = http.post(`${BASE}/v1/auth/oauth/exchange`, () =>
+  HttpResponse.json(
+    { error: 'invalid_handoff', message: 'This sign-in link has expired.', status_code: 400 },
+    { status: 400 },
+  ),
+);
+
+export const invalidSignupTicketHandler = http.post(`${BASE}/v1/auth/oauth/signup-info`, () =>
+  HttpResponse.json(
+    { error: 'invalid_signup_ticket', message: 'Your sign-up session expired.', status_code: 400 },
+    { status: 400 },
+  ),
+);
+
+export const emailExistsSignupHandler = http.post(`${BASE}/v1/auth/oauth/complete-signup`, () =>
+  HttpResponse.json(
+    {
+      error: 'email_exists',
+      message: 'An account with this email already exists.',
+      status_code: 400,
+    },
+    { status: 400 },
+  ),
+);
+
+export const identityConflictSignupHandler = http.post(
+  `${BASE}/v1/auth/oauth/complete-signup`,
+  () =>
+    HttpResponse.json(
+      { error: 'identity_conflict', message: 'Identity is already linked.', status_code: 409 },
+      { status: 409 },
+    ),
+);
+
+export const legalStaleSignupHandler = http.post(`${BASE}/v1/auth/oauth/complete-signup`, () =>
+  HttpResponse.json(
+    { error: 'legal_version_stale', message: 'Legal documents changed.', status_code: 409 },
+    { status: 409 },
+  ),
 );
 
 /** Override: product-info fetch fails (network error). */

@@ -43,6 +43,8 @@ export const SESSION_KEYS = {
   ACTIVE_JOB: 'apex-active-job',
   /** Set right before the 401 middleware's hard redirect; consumed once by the login screen. */
   AUTH_FAILURE_REASON: 'apex-auth-failure-reason',
+  /** Short-lived, tab-scoped handoff from the OAuth fragment dispatcher to its signup form. */
+  OAUTH_PENDING_SIGNUP: 'apex:oauth:pending-signup',
 } as const;
 
 /* ─── SSE / Real-Time Events ─── */

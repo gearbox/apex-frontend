@@ -40,7 +40,12 @@
       clearAuth();
       goto('/login', { replaceState: true });
     } catch (e) {
-      errorMsg = e instanceof ApiRequestError ? e.message : 'Unexpected error. Please try again.';
+      errorMsg =
+        e instanceof ApiRequestError && e.status_code === 409 && e.error === 'password_not_set'
+          ? m.profile_password_not_set()
+          : e instanceof ApiRequestError
+            ? e.message
+            : 'Unexpected error. Please try again.';
     }
   }
 

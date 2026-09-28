@@ -65,6 +65,10 @@ export function createExactDocuments(
     const key = payloadKey;
     if (key === null) return;
     untrack(() => {
+      // Query observers can publish the same content while reconciling their loading state.
+      // Restarting an identical prefetch supersedes its own completion and can leave `ready`
+      // false indefinitely. An explicit `reload()` is still available for retries.
+      if (loadedKey === key) return;
       if (loadedKey !== null && loadedKey !== key) onPayloadChange?.();
       loadedKey = key;
       void load(getCurrent());

@@ -33,6 +33,9 @@ src/
 │   ├── api/
 │   │   ├── client.ts              # openapi-fetch instance + auth interceptor
 │   │   ├── auth.ts                # JWT token management, refresh rotation
+│   │   ├── oauth.ts               # Google OAuth navigation URL + generated request/response aliases
+│   │   ├── oauthFragment.ts       # Callback fragment parser (never logs opaque values)
+│   │   ├── oauthPendingSignup.ts  # Tab-scoped, short-lived OAuth signup handoff
 │   │   ├── upload.ts              # uploadMedia() — multipart upload wrapper (raw fetch, static auth)
 │   │   ├── user.ts                # fetchUserStats, changePassword, logoutAllDevices, deleteAccount
 │   │   ├── billing.ts             # topUpStripe, topUpNowPayments — billing mutation wrappers
@@ -46,6 +49,9 @@ src/
 │   │   ├── legal.ts               # Current legal set + blocking re-acceptance state
 │   │   └── ui.ts                  # Sidebar collapsed state, mobile nav
 │   ├── components/
+│   │   ├── auth/
+│   │   │   ├── OAuthProviderButtons.svelte # Product-gated Google sign-in button
+│   │   │   └── OAuthErrorPanel.svelte      # Contract-mapped OAuth error actions
 │   │   ├── layout/
 │   │   │   ├── AppShell.svelte       # Root layout: sidebar (desktop) / tabs (mobile)
 │   │   │   ├── DesktopSidebar.svelte # Collapsible sidebar
@@ -100,7 +106,8 @@ src/
 │   │   ├── user.ts                   # userKeys, userStatsQueryOptions, changePassword/logoutAll/deleteAccount mutation options
 │   │   └── legal.ts                  # Immutable version/current-alias legal query options
 │   ├── legal/
-│   │   └── exactDocuments.svelte.ts  # createExactDocuments(): exact-version prefetch gate for acceptance forms
+│   │   ├── exactDocuments.svelte.ts  # createExactDocuments(): exact-version prefetch gate for acceptance forms
+│   │   └── signupLegalForm.svelte.ts # Shared legal acceptance gate for password/OAuth signup
 │   ├── themes/
 │   │   └── index.ts                  # Theme definitions + types
 │   └── utils/
@@ -108,7 +115,8 @@ src/
 │       ├── format.ts                 # Number formatting, relative time
 │       ├── routes.ts                 # ROUTES constants + legalDocumentHref(type, version?)
 │       ├── constants.ts              # API base URL, storage keys
-│       └── idempotency.ts            # generateIdempotencyKey() for mutation endpoints
+│       ├── idempotency.ts            # generateIdempotencyKey() for mutation endpoints
+│       └── returnPath.ts             # Same-origin redirect validation for auth/OAuth
 ├── routes/
 │   ├── +layout.svelte                # Root: fonts, theme CSS vars, QueryClient
 │   ├── +layout.ts                    # SSG prerender config
@@ -116,6 +124,8 @@ src/
 │   ├── (auth)/
 │   │   ├── login/+page.svelte
 │   │   ├── register/+page.svelte
+│   │   ├── auth/callback/+page.svelte # Fragment-only OAuth dispatcher
+│   │   ├── auth/signup/+page.svelte   # Reload-safe OAuth legal signup form
 │   │   ├── forgot-password/+page.svelte
 │   │   └── verify-email/+page.svelte
 │   ├── (legal)/
@@ -134,6 +144,7 @@ src/
 │           └── profile/+page.svelte
 ├── static/
 │   ├── favicon.svg
+│   ├── google-g.svg                 # Local Google sign-in mark
 │   ├── apple-touch-icon.png          # 180×180
 │   ├── icon-192.png
 │   └── icon-512.png
@@ -259,6 +270,19 @@ Collapsible: 220px expanded ↔ 60px icon-only. All nav items visible. Collapse 
 2. Has refresh token in localStorage? → attempt silent refresh
 3. Neither? → redirect to `/login`
 4. Show skeleton while checking
+
+### OAuth sign-in
+
+Google sign-in has two auth-group routes. `/auth/callback` synchronously captures the API's
+fragment, strips it with SvelteKit `replaceState()` before any request, and then either redeems a
+login code or stores a pending signup. `/auth/signup` reads that pending record from
+`sessionStorage` (`apex:oauth:pending-signup`), so reloading while reading legal text is safe.
+Opaque codes and tickets are never logged or put in URLs after dispatch.
+
+Both token-producing OAuth endpoints reuse `completeFreshAuth()` in `src/lib/api/auth.ts`; this
+keeps auth transitions, profiles, app-state reset, and credentialed requests identical to password
+login. The backend's semantics and callback grammar are authoritative in
+`gearbox/apex/docs/contracts/oauth-contract.md`.
 
 ---
 

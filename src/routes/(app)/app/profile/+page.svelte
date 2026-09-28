@@ -1,5 +1,6 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { createMutation } from '@tanstack/svelte-query';
   import { logout } from '$lib/api/auth';
   import { appDisplayName } from '$lib/stores/product';
   import ProfileFields from '$lib/components/profile/ProfileFields.svelte';
@@ -17,6 +18,8 @@
   import { appIsDirty } from '$lib/services/appDirty';
   import { APP_VERSION, BUILD_SHA } from '$lib/utils/appVersion';
   import { addToast } from '$lib/stores/toasts';
+  import { currentUser } from '$lib/stores/auth';
+  import { setPasswordMutationOptions } from '$lib/queries/user';
   import * as m from '$paraglide/messages';
 
   let loggingOut = $state(false);
@@ -24,6 +27,9 @@
   let showLogoutAll = $state(false);
   let showDeleteAccount = $state(false);
   let checkingForUpdate = $state(false);
+  let setPasswordNotice = $state('');
+  let setPasswordError = $state('');
+  const setPasswordMutation = createMutation(() => setPasswordMutationOptions());
 
   let appTitle = $derived($appDisplayName);
 
@@ -63,6 +69,18 @@
       await applyPwaUpdate();
     } finally {
       checkingForUpdate = false;
+    }
+  }
+
+  async function handleSetPassword(): Promise<void> {
+    if (!$currentUser) return;
+    setPasswordNotice = '';
+    setPasswordError = '';
+    try {
+      await setPasswordMutation.mutateAsync($currentUser.email);
+      setPasswordNotice = m.profile_set_password_sent();
+    } catch {
+      setPasswordError = m.error_generic();
     }
   }
 </script>
@@ -121,9 +139,24 @@
   <!-- Actions -->
   <div class="actions">
     <InstallAppButton />
-    <button class="action-btn" onclick={() => (showChangePassword = true)}
-      >{m.profile_change_password()}</button
-    >
+    {#if $currentUser?.has_password !== false}
+      <button class="action-btn" onclick={() => (showChangePassword = true)}
+        >{m.profile_change_password()}</button
+      >
+    {:else}
+      <button
+        class="action-btn"
+        onclick={handleSetPassword}
+        disabled={setPasswordMutation.isPending}
+      >
+        {setPasswordMutation.isPending ? m.auth_forgot_sending() : m.profile_set_password()}
+      </button>
+      {#if setPasswordNotice}
+        <p class="action-notice success">{setPasswordNotice}</p>
+      {:else if setPasswordError}
+        <p class="action-notice error">{setPasswordError}</p>
+      {/if}
+    {/if}
     <button class="action-btn" onclick={() => (showLogoutAll = true)}
       >{m.profile_logout_all()}</button
     >
@@ -206,6 +239,19 @@
 
   .action-btn.danger {
     border-color: color-mix(in srgb, var(--apex-danger) 20%, transparent);
+    color: var(--apex-danger);
+  }
+
+  .action-notice {
+    font-size: 13px;
+    margin: 0;
+  }
+
+  .action-notice.success {
+    color: var(--apex-success);
+  }
+
+  .action-notice.error {
     color: var(--apex-danger);
   }
 </style>

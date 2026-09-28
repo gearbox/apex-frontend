@@ -42,6 +42,8 @@ export interface UserProfile {
   role: string;
   subscription_tier: string;
   email_verified: boolean;
+  /** OAuth-created accounts do not have a password until the reset flow sets one. */
+  has_password: boolean;
   created_at: string;
   updated_at: string;
   locale?: string;

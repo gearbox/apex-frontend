@@ -5,6 +5,7 @@ import {
   deleteAccount,
   type ChangePasswordRequest,
 } from '$lib/api/user';
+import { forgotPassword } from '$lib/api/auth';
 
 export const userKeys = {
   all: ['user'] as const,
@@ -22,6 +23,13 @@ export function userStatsQueryOptions() {
 export function changePasswordMutationOptions() {
   return {
     mutationFn: (body: ChangePasswordRequest) => changePassword(body),
+  };
+}
+
+/** OAuth-only accounts use the established reset flow to create their first password. */
+export function setPasswordMutationOptions() {
+  return {
+    mutationFn: (email: string) => forgotPassword(email),
   };
 }
 

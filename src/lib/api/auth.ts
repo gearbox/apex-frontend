@@ -26,6 +26,7 @@ import { parseApiError, AuthError } from '$lib/api/errors';
 import { parseRateLimitHeaders, endpointKey } from '$lib/api/rateLimit';
 import { updateRateLimit } from '$lib/stores/rateLimit';
 import type { AcceptedDocument } from '$lib/api/legal';
+import type { OAuthSignupInfo } from '$lib/api/oauth';
 
 // Re-export so existing callers (login/register pages) don't need to change their imports
 export { AuthError };
@@ -66,11 +67,20 @@ export class AuthOperationCancelledError extends Error {
   }
 }
 
+/** A callback handoff can be redeemed once only. This local guard prevents accidental retries. */
+export class OAuthCodeAlreadyUsedError extends Error {
+  constructor() {
+    super('This sign-in attempt has already been submitted');
+    this.name = 'OAuthCodeAlreadyUsedError';
+  }
+}
+
 /* ─── State ─── */
 let refreshFlight:
   { epoch: number; refreshToken: string; promise: Promise<SilentRefreshResult> } | undefined;
 let contentCookieRemintFlight:
   { epoch: number; accessToken: string; promise: Promise<ContentCookieRemintResult> } | undefined;
+const submittedOAuthCodes = new Set<string>();
 
 /* ─── Helper ─── */
 function toTokens(res: AuthResponse): AuthTokens {
@@ -131,7 +141,11 @@ function cancelledFreshAuth(operation: AuthOperation): never {
 }
 
 async function completeFreshAuth(
-  path: '/v1/auth/login' | '/v1/auth/register',
+  path:
+    | '/v1/auth/login'
+    | '/v1/auth/register'
+    | '/v1/auth/oauth/exchange'
+    | '/v1/auth/oauth/complete-signup',
   body: Record<string, unknown>,
 ): Promise<void> {
   // A user may submit a new login/register form while a previous one is still resolving.  The
@@ -182,6 +196,35 @@ export async function register(
     password,
     display_name: displayName,
     accepted_documents: acceptedDocuments,
+  });
+}
+
+/** Redeem the callback's opaque handoff once and install tokens through the normal fresh-auth path. */
+export async function exchangeOAuthCode(code: string): Promise<void> {
+  if (submittedOAuthCodes.has(code)) throw new OAuthCodeAlreadyUsedError();
+  submittedOAuthCodes.add(code);
+  await completeFreshAuth('/v1/auth/oauth/exchange', { code });
+}
+
+/** Finish a new OAuth account once its legal acceptance is complete. */
+export async function completeOAuthSignup(
+  ticket: string,
+  acceptedDocuments: AcceptedDocument[],
+  displayName?: string,
+): Promise<void> {
+  await completeFreshAuth('/v1/auth/oauth/complete-signup', {
+    ticket,
+    accepted_documents: acceptedDocuments,
+    ...(displayName ? { display_name: displayName } : {}),
+  });
+}
+
+/** Looks up the non-consuming signup ticket. It needs the API's HttpOnly binding cookie. */
+export async function fetchOAuthSignupInfo(ticket: string): Promise<OAuthSignupInfo> {
+  return fetchJson<OAuthSignupInfo>('/v1/auth/oauth/signup-info', {
+    method: 'POST',
+    credentials: 'include',
+    body: JSON.stringify({ ticket }),
   });
 }
 
