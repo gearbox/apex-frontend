@@ -69,25 +69,25 @@
       <p class="mt-2 text-sm text-text-muted">{m.auth_login_subtitle()}</p>
     </div>
 
+    {#if sessionEndReason === 'token_reuse_detected'}
+      <div
+        class="mb-4 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger"
+      >
+        <p class="font-semibold">{m.auth_security_notice_title()}</p>
+        <p>{m.auth_security_notice_message()}</p>
+      </div>
+    {:else if sessionEndReason === 'account_inactive'}
+      <div
+        class="mb-4 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning"
+      >
+        {m.auth_account_deactivated_message()}
+      </div>
+    {/if}
+
     <OAuthProviderButtons {returnTo} showDivider={allowsEmailPassword} />
 
     {#if allowsEmailPassword}
       <form onsubmit={handleSubmit} class="flex flex-col gap-4">
-        {#if sessionEndReason === 'token_reuse_detected'}
-          <div
-            class="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger"
-          >
-            <p class="font-semibold">{m.auth_security_notice_title()}</p>
-            <p>{m.auth_security_notice_message()}</p>
-          </div>
-        {:else if sessionEndReason === 'account_inactive'}
-          <div
-            class="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning"
-          >
-            {m.auth_account_deactivated_message()}
-          </div>
-        {/if}
-
         {#if error}
           <div
             class="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger"

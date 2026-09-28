@@ -1,4 +1,5 @@
 <script lang="ts">
+  // Google Sign-In branding kit (Android + Web SVG), retrieved 2026-09-28.
   import { productInfo } from '$lib/stores/product';
   import { startOAuthSignIn } from '$lib/api/oauth';
   import { safeReturnPath } from '$lib/utils/returnPath';

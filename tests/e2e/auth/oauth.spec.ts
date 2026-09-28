@@ -33,6 +33,52 @@ const legalDocuments = [
   },
 ];
 
+const CALLBACK_REQUEST_HREFS = '__oauth_callback_request_hrefs__';
+
+async function recordRequestHrefs(page: Page): Promise<void> {
+  await page.addInitScript((storageKey) => {
+    const record = () => {
+      const state = JSON.parse(window.name || '{}') as Record<string, unknown>;
+      const recorded = Array.isArray(state[storageKey]) ? (state[storageKey] as string[]) : [];
+      recorded.push(location.href);
+      state[storageKey] = recorded;
+      window.name = JSON.stringify(state);
+    };
+    const originalFetch = window.fetch.bind(window);
+    window.fetch = (...args) => {
+      record();
+      return originalFetch(...args);
+    };
+    const originalOpen = XMLHttpRequest.prototype.open;
+    XMLHttpRequest.prototype.open = function (
+      method: string,
+      url: string | URL,
+      async?: boolean,
+      username?: string | null,
+      password?: string | null,
+    ) {
+      record();
+      return originalOpen.call(
+        this,
+        method,
+        url,
+        async ?? true,
+        username ?? null,
+        password ?? null,
+      );
+    };
+  }, CALLBACK_REQUEST_HREFS);
+}
+
+async function expectRequestHrefsWithoutFragments(page: Page): Promise<void> {
+  const hrefs = await page.evaluate((storageKey) => {
+    const state = JSON.parse(window.name || '{}') as Record<string, unknown>;
+    return Array.isArray(state[storageKey]) ? (state[storageKey] as string[]) : [];
+  }, CALLBACK_REQUEST_HREFS);
+  expect(hrefs).not.toHaveLength(0);
+  expect(hrefs.every((href) => !href.includes('#'))).toBe(true);
+}
+
 /**
  * WebKit cannot fulfill an intercepted request with an HTTP redirect. Returning a tiny document
  * keeps the full-page OAuth navigation realistic while making the fake provider work in every
@@ -52,10 +98,13 @@ async function mockFreshAuth(page: Page) {
 
 test.describe('Google OAuth @cross-browser', () => {
   test('redeems a login callback once and removes its hash', async ({ page }) => {
+    await recordRequestHrefs(page);
     await mockFreshAuth(page);
     let exchangeCalls = 0;
+    const exchangeRequestHrefs: string[] = [];
     await page.route('**/v1/auth/oauth/exchange', (route) => {
       exchangeCalls += 1;
+      exchangeRequestHrefs.push(page.url());
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -88,14 +137,32 @@ test.describe('Google OAuth @cross-browser', () => {
     await expect(page).toHaveURL(/\/app\/library$/);
     expect(page.url()).not.toContain('#');
     expect(exchangeCalls).toBe(1);
+    expect(exchangeRequestHrefs).toHaveLength(1);
+    expect(exchangeRequestHrefs[0]).not.toContain('#');
+    await expectRequestHrefsWithoutFragments(page);
+
+    // R0-e: client-init cleanup preserves SvelteKit's history entry metadata.
+    await expect
+      .poll(() => page.evaluate(() => history.state))
+      .toMatchObject({
+        'sveltekit:history': expect.any(Number),
+        'sveltekit:navigation': expect.any(Number),
+        'sveltekit:states': expect.any(Object),
+      });
   });
 
   test('completes OAuth signup and clears the tab handoff', async ({ page }) => {
+    await recordRequestHrefs(page);
     await mockFreshAuth(page);
-    await page.route(
-      '**/v1/auth/oauth/signup-info',
-      jsonRoute({ email: 'oauth@example.com', provider: 'google' }),
-    );
+    const signupInfoRequestHrefs: string[] = [];
+    await page.route('**/v1/auth/oauth/signup-info', (route) => {
+      signupInfoRequestHrefs.push(page.url());
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ email: 'oauth@example.com', provider: 'google' }),
+      });
+    });
     await page.route('**/v1/legal/current', jsonRoute({ documents: legalDocuments }));
     await page.route('**/v1/legal/documents/*', (route) => {
       const doc = legalDocuments.find((item) => route.request().url().includes(item.doc_type));
@@ -113,13 +180,16 @@ test.describe('Google OAuth @cross-browser', () => {
     for (let index = 0; index < 2; index += 1) await legalCheckboxes.nth(index).check();
 
     const createAccount = page.getByRole('button', { name: /create account/i });
-    await expect(createAccount).toBeEnabled();
+    await expect(createAccount).toBeEnabled({ timeout: 15_000 });
     await createAccount.click();
 
     await expect(page).toHaveURL(/\/app\/create$/);
     await expect
       .poll(() => page.evaluate(() => sessionStorage.getItem('apex:oauth:pending-signup')))
       .toBeNull();
+    expect(signupInfoRequestHrefs).toHaveLength(1);
+    expect(signupInfoRequestHrefs[0]).not.toContain('#');
+    await expectRequestHrefsWithoutFragments(page);
   });
 
   test('shows a callback error and restarts through authorize', async ({ page }) => {

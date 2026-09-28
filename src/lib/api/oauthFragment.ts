@@ -7,6 +7,11 @@ export type OAuthFragment =
   | { result: 'error'; error: OAuthErrorCode }
   | { result: 'invalid' };
 
+export const OAUTH_CALLBACK_PATH = '/auth/callback';
+
+// Only parsed data is retained so opaque callback values are never kept as a raw URL string.
+let captured: OAuthFragment | null = null;
+
 const ERROR_CODES = new Set<OAuthErrorCode>([
   'oauth_cancelled',
   'oauth_failed',
@@ -40,4 +45,26 @@ export function parseOAuthFragment(hash: string): OAuthFragment {
       : { result: 'invalid' };
   }
   return { result: 'invalid' };
+}
+
+/**
+ * Runs before SvelteKit begins routing. On the callback route, retain parsed data in memory and
+ * remove the opaque fragment before layouts, requests, or third-party content can observe it.
+ */
+export function captureOAuthCallbackFragment(
+  loc: Location = window.location,
+  h: History = window.history,
+): void {
+  if (loc.pathname !== OAUTH_CALLBACK_PATH || !loc.hash) return;
+  captured = parseOAuthFragment(loc.hash);
+  // The router does not exist during client init, so this intentional native call preserves state.
+  h.replaceState(h.state, '', loc.pathname + loc.search);
+}
+
+export function getCapturedOAuthFragment(): OAuthFragment | null {
+  return captured;
+}
+
+export function clearCapturedOAuthFragment(): void {
+  captured = null;
 }

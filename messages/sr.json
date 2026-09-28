@@ -25,6 +25,7 @@
   "auth_oauth_continue_google": "Nastavi sa Google-om",
   "auth_oauth_or": "ili",
   "auth_oauth_signing_in": "Prijavljivanje…",
+  "auth_oauth_callback_title": "Prijavljivanje — {brand}",
   "auth_oauth_signup_title": "Napravite svoj {brand} nalog",
   "auth_oauth_signup_email": "Napravite svoj {brand} nalog sa adresom {email}",
   "auth_oauth_try_again": "Pokušaj ponovo",

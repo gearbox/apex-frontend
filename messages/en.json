@@ -25,6 +25,7 @@
   "auth_oauth_continue_google": "Continue with Google",
   "auth_oauth_or": "or",
   "auth_oauth_signing_in": "Signing you in…",
+  "auth_oauth_callback_title": "Signing in — {brand}",
   "auth_oauth_signup_title": "Create your {brand} account",
   "auth_oauth_signup_email": "Create your {brand} account with {email}",
   "auth_oauth_try_again": "Try again",

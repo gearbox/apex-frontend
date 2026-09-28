@@ -4,9 +4,10 @@
 
   interface Props {
     code: OAuthErrorCode | 'email_exists';
+    returnTo?: string | null;
   }
 
-  let { code }: Props = $props();
+  let { code, returnTo = null }: Props = $props();
   let restarting = $state(false);
 
   const copy = $derived.by(() => {
@@ -48,7 +49,7 @@
   function tryAgain(): void {
     if (restarting) return;
     restarting = true;
-    startOAuthSignIn('google', null);
+    startOAuthSignIn('google', returnTo);
   }
 </script>
 

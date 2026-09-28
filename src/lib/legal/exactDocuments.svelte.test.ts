@@ -69,7 +69,7 @@ describe('createExactDocuments', () => {
     expect(exact().ready).toBe(false);
   });
 
-  it('reload() retries the same payload after a failure', async () => {
+  it('R4-b: reload() retries the same payload after a failure', async () => {
     let fail = true;
     server.use(
       http.get(`${BASE}/v1/legal/documents/:docType`, ({ params, request }) => {
@@ -93,18 +93,37 @@ describe('createExactDocuments', () => {
     expect(exact().ready).toBe(true);
   });
 
-  it('keeps ready when a refetch returns the same set under a new reference', async () => {
+  it('R4-a: ignores an identical /current payload without restarting its body prefetch', async () => {
+    let bodyRequests = 0;
+    server.use(
+      http.get(`${BASE}/v1/legal/documents/:docType`, ({ params, request }) => {
+        bodyRequests += 1;
+        const version = new URL(request.url).searchParams.get('version') ?? '';
+        return HttpResponse.json(documentBody(params.docType as string, version));
+      }),
+    );
     const { exact, state, onPayloadChange } = setup([meta('terms')]);
     await expect.poll(() => exact().ready).toBe(true);
+    expect(bodyRequests).toBe(1);
 
     state.current = [meta('terms')];
     flushSync();
 
     expect(exact().ready).toBe(true);
     expect(onPayloadChange).not.toHaveBeenCalled();
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    expect(bodyRequests).toBe(1);
   });
 
-  it('notifies a content change, but not the first payload', async () => {
+  it('R4-c: notifies exactly once and prefetches again when /current content changes', async () => {
+    let bodyRequests = 0;
+    server.use(
+      http.get(`${BASE}/v1/legal/documents/:docType`, ({ params, request }) => {
+        bodyRequests += 1;
+        const version = new URL(request.url).searchParams.get('version') ?? '';
+        return HttpResponse.json(documentBody(params.docType as string, version));
+      }),
+    );
     const { exact, state, onPayloadChange } = setup([meta('terms')]);
     await expect.poll(() => exact().ready).toBe(true);
     expect(onPayloadChange).not.toHaveBeenCalled();
@@ -113,6 +132,8 @@ describe('createExactDocuments', () => {
     flushSync();
 
     expect(onPayloadChange).toHaveBeenCalledTimes(1);
+    await expect.poll(() => bodyRequests).toBe(2);
+    expect(exact().ready).toBe(true);
   });
 
   it('never flips ready for a payload that a newer /current superseded', async () => {

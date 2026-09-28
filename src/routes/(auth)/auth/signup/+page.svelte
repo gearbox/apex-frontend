@@ -30,12 +30,14 @@
   let submitting = $state(false);
   let inlineError = $state('');
   let terminalError = $state<OAuthErrorCode | 'email_exists' | null>(null);
+  let errorReturnTo = $state<string | null>(null);
   let canSubmit = $derived(signupInfoReady && !loading && !submitting && legalForm.canSubmit);
 
   async function loadSignupInfo(): Promise<void> {
     inlineError = '';
     signupInfoReady = false;
     pending = oauthPendingSignup.load();
+    errorReturnTo = pending?.returnTo ?? null;
     if (!pending) {
       terminalError = 'invalid_signup_ticket';
       loading = false;
@@ -117,7 +119,7 @@
 <div class="flex min-h-dvh items-center justify-center bg-bg px-4">
   <div class="w-full max-w-sm">
     {#if terminalError}
-      <OAuthErrorPanel code={terminalError} />
+      <OAuthErrorPanel code={terminalError} returnTo={errorReturnTo} />
     {:else if loading}
       <div
         class="rounded-xl border border-border bg-surface p-6 text-center text-sm text-text-muted"
