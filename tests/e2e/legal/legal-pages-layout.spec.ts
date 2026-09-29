@@ -206,6 +206,19 @@ const shortAuthPages: AuthPageCase[] = [
   },
 ];
 
+async function assertFooterClearOfContent(page: Page): Promise<void> {
+  // The footer is in-flow, so it may legitimately sit near the viewport bottom on a page that
+  // barely overflows. What must never happen is the footer overlapping the auth content.
+  const footerPosition = await page
+    .locator('.legal-footer')
+    .evaluate((element) => getComputedStyle(element).position);
+  expect(['static', 'relative']).toContain(footerPosition);
+
+  const footer = assertBoundingBox(await page.locator('.legal-footer').boundingBox());
+  const main = assertBoundingBox(await page.locator('.auth-main').boundingBox());
+  expect(boxesIntersect(footer, main)).toBe(false);
+}
+
 async function assertShortAuthLayout(
   page: Page,
   pageCase: AuthPageCase,
@@ -246,11 +259,7 @@ async function assertShortAuthLayout(
     await authShell.evaluate((element) => {
       element.scrollTop = (element.scrollHeight - element.clientHeight) / 2;
     });
-    const footerOwnsBottomPoint = await page.evaluate(() => {
-      const element = document.elementFromPoint(window.innerWidth / 2, window.innerHeight - 24);
-      return Boolean(element?.closest('.legal-footer'));
-    });
-    expect(footerOwnsBottomPoint).toBe(false);
+    await assertFooterClearOfContent(page);
   }
 
   await authShell.evaluate((element) => {
@@ -457,5 +466,34 @@ test.describe('legal-page layout @cross-browser', () => {
         await assertShortAuthLayout(page, pageCase, viewport);
       }
     }
+  });
+
+  test('T3-b: a barely overflowing auth page keeps the in-flow footer below content', async ({
+    page,
+  }) => {
+    await mockCurrentLegal(page);
+    await mockGoogleProduct(page);
+    await page.setViewportSize({ width: 375, height: 667 });
+    await page.goto('/login');
+    await emulateSafeArea(page);
+    const authShell = page.locator('.auth-page-shell');
+    await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
+    await expect(page.locator('.legal-footer')).toBeVisible();
+
+    const contentHeight = await authShell.evaluate((element) => {
+      element.style.height = 'auto';
+      const height = element.scrollHeight;
+      element.style.height = '';
+      return height;
+    });
+    await page.setViewportSize({ width: 375, height: contentHeight - 40 });
+    expect(
+      await authShell.evaluate((element) => element.scrollHeight - element.clientHeight),
+    ).toBeGreaterThan(0);
+
+    await authShell.evaluate((element) => {
+      element.scrollTop = (element.scrollHeight - element.clientHeight) / 2;
+    });
+    await assertFooterClearOfContent(page);
   });
 });
