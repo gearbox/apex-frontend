@@ -127,6 +127,146 @@ async function assertFooterDoesNotCoverContent(page: Page) {
   expect(footer.y).toBeGreaterThanOrEqual(submit.y + submit.height);
 }
 
+type AuthContentLocator = (page: Page) => ReturnType<Page['locator']>;
+
+interface ShortViewport {
+  name: string;
+  width: number;
+  height: number;
+  safeArea: { top: number; right: number; bottom: number; left: number };
+}
+
+const shortViewports: ShortViewport[] = [
+  {
+    name: 'iPhone SE',
+    width: 320,
+    height: 568,
+    safeArea: { top: 20, right: 0, bottom: 0, left: 0 },
+  },
+  {
+    name: 'iPhone 8',
+    width: 375,
+    height: 667,
+    safeArea: { top: 20, right: 0, bottom: 0, left: 0 },
+  },
+  {
+    name: 'Notched portrait',
+    width: 390,
+    height: 664,
+    safeArea: { top: 47, right: 0, bottom: 34, left: 0 },
+  },
+  {
+    name: 'Landscape phone',
+    width: 844,
+    height: 390,
+    safeArea: { top: 0, right: 47, bottom: 21, left: 47 },
+  },
+];
+
+interface AuthPageCase {
+  name: string;
+  path: '/login' | '/forgot-password' | '/register' | '/auth/signup';
+  primaryButton: string;
+  expandConsent?: boolean;
+  firstContent: AuthContentLocator;
+}
+
+const shortAuthPages: AuthPageCase[] = [
+  {
+    name: 'login',
+    path: '/login',
+    primaryButton: 'Sign in',
+    firstContent: (page) => page.getByRole('button', { name: 'Continue with Google' }),
+  },
+  {
+    name: 'forgot password',
+    path: '/forgot-password',
+    primaryButton: 'Send reset link',
+    firstContent: (page) => page.getByRole('heading', { name: 'Vex.pics' }),
+  },
+  {
+    name: 'register (collapsed consent)',
+    path: '/register',
+    primaryButton: 'Create account',
+    firstContent: (page) => page.getByRole('button', { name: 'Continue with Google' }),
+  },
+  {
+    name: 'register (expanded consent)',
+    path: '/register',
+    primaryButton: 'Create account',
+    expandConsent: true,
+    firstContent: (page) => page.getByRole('button', { name: 'Continue with Google' }),
+  },
+  {
+    name: 'OAuth signup (expanded consent)',
+    path: '/auth/signup',
+    primaryButton: 'Create account',
+    expandConsent: true,
+    firstContent: (page) => page.getByRole('heading', { name: 'Vex.pics' }),
+  },
+];
+
+async function assertShortAuthLayout(
+  page: Page,
+  pageCase: AuthPageCase,
+  viewport: ShortViewport,
+): Promise<void> {
+  await page.setViewportSize({ width: viewport.width, height: viewport.height });
+  await page.goto(pageCase.path);
+  await emulateSafeArea(page, viewport.safeArea);
+
+  const primaryButton = page.getByRole('button', { name: pageCase.primaryButton, exact: true });
+  await expect(primaryButton).toBeVisible();
+  if (pageCase.expandConsent) {
+    await page.getByText('Read the consent statement', { exact: true }).click();
+    await expect(page.locator('.consent-disclosure .legal-prose')).toBeVisible();
+  }
+
+  const languageSelector = page.getByRole('button', { name: 'Language' });
+  const firstContent = pageCase.firstContent(page);
+  await expect(languageSelector).toBeVisible();
+  await expect(firstContent).toBeVisible();
+  expect(
+    boxesIntersect(
+      assertBoundingBox(await languageSelector.boundingBox()),
+      assertBoundingBox(await firstContent.boundingBox()),
+    ),
+  ).toBe(false);
+
+  const authShell = page.locator('.auth-page-shell');
+  const dimensions = await authShell.evaluate((element) => ({
+    clientHeight: element.clientHeight,
+    scrollHeight: element.scrollHeight,
+    scrollWidth: element.scrollWidth,
+    clientWidth: element.clientWidth,
+  }));
+  expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth);
+
+  if (dimensions.scrollHeight > dimensions.clientHeight) {
+    await authShell.evaluate((element) => {
+      element.scrollTop = (element.scrollHeight - element.clientHeight) / 2;
+    });
+    const footerOwnsBottomPoint = await page.evaluate(() => {
+      const element = document.elementFromPoint(window.innerWidth / 2, window.innerHeight - 24);
+      return Boolean(element?.closest('.legal-footer'));
+    });
+    expect(footerOwnsBottomPoint).toBe(false);
+  }
+
+  await authShell.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+  });
+  const footer = assertBoundingBox(await page.locator('.legal-footer').boundingBox());
+  const primary = assertBoundingBox(await primaryButton.boundingBox());
+  const viewportHeight = await page.evaluate(() => window.innerHeight);
+  expect(footer.y).toBeGreaterThanOrEqual(primary.y + primary.height + 16);
+  expect(footer.y + footer.height).toBeLessThanOrEqual(viewportHeight - viewport.safeArea.bottom);
+
+  if (dimensions.scrollHeight <= dimensions.clientHeight) {
+    expect(boxesIntersect(footer, primary)).toBe(false);
+  }
+}
+
 test.describe('legal-page layout @cross-browser', () => {
   test('FC18: legal documents scroll through their final section', async ({ page }) => {
     await mockLegalDocument(page);
@@ -262,6 +402,60 @@ test.describe('legal-page layout @cross-browser', () => {
       const firstContentBox = assertBoundingBox(await firstContent.boundingBox());
 
       expect(boxesIntersect(languageSelector, firstContentBox)).toBe(false);
+    }
+  });
+
+  test('T2-a: all auth form containers remain horizontally centered on a desktop viewport', async ({
+    page,
+  }) => {
+    await mockCurrentLegal(page);
+    await mockLegalDocument(page);
+    await mockGoogleProduct(page);
+    await mockOAuthSignupInfo(page);
+    await page.addInitScript(() => {
+      sessionStorage.setItem(
+        'apex:oauth:pending-signup',
+        JSON.stringify({ ticket: 't2-centering-ticket', returnTo: null, savedAt: Date.now() }),
+      );
+    });
+    await page.setViewportSize({ width: 1280, height: 800 });
+
+    for (const path of [
+      '/login',
+      '/register',
+      '/forgot-password',
+      '/verify-email?token=x',
+      '/auth/signup',
+    ]) {
+      await test.step(path, async () => {
+        await page.goto(path);
+        const formContainer = page.locator('.auth-main > *');
+        await expect(formContainer).toBeVisible();
+        const box = assertBoundingBox(await formContainer.boundingBox());
+        const viewportWidth = await page.evaluate(() => window.innerWidth);
+        expect(Math.abs(box.x + box.width / 2 - viewportWidth / 2)).toBeLessThanOrEqual(2);
+      });
+    }
+  });
+
+  test('T3-a: short auth pages keep the in-flow footer below content across safe areas', async ({
+    page,
+  }) => {
+    await mockCurrentLegal(page);
+    await mockLegalDocument(page);
+    await mockGoogleProduct(page);
+    await mockOAuthSignupInfo(page);
+    await page.addInitScript(() => {
+      sessionStorage.setItem(
+        'apex:oauth:pending-signup',
+        JSON.stringify({ ticket: 't3-short-screen-ticket', returnTo: null, savedAt: Date.now() }),
+      );
+    });
+
+    for (const viewport of shortViewports) {
+      for (const pageCase of shortAuthPages) {
+        await assertShortAuthLayout(page, pageCase, viewport);
+      }
     }
   });
 });

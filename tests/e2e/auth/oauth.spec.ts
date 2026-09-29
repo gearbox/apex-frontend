@@ -270,4 +270,40 @@ test.describe('Google OAuth @cross-browser', () => {
     await page.getByRole('button', { name: 'Try again' }).click();
     await authorizeRequest;
   });
+
+  test('T1-e: retries a provider error with the destination saved when sign-in began', async ({
+    page,
+  }) => {
+    await page.route(
+      '**/v1/auth/product-info',
+      jsonRoute({
+        product: 'vex',
+        display_name: 'Vex.pics',
+        age_gate: 'none',
+        allowed_auth_methods: ['google_oauth'],
+        content_rating: 'permissive',
+        payment_providers: [],
+      }),
+    );
+
+    const returnTargets: Array<string | null> = [];
+    await page.route('**/v1/auth/oauth/google/authorize*', (route) => {
+      returnTargets.push(new URL(route.request().url()).searchParams.get('return_to'));
+      const destination =
+        returnTargets.length === 1
+          ? 'http://localhost:4173/auth/callback#result=error&error=flow_expired'
+          : 'http://localhost:4173/login';
+      return route.fulfill({ contentType: 'text/html', body: redirectDocument(destination) });
+    });
+
+    await page.goto('/login?redirect=/app/library');
+    await page.getByRole('button', { name: 'Continue with Google' }).click();
+    await expect(page.getByText(/sign-in session expired/i)).toBeVisible();
+
+    const retryAuthorize = page.waitForRequest('**/v1/auth/oauth/google/authorize*');
+    await page.getByRole('button', { name: 'Try again' }).click();
+    await retryAuthorize;
+
+    await expect.poll(() => returnTargets).toEqual(['/app/library', '/app/library']);
+  });
 });

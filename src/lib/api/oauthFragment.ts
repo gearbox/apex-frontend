@@ -39,6 +39,7 @@ export function parseOAuthFragment(hash: string): OAuthFragment {
     return ticket ? { result, ticket, returnTo } : { result: 'invalid' };
   }
   if (result === 'error') {
+    // The backend never sends return_to on error fragments; the retry target comes from oauthReturnTarget.
     const error = params.get('error');
     return error && ERROR_CODES.has(error as OAuthErrorCode)
       ? { result, error: error as OAuthErrorCode }

@@ -16,6 +16,7 @@ vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
 
 import { goto } from '$app/navigation';
 import * as pendingSignup from '$lib/api/oauthPendingSignup';
+import * as oauthReturnTarget from '$lib/api/oauthReturnTarget';
 import Page from './+page.svelte';
 import QueryHost, { hostProps } from '$lib/components/legal/testing/QueryHost.svelte';
 
@@ -52,6 +53,7 @@ function expectNoSecretInConsole(spies: ReturnType<typeof vi.spyOn>[], secret: s
 beforeEach(() => {
   resetLegalState();
   pendingSignup.clear();
+  oauthReturnTarget.clear();
   sessionStorage.clear();
   vi.clearAllMocks();
 });
@@ -60,6 +62,7 @@ afterEach(() => {
   cleanup();
   resetLegalState();
   pendingSignup.clear();
+  oauthReturnTarget.clear();
 });
 
 describe('OAuth signup page', () => {
@@ -113,6 +116,18 @@ describe('OAuth signup page', () => {
     await waitFor(() => expect(goto).toHaveBeenCalledWith('/app/library', { replaceState: true }));
     expect(secondTicket).toBe('r1-stale-ticket');
     expect(pendingSignup.load()).toBeNull();
+  });
+
+  it('T1-d: clears the saved target after successfully completing signup', async () => {
+    seed('t1-clear-return-target');
+    oauthReturnTarget.save('/app/library');
+    renderPage();
+    await acceptAllLegal();
+
+    await fireEvent.click(submitButton());
+
+    await waitFor(() => expect(goto).toHaveBeenCalledWith('/app/library', { replaceState: true }));
+    expect(oauthReturnTarget.load()).toBeNull();
   });
 
   it.each([

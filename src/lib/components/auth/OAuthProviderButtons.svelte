@@ -1,5 +1,5 @@
 <script lang="ts">
-  // Google Sign-In branding kit: Google_G_logo.svg (standalone "G" logo), retrieved 2026-09-28.
+  // Google Sign-In branding kit: Google_G_logo.svg (standalone "G" logo), retrieved 2026-09-29.
   import { productInfo } from '$lib/stores/product';
   import { startOAuthSignIn } from '$lib/api/oauth';
   import { safeReturnPath } from '$lib/utils/returnPath';

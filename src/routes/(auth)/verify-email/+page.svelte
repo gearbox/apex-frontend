@@ -30,29 +30,27 @@
   <title>Verify Email — Vex.pics</title>
 </svelte:head>
 
-<div class="w-full">
-  <div class="w-full max-w-sm text-center">
-    <h1 class="mb-4 text-2xl font-bold text-accent">Vex.pics</h1>
+<div class="mx-auto w-full max-w-sm text-center">
+  <h1 class="mb-4 text-2xl font-bold text-accent">Vex.pics</h1>
 
-    {#if status === 'verifying'}
-      <div class="flex flex-col items-center gap-3">
-        <Spinner size="lg" />
-        <p class="text-sm text-text-muted">Verifying your email…</p>
-      </div>
-    {:else if status === 'success'}
-      <div class="rounded-lg border border-success/30 bg-success/10 px-4 py-3 text-sm text-success">
-        Email verified successfully!
-      </div>
-      <p class="mt-4 text-sm text-text-muted">
-        <a href="/login" class="font-medium text-accent hover:underline">Continue to sign in</a>
-      </p>
-    {:else}
-      <div class="rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
-        {error}
-      </div>
-      <p class="mt-4 text-sm text-text-muted">
-        <a href="/login" class="font-medium text-accent hover:underline">Back to sign in</a>
-      </p>
-    {/if}
-  </div>
+  {#if status === 'verifying'}
+    <div class="flex flex-col items-center gap-3">
+      <Spinner size="lg" />
+      <p class="text-sm text-text-muted">Verifying your email…</p>
+    </div>
+  {:else if status === 'success'}
+    <div class="rounded-lg border border-success/30 bg-success/10 px-4 py-3 text-sm text-success">
+      Email verified successfully!
+    </div>
+    <p class="mt-4 text-sm text-text-muted">
+      <a href="/login" class="font-medium text-accent hover:underline">Continue to sign in</a>
+    </p>
+  {:else}
+    <div class="rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
+      {error}
+    </div>
+    <p class="mt-4 text-sm text-text-muted">
+      <a href="/login" class="font-medium text-accent hover:underline">Back to sign in</a>
+    </p>
+  {/if}
 </div>

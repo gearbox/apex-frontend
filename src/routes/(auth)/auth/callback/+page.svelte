@@ -9,6 +9,7 @@
   } from '$lib/api/auth';
   import { clearCapturedOAuthFragment, getCapturedOAuthFragment } from '$lib/api/oauthFragment';
   import * as oauthPendingSignup from '$lib/api/oauthPendingSignup';
+  import * as oauthReturnTarget from '$lib/api/oauthReturnTarget';
   import OAuthErrorPanel from '$lib/components/auth/OAuthErrorPanel.svelte';
   import { appDisplayName } from '$lib/stores/product';
   import { locale } from '$lib/stores/locale';
@@ -21,6 +22,7 @@
   const fragment = getCapturedOAuthFragment();
   const fragmentReturnTo =
     fragment?.result === 'login' || fragment?.result === 'signup' ? fragment.returnTo : null;
+  const errorReturnTo = fragmentReturnTo ?? oauthReturnTarget.load();
 
   let viewState = $state<'working' | 'error'>('working');
   let errorCode = $state<OAuthErrorCode>('oauth_failed');
@@ -39,6 +41,7 @@
         await exchangeOAuthCode(fragment.code);
         void updateUserLocale($locale);
         clearCapturedOAuthFragment();
+        oauthReturnTarget.clear();
         await goto(safeReturnPath(fragment.returnTo) ?? ROUTES.create, { replaceState: true });
       } catch (error) {
         if (
@@ -92,16 +95,12 @@
   <title>{m.auth_oauth_callback_title({ brand: $appDisplayName })}</title>
 </svelte:head>
 
-<div class="w-full">
-  <div class="w-full max-w-sm">
-    {#if viewState === 'working'}
-      <div
-        class="rounded-xl border border-border bg-surface p-6 text-center text-sm text-text-muted"
-      >
-        {m.auth_oauth_signing_in()}
-      </div>
-    {:else}
-      <OAuthErrorPanel code={errorCode} returnTo={fragmentReturnTo} />
-    {/if}
-  </div>
+<div class="mx-auto w-full max-w-sm">
+  {#if viewState === 'working'}
+    <div class="rounded-xl border border-border bg-surface p-6 text-center text-sm text-text-muted">
+      {m.auth_oauth_signing_in()}
+    </div>
+  {:else}
+    <OAuthErrorPanel code={errorCode} returnTo={errorReturnTo} />
+  {/if}
 </div>

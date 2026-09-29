@@ -33,6 +33,8 @@
   .auth-page-shell {
     padding-left: var(--safe-area-left);
     padding-right: var(--safe-area-right);
+    /* Keep centered forms on the viewport midpoint when WebKit reserves a scroll bar. */
+    scrollbar-gutter: stable both-edges;
   }
 
   .auth-frame {
@@ -41,7 +43,8 @@
     display: flex;
     flex-direction: column;
     min-height: 100%;
-    padding-bottom: max(1rem, var(--safe-area-bottom));
+    /* A pixel of shared rounding clearance keeps the in-flow footer above the safe area. */
+    padding-bottom: calc(max(1rem, var(--safe-area-bottom)) + 1px);
     padding-top: calc(max(1rem, var(--safe-area-top)) + var(--auth-selector-height) + 0.75rem);
     position: relative;
   }

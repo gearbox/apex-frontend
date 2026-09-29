@@ -69,98 +69,92 @@
   <title>Sign Up — {$appDisplayName}</title>
 </svelte:head>
 
-<div class="w-full">
-  <div class="w-full max-w-sm">
-    <div class="mb-8 text-center">
-      <h1 class="text-2xl font-bold text-accent">{$appDisplayName}</h1>
-      <p class="mt-2 text-sm text-text-muted">{m.auth_register_title()}</p>
-    </div>
-
-    <OAuthProviderButtons returnTo={null} showDivider={allowsEmailPassword} />
-
-    {#if allowsEmailPassword}
-      <form onsubmit={handleSubmit} class="flex flex-col gap-4">
-        {#if error}
-          <div
-            class="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger"
-          >
-            {error}
-          </div>
-        {/if}
-
-        <label class="flex flex-col gap-1.5">
-          <span class="text-sm font-medium text-text">{m.auth_register_display_name()}</span>
-          <input
-            type="text"
-            bind:value={displayName}
-            autocomplete="name"
-            class="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-text-dim focus:border-accent focus:outline-none"
-            placeholder="Jane Doe"
-          />
-        </label>
-
-        <label class="flex flex-col gap-1.5">
-          <span class="text-sm font-medium text-text">{m.auth_register_email()}</span>
-          <input
-            type="email"
-            bind:value={email}
-            required
-            autocomplete="email"
-            class="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-text-dim focus:border-accent focus:outline-none"
-            placeholder="you@example.com"
-          />
-        </label>
-
-        <label class="flex flex-col gap-1.5">
-          <span class="text-sm font-medium text-text">{m.auth_register_password()}</span>
-          <input
-            type="password"
-            bind:value={password}
-            required
-            minlength={8}
-            autocomplete="new-password"
-            class="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-text-dim focus:border-accent focus:outline-none"
-            placeholder="••••••••"
-          />
-        </label>
-
-        {#if legalForm.currentLegalQuery.isError || legalForm.exactDocuments.error}
-          <div
-            class="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger"
-          >
-            <p>{m.legal_documents_load_error()}</p>
-            <button class="mt-2 underline" type="button" onclick={legalForm.refresh}>
-              {m.common_retry()}
-            </button>
-          </div>
-        {:else if legalForm.currentLegal.length > 0}
-          <LegalAcceptanceFields
-            bind:this={legalForm.state.acceptanceFields}
-            current={legalForm.currentLegal}
-            bind:valid={legalForm.state.valid}
-          />
-          {#if legalForm.loading}
-            <p class="text-xs text-text-dim">{m.legal_documents_loading()}</p>
-          {/if}
-        {/if}
-
-        <button
-          type="submit"
-          disabled={!canSubmit}
-          class="rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-        >
-          {loading ? m.auth_register_creating() : m.auth_register_submit()}
-        </button>
-      </form>
-    {:else}
-      <p class="text-center text-sm text-text-muted">
-        Email/password registration is not available for this product.
-      </p>
-    {/if}
-
-    <p class="mt-6 text-center text-sm text-text-muted">
-      {m.auth_register_has_account()}
-      <a href="/login" class="font-medium text-accent hover:underline">{m.auth_register_login()}</a>
-    </p>
+<div class="mx-auto w-full max-w-sm">
+  <div class="mb-8 text-center">
+    <h1 class="text-2xl font-bold text-accent">{$appDisplayName}</h1>
+    <p class="mt-2 text-sm text-text-muted">{m.auth_register_title()}</p>
   </div>
+
+  <OAuthProviderButtons returnTo={null} showDivider={allowsEmailPassword} />
+
+  {#if allowsEmailPassword}
+    <form onsubmit={handleSubmit} class="flex flex-col gap-4">
+      {#if error}
+        <div class="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+          {error}
+        </div>
+      {/if}
+
+      <label class="flex flex-col gap-1.5">
+        <span class="text-sm font-medium text-text">{m.auth_register_display_name()}</span>
+        <input
+          type="text"
+          bind:value={displayName}
+          autocomplete="name"
+          class="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-text-dim focus:border-accent focus:outline-none"
+          placeholder="Jane Doe"
+        />
+      </label>
+
+      <label class="flex flex-col gap-1.5">
+        <span class="text-sm font-medium text-text">{m.auth_register_email()}</span>
+        <input
+          type="email"
+          bind:value={email}
+          required
+          autocomplete="email"
+          class="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-text-dim focus:border-accent focus:outline-none"
+          placeholder="you@example.com"
+        />
+      </label>
+
+      <label class="flex flex-col gap-1.5">
+        <span class="text-sm font-medium text-text">{m.auth_register_password()}</span>
+        <input
+          type="password"
+          bind:value={password}
+          required
+          minlength={8}
+          autocomplete="new-password"
+          class="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-text-dim focus:border-accent focus:outline-none"
+          placeholder="••••••••"
+        />
+      </label>
+
+      {#if legalForm.currentLegalQuery.isError || legalForm.exactDocuments.error}
+        <div class="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+          <p>{m.legal_documents_load_error()}</p>
+          <button class="mt-2 underline" type="button" onclick={legalForm.refresh}>
+            {m.common_retry()}
+          </button>
+        </div>
+      {:else if legalForm.currentLegal.length > 0}
+        <LegalAcceptanceFields
+          bind:this={legalForm.state.acceptanceFields}
+          current={legalForm.currentLegal}
+          bind:valid={legalForm.state.valid}
+        />
+        {#if legalForm.loading}
+          <p class="text-xs text-text-dim">{m.legal_documents_loading()}</p>
+        {/if}
+      {/if}
+
+      <button
+        type="submit"
+        disabled={!canSubmit}
+        class="rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+      >
+        {loading ? m.auth_register_creating() : m.auth_register_submit()}
+      </button>
+    </form>
+  {:else}
+    <p class="text-center text-sm text-text-muted">
+      Email/password registration is not available for this product.
+    </p>
+  {/if}
+
+  <p class="mt-6 text-center text-sm text-text-muted">
+    {m.auth_register_has_account()}
+    <a href="/login" class="font-medium text-accent hover:underline">{m.auth_register_login()}</a>
+  </p>
 </div>

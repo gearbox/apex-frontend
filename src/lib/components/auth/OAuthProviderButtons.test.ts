@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { cleanup, fireEvent, render, screen } from '@testing-library/svelte';
@@ -31,9 +32,13 @@ afterEach(() => {
 });
 
 describe('OAuthProviderButtons', () => {
-  it('S3: serves the standalone Google_G_logo.svg mark without a white button container', () => {
+  it('T4-a: pins the downloaded Google_G_logo.svg bytes without a white button container', () => {
     const svg = readFileSync(resolve(process.cwd(), 'static/google-g.svg'), 'utf8');
 
+    // Google Sign-In branding kit: Google_G_logo.svg, retrieved 2026-09-29.
+    expect(createHash('sha256').update(svg).digest('hex')).toBe(
+      'ed9087d76cdc6d1c53698f6068f79872e77e87c8d012c0cfdad13b05b6ccb37c',
+    );
     expect(svg).not.toMatch(/<(?:path|rect)\b[^>]*\bfill=["']white["']/i);
   });
 

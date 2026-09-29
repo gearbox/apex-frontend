@@ -7,10 +7,14 @@ import { invalidHandoffHandler } from '../../../../mocks/handlers/auth';
 
 vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
 
+const { startOAuthSignIn } = vi.hoisted(() => ({ startOAuthSignIn: vi.fn() }));
+vi.mock('$lib/api/oauth', () => ({ startOAuthSignIn }));
+
 import { goto } from '$app/navigation';
 import { clearAuth } from '$lib/stores/auth';
 import { captureOAuthCallbackFragment, clearCapturedOAuthFragment } from '$lib/api/oauthFragment';
 import * as pendingSignup from '$lib/api/oauthPendingSignup';
+import * as oauthReturnTarget from '$lib/api/oauthReturnTarget';
 import Page from './+page.svelte';
 
 function capture(hash: string): void {
@@ -36,6 +40,7 @@ beforeEach(() => {
   clearAuth();
   clearCapturedOAuthFragment();
   pendingSignup.clear();
+  oauthReturnTarget.clear();
   sessionStorage.clear();
   vi.clearAllMocks();
 });
@@ -44,6 +49,7 @@ afterEach(() => {
   cleanup();
   clearCapturedOAuthFragment();
   pendingSignup.clear();
+  oauthReturnTarget.clear();
 });
 
 describe('OAuth callback page', () => {
@@ -71,6 +77,37 @@ describe('OAuth callback page', () => {
     expect(credentials).toBe('include');
     expectNoSecretInConsole(consoleSpies, 'r1-login-code');
     for (const spy of consoleSpies) spy.mockRestore();
+  });
+
+  it('T1-c: retries callback errors with the saved target, or null when the tab has none', async () => {
+    oauthReturnTarget.save('/app/library');
+    capture('#result=error&error=flow_expired');
+    render(Page);
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy());
+    await screen.getByRole('button', { name: 'Try again' }).click();
+    expect(startOAuthSignIn).toHaveBeenCalledWith('google', '/app/library');
+
+    cleanup();
+    clearCapturedOAuthFragment();
+    oauthReturnTarget.clear();
+    vi.clearAllMocks();
+    capture('#result=error&error=flow_expired');
+    render(Page);
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy());
+    await screen.getByRole('button', { name: 'Try again' }).click();
+    expect(startOAuthSignIn).toHaveBeenCalledWith('google', null);
+  });
+
+  it('T1-d: clears the saved target after a successful login exit', async () => {
+    oauthReturnTarget.save('/app/library');
+    capture('#result=login&code=t1-success-code&return_to=%2Fapp%2Flibrary');
+
+    render(Page);
+
+    await waitFor(() => expect(goto).toHaveBeenCalledWith('/app/library', { replaceState: true }));
+    expect(oauthReturnTarget.load()).toBeNull();
   });
 
   it('R1-a: keeps the working state when a duplicate mount sees an already submitted code', async () => {

@@ -27,53 +27,49 @@
   <title>Forgot Password — Vex.pics</title>
 </svelte:head>
 
-<div class="w-full">
-  <div class="w-full max-w-sm">
-    <div class="mb-8 text-center">
-      <h1 class="text-2xl font-bold text-accent">Vex.pics</h1>
-      <p class="mt-2 text-sm text-text-muted">{m.auth_forgot_subtitle()}</p>
-    </div>
-
-    {#if sent}
-      <div class="rounded-lg border border-success/30 bg-success/10 px-4 py-3 text-sm text-success">
-        {m.auth_forgot_sent()}
-      </div>
-      <p class="mt-6 text-center text-sm text-text-muted">
-        <a href="/login" class="font-medium text-accent hover:underline">{m.auth_forgot_back()}</a>
-      </p>
-    {:else}
-      <form onsubmit={handleSubmit} class="flex flex-col gap-4">
-        {#if error}
-          <div
-            class="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger"
-          >
-            {error}
-          </div>
-        {/if}
-
-        <label class="flex flex-col gap-1.5">
-          <span class="text-sm font-medium text-text">{m.auth_forgot_email()}</span>
-          <input
-            type="email"
-            bind:value={email}
-            required
-            class="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-text-dim focus:border-accent focus:outline-none"
-            placeholder="you@example.com"
-          />
-        </label>
-
-        <button
-          type="submit"
-          disabled={loading}
-          class="rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-        >
-          {loading ? m.auth_forgot_sending() : m.auth_forgot_submit()}
-        </button>
-      </form>
-
-      <p class="mt-6 text-center text-sm text-text-muted">
-        <a href="/login" class="font-medium text-accent hover:underline">{m.auth_forgot_back()}</a>
-      </p>
-    {/if}
+<div class="mx-auto w-full max-w-sm">
+  <div class="mb-8 text-center">
+    <h1 class="text-2xl font-bold text-accent">Vex.pics</h1>
+    <p class="mt-2 text-sm text-text-muted">{m.auth_forgot_subtitle()}</p>
   </div>
+
+  {#if sent}
+    <div class="rounded-lg border border-success/30 bg-success/10 px-4 py-3 text-sm text-success">
+      {m.auth_forgot_sent()}
+    </div>
+    <p class="mt-6 text-center text-sm text-text-muted">
+      <a href="/login" class="font-medium text-accent hover:underline">{m.auth_forgot_back()}</a>
+    </p>
+  {:else}
+    <form onsubmit={handleSubmit} class="flex flex-col gap-4">
+      {#if error}
+        <div class="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+          {error}
+        </div>
+      {/if}
+
+      <label class="flex flex-col gap-1.5">
+        <span class="text-sm font-medium text-text">{m.auth_forgot_email()}</span>
+        <input
+          type="email"
+          bind:value={email}
+          required
+          class="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-text-dim focus:border-accent focus:outline-none"
+          placeholder="you@example.com"
+        />
+      </label>
+
+      <button
+        type="submit"
+        disabled={loading}
+        class="rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+      >
+        {loading ? m.auth_forgot_sending() : m.auth_forgot_submit()}
+      </button>
+    </form>
+
+    <p class="mt-6 text-center text-sm text-text-muted">
+      <a href="/login" class="font-medium text-accent hover:underline">{m.auth_forgot_back()}</a>
+    </p>
+  {/if}
 </div>

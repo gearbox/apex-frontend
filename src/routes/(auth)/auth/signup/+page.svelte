@@ -9,6 +9,7 @@
   } from '$lib/api/auth';
   import { toAcceptedDocuments } from '$lib/api/legal';
   import * as oauthPendingSignup from '$lib/api/oauthPendingSignup';
+  import * as oauthReturnTarget from '$lib/api/oauthReturnTarget';
   import type { OAuthPendingSignup } from '$lib/api/oauthPendingSignup';
   import OAuthErrorPanel from '$lib/components/auth/OAuthErrorPanel.svelte';
   import LegalAcceptanceFields from '$lib/components/legal/LegalAcceptanceFields.svelte';
@@ -80,6 +81,7 @@
         normalizedDisplayName || undefined,
       );
       oauthPendingSignup.clear();
+      oauthReturnTarget.clear();
       void updateUserLocale($locale);
       await goto(safeReturnPath(pending.returnTo) ?? ROUTES.create, { replaceState: true });
     } catch (error) {
@@ -116,84 +118,76 @@
   <title>{m.auth_oauth_signup_title({ brand: $appDisplayName })}</title>
 </svelte:head>
 
-<div class="w-full">
-  <div class="w-full max-w-sm">
-    {#if terminalError}
-      <OAuthErrorPanel code={terminalError} returnTo={errorReturnTo} />
-    {:else if loading}
-      <div
-        class="rounded-xl border border-border bg-surface p-6 text-center text-sm text-text-muted"
+<div class="mx-auto w-full max-w-sm">
+  {#if terminalError}
+    <OAuthErrorPanel code={terminalError} returnTo={errorReturnTo} />
+  {:else if loading}
+    <div class="rounded-xl border border-border bg-surface p-6 text-center text-sm text-text-muted">
+      {m.auth_oauth_signing_in()}
+    </div>
+  {:else if !signupInfoReady}
+    <div class="rounded-xl border border-danger/30 bg-danger/10 p-4 text-center">
+      <p class="text-sm text-danger">{inlineError || m.error_generic()}</p>
+      <button
+        type="button"
+        class="mt-4 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white"
+        onclick={loadSignupInfo}
       >
-        {m.auth_oauth_signing_in()}
-      </div>
-    {:else if !signupInfoReady}
-      <div class="rounded-xl border border-danger/30 bg-danger/10 p-4 text-center">
-        <p class="text-sm text-danger">{inlineError || m.error_generic()}</p>
-        <button
-          type="button"
-          class="mt-4 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white"
-          onclick={loadSignupInfo}
-        >
-          {m.common_retry()}
-        </button>
-      </div>
-    {:else}
-      <div class="mb-8 text-center">
-        <h1 class="text-2xl font-bold text-accent">{$appDisplayName}</h1>
-        <p class="mt-2 text-sm text-text-muted">
-          {m.auth_oauth_signup_email({ brand: $appDisplayName, email })}
-        </p>
-      </div>
+        {m.common_retry()}
+      </button>
+    </div>
+  {:else}
+    <div class="mb-8 text-center">
+      <h1 class="text-2xl font-bold text-accent">{$appDisplayName}</h1>
+      <p class="mt-2 text-sm text-text-muted">
+        {m.auth_oauth_signup_email({ brand: $appDisplayName, email })}
+      </p>
+    </div>
 
-      <form onsubmit={handleSubmit} class="flex flex-col gap-4">
-        {#if inlineError}
-          <div
-            class="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger"
-          >
-            {inlineError}
-          </div>
+    <form onsubmit={handleSubmit} class="flex flex-col gap-4">
+      {#if inlineError}
+        <div class="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+          {inlineError}
+        </div>
+      {/if}
+
+      <label class="flex flex-col gap-1.5">
+        <span class="text-sm font-medium text-text">{m.auth_register_display_name()}</span>
+        <input
+          type="text"
+          bind:value={displayName}
+          maxlength="100"
+          autocomplete="name"
+          class="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-text-dim focus:border-accent focus:outline-none"
+          placeholder="Jane Doe"
+        />
+      </label>
+
+      {#if legalForm.currentLegalQuery.isError || legalForm.exactDocuments.error}
+        <div class="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+          <p>{m.legal_documents_load_error()}</p>
+          <button class="mt-2 underline" type="button" onclick={legalForm.refresh}>
+            {m.common_retry()}
+          </button>
+        </div>
+      {:else if legalForm.currentLegal.length > 0}
+        <LegalAcceptanceFields
+          bind:this={legalForm.state.acceptanceFields}
+          current={legalForm.currentLegal}
+          bind:valid={legalForm.state.valid}
+        />
+        {#if legalForm.loading}
+          <p class="text-xs text-text-dim">{m.legal_documents_loading()}</p>
         {/if}
+      {/if}
 
-        <label class="flex flex-col gap-1.5">
-          <span class="text-sm font-medium text-text">{m.auth_register_display_name()}</span>
-          <input
-            type="text"
-            bind:value={displayName}
-            maxlength="100"
-            autocomplete="name"
-            class="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-text-dim focus:border-accent focus:outline-none"
-            placeholder="Jane Doe"
-          />
-        </label>
-
-        {#if legalForm.currentLegalQuery.isError || legalForm.exactDocuments.error}
-          <div
-            class="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger"
-          >
-            <p>{m.legal_documents_load_error()}</p>
-            <button class="mt-2 underline" type="button" onclick={legalForm.refresh}>
-              {m.common_retry()}
-            </button>
-          </div>
-        {:else if legalForm.currentLegal.length > 0}
-          <LegalAcceptanceFields
-            bind:this={legalForm.state.acceptanceFields}
-            current={legalForm.currentLegal}
-            bind:valid={legalForm.state.valid}
-          />
-          {#if legalForm.loading}
-            <p class="text-xs text-text-dim">{m.legal_documents_loading()}</p>
-          {/if}
-        {/if}
-
-        <button
-          type="submit"
-          disabled={!canSubmit}
-          class="rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-        >
-          {submitting ? m.auth_register_creating() : m.auth_register_submit()}
-        </button>
-      </form>
-    {/if}
-  </div>
+      <button
+        type="submit"
+        disabled={!canSubmit}
+        class="rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+      >
+        {submitting ? m.auth_register_creating() : m.auth_register_submit()}
+      </button>
+    </form>
+  {/if}
 </div>
