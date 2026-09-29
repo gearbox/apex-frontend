@@ -62,93 +62,86 @@
   <title>Login — Vex.pics</title>
 </svelte:head>
 
-<div class="flex min-h-dvh items-center justify-center bg-bg px-4">
-  <div class="w-full max-w-sm">
-    <div class="mb-8 text-center">
-      <h1 class="text-2xl font-bold text-accent">Vex.pics</h1>
-      <p class="mt-2 text-sm text-text-muted">{m.auth_login_subtitle()}</p>
-    </div>
-
-    <OAuthProviderButtons {returnTo} showDivider={allowsEmailPassword} />
-
-    {#if allowsEmailPassword}
-      <form onsubmit={handleSubmit} class="flex flex-col gap-4">
-        {#if sessionEndReason === 'token_reuse_detected'}
-          <div
-            class="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger"
-          >
-            <p class="font-semibold">{m.auth_security_notice_title()}</p>
-            <p>{m.auth_security_notice_message()}</p>
-          </div>
-        {:else if sessionEndReason === 'account_inactive'}
-          <div
-            class="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning"
-          >
-            {m.auth_account_deactivated_message()}
-          </div>
-        {/if}
-
-        {#if error}
-          <div
-            class="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger"
-          >
-            {error}
-          </div>
-        {/if}
-
-        {#if $loginRateLimit?.remaining !== undefined && $loginRateLimit.remaining <= 3}
-          <div
-            class="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning"
-          >
-            {m.auth_login_attempts_remaining({ remaining: $loginRateLimit.remaining })}
-          </div>
-        {/if}
-
-        <label class="flex flex-col gap-1.5">
-          <span class="text-sm font-medium text-text">{m.auth_login_email()}</span>
-          <input
-            type="email"
-            bind:value={email}
-            required
-            autocomplete="email"
-            class="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-text-dim focus:border-accent focus:outline-none"
-            placeholder="you@example.com"
-          />
-        </label>
-
-        <label class="flex flex-col gap-1.5">
-          <span class="text-sm font-medium text-text">{m.auth_login_password()}</span>
-          <input
-            type="password"
-            bind:value={password}
-            required
-            autocomplete="current-password"
-            class="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-text-dim focus:border-accent focus:outline-none"
-            placeholder="••••••••"
-          />
-        </label>
-
-        <div class="flex justify-end">
-          <a href="/forgot-password" class="text-xs text-accent hover:underline">
-            {m.auth_login_forgot()}
-          </a>
-        </div>
-
-        <button
-          type="submit"
-          disabled={loading}
-          class="rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-        >
-          {loading ? m.auth_login_signing_in() : m.auth_login_submit()}
-        </button>
-      </form>
-    {/if}
-
-    <p class="mt-6 text-center text-sm text-text-muted">
-      {m.auth_login_no_account()}
-      <a href="/register" class="font-medium text-accent hover:underline"
-        >{m.auth_login_register()}</a
-      >
-    </p>
+<div class="mx-auto w-full max-w-sm">
+  <div class="mb-8 text-center">
+    <h1 class="text-2xl font-bold text-accent">Vex.pics</h1>
+    <p class="mt-2 text-sm text-text-muted">{m.auth_login_subtitle()}</p>
   </div>
+
+  {#if sessionEndReason === 'token_reuse_detected'}
+    <div class="mb-4 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+      <p class="font-semibold">{m.auth_security_notice_title()}</p>
+      <p>{m.auth_security_notice_message()}</p>
+    </div>
+  {:else if sessionEndReason === 'account_inactive'}
+    <div
+      class="mb-4 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning"
+    >
+      {m.auth_account_deactivated_message()}
+    </div>
+  {/if}
+
+  <OAuthProviderButtons {returnTo} showDivider={allowsEmailPassword} />
+
+  {#if allowsEmailPassword}
+    <form onsubmit={handleSubmit} class="flex flex-col gap-4">
+      {#if error}
+        <div class="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+          {error}
+        </div>
+      {/if}
+
+      {#if $loginRateLimit?.remaining !== undefined && $loginRateLimit.remaining <= 3}
+        <div
+          class="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning"
+        >
+          {m.auth_login_attempts_remaining({ remaining: $loginRateLimit.remaining })}
+        </div>
+      {/if}
+
+      <label class="flex flex-col gap-1.5">
+        <span class="text-sm font-medium text-text">{m.auth_login_email()}</span>
+        <input
+          type="email"
+          bind:value={email}
+          required
+          autocomplete="email"
+          class="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-text-dim focus:border-accent focus:outline-none"
+          placeholder="you@example.com"
+        />
+      </label>
+
+      <label class="flex flex-col gap-1.5">
+        <span class="text-sm font-medium text-text">{m.auth_login_password()}</span>
+        <input
+          type="password"
+          bind:value={password}
+          required
+          autocomplete="current-password"
+          class="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-text-dim focus:border-accent focus:outline-none"
+          placeholder="••••••••"
+        />
+      </label>
+
+      <div class="flex justify-end">
+        <a href="/forgot-password" class="text-xs text-accent hover:underline">
+          {m.auth_login_forgot()}
+        </a>
+      </div>
+
+      <button
+        type="submit"
+        disabled={loading}
+        class="rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+      >
+        {loading ? m.auth_login_signing_in() : m.auth_login_submit()}
+      </button>
+    </form>
+  {/if}
+
+  <p class="mt-6 text-center text-sm text-text-muted">
+    {m.auth_login_no_account()}
+    <a href="/register" class="font-medium text-accent hover:underline">{m.auth_login_register()}</a
+    >
+  </p>
 </div>

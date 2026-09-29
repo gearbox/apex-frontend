@@ -25,6 +25,7 @@
   "auth_oauth_continue_google": "Продолжить с Google",
   "auth_oauth_or": "или",
   "auth_oauth_signing_in": "Выполняется вход…",
+  "auth_oauth_callback_title": "Выполняется вход — {brand}",
   "auth_oauth_signup_title": "Создайте аккаунт {brand}",
   "auth_oauth_signup_email": "Создайте аккаунт {brand} с адресом {email}",
   "auth_oauth_try_again": "Попробовать снова",

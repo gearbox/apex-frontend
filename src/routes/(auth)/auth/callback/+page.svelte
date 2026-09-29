@@ -1,10 +1,17 @@
 <script lang="ts">
-  import { onMount, tick } from 'svelte';
-  import { goto, replaceState } from '$app/navigation';
-  import { exchangeOAuthCode, AuthError, AuthOperationCancelledError } from '$lib/api/auth';
-  import { parseOAuthFragment } from '$lib/api/oauthFragment';
+  import { onMount } from 'svelte';
+  import { goto } from '$app/navigation';
+  import {
+    exchangeOAuthCode,
+    AuthError,
+    AuthOperationCancelledError,
+    OAuthCodeAlreadyUsedError,
+  } from '$lib/api/auth';
+  import { clearCapturedOAuthFragment, getCapturedOAuthFragment } from '$lib/api/oauthFragment';
   import * as oauthPendingSignup from '$lib/api/oauthPendingSignup';
+  import * as oauthReturnTarget from '$lib/api/oauthReturnTarget';
   import OAuthErrorPanel from '$lib/components/auth/OAuthErrorPanel.svelte';
+  import { appDisplayName } from '$lib/stores/product';
   import { locale } from '$lib/stores/locale';
   import { updateUserLocale } from '$lib/api/user';
   import { ROUTES } from '$lib/utils/routes';
@@ -12,27 +19,37 @@
   import type { OAuthErrorCode } from '$lib/api/oauth';
   import * as m from '$paraglide/messages';
 
-  // Capture synchronously, before SvelteKit replaces the entry in browser history.
-  const rawFragment = location.hash;
-  const fragment = parseOAuthFragment(rawFragment);
+  const fragment = getCapturedOAuthFragment();
+  const fragmentReturnTo =
+    fragment?.result === 'login' || fragment?.result === 'signup' ? fragment.returnTo : null;
+  const errorReturnTo = fragmentReturnTo ?? oauthReturnTarget.load();
 
   let viewState = $state<'working' | 'error'>('working');
   let errorCode = $state<OAuthErrorCode>('oauth_failed');
 
   function showError(code: OAuthErrorCode): void {
+    clearCapturedOAuthFragment();
     oauthPendingSignup.clear();
     errorCode = code;
     viewState = 'error';
   }
 
+  // The callback is a transit page: every exit replaces its history entry so Back never re-enters it.
   async function dispatch(): Promise<void> {
-    if (fragment.result === 'login') {
+    if (fragment?.result === 'login') {
       try {
         await exchangeOAuthCode(fragment.code);
         void updateUserLocale($locale);
+        clearCapturedOAuthFragment();
+        oauthReturnTarget.clear();
         await goto(safeReturnPath(fragment.returnTo) ?? ROUTES.create, { replaceState: true });
       } catch (error) {
-        if (error instanceof AuthOperationCancelledError) return;
+        if (
+          error instanceof AuthOperationCancelledError ||
+          error instanceof OAuthCodeAlreadyUsedError
+        ) {
+          return;
+        }
         showError(
           error instanceof AuthError &&
             (error.error === 'invalid_handoff' || error.error === 'account_inactive')
@@ -43,24 +60,26 @@
       return;
     }
 
-    if (fragment.result === 'signup') {
+    if (fragment?.result === 'signup') {
       oauthPendingSignup.save({
         ticket: fragment.ticket,
         returnTo: fragment.returnTo,
         savedAt: Date.now(),
       });
+      clearCapturedOAuthFragment();
       await goto('/auth/signup', { replaceState: true });
       return;
     }
 
-    if (fragment.result === 'error') {
+    if (fragment?.result === 'error') {
       showError(fragment.error);
       return;
     }
 
     // After a reload/back navigation the fragment has already been stripped, but the signed-up
     // tab can safely resume from the non-secret sessionStorage record.
-    if (!rawFragment && oauthPendingSignup.load()) {
+    if (fragment === null && oauthPendingSignup.load()) {
+      clearCapturedOAuthFragment();
       await goto('/auth/signup', { replaceState: true });
       return;
     }
@@ -68,33 +87,20 @@
   }
 
   onMount(() => {
-    void startDispatch();
-  });
-
-  async function startDispatch(): Promise<void> {
-    // Let SvelteKit finish installing its router root, then use its history helper rather than
-    // the native history API. No network work starts before the fragment is removed.
-    await tick();
-    // This must be the first observable effect: opaque callback values never stay in history.
-    replaceState(location.pathname + location.search, {});
     void dispatch();
-  }
+  });
 </script>
 
 <svelte:head>
-  <title>Google sign-in</title>
+  <title>{m.auth_oauth_callback_title({ brand: $appDisplayName })}</title>
 </svelte:head>
 
-<div class="flex min-h-dvh items-center justify-center bg-bg px-4">
-  <div class="w-full max-w-sm">
-    {#if viewState === 'working'}
-      <div
-        class="rounded-xl border border-border bg-surface p-6 text-center text-sm text-text-muted"
-      >
-        {m.auth_oauth_signing_in()}
-      </div>
-    {:else}
-      <OAuthErrorPanel code={errorCode} />
-    {/if}
-  </div>
+<div class="mx-auto w-full max-w-sm">
+  {#if viewState === 'working'}
+    <div class="rounded-xl border border-border bg-surface p-6 text-center text-sm text-text-muted">
+      {m.auth_oauth_signing_in()}
+    </div>
+  {:else}
+    <OAuthErrorPanel code={errorCode} returnTo={errorReturnTo} />
+  {/if}
 </div>

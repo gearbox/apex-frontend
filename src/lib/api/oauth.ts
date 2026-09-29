@@ -1,6 +1,7 @@
 import { API_BASE_URL } from '$lib/utils/constants';
 import type { components } from '$lib/api/types';
 import { safeReturnPath } from '$lib/utils/returnPath';
+import * as oauthReturnTarget from './oauthReturnTarget';
 
 export type OAuthProvider = 'google';
 export type OAuthExchangeRequest = components['schemas']['OAuthExchangeRequest'];
@@ -28,5 +29,6 @@ export function oauthAuthorizeUrl(provider: OAuthProvider, returnTo: string | nu
 }
 
 export function startOAuthSignIn(provider: OAuthProvider, returnTo: string | null): void {
+  oauthReturnTarget.save(returnTo);
   window.location.assign(oauthAuthorizeUrl(provider, returnTo));
 }
