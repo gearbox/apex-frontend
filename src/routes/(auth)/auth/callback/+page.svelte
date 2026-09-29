@@ -32,13 +32,14 @@
     viewState = 'error';
   }
 
+  // The callback is a transit page: every exit replaces its history entry so Back never re-enters it.
   async function dispatch(): Promise<void> {
     if (fragment?.result === 'login') {
       try {
         await exchangeOAuthCode(fragment.code);
         void updateUserLocale($locale);
         clearCapturedOAuthFragment();
-        await goto(safeReturnPath(fragment.returnTo) ?? ROUTES.create);
+        await goto(safeReturnPath(fragment.returnTo) ?? ROUTES.create, { replaceState: true });
       } catch (error) {
         if (
           error instanceof AuthOperationCancelledError ||
@@ -63,7 +64,7 @@
         savedAt: Date.now(),
       });
       clearCapturedOAuthFragment();
-      await goto('/auth/signup');
+      await goto('/auth/signup', { replaceState: true });
       return;
     }
 
@@ -76,7 +77,7 @@
     // tab can safely resume from the non-secret sessionStorage record.
     if (fragment === null && oauthPendingSignup.load()) {
       clearCapturedOAuthFragment();
-      await goto('/auth/signup');
+      await goto('/auth/signup', { replaceState: true });
       return;
     }
     showError('oauth_failed');
@@ -91,7 +92,7 @@
   <title>{m.auth_oauth_callback_title({ brand: $appDisplayName })}</title>
 </svelte:head>
 
-<div class="flex min-h-dvh items-center justify-center bg-bg px-4">
+<div class="w-full">
   <div class="w-full max-w-sm">
     {#if viewState === 'working'}
       <div

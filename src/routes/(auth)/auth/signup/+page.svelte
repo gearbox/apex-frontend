@@ -116,7 +116,7 @@
   <title>{m.auth_oauth_signup_title({ brand: $appDisplayName })}</title>
 </svelte:head>
 
-<div class="flex min-h-dvh items-center justify-center bg-bg px-4">
+<div class="w-full">
   <div class="w-full max-w-sm">
     {#if terminalError}
       <OAuthErrorPanel code={terminalError} returnTo={errorReturnTo} />

@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { cleanup, fireEvent, render, screen } from '@testing-library/svelte';
 import { server } from '../../../mocks/server';
 import { MOCK_BASE_URL as BASE } from '../../../mocks/config';
@@ -29,6 +31,12 @@ afterEach(() => {
 });
 
 describe('OAuthProviderButtons', () => {
+  it('S3: serves the standalone Google_G_logo.svg mark without a white button container', () => {
+    const svg = readFileSync(resolve(process.cwd(), 'static/google-g.svg'), 'utf8');
+
+    expect(svg).not.toMatch(/<(?:path|rect)\b[^>]*\bfill=["']white["']/i);
+  });
+
   it('R1-i: stays hidden until product info enables Google sign-in', async () => {
     render(OAuthProviderButtons, { props: { returnTo: null } });
     expect(screen.queryByRole('button', { name: /continue with google/i })).toBeNull();

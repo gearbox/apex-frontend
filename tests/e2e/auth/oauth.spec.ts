@@ -97,7 +97,9 @@ async function mockFreshAuth(page: Page) {
 }
 
 test.describe('Google OAuth @cross-browser', () => {
-  test('redeems a login callback once and removes its hash', async ({ page }) => {
+  test('S1-b: login Back skips the callback transit page after the fake authorize flow', async ({
+    page,
+  }) => {
     await recordRequestHrefs(page);
     await mockFreshAuth(page);
     let exchangeCalls = 0;
@@ -141,6 +143,10 @@ test.describe('Google OAuth @cross-browser', () => {
     expect(exchangeRequestHrefs[0]).not.toContain('#');
     await expectRequestHrefsWithoutFragments(page);
 
+    await page.goBack();
+    expect(new URL(page.url()).pathname).not.toBe('/auth/callback');
+    await expect(page.getByRole('alert')).toHaveCount(0);
+
     // R0-e: client-init cleanup preserves SvelteKit's history entry metadata.
     await expect
       .poll(() => page.evaluate(() => history.state))
@@ -151,10 +157,66 @@ test.describe('Google OAuth @cross-browser', () => {
       });
   });
 
+  test('S1-c: signup Back leaves the signup page without re-entering the callback loop', async ({
+    page,
+  }) => {
+    await mockFreshAuth(page);
+    await page.route(
+      '**/v1/auth/product-info',
+      jsonRoute({
+        product: 'vex',
+        display_name: 'Vex.pics',
+        age_gate: 'none',
+        allowed_auth_methods: ['google_oauth'],
+        content_rating: 'permissive',
+        payment_providers: [],
+      }),
+    );
+    await page.route(
+      '**/v1/auth/oauth/signup-info',
+      jsonRoute({ email: 'oauth@example.com', provider: 'google' }),
+    );
+    await page.route('**/v1/legal/current', jsonRoute({ documents: legalDocuments }));
+    await page.route('**/v1/legal/documents/*', (route) => {
+      const doc = legalDocuments.find((item) => route.request().url().includes(item.doc_type));
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ...doc, content_md: '# Document' }),
+      });
+    });
+    await page.route('**/v1/auth/oauth/google/authorize*', (route) =>
+      route.fulfill({
+        contentType: 'text/html',
+        body: redirectDocument(
+          'http://localhost:4173/auth/callback#result=signup&ticket=s1-ticket',
+        ),
+      }),
+    );
+
+    await page.goto('/login');
+    await page.getByRole('button', { name: 'Continue with Google' }).click();
+    await expect(page).toHaveURL(/\/auth\/signup$/);
+
+    await page.goBack();
+    expect(new URL(page.url()).pathname).not.toBe('/auth/signup');
+    expect(new URL(page.url()).pathname).not.toBe('/auth/callback');
+    await page.waitForTimeout(1_000);
+    expect(new URL(page.url()).pathname).not.toBe('/auth/signup');
+    expect(new URL(page.url()).pathname).not.toBe('/auth/callback');
+  });
+
   test('completes OAuth signup and clears the tab handoff', async ({ page }) => {
     await recordRequestHrefs(page);
     await mockFreshAuth(page);
     const signupInfoRequestHrefs: string[] = [];
+    const exactDocumentResponses = legalDocuments.map(({ doc_type }) =>
+      page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname === `/v1/legal/documents/${doc_type}` &&
+          response.status() === 200,
+      ),
+    );
     await page.route('**/v1/auth/oauth/signup-info', (route) => {
       signupInfoRequestHrefs.push(page.url());
       return route.fulfill({
@@ -175,6 +237,8 @@ test.describe('Google OAuth @cross-browser', () => {
 
     await page.goto('/auth/callback#result=signup&ticket=t1');
     await expect(page.getByText('oauth@example.com')).toBeVisible();
+    await Promise.all(exactDocumentResponses);
+    await expect(page.getByText('Loading the versions you need to review…')).toHaveCount(0);
     const legalCheckboxes = page.getByRole('checkbox');
     await expect(legalCheckboxes).toHaveCount(2);
     for (let index = 0; index < 2; index += 1) await legalCheckboxes.nth(index).check();

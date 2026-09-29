@@ -50,6 +50,33 @@ async function mockCurrentLegal(page: Page) {
   );
 }
 
+async function mockGoogleProduct(page: Page) {
+  await page.route('**/v1/auth/product-info', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        product: 'vex',
+        display_name: 'Vex.pics',
+        age_gate: 'none',
+        allowed_auth_methods: ['email_password', 'google_oauth'],
+        content_rating: 'permissive',
+        payment_providers: [],
+      }),
+    }),
+  );
+}
+
+async function mockOAuthSignupInfo(page: Page) {
+  await page.route('**/v1/auth/oauth/signup-info', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ email: 'oauth@example.com', provider: 'google' }),
+    }),
+  );
+}
+
 interface BoundingBox {
   x: number;
   y: number;
@@ -60,6 +87,44 @@ interface BoundingBox {
 function assertBoundingBox(box: BoundingBox | null): BoundingBox {
   if (!box) throw new Error('Expected element to have a bounding box');
   return box;
+}
+
+function boxesIntersect(first: BoundingBox, second: BoundingBox): boolean {
+  return (
+    first.x < second.x + second.width &&
+    first.x + first.width > second.x &&
+    first.y < second.y + second.height &&
+    first.y + first.height > second.y
+  );
+}
+
+async function expandConsentStatement(page: Page, path: '/register' | '/auth/signup') {
+  await page.goto(path);
+  await emulateSafeArea(page);
+  await page.getByText('Read the consent statement', { exact: true }).click();
+  await expect(page.locator('.consent-disclosure .legal-prose')).toBeVisible();
+}
+
+async function assertFooterDoesNotCoverContent(page: Page) {
+  const authShell = page.locator('.auth-page-shell');
+  await authShell.evaluate((element) => {
+    element.scrollTop = (element.scrollHeight - element.clientHeight) / 2;
+  });
+
+  const footerOwnsBottomPoint = await page.evaluate(() => {
+    const element = document.elementFromPoint(window.innerWidth / 2, window.innerHeight - 40);
+    return Boolean(element?.closest('.legal-footer'));
+  });
+  expect(footerOwnsBottomPoint).toBe(false);
+
+  await authShell.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+  });
+  const submit = assertBoundingBox(
+    await page.getByRole('button', { name: 'Create account', exact: true }).boundingBox(),
+  );
+  const footer = assertBoundingBox(await page.locator('.legal-footer').boundingBox());
+  expect(footer.y).toBeGreaterThanOrEqual(submit.y + submit.height);
 }
 
 test.describe('legal-page layout @cross-browser', () => {
@@ -100,7 +165,7 @@ test.describe('legal-page layout @cross-browser', () => {
     await expect(page.getByRole('listbox', { name: 'Select language' })).toBeVisible();
   });
 
-  test('FC20: legal header clears landscape notch insets', async ({ page }) => {
+  test('S2-d (FC20): legal header clears landscape notch insets', async ({ page }) => {
     await mockLegalDocument(page);
     await page.setViewportSize({ width: 844, height: 390 });
     await page.goto('/privacy');
@@ -118,19 +183,85 @@ test.describe('legal-page layout @cross-browser', () => {
     expect(languageSelector.x + languageSelector.width).toBeLessThanOrEqual(viewportWidth - 47);
   });
 
-  test('FC21: auth controls clear portrait status and home-indicator insets', async ({ page }) => {
+  test('S2-a (FC21): auth footer stays above the home indicator on short and long pages', async ({
+    page,
+  }) => {
     await mockCurrentLegal(page);
+    await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/login');
     await emulateSafeArea(page);
     const languageSelector = assertBoundingBox(
       await page.getByRole('button', { name: 'Language' }).boundingBox(),
     );
     expect(languageSelector.y).toBeGreaterThanOrEqual(47);
+    const loginFooter = assertBoundingBox(await page.locator('.legal-footer').boundingBox());
+    const viewportHeight = await page.evaluate(() => window.innerHeight);
+    expect(loginFooter.y + loginFooter.height).toBeLessThanOrEqual(viewportHeight - 34);
 
     await page.goto('/register');
     await emulateSafeArea(page);
+    await page.locator('.auth-page-shell').evaluate((element) => {
+      element.scrollTop = element.scrollHeight;
+    });
     const footer = assertBoundingBox(await page.locator('.legal-footer').boundingBox());
-    const viewportHeight = await page.evaluate(() => window.innerHeight);
     expect(footer.y + footer.height).toBeLessThanOrEqual(viewportHeight - 34);
+  });
+
+  test('S2-b: expanded consent text is never covered by the footer on register or OAuth signup', async ({
+    page,
+  }) => {
+    await mockCurrentLegal(page);
+    await mockLegalDocument(page);
+    await mockGoogleProduct(page);
+    await mockOAuthSignupInfo(page);
+    await page.addInitScript(() => {
+      sessionStorage.setItem(
+        'apex:oauth:pending-signup',
+        JSON.stringify({ ticket: 's2-ticket', returnTo: null, savedAt: Date.now() }),
+      );
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+
+    await expandConsentStatement(page, '/register');
+    await assertFooterDoesNotCoverContent(page);
+
+    await expandConsentStatement(page, '/auth/signup');
+    await assertFooterDoesNotCoverContent(page);
+  });
+
+  test('S2-c: the language selector does not overlap the first auth content element', async ({
+    page,
+  }) => {
+    await mockCurrentLegal(page);
+    await mockGoogleProduct(page);
+    await mockOAuthSignupInfo(page);
+    await page.addInitScript(() => {
+      sessionStorage.setItem(
+        'apex:oauth:pending-signup',
+        JSON.stringify({ ticket: 's2-selector-ticket', returnTo: null, savedAt: Date.now() }),
+      );
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+
+    const cases = [
+      {
+        path: '/register',
+        firstContent: page.getByRole('button', { name: 'Continue with Google' }),
+      },
+      { path: '/login', firstContent: page.getByRole('button', { name: 'Continue with Google' }) },
+      { path: '/auth/signup', firstContent: page.getByRole('heading', { name: 'Vex.pics' }) },
+    ] as const;
+
+    for (const { path, firstContent } of cases) {
+      await page.goto(path);
+      await emulateSafeArea(page);
+      await expect(firstContent).toBeVisible();
+      const languageSelector = assertBoundingBox(
+        await page.getByRole('button', { name: 'Language' }).boundingBox(),
+      );
+      const firstContentBox = assertBoundingBox(await firstContent.boundingBox());
+
+      expect(boxesIntersect(languageSelector, firstContentBox)).toBe(false);
+    }
   });
 });

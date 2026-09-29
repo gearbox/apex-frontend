@@ -30,7 +30,7 @@
   <title>Verify Email — Vex.pics</title>
 </svelte:head>
 
-<div class="flex min-h-dvh items-center justify-center bg-bg px-4">
+<div class="w-full">
   <div class="w-full max-w-sm text-center">
     <h1 class="mb-4 text-2xl font-bold text-accent">Vex.pics</h1>
 

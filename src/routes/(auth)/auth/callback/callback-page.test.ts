@@ -47,7 +47,7 @@ afterEach(() => {
 });
 
 describe('OAuth callback page', () => {
-  it('R1-a: redeems a captured login once with credentials and navigates to its safe return path', async () => {
+  it('S1-a: login callback exit replaces history after redeeming the captured code', async () => {
     let credentials: RequestCredentials | undefined;
     server.use(
       http.post(`${BASE}/v1/auth/oauth/exchange`, async ({ request }) => {
@@ -67,7 +67,7 @@ describe('OAuth callback page', () => {
 
     render(Page);
 
-    await waitFor(() => expect(goto).toHaveBeenCalledWith('/app/gallery'));
+    await waitFor(() => expect(goto).toHaveBeenCalledWith('/app/gallery', { replaceState: true }));
     expect(credentials).toBe('include');
     expectNoSecretInConsole(consoleSpies, 'r1-login-code');
     for (const spy of consoleSpies) spy.mockRestore();
@@ -88,7 +88,7 @@ describe('OAuth callback page', () => {
     expect(screen.queryByRole('alert')).toBeNull();
   });
 
-  it('R1-b: saves a captured signup ticket and dispatches without an exchange POST', async () => {
+  it('S1-a: signup callback exit replaces history without an exchange POST', async () => {
     let exchanges = 0;
     server.use(
       http.post(`${BASE}/v1/auth/oauth/exchange`, () => {
@@ -100,7 +100,7 @@ describe('OAuth callback page', () => {
 
     render(Page);
 
-    await waitFor(() => expect(goto).toHaveBeenCalledWith('/auth/signup'));
+    await waitFor(() => expect(goto).toHaveBeenCalledWith('/auth/signup', { replaceState: true }));
     expect(pendingSignup.load()).toMatchObject({
       ticket: 'r1-signup-ticket',
       returnTo: '/app/library',
@@ -137,10 +137,10 @@ describe('OAuth callback page', () => {
     }
   });
 
-  it('R1-d: resumes a stored signup handoff without a fragment and fails safely without one', async () => {
+  it('S1-a: resumed signup callback exit replaces history and fails safely without a record', async () => {
     pendingSignup.save({ ticket: 'resume-ticket', returnTo: '/app/create', savedAt: Date.now() });
     render(Page);
-    await waitFor(() => expect(goto).toHaveBeenCalledWith('/auth/signup'));
+    await waitFor(() => expect(goto).toHaveBeenCalledWith('/auth/signup', { replaceState: true }));
 
     cleanup();
     pendingSignup.clear();
