@@ -5,9 +5,16 @@ import type { ProductInfo } from '$lib/stores/product';
 const testState = vi.hoisted(() => ({
   pageUrl: 'http://localhost/login',
   goto: vi.fn(),
+  replaceState: vi.fn(),
 }));
 
-vi.mock('$app/navigation', () => ({ goto: testState.goto }));
+vi.mock('$app/navigation', () => ({
+  goto: testState.goto,
+  replaceState: testState.replaceState,
+  afterNavigate(callback: () => void) {
+    callback();
+  },
+}));
 vi.mock('$app/stores', () => ({
   page: {
     subscribe(run: (value: { url: URL }) => void) {
@@ -70,5 +77,17 @@ describe('login page', () => {
     expect(screen.getByText(/refresh token was reused/i)).toBeTruthy();
     expect(screen.getByRole('button', { name: /continue with google/i })).toBeTruthy();
     expect(screen.queryByLabelText('Email address')).toBeNull();
+  });
+
+  it('removes the reset flag immediately and preserves unrelated query parameters', () => {
+    testState.pageUrl = 'http://localhost/login?reset=done&source=invite&redirect=%2Fapp%2Flibrary';
+
+    render(Page);
+
+    expect(testState.replaceState).toHaveBeenCalledTimes(1);
+    const sanitized = new URL(testState.replaceState.mock.calls[0][0] as URL);
+    expect(sanitized.searchParams.has('reset')).toBe(false);
+    expect(sanitized.searchParams.get('source')).toBe('invite');
+    expect(sanitized.searchParams.get('redirect')).toBe('/app/library');
   });
 });

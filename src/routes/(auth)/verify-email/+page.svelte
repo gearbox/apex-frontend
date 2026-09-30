@@ -1,25 +1,21 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { page } from '$app/stores';
-  import { replaceState } from '$app/navigation';
+  import { afterNavigate, replaceState } from '$app/navigation';
   import { verifyEmail, AuthError } from '$lib/api/auth';
   import { fetchCurrentUserProfile } from '$lib/api/user';
   import { getCurrentUser, setUser } from '$lib/stores/auth';
   import { appDisplayName } from '$lib/stores/product';
+  import { withoutSearchParam } from '$lib/utils/urlSearch';
   import Spinner from '$lib/components/ui/Spinner.svelte';
   import * as m from '$paraglide/messages';
 
   let status = $state<'verifying' | 'success' | 'error'>('verifying');
   let error = $state('');
 
-  onMount(async () => {
+  afterNavigate(() => {
     const token = $page.url.searchParams.get('token');
     if ($page.url.searchParams.has('token')) {
-      const url = new URL($page.url);
-      url.searchParams.delete('token');
-      const state = $page.state;
-      await Promise.resolve();
-      replaceState(url, state);
+      replaceState(withoutSearchParam($page.url, 'token'), $page.state);
     }
     if (!token) {
       error = m.auth_verify_missing();
@@ -27,6 +23,10 @@
       return;
     }
 
+    void processVerification(token);
+  });
+
+  async function processVerification(token: string): Promise<void> {
     try {
       await verifyEmail(token);
       if (getCurrentUser()) {
@@ -44,7 +44,7 @@
           : m.error_generic();
       status = 'error';
     }
-  });
+  }
 </script>
 
 <svelte:head>

@@ -23,6 +23,7 @@
   import { fetchCurrentUserProfile } from '$lib/api/user';
   import { isRequestCancellation } from '$lib/api/client';
   import { ApiRequestError } from '$lib/api/errors';
+  import type { ResendVerificationResult } from '$lib/api/user';
   import { resendVerificationMutationOptions, setPasswordMutationOptions } from '$lib/queries/user';
   import * as m from '$paraglide/messages';
 
@@ -47,7 +48,10 @@
       const profile = await fetchCurrentUserProfile();
       if (getCurrentUser()?.id === userId) {
         setUser(profile);
-        if (profile.email_verified) verificationNotice = '';
+        if (profile.email_verified) {
+          verificationNotice = '';
+          verificationError = '';
+        }
       }
     })();
     try {
@@ -68,22 +72,33 @@
   });
 
   async function handleResendVerification(): Promise<void> {
-    if (!$currentUser || resendMutation.isPending) return;
+    if (!getCurrentUser() || resendMutation.isPending) return;
+    const requestedUser = getCurrentUser();
+    if (!requestedUser) return;
     verificationNotice = '';
     verificationError = '';
+
+    let result: ResendVerificationResult;
     try {
-      await resendMutation.mutateAsync();
-      await refreshProfile();
-      if (getCurrentUser()?.email_verified === false) {
-        verificationNotice = m.profile_verification_sent({ email: getCurrentUser()!.email });
-      }
+      result = await resendMutation.mutateAsync();
     } catch (err) {
       if (isRequestCancellation(err)) return;
       verificationError =
         err instanceof ApiRequestError && err.status_code === 429
           ? m.error_rate_limited()
           : m.error_generic();
+      return;
     }
+
+    const currentUser = getCurrentUser();
+    if (currentUser?.id !== requestedUser.id) return;
+    if (result.kind === 'already_verified') {
+      setUser({ ...currentUser, email_verified: true });
+      return;
+    }
+
+    verificationNotice = m.profile_verification_sent({ email: requestedUser.email });
+    void refreshProfile().catch(() => undefined);
   }
 
   let appTitle = $derived($appDisplayName);

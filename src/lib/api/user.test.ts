@@ -1,10 +1,93 @@
 import { describe, it, expect } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { server } from '../../mocks/server';
-import { fetchUserStats, changePassword, logoutAllDevices, deleteAccount, verifyAge } from './user';
+import {
+  fetchCurrentUserProfile,
+  fetchUserStats,
+  changePassword,
+  logoutAllDevices,
+  deleteAccount,
+  resendVerificationEmail,
+  verifyAge,
+  type UserProfileResponse,
+} from './user';
 import { ApiRequestError } from './errors';
+import { makeUserProfile } from '../../mocks/factories/user';
 
 const BASE = 'http://localhost:8000';
+
+const profile: UserProfileResponse = {
+  ...makeUserProfile(),
+  locale: 'en',
+  is_active: true,
+};
+
+describe('fetchCurrentUserProfile()', () => {
+  it('returns the generated profile response on success', async () => {
+    server.use(http.get(`${BASE}/v1/users/me`, () => HttpResponse.json(profile)));
+
+    await expect(fetchCurrentUserProfile()).resolves.toEqual(profile);
+  });
+
+  it('throws ApiRequestError on API failure', async () => {
+    server.use(
+      http.get(`${BASE}/v1/users/me`, () =>
+        HttpResponse.json(
+          { error: 'server_error', message: 'Profile unavailable', status_code: 500 },
+          { status: 500 },
+        ),
+      ),
+    );
+
+    await expect(fetchCurrentUserProfile()).rejects.toBeInstanceOf(ApiRequestError);
+  });
+});
+
+describe('resendVerificationEmail()', () => {
+  it('returns the sent result', async () => {
+    server.use(
+      http.post(`${BASE}/v1/auth/resend-verification`, () =>
+        HttpResponse.json({ message: 'Verification email sent' }),
+      ),
+    );
+
+    await expect(resendVerificationEmail()).resolves.toEqual({ kind: 'sent' });
+  });
+
+  it('returns the already-verified result', async () => {
+    server.use(
+      http.post(`${BASE}/v1/auth/resend-verification`, () =>
+        HttpResponse.json({ message: 'Email is already verified' }),
+      ),
+    );
+
+    await expect(resendVerificationEmail()).resolves.toEqual({ kind: 'already_verified' });
+  });
+
+  it('exposes a 429 ApiRequestError and sends the request only once', async () => {
+    let calls = 0;
+    server.use(
+      http.post(`${BASE}/v1/auth/resend-verification`, () => {
+        calls += 1;
+        return HttpResponse.json(
+          { error: 'rate_limit_exceeded', message: 'Too many requests', status_code: 429 },
+          { status: 429, headers: { 'Retry-After': '0' } },
+        );
+      }),
+    );
+
+    let caught: unknown;
+    try {
+      await resendVerificationEmail();
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(ApiRequestError);
+    expect(caught).toMatchObject({ status_code: 429, error: 'rate_limit_exceeded' });
+    expect(calls).toBe(1);
+  });
+});
 
 describe('fetchUserStats()', () => {
   it('returns typed stats on success', async () => {

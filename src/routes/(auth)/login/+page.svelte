@@ -1,6 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { goto, replaceState } from '$app/navigation';
+  import { afterNavigate, goto, replaceState } from '$app/navigation';
   import { page } from '$app/stores';
   import { login, AuthError, AuthOperationCancelledError } from '$lib/api/auth';
   import OAuthProviderButtons from '$lib/components/auth/OAuthProviderButtons.svelte';
@@ -11,6 +10,7 @@
   import { updateUserLocale } from '$lib/api/user';
   import { ROUTES } from '$lib/utils/routes';
   import { safeReturnPath } from '$lib/utils/returnPath';
+  import { withoutSearchParam } from '$lib/utils/urlSearch';
   import * as m from '$paraglide/messages';
 
   let email = $state('');
@@ -22,15 +22,12 @@
   let sessionEndReason = $state<AuthFailureReason | null>(null);
   let resetDone = $state(false);
 
-  onMount(() => {
+  afterNavigate(() => {
     resetDone = $page.url.searchParams.get('reset') === 'done';
     const reason = consumeAuthFailureReason();
     sessionEndReason = resetDone ? null : reason;
     if ($page.url.searchParams.has('reset')) {
-      const url = new URL($page.url);
-      url.searchParams.delete('reset');
-      const state = $page.state;
-      queueMicrotask(() => replaceState(url, state));
+      replaceState(withoutSearchParam($page.url, 'reset'), $page.state);
     }
   });
 
