@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { server } from '../../mocks/server';
+import { rateLimitResponse } from '../../mocks/rateLimitResponse';
 import {
   fetchCurrentUserProfile,
   fetchUserStats,
@@ -69,10 +70,7 @@ describe('resendVerificationEmail()', () => {
     server.use(
       http.post(`${BASE}/v1/auth/resend-verification`, () => {
         calls += 1;
-        return HttpResponse.json(
-          { error: 'rate_limit_exceeded', message: 'Too many requests', status_code: 429 },
-          { status: 429, headers: { 'Retry-After': '0' } },
-        );
+        return rateLimitResponse('0');
       }),
     );
 

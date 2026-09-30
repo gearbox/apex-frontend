@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { server } from '../../mocks/server';
+import { rateLimitResponse } from '../../mocks/rateLimitResponse';
 import { makeTokenResponse } from '../../mocks/factories/auth';
 import { makeUserProfile } from '../../mocks/factories/user';
 import { setAuth, clearAuth, getAccessToken } from '$lib/stores/auth';
@@ -209,10 +210,7 @@ describe('rate limit middleware', () => {
     server.use(
       http.post(`${BASE}/v1/auth/resend-verification`, () => {
         calls += 1;
-        return HttpResponse.json(
-          { error: 'rate_limit_exceeded', message: 'Too many requests', status_code: 429 },
-          { status: 429, headers: { 'Retry-After': '0' } },
-        );
+        return rateLimitResponse('0');
       }),
     );
 

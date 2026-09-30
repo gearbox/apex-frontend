@@ -5,6 +5,7 @@ import { http, HttpResponse } from 'msw';
 import { server } from '../../../../mocks/server';
 import { MOCK_BASE_URL as BASE } from '../../../../mocks/config';
 import { makeUserProfile } from '../../../../mocks/factories/user';
+import { rateLimitResponse } from '../../../../mocks/rateLimitResponse';
 import type { UserProfile } from '$lib/stores/auth';
 
 vi.hoisted(() => {
@@ -125,14 +126,7 @@ describe('profile page', () => {
   });
 
   it('clears a stale resend rate-limit error after focus refresh confirms verification', async () => {
-    server.use(
-      http.post(`${BASE}/v1/auth/resend-verification`, () =>
-        HttpResponse.json(
-          { error: 'rate_limit_exceeded', message: 'Too many requests', status_code: 429 },
-          { status: 429, headers: { 'Retry-After': '0' } },
-        ),
-      ),
-    );
+    server.use(http.post(`${BASE}/v1/auth/resend-verification`, () => rateLimitResponse('0')));
     authenticate({ email_verified: false });
     renderProfile();
 
@@ -158,14 +152,7 @@ describe('profile page', () => {
   });
 
   it('shows localized rate-limit copy when Set a password is throttled', async () => {
-    server.use(
-      http.post(`${BASE}/v1/auth/forgot-password`, () =>
-        HttpResponse.json(
-          { error: 'rate_limit_exceeded', message: 'Too many requests', status_code: 429 },
-          { status: 429 },
-        ),
-      ),
-    );
+    server.use(http.post(`${BASE}/v1/auth/forgot-password`, () => rateLimitResponse()));
     authenticate({ has_password: false });
     renderProfile();
 
