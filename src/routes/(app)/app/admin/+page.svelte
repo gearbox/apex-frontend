@@ -12,6 +12,7 @@
   import AdminBroadcastTab from '$lib/components/admin/AdminBroadcastTab.svelte';
   import AdminHealthTab from '$lib/components/admin/AdminHealthTab.svelte';
   import AdminProviderRegistry from '$lib/components/admin/AdminProviderRegistry.svelte';
+  import AdminFeedbackTab from '$lib/components/admin/AdminFeedbackTab.svelte';
   import AppVersionBadge from '$lib/components/shared/AppVersionBadge.svelte';
 
   let activeTab = $state('users');
@@ -50,6 +51,8 @@
       <AdminBroadcastTab />
     {:else if activeTab === 'health' && $isAdmin}
       <AdminHealthTab />
+    {:else if activeTab === 'feedback' && $isAdmin}
+      <AdminFeedbackTab />
     {:else if activeTab === 'admins' && $isSuperAdmin}
       <AdminManageTab />
     {:else if activeTab === 'providers' && $isSuperAdmin}

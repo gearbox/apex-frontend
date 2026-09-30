@@ -257,18 +257,24 @@ test.describe('Google OAuth @cross-browser', () => {
   });
 
   test('shows a callback error and restarts through authorize', async ({ page }) => {
-    await page.route('**/v1/auth/oauth/google/authorize*', (route) =>
-      route.fulfill({
+    let authorizeCalls = 0;
+    await page.route('**/v1/auth/oauth/google/authorize*', (route) => {
+      authorizeCalls += 1;
+      return route.fulfill({
         contentType: 'text/html',
         body: redirectDocument('http://localhost:4173/login'),
-      }),
-    );
+      });
+    });
     await page.goto('/auth/callback#result=error&error=flow_expired');
     await expect(page.getByText(/sign-in session expired/i)).toBeVisible();
 
-    const authorizeRequest = page.waitForRequest('**/v1/auth/oauth/google/authorize*');
-    await page.getByRole('button', { name: 'Try again' }).click();
-    await authorizeRequest;
+    const tryAgain = page.getByRole('button', { name: 'Try again' });
+    await expect(tryAgain).toBeEnabled();
+    await tryAgain.click();
+    // WebKit does not always surface a request event for an intercepted full-page navigation,
+    // while the route handler observes the navigation in every browser.
+    await expect.poll(() => authorizeCalls).toBe(1);
+    await expect(page).toHaveURL(/\/login$/);
   });
 
   test('T1-e: retries a provider error with the destination saved when sign-in began', async ({
@@ -300,10 +306,7 @@ test.describe('Google OAuth @cross-browser', () => {
     await page.getByRole('button', { name: 'Continue with Google' }).click();
     await expect(page.getByText(/sign-in session expired/i)).toBeVisible();
 
-    const retryAuthorize = page.waitForRequest('**/v1/auth/oauth/google/authorize*');
     await page.getByRole('button', { name: 'Try again' }).click();
-    await retryAuthorize;
-
     await expect.poll(() => returnTargets).toEqual(['/app/library', '/app/library']);
   });
 });

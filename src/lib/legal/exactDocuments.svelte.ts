@@ -63,7 +63,13 @@ export function createExactDocuments(
 
   $effect(() => {
     const key = payloadKey;
-    if (key === null) return;
+    if (key === null) {
+      // A query observer can briefly publish no data while it is reconciling. Forgetting the
+      // previous key lets the same payload restart its prefetch when it is republished; otherwise
+      // a completion during that gap is discarded by isLatest() and ready stays false forever.
+      loadedKey = null;
+      return;
+    }
     untrack(() => {
       // Query observers can publish the same content while reconciling their loading state.
       // Restarting an identical prefetch supersedes its own completion and can leave `ready`

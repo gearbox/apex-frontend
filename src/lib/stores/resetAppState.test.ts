@@ -21,6 +21,7 @@ import { LEGACY_CONTENT_MEDIA_CACHE_NAME } from '$lib/utils/cacheNames';
 import { STORAGE_KEYS } from '$lib/utils/constants';
 import { operationKeys, upsertOperation } from '$lib/queries/operations';
 import type { components } from '$lib/api/types';
+import { feedbackDialog } from './feedbackDialog.svelte';
 
 type OperationResponse = components['schemas']['OperationResponse'];
 
@@ -113,6 +114,7 @@ describe('resetAppState()', () => {
         requires_reacceptance: true,
       },
     ]);
+    feedbackDialog.open({ jobId: 'job-a', assetRef: 'output:private-a' });
 
     resetAppState();
 
@@ -128,6 +130,7 @@ describe('resetAppState()', () => {
     expect(getStoreValue(legalReacceptanceRequired)).toBe(false);
     expect(getStoreValue(hasLegalDocuments)).toBe(false);
     expect(getStoreValue(requiresSensitiveConsent)).toBe(false);
+    expect(feedbackDialog).toMatchObject({ isOpen: false, context: {} });
   });
 
   it('a throwing step does not prevent the rest of the reset (A5)', () => {

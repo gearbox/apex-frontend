@@ -17,6 +17,7 @@ vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
 import { goto } from '$app/navigation';
 import * as pendingSignup from '$lib/api/oauthPendingSignup';
 import * as oauthReturnTarget from '$lib/api/oauthReturnTarget';
+import { legalKeys } from '$lib/queries/legal';
 import Page from './+page.svelte';
 import QueryHost, { hostProps } from '$lib/components/legal/testing/QueryHost.svelte';
 
@@ -27,9 +28,10 @@ function seed(ticket = 'r1-signup-ticket', returnTo: string | null = '/app/libra
   pendingSignup.save({ ticket, returnTo, savedAt: Date.now() });
 }
 
-function renderPage(): void {
+function renderPage(): QueryClient {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(QueryHost, { props: hostProps(queryClient, Page, {}) });
+  return queryClient;
 }
 
 async function acceptAllLegal(): Promise<void> {
@@ -128,6 +130,38 @@ describe('OAuth signup page', () => {
 
     await waitFor(() => expect(goto).toHaveBeenCalledWith('/app/library', { replaceState: true }));
     expect(oauthReturnTarget.load()).toBeNull();
+  });
+
+  it('keeps a ready signup form operable during a background current-legal refresh', async () => {
+    const documents = [
+      { doc_type: 'terms', version: '2026-10-01', sha256: 'a'.repeat(64) },
+      { doc_type: 'privacy', version: '2026-10-01', sha256: 'b'.repeat(64) },
+      {
+        doc_type: 'sensitive_data_consent',
+        version: '2026-10-01',
+        sha256: 'c'.repeat(64),
+      },
+    ];
+    let currentCalls = 0;
+    let releaseRefresh!: () => void;
+    const refreshGate = new Promise<void>((resolve) => (releaseRefresh = resolve));
+    server.use(
+      http.get(`${BASE}/v1/legal/current`, async () => {
+        currentCalls += 1;
+        if (currentCalls > 1) await refreshGate;
+        return HttpResponse.json({ documents });
+      }),
+    );
+    seed('background-refresh-ticket');
+    const queryClient = renderPage();
+    await acceptAllLegal();
+
+    const refresh = queryClient.refetchQueries({ queryKey: legalKeys.current() });
+    await waitFor(() => expect(currentCalls).toBeGreaterThan(1));
+    expect(submitButton().disabled).toBe(false);
+
+    releaseRefresh();
+    await refresh;
   });
 
   it.each([

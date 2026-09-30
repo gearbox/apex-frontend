@@ -11,6 +11,7 @@ import {
 import { makeMediaObject, makeVideoMediaObject } from '../../../mocks/factories/media';
 import { makeGrokImageModelInfo, generationModes } from '../../../mocks/factories/providers';
 import type { SaveOutcome } from '$lib/media/save';
+import { feedbackDialog } from '$lib/stores/feedbackDialog.svelte';
 
 type LibraryAssetDetail = components['schemas']['LibraryAssetDetail'];
 type LibraryGroupDetail = components['schemas']['LibraryGroupDetail'];
@@ -216,6 +217,7 @@ beforeEach(() => {
   prewarmMediaMock.mockClear();
   prewarmMediaWithSignalMock.mockClear();
   gotoMock.mockReset().mockResolvedValue(undefined);
+  feedbackDialog.reset();
 });
 
 describe('AssetDetailsSheet — unified variation selection', () => {
@@ -268,6 +270,33 @@ describe('AssetDetailsSheet — unified variation selection', () => {
     const { container } = renderSheet({ assetRef: 'output:a', jobIdHint: 'job-group' });
 
     expect(container.querySelectorAll('video')).toHaveLength(1);
+  });
+
+  it('reports the currently selected variation and its detail job ID', async () => {
+    detailData = makeLibraryAssetDetail({
+      asset_ref: 'output:c',
+      display_title: 'Variation C',
+      job_id: 'job-group',
+      output_count: 3,
+    });
+    groupData = makeLibraryGroupDetail({
+      job_id: 'job-group',
+      outputs: [
+        makeLibraryOutputItem({ id: 'a', asset_ref: 'output:a', media: makeMediaObject() }),
+        makeLibraryOutputItem({ id: 'b', asset_ref: 'output:b', media: makeMediaObject() }),
+        makeLibraryOutputItem({ id: 'c', asset_ref: 'output:c', media: makeMediaObject() }),
+      ],
+    });
+    renderSheet({ assetRef: 'output:b', jobIdHint: 'job-group' });
+
+    await fireEvent.click(await screen.findByRole('button', { name: 'Variation 3 of 3' }));
+    await fireEvent.click(await screen.findByRole('button', { name: 'Report problem' }));
+
+    expect(feedbackDialog.context).toEqual({
+      assetRef: 'output:c',
+      jobId: 'job-group',
+      initialCategory: 'generation',
+    });
   });
 });
 
@@ -389,6 +418,26 @@ describe('AssetDetailsSheet — keyboard: scrub range keeps native arrow semanti
 
     await fireEvent.keyDown(range, { key: 'Escape' });
     expect(oncloseMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('AssetDetailsSheet — feedback dialog keyboard isolation', () => {
+  it('leaves Escape and arrows to an open feedback dialog, then restores viewer shortcuts on close', async () => {
+    detailData = makeLibraryAssetDetail({ asset_ref: 'output:abc', media: makeMediaObject() });
+    const onnavigate = vi.fn();
+    renderSheet({ assetRef: 'output:abc', onnavigate, hasNext: true });
+
+    feedbackDialog.open();
+    await fireEvent.keyDown(window, { key: 'Escape' });
+    await fireEvent.keyDown(window, { key: 'ArrowRight' });
+    expect(oncloseMock).not.toHaveBeenCalled();
+    expect(onnavigate).not.toHaveBeenCalled();
+
+    feedbackDialog.close();
+    await fireEvent.keyDown(window, { key: 'Escape' });
+    await fireEvent.keyDown(window, { key: 'ArrowRight' });
+    expect(oncloseMock).toHaveBeenCalledOnce();
+    expect(onnavigate).toHaveBeenCalledWith('next');
   });
 });
 

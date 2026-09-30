@@ -20,7 +20,7 @@ beforeEach(() => resetLegalState());
 afterEach(() => cleanup());
 
 describe('register page — legal acceptance', () => {
-  it('keeps submit disabled while /current is refetching', async () => {
+  it('keeps submit enabled while /current is refetching', async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(QueryHost, { props: hostProps(queryClient, Page, {}) });
 
@@ -30,17 +30,24 @@ describe('register page — legal acceptance', () => {
 
     let release!: () => void;
     const gate = new Promise<void>((resolve) => (release = resolve));
+    let markRefreshStarted!: () => void;
+    const refreshStarted = new Promise<void>((resolve) => (markRefreshStarted = resolve));
     const fresh = await (await fetch(`${BASE}/v1/legal/current`)).json();
     server.use(
       http.get(`${BASE}/v1/legal/current`, async () => {
+        markRefreshStarted();
         await gate;
         return HttpResponse.json(fresh);
       }),
     );
-    void queryClient.refetchQueries({ queryKey: legalKeys.current() });
-
-    await waitFor(() => expect(submitButton().disabled).toBe(true));
-    release();
+    const refresh = queryClient.refetchQueries({ queryKey: legalKeys.current() });
+    try {
+      await refreshStarted;
+      expect(submitButton().disabled).toBe(false);
+    } finally {
+      release();
+    }
+    await refresh;
     await waitFor(() => expect(submitButton().disabled).toBe(false));
   });
 });

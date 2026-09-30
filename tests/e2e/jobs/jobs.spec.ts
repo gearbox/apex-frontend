@@ -70,6 +70,35 @@ test.describe('Jobs list page', () => {
 });
 
 test.describe('Job detail page', () => {
+  test('reports the current job with the generation category', async ({
+    authenticatedPage: page,
+  }) => {
+    let submitted: Record<string, unknown> | undefined;
+    await page.route(isJobDetail('job_e2e_001'), jsonRoute(mockJob));
+    await page.route('**/v1/feedback', async (route) => {
+      submitted = (await route.request().postDataJSON()) as Record<string, unknown>;
+      return route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: '55555555-5555-4555-8555-555555555555',
+          status: 'open',
+          created_at: '2026-09-30T12:00:00Z',
+        }),
+      });
+    });
+    await page.goto('/app/jobs/job_e2e_001');
+
+    await page.getByRole('button', { name: 'Report problem', exact: true }).click();
+    const feedback = page.getByRole('dialog', { name: 'Report a problem' });
+    await expect(feedback.getByLabel('What is this about?')).toHaveValue('generation');
+    await feedback.getByLabel('What happened?').fill('The generation result is incomplete.');
+    await feedback.getByRole('button', { name: 'Send report' }).click();
+
+    await expect(feedback.getByText('Thanks — we got your report.')).toBeVisible();
+    expect(submitted).toMatchObject({ category: 'generation', job_id: 'job_e2e_001' });
+  });
+
   test('4. Detail page renders all sections for a completed job', async ({
     authenticatedPage: page,
   }) => {

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { startOAuthSignIn, type OAuthErrorCode } from '$lib/api/oauth';
   import * as m from '$paraglide/messages';
 
@@ -8,7 +9,14 @@
   }
 
   let { code, returnTo = null }: Props = $props();
+  let interactive = $state(false);
   let restarting = $state(false);
+
+  // The server-rendered error panel is visible before Svelte attaches its click handlers. Keep
+  // the retry action inert until mount so a fast tap cannot be silently lost.
+  onMount(() => {
+    interactive = true;
+  });
 
   const copy = $derived.by(() => {
     switch (code) {
@@ -60,7 +68,7 @@
     {#if retryable}
       <button
         type="button"
-        disabled={restarting}
+        disabled={restarting || !interactive}
         onclick={tryAgain}
         class="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
       >

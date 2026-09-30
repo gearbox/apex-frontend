@@ -271,6 +271,26 @@ describe('rate limit middleware', () => {
     expect(getRateLimitState('/v1/billing/balance')).toMatchObject({ remaining: 1 });
   });
 
+  it('does not retry feedback submissions after the first 429', async () => {
+    let callCount = 0;
+    server.use(
+      http.post(`${BASE}/v1/feedback`, () => {
+        callCount += 1;
+        return HttpResponse.json(
+          { error: 'rate_limited', message: 'Too many reports', status_code: 429 },
+          { status: 429, headers: { 'Retry-After': '0' } },
+        );
+      }),
+    );
+
+    const { response } = await apiClient.POST('/v1/feedback', {
+      body: { category: 'bug', message: 'A sufficiently descriptive report' },
+    });
+
+    expect(response.status).toBe(429);
+    expect(callCount).toBe(1);
+  });
+
   it('detects a legal 428 returned by a 429 retry', async () => {
     let calls = 0;
     server.use(

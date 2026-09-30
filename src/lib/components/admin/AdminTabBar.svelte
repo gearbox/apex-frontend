@@ -9,7 +9,9 @@
     ShieldCheck,
     Activity,
     Landmark,
+    MessageSquareWarning,
   } from '@lucide/svelte';
+  import * as m from '$paraglide/messages';
 
   interface TabDef {
     id: string;
@@ -33,6 +35,7 @@
     { id: 'pricing', label: 'Pricing', icon: Coins },
     { id: 'broadcast', label: 'Broadcast', icon: Megaphone },
     { id: 'health', label: 'Health', icon: Activity },
+    { id: 'feedback', label: m.feedback_admin_tab(), icon: MessageSquareWarning },
   ];
 
   const manageTabs: TabDef[] = [

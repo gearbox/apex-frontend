@@ -1,15 +1,23 @@
 <script lang="ts">
-  import { onDestroy } from 'svelte';
+  import { onDestroy, tick } from 'svelte';
   import { moreSheetOpen, closeMoreSheet } from '$lib/stores/ui';
   import { isAdmin } from '$lib/stores/auth';
   import { hasLegalDocuments } from '$lib/stores/legal';
   import * as m from '$paraglide/messages';
-  import { Coins, Activity, User, Shield, ChevronRight } from '@lucide/svelte';
+  import {
+    Coins,
+    Activity,
+    User,
+    Shield,
+    ChevronRight,
+    MessageSquareWarning,
+  } from '@lucide/svelte';
   import AppVersionBadge from '$lib/components/shared/AppVersionBadge.svelte';
   import MobileNavSheet from './MobileNavSheet.svelte';
   import { viewportDebug } from '$lib/stores/debug.svelte';
   import { addToast } from '$lib/stores/toasts';
   import { ROUTES } from '$lib/utils/routes';
+  import { openFeedbackDialog } from '$lib/stores/feedbackDialog.svelte';
 
   const DEBUG_TAP_THRESHOLD = 5;
   const DEBUG_TAP_WINDOW_MS = 2000;
@@ -37,6 +45,13 @@
   }
 
   onDestroy(() => clearTimeout(debugTapResetTimer));
+
+  async function openFeedback(): Promise<void> {
+    // A native dialog and the More sheet must not own focus/backdrops at the same time.
+    closeMoreSheet();
+    await tick();
+    openFeedbackDialog();
+  }
 </script>
 
 {#if $moreSheetOpen}
@@ -57,6 +72,11 @@
         <span class="sheet-item-label">{m.nav_profile()}</span>
         <span class="sheet-item-chevron"><ChevronRight size={16} /></span>
       </a>
+      <button type="button" onclick={() => void openFeedback()} class="sheet-item">
+        <span class="sheet-item-icon"><MessageSquareWarning size={20} strokeWidth={1.75} /></span>
+        <span class="sheet-item-label">{m.feedback_title()}</span>
+        <span class="sheet-item-chevron"><ChevronRight size={16} /></span>
+      </button>
 
       {#if $hasLegalDocuments}
         <div class="sheet-admin-divider"></div>
@@ -111,6 +131,9 @@
     font-weight: 500;
     text-decoration: none;
     text-align: left;
+    border: 0;
+    font-family: inherit;
+    cursor: pointer;
   }
   .sheet-item-icon {
     color: var(--apex-text-muted);

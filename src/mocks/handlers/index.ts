@@ -10,6 +10,7 @@ import { sessionHandlers } from './sessions';
 import { pushHandlers } from './push';
 import { frameHandlers } from './frames';
 import { legalHandlers } from './legal';
+import { feedbackHandlers } from './feedback';
 
 export const handlers = [
   ...authHandlers,
@@ -24,4 +25,5 @@ export const handlers = [
   ...pushHandlers,
   ...frameHandlers,
   ...legalHandlers,
+  ...feedbackHandlers,
 ];

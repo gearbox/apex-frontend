@@ -9,6 +9,8 @@
   import type { components } from '$lib/api/types';
   import { appDisplayName } from '$lib/stores/product';
   import { formatAspectRatio } from '$lib/utils/format';
+  import { openFeedbackDialog } from '$lib/stores/feedbackDialog.svelte';
+  import * as m from '$paraglide/messages';
 
   type JobStatus = components['schemas']['JobStatus'];
 
@@ -118,6 +120,13 @@
 
       <!-- Action buttons -->
       <div class="flex gap-2">
+        <button
+          type="button"
+          onclick={() => openFeedbackDialog({ jobId, initialCategory: 'generation' })}
+          class="rounded-lg border border-border bg-surface px-3 py-1.5 text-sm text-text-muted transition-colors hover:bg-surface-hover hover:text-text"
+        >
+          {m.feedback_report_problem()}
+        </button>
         {#if canRetry}
           <a
             href="/app/create?prompt={encodeURIComponent(job.prompt)}"

@@ -9,6 +9,7 @@ import { clearNotifications } from '$lib/stores/notifications';
 import { setEventStreamStatus } from '$lib/stores/eventStream';
 import { clearPersistedPushState } from '$lib/services/pushNotifications';
 import { resetLegalState } from '$lib/stores/legal';
+import { feedbackDialog } from '$lib/stores/feedbackDialog.svelte';
 import { isBrowser } from '$lib/utils/env';
 import { LEGACY_CONTENT_MEDIA_CACHE_NAME } from '$lib/utils/cacheNames';
 
@@ -38,6 +39,7 @@ export function resetAppState(): void {
     // session-ending path clears the previous account's markers, not just explicit logout.
     clearPersistedPushState,
     resetLegalState,
+    () => feedbackDialog.reset(),
     deleteLegacyContentMediaCache,
   ];
 
