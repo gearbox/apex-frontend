@@ -33,6 +33,7 @@ src/
 │   ├── api/
 │   │   ├── client.ts              # openapi-fetch instance + auth interceptor
 │   │   ├── auth.ts                # JWT token management, refresh rotation
+│   │   ├── feedback.ts            # Feedback submission and admin API wrappers
 │   │   ├── oauth.ts               # Google OAuth navigation URL + generated request/response aliases
 │   │   ├── oauthFragment.ts       # Callback fragment parser (never logs opaque values)
 │   │   ├── oauthPendingSignup.ts  # Tab-scoped, short-lived OAuth signup handoff
@@ -45,10 +46,14 @@ src/
 │   │   └── schema.json            # Exported OpenAPI schema (source of truth)
 │   ├── stores/
 │   │   ├── auth.ts                # Auth state: user, tokens, isAuthenticated
+│   │   ├── feedbackDialog.svelte.ts # Shared in-product feedback dialog state
 │   │   ├── theme.ts               # Theme + mode persistence (localStorage)
 │   │   ├── legal.ts               # Current legal set + blocking re-acceptance state
 │   │   └── ui.ts                  # Sidebar collapsed state, mobile nav
 │   ├── components/
+│   │   ├── admin/
+│   │   │   ├── AdminFeedbackTab.svelte         # Filterable feedback report list
+│   │   │   └── AdminFeedbackDetailModal.svelte # Admin report detail, notes, and status actions
 │   │   ├── auth/
 │   │   │   ├── OAuthProviderButtons.svelte # Product-gated Google sign-in button
 │   │   │   └── OAuthErrorPanel.svelte      # Contract-mapped OAuth error actions
@@ -91,6 +96,8 @@ src/
 │   │   │   ├── TopUpPanel.svelte          # Tiered top-up: preset cards, free amount, provider checkout
 │   │   │   ├── TransactionList.svelte
 │   │   │   └── CostReference.svelte
+│   │   ├── feedback/
+│   │   │   └── FeedbackDialog.svelte # Global/contextual in-product feedback form
 │   │   └── profile/
 │   │       ├── ThemeSelector.svelte       # Slate / Frost card picker
 │   │       ├── ModeSelector.svelte        # Light / Dark / System toggle
@@ -103,6 +110,7 @@ src/
 │   │   ├── gallery.ts                # galleryKeys, galleryListInfiniteQueryOptions, galleryDetailQueryOptions, deleteContentMutationOptions
 │   │   ├── storage.ts                # storageKeys, uploadsInfiniteQueryOptions
 │   │   ├── admin.ts                  # Query key factory + query options for admin endpoints
+│   │   ├── feedback.ts               # Feedback list/detail queries and mutations
 │   │   ├── user.ts                   # userKeys, userStatsQueryOptions, changePassword/logoutAll/deleteAccount mutation options
 │   │   └── legal.ts                  # Immutable version/current-alias legal query options
 │   ├── legal/
@@ -116,6 +124,7 @@ src/
 │       ├── routes.ts                 # ROUTES constants + legalDocumentHref(type, version?)
 │       ├── constants.ts              # API base URL, storage keys
 │       ├── idempotency.ts            # generateIdempotencyKey() for mutation endpoints
+│       ├── feedback.ts               # Feedback validation, code points, safe asset URLs, labels and badge colours
 │       └── returnPath.ts             # Same-origin redirect validation for auth/OAuth
 ├── routes/
 │   ├── +layout.svelte                # Root: fonts, theme CSS vars, QueryClient

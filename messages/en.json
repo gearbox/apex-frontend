@@ -793,7 +793,8 @@
   "feedback_category_other": "Something else",
   "feedback_message_label": "What happened?",
   "feedback_message_helper": "Please include enough detail for us to understand the problem.",
-  "feedback_message_count": "{count} characters",
+  "feedback_message_count": "{count} / {max}",
+  "feedback_message_count_label": "{count} of {max} characters used",
   "feedback_message_too_short": "Please enter at least 10 characters.",
   "feedback_message_too_long": "Please keep the report to 4000 characters or fewer.",
   "feedback_message_invalid": "Please check your report and try again.",
@@ -847,6 +848,9 @@
   "feedback_admin_mark_in_progress": "Mark in progress",
   "feedback_admin_resolve": "Resolve",
   "feedback_admin_dismiss": "Dismiss",
+  "feedback_admin_confirm_resolve": "Resolve this report? This can't be undone.",
+  "feedback_admin_confirm_dismiss": "Dismiss this report? This can't be undone.",
+  "feedback_admin_confirm": "Confirm",
   "feedback_admin_concurrent_update": "This report was updated by another admin. The latest status has been loaded.",
   "feedback_admin_update_error": "Couldn't update this report. Please try again."
 }

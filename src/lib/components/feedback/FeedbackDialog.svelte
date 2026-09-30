@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createMutation } from '@tanstack/svelte-query';
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { X, Link2Off } from '@lucide/svelte';
   import type { FeedbackCategory, FeedbackCreate } from '$lib/api/feedback';
   import { ApiRequestError } from '$lib/api/errors';
@@ -10,18 +10,20 @@
   import { createDialogController } from '$lib/components/shared/dialogController.svelte';
   import {
     feedbackAppVersion,
+    feedbackCategoryLabel,
+    FEEDBACK_MESSAGE_MAX_CODE_POINTS,
     validateFeedbackMessage,
     type FeedbackMessageValidity,
   } from '$lib/utils/feedback';
   import * as m from '$paraglide/messages';
 
-  const categories: Array<{ value: FeedbackCategory; label: () => string }> = [
-    { value: 'bug', label: () => m.feedback_category_bug() },
-    { value: 'generation', label: () => m.feedback_category_generation() },
-    { value: 'billing', label: () => m.feedback_category_billing() },
-    { value: 'account', label: () => m.feedback_category_account() },
-    { value: 'content', label: () => m.feedback_category_content() },
-    { value: 'other', label: () => m.feedback_category_other() },
+  const categories: FeedbackCategory[] = [
+    'bug',
+    'generation',
+    'billing',
+    'account',
+    'content',
+    'other',
   ];
 
   function defaultCategory(): FeedbackCategory {
@@ -60,15 +62,22 @@
 
   async function submit(event: SubmitEvent): Promise<void> {
     event.preventDefault();
+    await send();
+  }
+
+  async function send(): Promise<void> {
     if (!canSubmit) return;
 
     formError = '';
     unavailable = null;
+    // Context can change when a stale job/result is removed; always build the next request from
+    // the current store state rather than the context that caused the failed request.
+    const currentContext = feedbackDialog.context;
     const body: FeedbackCreate = {
       category,
       message: validation.trimmed,
-      ...(context.jobId ? { job_id: context.jobId } : {}),
-      ...(context.assetRef ? { asset_ref: context.assetRef } : {}),
+      ...(currentContext.jobId ? { job_id: currentContext.jobId } : {}),
+      ...(currentContext.assetRef ? { asset_ref: currentContext.assetRef } : {}),
       // Pathname deliberately excludes an OAuth/reset query or fragment.
       client_path: window.location.pathname,
       app_version: feedbackAppVersion(),
@@ -102,10 +111,12 @@
     }
   }
 
-  function removeUnavailableContext(): void {
+  async function removeUnavailableAndResend(): Promise<void> {
     if (unavailable === 'job') feedbackDialog.removeJob();
     if (unavailable === 'asset') feedbackDialog.removeAsset();
     unavailable = null;
+    await tick();
+    await send();
   }
 </script>
 
@@ -145,8 +156,8 @@
           <label class="field">
             <span>{m.feedback_category_label()}</span>
             <select bind:value={category} disabled={mutation.isPending}>
-              {#each categories as option (option.value)}
-                <option value={option.value}>{option.label()}</option>
+              {#each categories as option (option)}
+                <option value={option}>{feedbackCategoryLabel(option)}</option>
               {/each}
             </select>
           </label>
@@ -164,8 +175,17 @@
           </label>
           <div class="message-help">
             <span id="feedback-message-help">{m.feedback_message_helper()}</span>
-            <span id="feedback-message-count" aria-live="polite"
-              >{m.feedback_message_count({ count: validation.codePointCount })}</span
+            <span
+              id="feedback-message-count"
+              aria-live="polite"
+              aria-label={m.feedback_message_count_label({
+                count: validation.codePointCount,
+                max: FEEDBACK_MESSAGE_MAX_CODE_POINTS,
+              })}
+              >{m.feedback_message_count({
+                count: validation.codePointCount,
+                max: FEEDBACK_MESSAGE_MAX_CODE_POINTS,
+              })}</span
             >
           </div>
           {#if validation.validity !== 'valid' && message.length > 0}
@@ -209,7 +229,7 @@
                 </p>
                 <button
                   type="button"
-                  onclick={removeUnavailableContext}
+                  onclick={removeUnavailableAndResend}
                   disabled={mutation.isPending}
                 >
                   {unavailable === 'job'
@@ -231,7 +251,6 @@
             class="secondary-button"
             onclick={controller.requestClose}
             disabled={mutation.isPending}>{m.common_cancel()}</button
-          >
           >
           <button type="submit" class="primary-button" disabled={!canSubmit}>
             {mutation.isPending ? m.feedback_sending() : m.feedback_send()}

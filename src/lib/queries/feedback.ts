@@ -12,8 +12,8 @@ import {
 export const feedbackKeys = {
   all: ['feedback'] as const,
   adminAll: ['feedback', 'admin'] as const,
-  adminList: (filters: AdminFeedbackFilters = {}) =>
-    ['feedback', 'admin', 'list', filters] as const,
+  adminLists: ['feedback', 'admin', 'list'] as const,
+  adminList: (filters: AdminFeedbackFilters = {}) => [...feedbackKeys.adminLists, filters] as const,
   adminDetail: (reportId: string) => ['feedback', 'admin', 'detail', reportId] as const,
 };
 
@@ -46,7 +46,7 @@ export function patchAdminFeedbackMutationOptions(queryClient: QueryClient) {
       patchAdminFeedback(reportId, body),
     onSuccess: (report: Awaited<ReturnType<typeof patchAdminFeedback>>) => {
       queryClient.setQueryData(feedbackKeys.adminDetail(report.id), report);
-      return queryClient.invalidateQueries({ queryKey: feedbackKeys.adminAll });
+      return queryClient.invalidateQueries({ queryKey: feedbackKeys.adminLists });
     },
   };
 }

@@ -55,7 +55,7 @@
   import { addToast } from '$lib/stores/toasts';
   import * as m from '$paraglide/messages';
   import type { components } from '$lib/api/types';
-  import { openFeedbackDialog } from '$lib/stores/feedbackDialog.svelte';
+  import { feedbackDialog, openFeedbackDialog } from '$lib/stores/feedbackDialog.svelte';
 
   type LibraryGroupDetail = components['schemas']['LibraryGroupDetail'];
   type LibraryOutputItem = components['schemas']['LibraryOutputItem'];
@@ -367,7 +367,8 @@
   );
 
   function handleKeydown(e: KeyboardEvent) {
-    if (showFrameExtraction) return;
+    // A native modal dialog remains on the keydown path to window, so it owns these shortcuts.
+    if (showFrameExtraction || feedbackDialog.isOpen) return;
     if (e.key === 'Escape') {
       e.stopPropagation();
       if (fullscreen) {

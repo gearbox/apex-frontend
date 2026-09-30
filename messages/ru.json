@@ -793,7 +793,8 @@
   "feedback_category_other": "Что-то ещё",
   "feedback_message_label": "Опишите проблему",
   "feedback_message_helper": "Добавьте достаточно деталей, чтобы мы могли понять проблему.",
-  "feedback_message_count": "{count} символов",
+  "feedback_message_count": "{count} / {max}",
+  "feedback_message_count_label": "Использовано {count} из {max} символов",
   "feedback_message_too_short": "Введите не менее 10 символов.",
   "feedback_message_too_long": "Отчёт должен содержать не более 4000 символов.",
   "feedback_message_invalid": "Проверьте текст отчёта и повторите попытку.",
@@ -847,6 +848,9 @@
   "feedback_admin_mark_in_progress": "Взять в работу",
   "feedback_admin_resolve": "Решить",
   "feedback_admin_dismiss": "Отклонить",
+  "feedback_admin_confirm_resolve": "Решить этот отчёт? Это действие нельзя отменить.",
+  "feedback_admin_confirm_dismiss": "Отклонить этот отчёт? Это действие нельзя отменить.",
+  "feedback_admin_confirm": "Подтвердить",
   "feedback_admin_concurrent_update": "Этот отчёт обновил другой администратор. Загружен актуальный статус.",
   "feedback_admin_update_error": "Не удалось обновить отчёт. Повторите попытку."
 }

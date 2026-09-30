@@ -7,30 +7,29 @@
   import StatusBadge from '$lib/components/shared/StatusBadge.svelte';
   import AdminFeedbackDetailModal from '$lib/components/admin/AdminFeedbackDetailModal.svelte';
   import { CursorPaginator } from '$lib/utils/cursorPagination.svelte';
+  import {
+    feedbackCategoryLabel,
+    feedbackStatusLabel,
+    FEEDBACK_STATUS_COLORS,
+  } from '$lib/utils/feedback';
   import * as m from '$paraglide/messages';
 
   const PAGE_SIZE = 30;
-  const feedbackStatusColors: Record<string, string> = {
-    open: 'warning',
-    in_progress: 'accent',
-    resolved: 'success',
-    dismissed: 'muted',
-  };
   const statuses: Array<{ value: FeedbackStatus | ''; label: () => string }> = [
     { value: '', label: () => m.feedback_filter_all() },
-    { value: 'open', label: () => m.feedback_status_open() },
-    { value: 'in_progress', label: () => m.feedback_status_in_progress() },
-    { value: 'resolved', label: () => m.feedback_status_resolved() },
-    { value: 'dismissed', label: () => m.feedback_status_dismissed() },
+    { value: 'open', label: () => feedbackStatusLabel('open') },
+    { value: 'in_progress', label: () => feedbackStatusLabel('in_progress') },
+    { value: 'resolved', label: () => feedbackStatusLabel('resolved') },
+    { value: 'dismissed', label: () => feedbackStatusLabel('dismissed') },
   ];
   const categories: Array<{ value: FeedbackCategory | ''; label: () => string }> = [
     { value: '', label: () => m.feedback_filter_all() },
-    { value: 'bug', label: () => m.feedback_category_bug() },
-    { value: 'generation', label: () => m.feedback_category_generation() },
-    { value: 'billing', label: () => m.feedback_category_billing() },
-    { value: 'account', label: () => m.feedback_category_account() },
-    { value: 'content', label: () => m.feedback_category_content() },
-    { value: 'other', label: () => m.feedback_category_other() },
+    { value: 'bug', label: () => feedbackCategoryLabel('bug') },
+    { value: 'generation', label: () => feedbackCategoryLabel('generation') },
+    { value: 'billing', label: () => feedbackCategoryLabel('billing') },
+    { value: 'account', label: () => feedbackCategoryLabel('account') },
+    { value: 'content', label: () => feedbackCategoryLabel('content') },
+    { value: 'other', label: () => feedbackCategoryLabel('other') },
   ];
 
   let status = $state<FeedbackStatus | ''>('');
@@ -63,14 +62,6 @@
   function excerpt(message: string): string {
     const normalized = message.replace(/\s+/g, ' ').trim();
     return normalized.length > 120 ? `${normalized.slice(0, 120)}…` : normalized;
-  }
-
-  function statusLabel(value: FeedbackStatus): string {
-    return statuses.find((option) => option.value === value)?.label() ?? value;
-  }
-
-  function categoryLabel(value: FeedbackCategory): string {
-    return categories.find((option) => option.value === value)?.label() ?? value;
   }
 </script>
 
@@ -133,11 +124,11 @@
                 <td class="date">{formatDate(report.created_at)}</td>
                 <td
                   ><StatusBadge
-                    status={statusLabel(report.status)}
-                    colorMap={feedbackStatusColors}
+                    status={feedbackStatusLabel(report.status)}
+                    color={FEEDBACK_STATUS_COLORS[report.status]}
                   /></td
                 >
-                <td>{categoryLabel(report.category)}</td>
+                <td>{feedbackCategoryLabel(report.category)}</td>
                 <td>{report.user_email ?? m.feedback_deleted_user()}</td>
                 <td class="message">{excerpt(report.message)}</td>
                 <td>
@@ -162,8 +153,11 @@
         {#each reports as report (report.id)}
           <article class="report-card">
             <div class="card-heading">
-              <StatusBadge status={statusLabel(report.status)} colorMap={feedbackStatusColors} />
-              <span>{categoryLabel(report.category)}</span>
+              <StatusBadge
+                status={feedbackStatusLabel(report.status)}
+                color={FEEDBACK_STATUS_COLORS[report.status]}
+              />
+              <span>{feedbackCategoryLabel(report.category)}</span>
             </div>
             <p class="reporter">{report.user_email ?? m.feedback_deleted_user()}</p>
             <p class="message">{excerpt(report.message)}</p>

@@ -1,10 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import {
+  codePointLength,
+  FEEDBACK_ADMIN_NOTE_MAX_CODE_POINTS,
   FEEDBACK_MESSAGE_MAX_CODE_POINTS,
+  FEEDBACK_STATUS_COLORS,
+  feedbackCategoryLabel,
   feedbackAppVersion,
+  feedbackStatusLabel,
   resolveFeedbackAssetUrl,
   validateFeedbackMessage,
 } from './feedback';
+import type { FeedbackCategory, FeedbackStatus } from '$lib/api/feedback';
 
 describe('validateFeedbackMessage()', () => {
   it('trims before counting Unicode code points', () => {
@@ -34,6 +40,33 @@ describe('validateFeedbackMessage()', () => {
     expect(validateFeedbackMessage('1234567890\u0000')).toMatchObject({
       validity: 'contains_nul',
     });
+  });
+});
+
+describe('feedback code-point helpers and labels', () => {
+  it('counts Unicode code points rather than UTF-16 code units', () => {
+    expect(codePointLength('a😀')).toBe(2);
+    expect(codePointLength('😀'.repeat(FEEDBACK_ADMIN_NOTE_MAX_CODE_POINTS))).toBe(4000);
+  });
+
+  it('has a display colour and non-empty localized label for every feedback status', () => {
+    const statuses: FeedbackStatus[] = ['open', 'in_progress', 'resolved', 'dismissed'];
+    for (const status of statuses) {
+      expect(FEEDBACK_STATUS_COLORS[status]).toBeTruthy();
+      expect(feedbackStatusLabel(status)).toBeTruthy();
+    }
+  });
+
+  it('has a non-empty localized label for every feedback category', () => {
+    const categories: FeedbackCategory[] = [
+      'bug',
+      'generation',
+      'billing',
+      'account',
+      'content',
+      'other',
+    ];
+    for (const category of categories) expect(feedbackCategoryLabel(category)).toBeTruthy();
   });
 });
 

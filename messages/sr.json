@@ -793,7 +793,8 @@
   "feedback_category_other": "Nešto drugo",
   "feedback_message_label": "Šta se dogodilo?",
   "feedback_message_helper": "Navedite dovoljno detalja da bismo razumeli problem.",
-  "feedback_message_count": "{count} znakova",
+  "feedback_message_count": "{count} / {max}",
+  "feedback_message_count_label": "Iskorišćeno {count} od {max} znakova",
   "feedback_message_too_short": "Unesite najmanje 10 znakova.",
   "feedback_message_too_long": "Prijava može imati najviše 4000 znakova.",
   "feedback_message_invalid": "Proverite prijavu i pokušajte ponovo.",
@@ -847,6 +848,9 @@
   "feedback_admin_mark_in_progress": "Označi kao u toku",
   "feedback_admin_resolve": "Reši",
   "feedback_admin_dismiss": "Odbaci",
+  "feedback_admin_confirm_resolve": "Rešiti ovu prijavu? Ova radnja se ne može opozvati.",
+  "feedback_admin_confirm_dismiss": "Odbaciti ovu prijavu? Ova radnja se ne može opozvati.",
+  "feedback_admin_confirm": "Potvrdi",
   "feedback_admin_concurrent_update": "Drugi administrator je ažurirao ovu prijavu. Učitan je najnoviji status.",
   "feedback_admin_update_error": "Nije moguće ažurirati prijavu. Pokušajte ponovo."
 }

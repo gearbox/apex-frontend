@@ -10,11 +10,9 @@ export interface FeedbackDialogContext {
 class FeedbackDialogStore {
   isOpen = $state(false);
   context = $state<FeedbackDialogContext>({});
-  openSequence = $state(0);
 
   open(context: FeedbackDialogContext = {}): void {
     this.context = { ...context };
-    this.openSequence += 1;
     this.isOpen = true;
   }
 
@@ -34,7 +32,6 @@ class FeedbackDialogStore {
   reset(): void {
     this.isOpen = false;
     this.context = {};
-    this.openSequence = 0;
   }
 }
 

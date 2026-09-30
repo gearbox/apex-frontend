@@ -61,7 +61,7 @@ test.describe('In-product feedback', () => {
       user_email: 'reporter@example.com',
       job_id: null,
       asset_ref: null,
-      asset_url: null,
+      asset_url: '/v1/content/feedback/11111111-1111-4111-8111-111111111111',
       client_path: '/app/create',
       app_version: '0.27.1+testsha',
       user_agent: 'Playwright',
@@ -100,9 +100,17 @@ test.describe('In-product feedback', () => {
     await page.getByRole('tab', { name: 'Feedback' }).click();
     await page.getByRole('button', { name: 'View' }).click();
     const dialog = page.getByRole('dialog', { name: 'Feedback report' });
+    await expect(dialog.getByRole('link', { name: 'Open reported asset' })).toHaveAttribute(
+      'href',
+      /\/v1\/content\/feedback\/11111111-1111-4111-8111-111111111111$/,
+    );
     await dialog.getByLabel('Admin note').fill('Reproduced in staging.');
     await dialog.getByRole('button', { name: 'Save note' }).click();
     await dialog.getByRole('button', { name: 'Mark in progress' }).click();
     await expect(dialog.getByText('In progress')).toBeVisible();
+    await dialog.getByRole('button', { name: 'Resolve' }).click();
+    await expect(dialog.getByText("Resolve this report? This can't be undone.")).toBeVisible();
+    await dialog.getByRole('button', { name: 'Confirm' }).click();
+    await expect(dialog.getByText('Resolved', { exact: true })).toBeVisible();
   });
 });

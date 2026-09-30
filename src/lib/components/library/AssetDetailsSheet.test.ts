@@ -11,6 +11,7 @@ import {
 import { makeMediaObject, makeVideoMediaObject } from '../../../mocks/factories/media';
 import { makeGrokImageModelInfo, generationModes } from '../../../mocks/factories/providers';
 import type { SaveOutcome } from '$lib/media/save';
+import { feedbackDialog } from '$lib/stores/feedbackDialog.svelte';
 
 type LibraryAssetDetail = components['schemas']['LibraryAssetDetail'];
 type LibraryGroupDetail = components['schemas']['LibraryGroupDetail'];
@@ -216,6 +217,7 @@ beforeEach(() => {
   prewarmMediaMock.mockClear();
   prewarmMediaWithSignalMock.mockClear();
   gotoMock.mockReset().mockResolvedValue(undefined);
+  feedbackDialog.reset();
 });
 
 describe('AssetDetailsSheet — unified variation selection', () => {
@@ -389,6 +391,26 @@ describe('AssetDetailsSheet — keyboard: scrub range keeps native arrow semanti
 
     await fireEvent.keyDown(range, { key: 'Escape' });
     expect(oncloseMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('AssetDetailsSheet — feedback dialog keyboard isolation', () => {
+  it('leaves Escape and arrows to an open feedback dialog, then restores viewer shortcuts on close', async () => {
+    detailData = makeLibraryAssetDetail({ asset_ref: 'output:abc', media: makeMediaObject() });
+    const onnavigate = vi.fn();
+    renderSheet({ assetRef: 'output:abc', onnavigate, hasNext: true });
+
+    feedbackDialog.open();
+    await fireEvent.keyDown(window, { key: 'Escape' });
+    await fireEvent.keyDown(window, { key: 'ArrowRight' });
+    expect(oncloseMock).not.toHaveBeenCalled();
+    expect(onnavigate).not.toHaveBeenCalled();
+
+    feedbackDialog.close();
+    await fireEvent.keyDown(window, { key: 'Escape' });
+    await fireEvent.keyDown(window, { key: 'ArrowRight' });
+    expect(oncloseMock).toHaveBeenCalledOnce();
+    expect(onnavigate).toHaveBeenCalledWith('next');
   });
 });
 

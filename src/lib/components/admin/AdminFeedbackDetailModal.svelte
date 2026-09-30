@@ -6,12 +6,20 @@
   import { ApiRequestError } from '$lib/api/errors';
   import {
     adminFeedbackDetailQueryOptions,
+    feedbackKeys,
     patchAdminFeedbackMutationOptions,
   } from '$lib/queries/feedback';
   import { legalReacceptanceRequired } from '$lib/stores/legal';
   import { createDialogController } from '$lib/components/shared/dialogController.svelte';
   import StatusBadge from '$lib/components/shared/StatusBadge.svelte';
-  import { resolveFeedbackAssetUrl } from '$lib/utils/feedback';
+  import {
+    codePointLength,
+    feedbackCategoryLabel,
+    feedbackStatusLabel,
+    FEEDBACK_ADMIN_NOTE_MAX_CODE_POINTS,
+    FEEDBACK_STATUS_COLORS,
+    resolveFeedbackAssetUrl,
+  } from '$lib/utils/feedback';
   import * as m from '$paraglide/messages';
 
   interface Props {
@@ -20,12 +28,6 @@
   }
   let { reportId, onclose }: Props = $props();
 
-  const colors: Record<string, string> = {
-    open: 'warning',
-    in_progress: 'accent',
-    resolved: 'success',
-    dismissed: 'muted',
-  };
   const queryClient = useQueryClient();
   const detailQuery = createQuery(() => adminFeedbackDetailQueryOptions(reportId));
   const mutation = createMutation(() => patchAdminFeedbackMutationOptions(queryClient));
@@ -33,49 +35,39 @@
   const assetHref = $derived(resolveFeedbackAssetUrl(report?.asset_url));
   let note = $state('');
   let initializedFor = $state<string | null>(null);
+  let pendingTerminal = $state<'resolved' | 'dismissed' | null>(null);
   let error = $state('');
   let notice = $state('');
 
   const controller = createDialogController({
     canClose: () => !mutation.isPending,
-    onClose: () => onclose(),
+    onClose: () => {
+      pendingTerminal = null;
+      onclose();
+    },
   });
   onMount(controller.open);
 
   $effect(() => {
-    if (report && initializedFor !== report.id) {
-      note = report.admin_note ?? '';
-      initializedFor = report.id;
-    }
+    const currentReportId = report?.id ?? null;
+    if (initializedFor === currentReportId) return;
+    initializedFor = currentReportId;
+    pendingTerminal = null;
+    if (report) note = report.admin_note ?? '';
   });
 
   // Admin PATCH is legal-enforced. Give the existing blocker the top layer instead of leaving
   // this modal in front of it; the admin can reopen manually after completing re-acceptance.
   $effect(() => {
-    if ($legalReacceptanceRequired) onclose();
+    if ($legalReacceptanceRequired) {
+      pendingTerminal = null;
+      onclose();
+    }
   });
 
-  const noteInvalid = $derived(note.length > 4000 || note.includes('\u0000'));
-
-  function statusLabel(status: FeedbackStatus): string {
-    if (status === 'in_progress') return m.feedback_status_in_progress();
-    if (status === 'resolved') return m.feedback_status_resolved();
-    if (status === 'dismissed') return m.feedback_status_dismissed();
-    return m.feedback_status_open();
-  }
-
-  function categoryLabel(): string {
-    if (!report) return '';
-    const labels = {
-      bug: m.feedback_category_bug,
-      generation: m.feedback_category_generation,
-      billing: m.feedback_category_billing,
-      account: m.feedback_category_account,
-      content: m.feedback_category_content,
-      other: m.feedback_category_other,
-    };
-    return labels[report.category]();
-  }
+  const noteInvalid = $derived(
+    codePointLength(note) > FEEDBACK_ADMIN_NOTE_MAX_CODE_POINTS || note.includes('\u0000'),
+  );
 
   function formatDate(value: string | null): string {
     return value ? new Date(value).toLocaleString() : '—';
@@ -110,13 +102,26 @@
         caught.error === 'invalid_status_transition'
       ) {
         notice = m.feedback_admin_concurrent_update();
-        await queryClient.invalidateQueries({ queryKey: ['feedback', 'admin', 'list'] });
+        pendingTerminal = null;
+        await queryClient.invalidateQueries({ queryKey: feedbackKeys.adminLists });
         await detailQuery.refetch();
         return;
       }
       if (!(caught instanceof ApiRequestError && caught.status_code === 428))
         error = m.feedback_admin_update_error();
     }
+  }
+
+  function requestStatusTransition(status: 'in_progress' | 'resolved' | 'dismissed'): void {
+    if (status === 'in_progress') {
+      void updateStatus(status);
+      return;
+    }
+    pendingTerminal = status;
+  }
+
+  function confirmTerminalTransition(): void {
+    if (pendingTerminal) void updateStatus(pendingTerminal);
   }
 </script>
 
@@ -143,9 +148,10 @@
       <p class="error" role="alert">{m.feedback_admin_load_error()}</p>
     {:else}
       <div class="badges">
-        <StatusBadge status={statusLabel(report.status)} colorMap={colors} /><span
-          >{categoryLabel()}</span
-        >
+        <StatusBadge
+          status={feedbackStatusLabel(report.status)}
+          color={FEEDBACK_STATUS_COLORS[report.status]}
+        /><span>{feedbackCategoryLabel(report.category)}</span>
       </div>
       <section>
         <h3>{m.feedback_admin_message()}</h3>
@@ -220,22 +226,45 @@
       {#if report.status === 'open' || report.status === 'in_progress'}
         <section class="transitions">
           <h3>{m.feedback_admin_status_actions()}</h3>
-          {#if report.status === 'open'}<button
+          {#if pendingTerminal}
+            <p class="terminal-confirmation">
+              {pendingTerminal === 'resolved'
+                ? m.feedback_admin_confirm_resolve()
+                : m.feedback_admin_confirm_dismiss()}
+            </p>
+            <div class="confirmation-actions">
+              <button
+                type="button"
+                class:danger={pendingTerminal === 'dismissed'}
+                class="secondary"
+                onclick={confirmTerminalTransition}
+                disabled={mutation.isPending}>{m.feedback_admin_confirm()}</button
+              >
+              <button
+                type="button"
+                class="secondary"
+                onclick={() => (pendingTerminal = null)}
+                disabled={mutation.isPending}>{m.common_cancel()}</button
+              >
+            </div>
+          {:else}
+            {#if report.status === 'open'}<button
+                type="button"
+                class="secondary"
+                onclick={() => requestStatusTransition('in_progress')}
+                disabled={mutation.isPending}>{m.feedback_admin_mark_in_progress()}</button
+              >{/if}<button
               type="button"
               class="secondary"
-              onclick={() => updateStatus('in_progress')}
-              disabled={mutation.isPending}>{m.feedback_admin_mark_in_progress()}</button
-            >{/if}<button
-            type="button"
-            class="secondary"
-            onclick={() => updateStatus('resolved')}
-            disabled={mutation.isPending}>{m.feedback_admin_resolve()}</button
-          ><button
-            type="button"
-            class="danger"
-            onclick={() => updateStatus('dismissed')}
-            disabled={mutation.isPending}>{m.feedback_admin_dismiss()}</button
-          >
+              onclick={() => requestStatusTransition('resolved')}
+              disabled={mutation.isPending}>{m.feedback_admin_resolve()}</button
+            ><button
+              type="button"
+              class="danger"
+              onclick={() => requestStatusTransition('dismissed')}
+              disabled={mutation.isPending}>{m.feedback_admin_dismiss()}</button
+            >
+          {/if}
         </section>
       {/if}
       {#if notice}<p class="notice" role="status">{notice}</p>{/if}
@@ -302,7 +331,8 @@
     background: var(--apex-surface-hover);
   }
   .badges,
-  .transitions {
+  .transitions,
+  .confirmation-actions {
     align-items: center;
     display: flex;
     flex-wrap: wrap;
@@ -314,6 +344,10 @@
   .badges span {
     color: var(--apex-text-muted);
     font-size: 0.82rem;
+  }
+  .terminal-confirmation {
+    color: var(--apex-text-muted);
+    font-size: 0.84rem;
   }
   section {
     display: flex;
