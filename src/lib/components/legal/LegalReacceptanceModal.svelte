@@ -13,6 +13,7 @@
   import LegalAcceptanceFields from '$lib/components/legal/LegalAcceptanceFields.svelte';
   import DeleteAccountModal from '$lib/components/profile/DeleteAccountModal.svelte';
   import * as m from '$paraglide/messages';
+  import { openFeedbackDialog } from '$lib/stores/feedbackDialog.svelte';
 
   type Completion = 'idle' | 'refreshing' | 'failed';
   type RefreshFailureReason = Extract<SilentRefreshResult, { ok: false }>['reason'];
@@ -279,6 +280,13 @@
       {/if}
 
       <div class="secondary-actions">
+        <button
+          type="button"
+          class="secondary-btn"
+          onclick={() => openFeedbackDialog({ initialCategory: 'account' })}
+        >
+          {m.feedback_title()}
+        </button>
         <button type="button" class="secondary-btn" onclick={handleLogout}
           >{m.profile_logout()}</button
         >

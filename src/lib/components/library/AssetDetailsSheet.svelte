@@ -13,6 +13,7 @@
     Video,
     Maximize2,
     Minimize2,
+    MessageSquareWarning,
   } from '@lucide/svelte';
   import {
     libraryAssetQueryOptions,
@@ -54,6 +55,7 @@
   import { addToast } from '$lib/stores/toasts';
   import * as m from '$paraglide/messages';
   import type { components } from '$lib/api/types';
+  import { openFeedbackDialog } from '$lib/stores/feedbackDialog.svelte';
 
   type LibraryGroupDetail = components['schemas']['LibraryGroupDetail'];
   type LibraryOutputItem = components['schemas']['LibraryOutputItem'];
@@ -533,6 +535,19 @@
       <!-- Action buttons -->
       {#if providersReady}
         <div class="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onclick={() =>
+              openFeedbackDialog({
+                assetRef: selectedAssetRef,
+                ...(detail.job_id ? { jobId: detail.job_id } : {}),
+                initialCategory: 'generation',
+              })}
+            class="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-semibold text-text-muted transition-colors hover:bg-surface-hover hover:text-text"
+          >
+            <MessageSquareWarning size={14} aria-hidden="true" />
+            {m.feedback_report_problem()}
+          </button>
           {#if detail.available_actions.includes('favorite')}
             <button
               onclick={toggleFavorite}

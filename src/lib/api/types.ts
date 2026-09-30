@@ -1136,6 +1136,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/feedback/{report_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetReport */
+        get: operations["V1AdminFeedbackReportIdGetReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** UpdateReport */
+        patch: operations["V1AdminFeedbackReportIdUpdateReport"];
+        trace?: never;
+    };
+    "/v1/admin/feedback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListReports */
+        get: operations["V1AdminFeedbackListReports"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/payments/currencies": {
         parameters: {
             query?: never;
@@ -1895,6 +1930,23 @@ export interface paths {
         patch: operations["V1LibraryTagsTagIdPatchTag"];
         trace?: never;
     };
+    "/v1/content/feedback/{report_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ProxyFeedbackAsset */
+        get: operations["V1ContentFeedbackReportIdProxyFeedbackAsset"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/content/outputs/{output_id}": {
         parameters: {
             query?: never;
@@ -2026,6 +2078,23 @@ export interface paths {
         get: operations["V1LegalStatusGetStatus"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/feedback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Submit */
+        post: operations["V1FeedbackSubmit"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2314,6 +2383,13 @@ export interface components {
             has_more: boolean;
             next_cursor?: string | null;
         };
+        /** CursorPage[FeedbackReportAdmin] */
+        "CursorPage_src.api.schemas.feedback.FeedbackReportAdmin_": {
+            items: components["schemas"]["FeedbackReportAdmin"][];
+            limit: number;
+            has_more: boolean;
+            next_cursor?: string | null;
+        };
         /** CursorPage[UnifiedJobResponse] */
         "CursorPage_src.api.schemas.jobs.UnifiedJobResponse_": {
             items: components["schemas"]["UnifiedJobResponse"][];
@@ -2421,6 +2497,66 @@ export interface components {
             upload_id: string;
             media: components["schemas"]["MediaObject"];
         };
+        /** FeedbackAdminPatch */
+        FeedbackAdminPatch: {
+            status?: components["schemas"]["FeedbackStatus"];
+            admin_note?: string | null;
+        };
+        /**
+         * FeedbackCategory
+         * @description What an in-product problem report is about (chosen by the user).
+         * @enum {string}
+         */
+        FeedbackCategory: "bug" | "generation" | "billing" | "account" | "content" | "other";
+        /** FeedbackCreate */
+        FeedbackCreate: {
+            category: components["schemas"]["FeedbackCategory"];
+            message: string;
+            job_id?: string | null;
+            asset_ref?: string | null;
+            client_path?: string | null;
+            app_version?: string | null;
+        };
+        /** FeedbackCreated */
+        FeedbackCreated: {
+            /** Format: uuid */
+            id: string;
+            status: components["schemas"]["FeedbackStatus"];
+            /** Format: date-time */
+            created_at: string;
+        };
+        /** FeedbackReportAdmin */
+        FeedbackReportAdmin: {
+            /** Format: uuid */
+            id: string;
+            category: components["schemas"]["FeedbackCategory"];
+            status: components["schemas"]["FeedbackStatus"];
+            message: string;
+            user_id: string | null;
+            user_email: string | null;
+            job_id: string | null;
+            asset_ref: string | null;
+            asset_url: string | null;
+            client_path: string | null;
+            app_version: string | null;
+            user_agent: string | null;
+            admin_note: string | null;
+            resolved_at: string | null;
+            resolved_by: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        /**
+         * FeedbackStatus
+         * @description Triage lifecycle of a problem report: ``open → in_progress → resolved | dismissed``.
+         *
+         *     Terminal states are terminal-once (no reopen). Self-transitions are not
+         *     allowed — a PATCH to the current status is a conflict, not a no-op.
+         * @enum {string}
+         */
+        FeedbackStatus: "open" | "in_progress" | "resolved" | "dismissed";
         /** ForgotPasswordRequest */
         ForgotPasswordRequest: {
             email: string;
@@ -6204,6 +6340,151 @@ export interface operations {
             };
         };
     };
+    V1AdminFeedbackReportIdGetReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                report_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedbackReportAdmin"] | components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+            /** @description No such report in this product. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1AdminFeedbackReportIdUpdateReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                report_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeedbackAdminPatch"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedbackReportAdmin"] | components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+            /** @description No such report in this product. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Status transition not allowed (terminal status, or same as current). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1AdminFeedbackListReports: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["FeedbackStatus"] | null;
+                category?: components["schemas"]["FeedbackCategory"] | null;
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CursorPage_src.api.schemas.feedback.FeedbackReportAdmin_"] | components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
     V1AdminPaymentsCurrenciesListCurrencies: {
         parameters: {
             query?: never;
@@ -8352,6 +8633,43 @@ export interface operations {
             };
         };
     };
+    V1ContentFeedbackReportIdProxyFeedbackAsset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                report_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
     V1ContentOutputsOutputIdProxyOutput: {
         parameters: {
             query?: never;
@@ -8637,6 +8955,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LegalStatusResponse"];
+                };
+            };
+        };
+    };
+    V1FeedbackSubmit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeedbackCreate"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedbackCreated"] | components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Invalid message (too short or too long after trimming, or NUL) or malformed asset_ref. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description job_id / asset_ref is missing or not owned by the caller. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Request body larger than 64 KiB. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
         };

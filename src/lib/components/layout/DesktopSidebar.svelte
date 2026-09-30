@@ -19,7 +19,9 @@
     ChevronLeft,
     ChevronRight,
     Scale,
+    MessageSquareWarning,
   } from '@lucide/svelte';
+  import { openFeedbackDialog } from '$lib/stores/feedbackDialog.svelte';
 
   const iconMap: Record<string, typeof Plus> = {
     plus: Plus,
@@ -131,6 +133,16 @@
         {/if}
       </a>
     {/if}
+    <button
+      type="button"
+      class="nav-item support-item"
+      class:collapsed={$sidebarCollapsed}
+      title={$sidebarCollapsed ? m.feedback_title() : undefined}
+      onclick={() => openFeedbackDialog()}
+    >
+      <span class="nav-icon"><MessageSquareWarning size={18} strokeWidth={1.75} /></span>
+      {#if !$sidebarCollapsed}<span class="nav-label">{m.feedback_title()}</span>{/if}
+    </button>
     {#if $hasLegalDocuments}
       <div class="legal-divider"></div>
       {#each legalItems as item (item.href)}
@@ -262,6 +274,15 @@
     position: relative;
     white-space: nowrap;
     overflow: hidden;
+  }
+
+  .support-item {
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    font-family: inherit;
+    text-align: left;
+    width: 100%;
   }
 
   .nav-item.collapsed {

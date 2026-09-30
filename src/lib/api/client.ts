@@ -81,6 +81,17 @@ function isRetryLive(metadata: RetryMetadata): boolean {
   return !metadata.signal.aborted && isRetrySessionCurrent(metadata);
 }
 
+/** Feedback attempts are rate-limited as a budget; retrying a 429 would spend it again. */
+function isFeedbackSubmission(request: Request): boolean {
+  if (request.method !== 'POST') return false;
+  try {
+    const pathname = new URL(request.url).pathname;
+    return pathname === '/v1/feedback' || pathname === '/v1/feedback/';
+  } catch {
+    return false;
+  }
+}
+
 /** Preserve the reason a logical request is no longer allowed to settle. */
 function assertRetryLive(metadata: RetryMetadata): void {
   if (!isRetrySessionCurrent(metadata)) throw new StaleSessionError();
@@ -150,6 +161,7 @@ const authMiddleware: Middleware = {
 
       // 429 — smart retry loop with exponential backoff / Retry-After
       if (response.status === 429) {
+        if (isFeedbackSubmission(request)) return await detectLegalRequired(response);
         let current = response;
         for (let attempt = 1; attempt <= MAX_RATE_LIMIT_RETRIES; attempt++) {
           assertRetryLive(metadata);

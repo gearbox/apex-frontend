@@ -24,6 +24,8 @@
   import LegalReacceptanceModal from '$lib/components/legal/LegalReacceptanceModal.svelte';
   import { currentLegalQueryOptions } from '$lib/queries/legal';
   import { legalReacceptanceRequired } from '$lib/stores/legal';
+  import { feedbackDialog } from '$lib/stores/feedbackDialog.svelte';
+  import FeedbackDialog from '$lib/components/feedback/FeedbackDialog.svelte';
 
   let { children }: { children: Snippet } = $props();
   let checking = $state(true);
@@ -150,6 +152,9 @@
   <ToastContainer />
   <InstallPromptSheet />
   <PushNudgeBanner />
+  {#if feedbackDialog.isOpen}
+    <FeedbackDialog />
+  {/if}
   {#if $legalReacceptanceRequired}
     <LegalReacceptanceModal />
   {/if}
