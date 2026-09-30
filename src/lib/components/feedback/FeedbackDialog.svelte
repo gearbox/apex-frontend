@@ -170,7 +170,9 @@
               bind:value={message}
               rows="7"
               disabled={mutation.isPending}
-              aria-describedby="feedback-message-help feedback-message-count"
+              aria-describedby={validation.validity !== 'valid' && message.length > 0
+                ? 'feedback-message-help feedback-message-count feedback-message-error'
+                : 'feedback-message-help feedback-message-count'}
               aria-invalid={validation.validity !== 'valid' && message.length > 0}></textarea>
           </label>
           <div class="message-help">
@@ -189,7 +191,9 @@
             >
           </div>
           {#if validation.validity !== 'valid' && message.length > 0}
-            <p class="field-error" role="alert">{validationMessage(validation.validity)}</p>
+            <p id="feedback-message-error" class="field-error" role="alert">
+              {validationMessage(validation.validity)}
+            </p>
           {/if}
 
           {#if context.jobId || context.assetRef}

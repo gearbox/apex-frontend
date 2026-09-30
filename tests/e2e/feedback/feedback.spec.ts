@@ -2,6 +2,48 @@ import { test, expect } from '../fixtures/auth.fixture';
 import { jsonRoute } from '../helpers/api';
 
 test.describe('In-product feedback', () => {
+  test(
+    'mobile More opens feedback with exclusive focus and remains usable after close',
+    { tag: '@mobile' },
+    async ({ authenticatedPage: page }) => {
+      let submitted: Record<string, unknown> | undefined;
+      await page.route('**/v1/feedback', async (route) => {
+        submitted = (await route.request().postDataJSON()) as Record<string, unknown>;
+        return route.fulfill({
+          status: 201,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            id: '55555555-5555-4555-8555-555555555555',
+            status: 'open',
+            created_at: '2026-09-30T12:00:00Z',
+          }),
+        });
+      });
+
+      await page.goto('/app/create');
+      const moreButton = page.getByRole('button', { name: 'More' });
+      await moreButton.click();
+      const moreSheet = page.getByRole('dialog', { name: 'More' });
+      await expect(moreSheet).toBeVisible();
+      await moreSheet.getByRole('button', { name: 'Report a problem' }).click();
+
+      await expect(moreSheet).toHaveCount(0);
+      const feedback = page.getByRole('dialog', { name: 'Report a problem' });
+      const message = feedback.getByLabel('What happened?');
+      await expect(message).toBeFocused();
+      await message.fill('The mobile report flow is working correctly.');
+      await feedback.getByRole('button', { name: 'Send report' }).click();
+      await expect(feedback.getByText('Thanks — we got your report.')).toBeVisible();
+      expect(submitted).toMatchObject({ message: 'The mobile report flow is working correctly.' });
+
+      await feedback.getByRole('button', { name: 'Close' }).click();
+      await expect(feedback).toHaveCount(0);
+      await expect(moreButton).toBeEnabled();
+      await moreButton.click();
+      await expect(page.getByRole('dialog', { name: 'More' })).toBeVisible();
+    },
+  );
+
   test('submits a trimmed, pathname-only report from the global entry point', async ({
     authenticatedPage: page,
   }) => {

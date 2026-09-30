@@ -34,6 +34,7 @@
   const report = $derived(detailQuery.data);
   const assetHref = $derived(resolveFeedbackAssetUrl(report?.asset_url));
   let note = $state('');
+  let baseNote = $state('');
   let initializedFor = $state<string | null>(null);
   let pendingTerminal = $state<'resolved' | 'dismissed' | null>(null);
   let error = $state('');
@@ -50,10 +51,22 @@
 
   $effect(() => {
     const currentReportId = report?.id ?? null;
-    if (initializedFor === currentReportId) return;
-    initializedFor = currentReportId;
-    pendingTerminal = null;
-    if (report) note = report.admin_note ?? '';
+    if (initializedFor !== currentReportId) {
+      initializedFor = currentReportId;
+      pendingTerminal = null;
+      if (report) {
+        baseNote = report.admin_note ?? '';
+        note = baseNote;
+      }
+      return;
+    }
+
+    if (report) {
+      const noteWasDirty = note !== baseNote;
+      const latestServerNote = report.admin_note ?? '';
+      baseNote = latestServerNote;
+      if (!noteWasDirty) note = latestServerNote;
+    }
   });
 
   // Admin PATCH is legal-enforced. Give the existing blocker the top layer instead of leaving
@@ -82,7 +95,8 @@
         reportId: report.id,
         body: { admin_note: note || null },
       });
-      note = updated.admin_note ?? '';
+      baseNote = updated.admin_note ?? '';
+      note = baseNote;
     } catch (caught) {
       if (!(caught instanceof ApiRequestError && caught.status_code === 428))
         error = m.feedback_admin_update_error();
@@ -101,10 +115,11 @@
         caught.status_code === 409 &&
         caught.error === 'invalid_status_transition'
       ) {
-        notice = m.feedback_admin_concurrent_update();
         pendingTerminal = null;
         await queryClient.invalidateQueries({ queryKey: feedbackKeys.adminLists });
-        await detailQuery.refetch();
+        const refreshed = await detailQuery.refetch();
+        if (refreshed.isSuccess) notice = m.feedback_admin_concurrent_update();
+        else error = m.feedback_admin_load_error();
         return;
       }
       if (!(caught instanceof ApiRequestError && caught.status_code === 428))
@@ -214,7 +229,9 @@
           bind:value={note}
           rows="4"
           disabled={mutation.isPending}
-          aria-invalid={noteInvalid}></textarea>{#if noteInvalid}<p class="error">
+          aria-invalid={noteInvalid}
+          aria-describedby={noteInvalid ? 'feedback-admin-note-error' : undefined}
+        ></textarea>{#if noteInvalid}<p id="feedback-admin-note-error" class="error">
             {m.feedback_admin_note_invalid()}
           </p>{/if}<button
           type="button"

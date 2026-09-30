@@ -109,6 +109,89 @@ describe('AdminFeedbackDetailModal', () => {
     expect(screen.getByRole('button', { name: 'Dismiss' })).toBeTruthy();
   });
 
+  it('updates a clean note when a status response brings a newer server note', async () => {
+    server.use(
+      http.get(`${BASE}/v1/admin/feedback/:report_id`, () =>
+        HttpResponse.json({ ...feedbackReportFixture, admin_note: 'old' }),
+      ),
+      http.patch(`${BASE}/v1/admin/feedback/:report_id`, () =>
+        HttpResponse.json({
+          ...feedbackReportFixture,
+          status: 'in_progress',
+          admin_note: 'new',
+        }),
+      ),
+    );
+    renderModal();
+
+    const note = (await screen.findByLabelText('Admin note')) as HTMLTextAreaElement;
+    expect(note.value).toBe('old');
+    await fireEvent.click(screen.getByRole('button', { name: 'Mark in progress' }));
+
+    await waitFor(() => expect(note.value).toBe('new'));
+  });
+
+  it('preserves a dirty note when a 409 refetch brings a newer server note', async () => {
+    let detailRequests = 0;
+    server.use(
+      http.get(`${BASE}/v1/admin/feedback/:report_id`, () => {
+        detailRequests += 1;
+        return HttpResponse.json({
+          ...feedbackReportFixture,
+          admin_note: detailRequests === 1 ? 'old' : 'another admin note',
+        });
+      }),
+      http.patch(`${BASE}/v1/admin/feedback/:report_id`, () =>
+        HttpResponse.json(
+          { error: 'invalid_status_transition', status_code: 409 },
+          { status: 409 },
+        ),
+      ),
+    );
+    renderModal();
+
+    const note = (await screen.findByLabelText('Admin note')) as HTMLTextAreaElement;
+    await fireEvent.input(note, { target: { value: 'my unsaved investigation' } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+
+    await screen.findByText(
+      'This report was updated by another admin. The latest status has been loaded.',
+    );
+    expect(note.value).toBe('my unsaved investigation');
+    expect(detailRequests).toBeGreaterThanOrEqual(2);
+  });
+
+  it('shows a load error instead of a successful-refresh notice when 409 refetch fails', async () => {
+    let detailRequests = 0;
+    server.use(
+      http.get(`${BASE}/v1/admin/feedback/:report_id`, () => {
+        detailRequests += 1;
+        return detailRequests === 1
+          ? HttpResponse.json(feedbackReportFixture)
+          : HttpResponse.json({ message: 'offline' }, { status: 503 });
+      }),
+      http.patch(`${BASE}/v1/admin/feedback/:report_id`, () =>
+        HttpResponse.json(
+          { error: 'invalid_status_transition', status_code: 409 },
+          { status: 409 },
+        ),
+      ),
+    );
+    renderModal();
+
+    await fireEvent.click(await screen.findByRole('button', { name: 'Dismiss' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+
+    expect(await screen.findByText("Couldn't load feedback.")).toBeTruthy();
+    expect(
+      screen.queryByText(
+        'This report was updated by another admin. The latest status has been loaded.',
+      ),
+    ).toBeNull();
+    expect(detailRequests).toBeGreaterThanOrEqual(2);
+  });
+
   it('uses code points for the note limit and rejects a NUL', async () => {
     renderModal();
     const note = await screen.findByLabelText('Admin note');
@@ -118,8 +201,11 @@ describe('AdminFeedbackDetailModal', () => {
     expect(save.disabled).toBe(false);
     await fireEvent.input(note, { target: { value: '😀'.repeat(4001) } });
     expect(save.disabled).toBe(true);
+    expect(note.getAttribute('aria-describedby')).toBe('feedback-admin-note-error');
+    expect(note.getAttribute('aria-invalid')).toBe('true');
     await fireEvent.input(note, { target: { value: 'valid note\u0000' } });
     expect(save.disabled).toBe(true);
+    expect(note.getAttribute('aria-describedby')).toBe('feedback-admin-note-error');
   });
 
   it('renders only the validated feedback asset link with safe new-tab attributes', async () => {
@@ -129,6 +215,34 @@ describe('AdminFeedbackDetailModal', () => {
     expect(link.getAttribute('target')).toBe('_blank');
     expect(link.getAttribute('rel')).toBe('noopener noreferrer');
     expect(container.querySelectorAll('.asset-link')).toHaveLength(1);
+  });
+
+  it('renders report metadata as literal text without parsing HTML or Markdown', async () => {
+    const untrusted =
+      '<script>window.__feedback_xss = true</script> <img src=x onerror="window.__feedback_xss = true"> **markdown**';
+    server.use(
+      http.get(`${BASE}/v1/admin/feedback/:report_id`, () =>
+        HttpResponse.json({
+          ...feedbackReportFixture,
+          message: untrusted,
+          admin_note: untrusted,
+          client_path: untrusted,
+          user_agent: untrusted,
+        }),
+      ),
+    );
+    const { container } = renderModal();
+
+    const message = await screen.findByText(untrusted, { selector: 'p' });
+    expect(message.textContent).toBe(untrusted);
+    expect((screen.getByLabelText('Admin note') as HTMLTextAreaElement).value).toBe(untrusted);
+    const untrustedMetadata = Array.from(
+      container.querySelectorAll<HTMLElement>('p.untrusted, dd.untrusted'),
+    );
+    expect(untrustedMetadata).toHaveLength(3);
+    expect(untrustedMetadata.every((field) => field.textContent === untrusted)).toBe(true);
+    expect(container.querySelectorAll('script, img')).toHaveLength(0);
+    expect(container.textContent).toContain('**markdown**');
   });
 
   it.each([null, '/v1/content/outputs/11111111-1111-4111-8111-111111111111'])(

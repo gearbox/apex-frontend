@@ -141,4 +141,27 @@ describe('FeedbackDialog', () => {
     await fireEvent.input(textarea, { target: { value: '😀'.repeat(4001) } });
     expect(submit.disabled).toBe(true);
   });
+
+  it('associates the inline validation error with the message field only while it is shown', async () => {
+    renderDialog();
+    const textarea = screen.getByLabelText('What happened?');
+
+    await fireEvent.input(textarea, { target: { value: 'Too short' } });
+
+    expect(screen.getByText('Please enter at least 10 characters.')).toBeTruthy();
+    expect(textarea.getAttribute('aria-invalid')).toBe('true');
+    expect(textarea.getAttribute('aria-describedby')?.split(' ')).toEqual([
+      'feedback-message-help',
+      'feedback-message-count',
+      'feedback-message-error',
+    ]);
+
+    await fireEvent.input(textarea, { target: { value: validMessage } });
+
+    expect(screen.queryByText('Please enter at least 10 characters.')).toBeNull();
+    expect(textarea.getAttribute('aria-describedby')?.split(' ')).toEqual([
+      'feedback-message-help',
+      'feedback-message-count',
+    ]);
+  });
 });

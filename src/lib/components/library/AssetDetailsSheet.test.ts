@@ -271,6 +271,33 @@ describe('AssetDetailsSheet — unified variation selection', () => {
 
     expect(container.querySelectorAll('video')).toHaveLength(1);
   });
+
+  it('reports the currently selected variation and its detail job ID', async () => {
+    detailData = makeLibraryAssetDetail({
+      asset_ref: 'output:c',
+      display_title: 'Variation C',
+      job_id: 'job-group',
+      output_count: 3,
+    });
+    groupData = makeLibraryGroupDetail({
+      job_id: 'job-group',
+      outputs: [
+        makeLibraryOutputItem({ id: 'a', asset_ref: 'output:a', media: makeMediaObject() }),
+        makeLibraryOutputItem({ id: 'b', asset_ref: 'output:b', media: makeMediaObject() }),
+        makeLibraryOutputItem({ id: 'c', asset_ref: 'output:c', media: makeMediaObject() }),
+      ],
+    });
+    renderSheet({ assetRef: 'output:b', jobIdHint: 'job-group' });
+
+    await fireEvent.click(await screen.findByRole('button', { name: 'Variation 3 of 3' }));
+    await fireEvent.click(await screen.findByRole('button', { name: 'Report problem' }));
+
+    expect(feedbackDialog.context).toEqual({
+      assetRef: 'output:c',
+      jobId: 'job-group',
+      initialCategory: 'generation',
+    });
+  });
 });
 
 describe('AssetDetailsSheet — video stage', () => {
