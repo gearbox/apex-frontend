@@ -1,11 +1,11 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { goto } from '$app/navigation';
+  import { goto, replaceState } from '$app/navigation';
   import { page } from '$app/stores';
   import { login, AuthError, AuthOperationCancelledError } from '$lib/api/auth';
   import OAuthProviderButtons from '$lib/components/auth/OAuthProviderButtons.svelte';
   import { consumeAuthFailureReason, type AuthFailureReason } from '$lib/stores/auth';
-  import { productInfo } from '$lib/stores/product';
+  import { appDisplayName, productInfo } from '$lib/stores/product';
   import { rateLimitFor } from '$lib/stores/rateLimit';
   import { locale } from '$lib/stores/locale';
   import { updateUserLocale } from '$lib/api/user';
@@ -20,9 +20,18 @@
   // `invalid_token` / `network` stay silent (the ordinary "session ended elsewhere" case) —
   // only a genuine security event gets a banner here (B2).
   let sessionEndReason = $state<AuthFailureReason | null>(null);
+  let resetDone = $state(false);
 
   onMount(() => {
-    sessionEndReason = consumeAuthFailureReason();
+    resetDone = $page.url.searchParams.get('reset') === 'done';
+    const reason = consumeAuthFailureReason();
+    sessionEndReason = resetDone ? null : reason;
+    if ($page.url.searchParams.has('reset')) {
+      const url = new URL($page.url);
+      url.searchParams.delete('reset');
+      const state = $page.state;
+      queueMicrotask(() => replaceState(url, state));
+    }
   });
 
   const loginRateLimit = rateLimitFor('/v1/auth/login');
@@ -59,16 +68,23 @@
 </script>
 
 <svelte:head>
-  <title>Login — Vex.pics</title>
+  <title>Login — {$appDisplayName}</title>
 </svelte:head>
 
 <div class="mx-auto w-full max-w-sm">
   <div class="mb-8 text-center">
-    <h1 class="text-2xl font-bold text-accent">Vex.pics</h1>
+    <h1 class="text-2xl font-bold text-accent">{$appDisplayName}</h1>
     <p class="mt-2 text-sm text-text-muted">{m.auth_login_subtitle()}</p>
   </div>
 
-  {#if sessionEndReason === 'token_reuse_detected'}
+  {#if resetDone}
+    <div
+      role="status"
+      class="mb-4 rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm text-success"
+    >
+      {m.auth_reset_done()}
+    </div>
+  {:else if sessionEndReason === 'token_reuse_detected'}
     <div class="mb-4 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
       <p class="font-semibold">{m.auth_security_notice_title()}</p>
       <p>{m.auth_security_notice_message()}</p>

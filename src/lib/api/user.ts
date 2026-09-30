@@ -9,6 +9,31 @@ export type DeleteAccountResponse = components['schemas']['DeleteAccountResponse
 export type MessageResponse = components['schemas']['MessageResponse'];
 export type ChangePasswordRequest = components['schemas']['ChangePasswordRequest'];
 
+export async function fetchCurrentUserProfile(): Promise<UserProfile> {
+  const { data, error, response } = (await apiClient.GET('/v1/users/me')) as unknown as {
+    data?: UserProfile;
+    error?: unknown;
+    response: Response;
+  };
+  if (error || !data)
+    throwApiError(error, 'Failed to fetch profile', response.status, response.headers);
+  return data as UserProfile;
+}
+
+export async function resendVerificationEmail(): Promise<MessageResponse> {
+  const { data, error, response } = (await apiClient.POST(
+    '/v1/auth/resend-verification',
+  )) as unknown as {
+    data?: MessageResponse;
+    error?: unknown;
+    response: Response;
+  };
+  if (error || !data) {
+    throwApiError(error, 'Failed to resend verification email', response.status, response.headers);
+  }
+  return data;
+}
+
 export async function fetchUserStats(): Promise<UserStatsResponse> {
   const { data, error } = await apiClient.GET('/v1/users/me/stats');
   if (error || !data) throwApiError(error, 'Failed to fetch user stats');

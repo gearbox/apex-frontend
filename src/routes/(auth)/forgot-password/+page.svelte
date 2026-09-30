@@ -1,5 +1,6 @@
 <script lang="ts">
   import { forgotPassword, AuthError } from '$lib/api/auth';
+  import { appDisplayName } from '$lib/stores/product';
   import * as m from '$paraglide/messages';
 
   let email = $state('');
@@ -16,7 +17,12 @@
       await forgotPassword(email);
       sent = true;
     } catch (err) {
-      error = err instanceof AuthError ? err.message : m.error_generic();
+      error =
+        err instanceof AuthError && err.status === 429
+          ? m.error_rate_limited()
+          : err instanceof AuthError
+            ? err.message
+            : m.error_generic();
     } finally {
       loading = false;
     }
@@ -24,12 +30,12 @@
 </script>
 
 <svelte:head>
-  <title>Forgot Password — Vex.pics</title>
+  <title>{m.auth_forgot_title()} — {$appDisplayName}</title>
 </svelte:head>
 
 <div class="mx-auto w-full max-w-sm">
   <div class="mb-8 text-center">
-    <h1 class="text-2xl font-bold text-accent">Vex.pics</h1>
+    <h1 class="text-2xl font-bold text-accent">{$appDisplayName}</h1>
     <p class="mt-2 text-sm text-text-muted">{m.auth_forgot_subtitle()}</p>
   </div>
 

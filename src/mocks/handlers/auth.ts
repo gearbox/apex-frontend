@@ -48,6 +48,10 @@ export const authHandlers = [
   http.post(`${BASE}/v1/auth/verify-email`, () =>
     HttpResponse.json({ message: 'Email verified successfully' }),
   ),
+
+  http.post(`${BASE}/v1/auth/resend-verification`, () =>
+    HttpResponse.json({ message: 'Verification email sent' }),
+  ),
 ];
 
 /** Override for simulating a 401 from refresh — the benign, silent "session ended elsewhere" case. */

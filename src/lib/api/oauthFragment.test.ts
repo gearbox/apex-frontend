@@ -40,6 +40,7 @@ describe('parseOAuthFragment', () => {
     '#result=login',
     '#result=signup',
     '#result=error&error=unknown',
+    '#result=error&error=account_exists_' + 'unverified',
   ])('rejects malformed fragment %s', (hash) => {
     expect(parseOAuthFragment(hash)).toEqual({ result: 'invalid' });
   });

@@ -3753,10 +3753,10 @@ export interface components {
             /** Format: date-time */
             updated_at: string;
             age_verified: boolean;
+            email_verified: boolean;
+            has_password: boolean;
             age_verified_at?: string | null;
             date_of_birth?: string | null;
-            /** @default true */
-            has_password: boolean;
         };
         /**
          * UserRole

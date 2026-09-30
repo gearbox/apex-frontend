@@ -14,7 +14,6 @@ export type OAuthErrorCode =
   | 'oauth_failed'
   | 'flow_expired'
   | 'email_unverified'
-  | 'account_exists_unverified'
   | 'account_inactive'
   | 'identity_conflict'
   | 'invalid_handoff'

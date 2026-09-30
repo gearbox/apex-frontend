@@ -1,7 +1,8 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { createMutation } from '@tanstack/svelte-query';
-  import { logout } from '$lib/api/auth';
+  import { logout, AuthError } from '$lib/api/auth';
   import { appDisplayName } from '$lib/stores/product';
   import ProfileFields from '$lib/components/profile/ProfileFields.svelte';
   import ThemeSelector from '$lib/components/profile/ThemeSelector.svelte';
@@ -18,8 +19,11 @@
   import { appIsDirty } from '$lib/services/appDirty';
   import { APP_VERSION, BUILD_SHA } from '$lib/utils/appVersion';
   import { addToast } from '$lib/stores/toasts';
-  import { currentUser } from '$lib/stores/auth';
-  import { setPasswordMutationOptions } from '$lib/queries/user';
+  import { currentUser, getCurrentUser, setUser } from '$lib/stores/auth';
+  import { fetchCurrentUserProfile } from '$lib/api/user';
+  import { isRequestCancellation } from '$lib/api/client';
+  import { ApiRequestError } from '$lib/api/errors';
+  import { resendVerificationMutationOptions, setPasswordMutationOptions } from '$lib/queries/user';
   import * as m from '$paraglide/messages';
 
   let loggingOut = $state(false);
@@ -29,7 +33,58 @@
   let checkingForUpdate = $state(false);
   let setPasswordNotice = $state('');
   let setPasswordError = $state('');
+  let verificationNotice = $state('');
+  let verificationError = $state('');
+  let refreshFlight: Promise<void> | null = null;
   const setPasswordMutation = createMutation(() => setPasswordMutationOptions());
+  const resendMutation = createMutation(() => resendVerificationMutationOptions());
+
+  async function refreshProfile(): Promise<void> {
+    const userId = getCurrentUser()?.id;
+    if (!userId) return;
+    if (refreshFlight) return refreshFlight;
+    refreshFlight = (async () => {
+      const profile = await fetchCurrentUserProfile();
+      if (getCurrentUser()?.id === userId) {
+        setUser(profile);
+        if (profile.email_verified) verificationNotice = '';
+      }
+    })();
+    try {
+      await refreshFlight;
+    } finally {
+      refreshFlight = null;
+    }
+  }
+
+  onMount(() => {
+    const onFocus = () => {
+      if (getCurrentUser()?.email_verified === false) {
+        void refreshProfile().catch(() => undefined);
+      }
+    };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  });
+
+  async function handleResendVerification(): Promise<void> {
+    if (!$currentUser || resendMutation.isPending) return;
+    verificationNotice = '';
+    verificationError = '';
+    try {
+      await resendMutation.mutateAsync();
+      await refreshProfile();
+      if (getCurrentUser()?.email_verified === false) {
+        verificationNotice = m.profile_verification_sent({ email: getCurrentUser()!.email });
+      }
+    } catch (err) {
+      if (isRequestCancellation(err)) return;
+      verificationError =
+        err instanceof ApiRequestError && err.status_code === 429
+          ? m.error_rate_limited()
+          : m.error_generic();
+    }
+  }
 
   let appTitle = $derived($appDisplayName);
 
@@ -79,8 +134,9 @@
     try {
       await setPasswordMutation.mutateAsync($currentUser.email);
       setPasswordNotice = m.profile_set_password_sent();
-    } catch {
-      setPasswordError = m.error_generic();
+    } catch (err) {
+      setPasswordError =
+        err instanceof AuthError && err.status === 429 ? m.error_rate_limited() : m.error_generic();
     }
   }
 </script>
@@ -91,6 +147,29 @@
 
 <div class="profile-page">
   <ProfileFields />
+
+  {#if $currentUser}
+    <div class="verification-row">
+      {#if $currentUser.email_verified}
+        <span class="verification-badge">{m.profile_email_verified()}</span>
+      {:else}
+        <span>{m.profile_email_not_verified()}</span>
+        <button
+          class="action-btn"
+          onclick={handleResendVerification}
+          disabled={resendMutation.isPending}
+        >
+          {resendMutation.isPending ? m.auth_forgot_sending() : m.auth_verify_resend()}
+        </button>
+      {/if}
+      {#if verificationNotice}<p class="action-notice success" role="status">
+          {verificationNotice}
+        </p>{/if}
+      {#if verificationError}<p class="action-notice error" role="alert">
+          {verificationError}
+        </p>{/if}
+    </div>
+  {/if}
 
   <UserStats />
 
@@ -180,6 +259,20 @@
 {/if}
 
 <style>
+  .verification-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 12px 0 20px;
+    font-size: 13px;
+  }
+  .verification-badge {
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--apex-success) 12%, transparent);
+    color: var(--apex-success);
+    padding: 4px 10px;
+  }
   .profile-page {
     max-width: 520px;
     padding: 16px;

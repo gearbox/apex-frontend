@@ -3,6 +3,7 @@ import {
   changePassword,
   logoutAllDevices,
   deleteAccount,
+  resendVerificationEmail,
   type ChangePasswordRequest,
 } from '$lib/api/user';
 import { forgotPassword } from '$lib/api/auth';
@@ -31,6 +32,10 @@ export function setPasswordMutationOptions() {
   return {
     mutationFn: (email: string) => forgotPassword(email),
   };
+}
+
+export function resendVerificationMutationOptions() {
+  return { mutationFn: resendVerificationEmail };
 }
 
 export function logoutAllMutationOptions() {

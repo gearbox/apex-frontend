@@ -15,7 +15,6 @@ describe('OAuthErrorPanel', () => {
     ['oauth_failed', /couldn't complete sign-in/i, 'Try again'],
     ['flow_expired', /sign-in session expired/i, 'Try again'],
     ['email_unverified', /email address isn't verified/i, 'Sign up with email'],
-    ['account_exists_unverified', /email hasn't been verified/i, 'Sign in with password'],
     ['account_inactive', /account has been deactivated/i, 'Back to sign in'],
     ['identity_conflict', /already linked to a different/i, 'Try again'],
     ['invalid_handoff', /sign-in link has expired/i, 'Try again'],
