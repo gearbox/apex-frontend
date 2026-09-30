@@ -23,12 +23,12 @@ export function createSignupLegalForm() {
   });
 
   const currentLegal = $derived(currentLegalQuery.data ?? []);
-  const loading = $derived(
-    currentLegalQuery.isPending || currentLegalQuery.isFetching || !exactDocuments.ready,
-  );
+  // Keep a completed, exact document set usable while TanStack Query refreshes `/current` in the
+  // background. A stale submission is rejected by the API and handled by refresh(), whereas
+  // treating every refresh as an initial load can leave the form permanently disabled.
+  const loading = $derived(currentLegalQuery.isPending || !exactDocuments.ready);
   const canSubmit = $derived(
     !currentLegalQuery.isPending &&
-      !currentLegalQuery.isFetching &&
       !currentLegalQuery.isError &&
       !exactDocuments.error &&
       exactDocuments.ready &&

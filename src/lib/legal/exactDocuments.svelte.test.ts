@@ -136,6 +136,33 @@ describe('createExactDocuments', () => {
     expect(exact().ready).toBe(true);
   });
 
+  it('recovers when /current briefly has no payload before republishing the same documents', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    let bodyRequests = 0;
+    server.use(
+      http.get(`${BASE}/v1/legal/documents/:docType`, async ({ params, request }) => {
+        bodyRequests += 1;
+        await gate;
+        const version = new URL(request.url).searchParams.get('version') ?? '';
+        return HttpResponse.json(documentBody(params.docType as string, version));
+      }),
+    );
+    const documents = [meta('terms')];
+    const { exact, state } = setup(documents);
+    await expect.poll(() => bodyRequests).toBe(1);
+
+    state.current = undefined;
+    flushSync();
+    release();
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    expect(exact().ready).toBe(false);
+
+    state.current = documents;
+    flushSync();
+    await expect.poll(() => exact().ready).toBe(true);
+  });
+
   it('never flips ready for a payload that a newer /current superseded', async () => {
     let releaseOld!: () => void;
     const oldGate = new Promise<void>((resolve) => (releaseOld = resolve));
