@@ -8,30 +8,37 @@ export type UserStatsResponse = components['schemas']['UserStatsResponse'];
 export type DeleteAccountResponse = components['schemas']['DeleteAccountResponse'];
 export type MessageResponse = components['schemas']['MessageResponse'];
 export type ChangePasswordRequest = components['schemas']['ChangePasswordRequest'];
+export type UserProfileResponse = components['schemas']['UserProfileResponse'];
 
-export async function fetchCurrentUserProfile(): Promise<UserProfile> {
-  const { data, error, response } = (await apiClient.GET('/v1/users/me')) as unknown as {
-    data?: UserProfile;
-    error?: unknown;
-    response: Response;
-  };
-  if (error || !data)
-    throwApiError(error, 'Failed to fetch profile', response.status, response.headers);
-  return data as UserProfile;
+export type ResendVerificationResult = { kind: 'sent' } | { kind: 'already_verified' };
+
+export async function fetchCurrentUserProfile(): Promise<UserProfileResponse> {
+  const { data, error, response } = await apiClient.GET('/v1/users/me');
+  const { status, headers } = response;
+  if (error || !data) throwApiError(error, 'Failed to fetch profile', status, headers);
+  if ('error' in data) throwApiError(data, 'Failed to fetch profile', status, headers);
+  return data;
 }
 
-export async function resendVerificationEmail(): Promise<MessageResponse> {
-  const { data, error, response } = (await apiClient.POST(
-    '/v1/auth/resend-verification',
-  )) as unknown as {
-    data?: MessageResponse;
-    error?: unknown;
-    response: Response;
-  };
+export async function resendVerificationEmail(): Promise<ResendVerificationResult> {
+  const { data, error, response } = await apiClient.POST('/v1/auth/resend-verification');
+  const { status, headers } = response;
   if (error || !data) {
-    throwApiError(error, 'Failed to resend verification email', response.status, response.headers);
+    throwApiError(error, 'Failed to resend verification email', status, headers);
   }
-  return data;
+  if ('error' in data) {
+    throwApiError(data, 'Failed to resend verification email', status, headers);
+  }
+  if (data.message === 'Verification email sent') return { kind: 'sent' };
+  if (data.message === 'Email is already verified') return { kind: 'already_verified' };
+  throwApiError(
+    {
+      error: 'unexpected_response',
+      message: 'Unexpected response from verification endpoint',
+      status_code: 200,
+    },
+    'Failed to resend verification email',
+  );
 }
 
 export async function fetchUserStats(): Promise<UserStatsResponse> {
@@ -70,7 +77,8 @@ export async function verifyAge(dateOfBirth: string): Promise<UserProfile> {
     body: { date_of_birth: dateOfBirth },
   });
   if (error || !data) throwApiError(error, 'Failed to verify age');
-  return data as unknown as UserProfile;
+  if ('error' in data) throwApiError(data, 'Failed to verify age');
+  return data;
 }
 
 /**

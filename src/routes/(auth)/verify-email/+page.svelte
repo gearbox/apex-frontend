@@ -1,25 +1,31 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { page } from '$app/stores';
-  import { replaceState } from '$app/navigation';
+  import { onDestroy } from 'svelte';
+  import { afterNavigate, replaceState } from '$app/navigation';
   import { verifyEmail, AuthError } from '$lib/api/auth';
   import { fetchCurrentUserProfile } from '$lib/api/user';
   import { getCurrentUser, setUser } from '$lib/stores/auth';
   import { appDisplayName } from '$lib/stores/product';
+  import { withoutSearchParam } from '$lib/utils/urlSearch';
   import Spinner from '$lib/components/ui/Spinner.svelte';
   import * as m from '$paraglide/messages';
 
   let status = $state<'verifying' | 'success' | 'error'>('verifying');
   let error = $state('');
+  let verificationGeneration = 0;
+  onDestroy(() => {
+    verificationGeneration += 1;
+  });
 
-  onMount(async () => {
+  // SvelteKit's router root is unavailable during the initial onMount.
+  // Consume entry parameters once, after router initialization.
+  let initialized = false;
+  afterNavigate(() => {
+    if (initialized) return;
+    initialized = true;
     const token = $page.url.searchParams.get('token');
     if ($page.url.searchParams.has('token')) {
-      const url = new URL($page.url);
-      url.searchParams.delete('token');
-      const state = $page.state;
-      await Promise.resolve();
-      replaceState(url, state);
+      replaceState(withoutSearchParam($page.url, 'token'), $page.state);
     }
     if (!token) {
       error = m.auth_verify_missing();
@@ -27,24 +33,33 @@
       return;
     }
 
+    void processVerification(token, ++verificationGeneration);
+  });
+
+  async function processVerification(token: string, generation: number): Promise<void> {
     try {
       await verifyEmail(token);
+      if (generation !== verificationGeneration) return;
       if (getCurrentUser()) {
         try {
-          setUser(await fetchCurrentUserProfile());
+          const profile = await fetchCurrentUserProfile();
+          if (generation !== verificationGeneration) return;
+          setUser(profile);
         } catch {
           // Verification succeeded; the profile can refresh when the user returns to it.
         }
       }
+      if (generation !== verificationGeneration) return;
       status = 'success';
     } catch (err) {
+      if (generation !== verificationGeneration) return;
       error =
         err instanceof AuthError && err.error === 'invalid_token'
           ? m.auth_verify_invalid()
           : m.error_generic();
       status = 'error';
     }
-  });
+  }
 </script>
 
 <svelte:head>

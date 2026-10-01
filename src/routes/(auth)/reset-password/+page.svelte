@@ -1,10 +1,10 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { goto, replaceState } from '$app/navigation';
+  import { afterNavigate, goto, replaceState } from '$app/navigation';
   import { page } from '$app/stores';
   import { resetPassword, AuthError } from '$lib/api/auth';
   import { clearAuth } from '$lib/stores/auth';
   import { appDisplayName } from '$lib/stores/product';
+  import { withoutSearchParam } from '$lib/utils/urlSearch';
   import * as m from '$paraglide/messages';
 
   let token = $state<string | null>(null);
@@ -23,18 +23,18 @@
       !pending,
   );
 
-  onMount(() => {
+  // SvelteKit's router root is unavailable during the initial onMount.
+  // Consume entry parameters once, after router initialization.
+  let initialized = false;
+  afterNavigate(() => {
+    if (initialized) return;
+    initialized = true;
     token = $page.url.searchParams.get('token');
-    const url = new URL($page.url);
-    const state = $page.state;
-    queueMicrotask(() => {
-      if (url.searchParams.has('token')) {
-        url.searchParams.delete('token');
-        replaceState(url, state);
-      }
-      invalid = !token;
-      ready = true;
-    });
+    if ($page.url.searchParams.has('token')) {
+      replaceState(withoutSearchParam($page.url, 'token'), $page.state);
+    }
+    invalid = !token;
+    ready = true;
   });
 
   async function handleSubmit(event: Event) {

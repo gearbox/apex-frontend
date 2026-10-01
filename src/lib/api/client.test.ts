@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { server } from '../../mocks/server';
+import { rateLimitResponse } from '../../mocks/rateLimitResponse';
 import { makeTokenResponse } from '../../mocks/factories/auth';
 import { makeUserProfile } from '../../mocks/factories/user';
 import { setAuth, clearAuth, getAccessToken } from '$lib/stores/auth';
@@ -204,6 +205,21 @@ describe('auth middleware', () => {
 });
 
 describe('rate limit middleware', () => {
+  it('does not automatically replay a resend-verification POST after 429', async () => {
+    let calls = 0;
+    server.use(
+      http.post(`${BASE}/v1/auth/resend-verification`, () => {
+        calls += 1;
+        return rateLimitResponse('0');
+      }),
+    );
+
+    const { response } = await apiClient.POST('/v1/auth/resend-verification');
+
+    expect(response.status).toBe(429);
+    expect(calls).toBe(1);
+  });
+
   it('parses X-RateLimit-* headers and updates store on any response', async () => {
     server.use(
       http.get(`${BASE}/v1/billing/balance`, () =>
