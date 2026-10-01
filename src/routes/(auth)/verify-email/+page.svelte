@@ -1,5 +1,6 @@
 <script lang="ts">
   import { page } from '$app/stores';
+  import { onDestroy } from 'svelte';
   import { afterNavigate, replaceState } from '$app/navigation';
   import { verifyEmail, AuthError } from '$lib/api/auth';
   import { fetchCurrentUserProfile } from '$lib/api/user';
@@ -11,8 +12,17 @@
 
   let status = $state<'verifying' | 'success' | 'error'>('verifying');
   let error = $state('');
+  let verificationGeneration = 0;
+  onDestroy(() => {
+    verificationGeneration += 1;
+  });
 
+  // SvelteKit's router root is unavailable during the initial onMount.
+  // Consume entry parameters once, after router initialization.
+  let initialized = false;
   afterNavigate(() => {
+    if (initialized) return;
+    initialized = true;
     const token = $page.url.searchParams.get('token');
     if ($page.url.searchParams.has('token')) {
       replaceState(withoutSearchParam($page.url, 'token'), $page.state);
@@ -23,21 +33,26 @@
       return;
     }
 
-    void processVerification(token);
+    void processVerification(token, ++verificationGeneration);
   });
 
-  async function processVerification(token: string): Promise<void> {
+  async function processVerification(token: string, generation: number): Promise<void> {
     try {
       await verifyEmail(token);
+      if (generation !== verificationGeneration) return;
       if (getCurrentUser()) {
         try {
-          setUser(await fetchCurrentUserProfile());
+          const profile = await fetchCurrentUserProfile();
+          if (generation !== verificationGeneration) return;
+          setUser(profile);
         } catch {
           // Verification succeeded; the profile can refresh when the user returns to it.
         }
       }
+      if (generation !== verificationGeneration) return;
       status = 'success';
     } catch (err) {
+      if (generation !== verificationGeneration) return;
       error =
         err instanceof AuthError && err.error === 'invalid_token'
           ? m.auth_verify_invalid()

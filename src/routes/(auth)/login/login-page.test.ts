@@ -79,11 +79,14 @@ describe('login page', () => {
     expect(screen.queryByLabelText('Email address')).toBeNull();
   });
 
-  it('removes the reset flag immediately and preserves unrelated query parameters', () => {
+  it('removes the reset flag immediately and preserves unrelated query parameters', async () => {
     testState.pageUrl = 'http://localhost/login?reset=done&source=invite&redirect=%2Fapp%2Flibrary';
 
+    setAuthFailureReason('token_reuse_detected');
     render(Page);
 
+    await waitFor(() => expect(screen.getByRole('status')).toBeTruthy());
+    expect(screen.queryByText('Security notice')).toBeNull();
     expect(testState.replaceState).toHaveBeenCalledTimes(1);
     const sanitized = new URL(testState.replaceState.mock.calls[0][0] as URL);
     expect(sanitized.searchParams.has('reset')).toBe(false);

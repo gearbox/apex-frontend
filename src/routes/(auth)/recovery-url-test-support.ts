@@ -3,6 +3,8 @@ import { cleanup } from '@testing-library/svelte';
 
 const recoveryHarness = vi.hoisted(() => ({
   pageUrl: 'http://localhost/recovery',
+  navigationCallbacks: new Set<() => void>(),
+  pageSubscribers: new Set<(value: { url: URL; state: { keep: boolean } }) => void>(),
   events: [] as string[],
   replacedHref: '',
   replaceState: vi.fn(),
@@ -19,6 +21,7 @@ vi.mock('$app/navigation', () => ({
   goto: recoveryHarness.goto,
   replaceState: recoveryHarness.replaceState,
   afterNavigate(callback: () => void) {
+    recoveryHarness.navigationCallbacks.add(callback);
     callback();
   },
 }));
@@ -26,7 +29,8 @@ vi.mock('$app/stores', () => ({
   page: {
     subscribe(run: (value: { url: URL; state: { keep: boolean } }) => void) {
       run({ url: new URL(recoveryHarness.pageUrl), state: { keep: true } });
-      return () => {};
+      recoveryHarness.pageSubscribers.add(run);
+      return () => recoveryHarness.pageSubscribers.delete(run);
     },
   },
 }));
@@ -45,6 +49,7 @@ const consoleOutput: string[] = [];
 export function setupRecoveryUrlTest(pageUrl: string): void {
   cleanup();
   vi.clearAllMocks();
+  recoveryHarness.navigationCallbacks.clear();
   recoveryHarness.events.length = 0;
   recoveryHarness.replacedHref = '';
   recoveryHarness.pageUrl = pageUrl;
@@ -59,6 +64,12 @@ export function setupRecoveryUrlTest(pageUrl: string): void {
   recoveryHarness.replaceState.mockImplementation((url: URL) => {
     recoveryHarness.events.push('replace');
     recoveryHarness.replacedHref = url.href;
+    recoveryHarness.pageUrl = url.href;
+    for (const run of recoveryHarness.pageSubscribers) {
+      run({ url, state: { keep: true } });
+    }
+    // Stress the one-shot guard even if a navigation notification follows cleanup.
+    for (const callback of recoveryHarness.navigationCallbacks) callback();
   });
 }
 
@@ -78,4 +89,12 @@ export function expectRecoveryTokenSanitized(
     expect(sanitized.searchParams.get(name)).toBe(value);
   }
   expect(consoleOutput.join('\n')).not.toContain(token);
+}
+
+export function navigateRecoveryUrl(pageUrl: string): void {
+  recoveryHarness.pageUrl = pageUrl;
+  for (const run of recoveryHarness.pageSubscribers) {
+    run({ url: new URL(pageUrl), state: { keep: true } });
+  }
+  for (const callback of recoveryHarness.navigationCallbacks) callback();
 }

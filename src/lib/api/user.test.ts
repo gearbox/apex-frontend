@@ -30,17 +30,20 @@ describe('fetchCurrentUserProfile()', () => {
     await expect(fetchCurrentUserProfile()).resolves.toEqual(profile);
   });
 
-  it('throws ApiRequestError on API failure', async () => {
+  it('preserves HTTP status and Retry-After on profile failure', async () => {
     server.use(
       http.get(`${BASE}/v1/users/me`, () =>
         HttpResponse.json(
-          { error: 'server_error', message: 'Profile unavailable', status_code: 500 },
-          { status: 500 },
+          { error: 'server_error', message: 'Profile unavailable', status_code: 400 },
+          { status: 500, headers: { 'Retry-After': '17' } },
         ),
       ),
     );
 
-    await expect(fetchCurrentUserProfile()).rejects.toBeInstanceOf(ApiRequestError);
+    await expect(fetchCurrentUserProfile()).rejects.toMatchObject({
+      status_code: 500,
+      retry_after_seconds: 17,
+    });
   });
 });
 
@@ -70,7 +73,7 @@ describe('resendVerificationEmail()', () => {
     server.use(
       http.post(`${BASE}/v1/auth/resend-verification`, () => {
         calls += 1;
-        return rateLimitResponse('0');
+        return rateLimitResponse('17');
       }),
     );
 
@@ -82,7 +85,11 @@ describe('resendVerificationEmail()', () => {
     }
 
     expect(caught).toBeInstanceOf(ApiRequestError);
-    expect(caught).toMatchObject({ status_code: 429, error: 'rate_limit_exceeded' });
+    expect(caught).toMatchObject({
+      status_code: 429,
+      error: 'rate_limit_exceeded',
+      retry_after_seconds: 17,
+    });
     expect(calls).toBe(1);
   });
 });

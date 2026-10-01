@@ -22,7 +22,12 @@
   let sessionEndReason = $state<AuthFailureReason | null>(null);
   let resetDone = $state(false);
 
+  // SvelteKit's router root is unavailable during the initial onMount.
+  // Consume entry parameters once, after router initialization.
+  let initialized = false;
   afterNavigate(() => {
+    if (initialized) return;
+    initialized = true;
     resetDone = $page.url.searchParams.get('reset') === 'done';
     const reason = consumeAuthFailureReason();
     sessionEndReason = resetDone ? null : reason;

@@ -2,6 +2,7 @@ import {
   cleanupRecoveryUrlTest,
   expectRecoveryTokenSanitized,
   getRecoveryHarness,
+  navigateRecoveryUrl,
   setupRecoveryUrlTest,
 } from '../recovery-url-test-support';
 import { afterEach, beforeEach, describe, it } from 'vitest';
@@ -33,6 +34,7 @@ describe('reset password page URL cleanup', () => {
     });
 
     render(Page);
+    navigateRecoveryUrl('http://localhost/reset-password?token=another-token');
     await fireEvent.input(screen.getByLabelText('New Password'), {
       target: { value: 'safe-password-123' },
     });

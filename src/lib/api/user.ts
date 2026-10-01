@@ -13,19 +13,21 @@ export type UserProfileResponse = components['schemas']['UserProfileResponse'];
 export type ResendVerificationResult = { kind: 'sent' } | { kind: 'already_verified' };
 
 export async function fetchCurrentUserProfile(): Promise<UserProfileResponse> {
-  const { data, error } = await apiClient.GET('/v1/users/me');
-  if (error || !data) throwApiError(error, 'Failed to fetch profile');
-  if ('error' in data) throwApiError(data, 'Failed to fetch profile');
+  const { data, error, response } = await apiClient.GET('/v1/users/me');
+  const { status, headers } = response;
+  if (error || !data) throwApiError(error, 'Failed to fetch profile', status, headers);
+  if ('error' in data) throwApiError(data, 'Failed to fetch profile', status, headers);
   return data;
 }
 
 export async function resendVerificationEmail(): Promise<ResendVerificationResult> {
-  const { data, error } = await apiClient.POST('/v1/auth/resend-verification');
+  const { data, error, response } = await apiClient.POST('/v1/auth/resend-verification');
+  const { status, headers } = response;
   if (error || !data) {
-    throwApiError(error, 'Failed to resend verification email');
+    throwApiError(error, 'Failed to resend verification email', status, headers);
   }
   if ('error' in data) {
-    throwApiError(data, 'Failed to resend verification email');
+    throwApiError(data, 'Failed to resend verification email', status, headers);
   }
   if (data.message === 'Verification email sent') return { kind: 'sent' };
   if (data.message === 'Email is already verified') return { kind: 'already_verified' };

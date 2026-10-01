@@ -23,7 +23,12 @@
       !pending,
   );
 
+  // SvelteKit's router root is unavailable during the initial onMount.
+  // Consume entry parameters once, after router initialization.
+  let initialized = false;
   afterNavigate(() => {
+    if (initialized) return;
+    initialized = true;
     token = $page.url.searchParams.get('token');
     if ($page.url.searchParams.has('token')) {
       replaceState(withoutSearchParam($page.url, 'token'), $page.state);

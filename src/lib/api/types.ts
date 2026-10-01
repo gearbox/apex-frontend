@@ -3960,8 +3960,8 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Document created, URL follows */
-            201: {
+            /** @description Request fulfilled, document follows */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
