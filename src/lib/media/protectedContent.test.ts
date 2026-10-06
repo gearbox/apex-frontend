@@ -45,6 +45,7 @@ describe('parseProtectedContentUrl', () => {
     '/v1/content/outputs/out-1#frag',
     `${ORIGIN}/v1/content/outputs/out-1?X-Amz-Expires=60`,
     // Arbitrary or malformed paths masquerading as content.
+    '/v1/content/uploads/id/compatibility',
     '/v1/users/me',
     '/v1/content/outputs/',
     '/v1/content/outputs',

@@ -1,25 +1,19 @@
 <script lang="ts">
   import { Check } from '@lucide/svelte';
-  import type { components } from '$lib/api/types';
-
-  type PreviewFrame = components['schemas']['PreviewFrame'];
+  import type { LocalPreviewFrame } from './frameExtractionSession';
 
   let {
     frames,
     selection,
-    previewVersion,
     ontoggle,
-    onthumbnailerror,
     onbuttonready,
     sectionLabel,
     aspectRatio = '16 / 9',
     disabled = false,
   }: {
-    frames: PreviewFrame[];
+    frames: LocalPreviewFrame[];
     selection: Set<number>;
-    previewVersion: number;
     ontoggle: (timestampMs: number) => void;
-    onthumbnailerror: (previewVersion: number) => void;
     onbuttonready?: (timestampMs: number, element: HTMLButtonElement | null) => void;
     sectionLabel: string;
     aspectRatio?: string;
@@ -47,30 +41,28 @@
 </script>
 
 <div class="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
-  {#each frames as frame (frame.index)}
-    {@const renderedPreviewVersion = previewVersion}
-    {@const selected = selection.has(frame.timestamp_ms)}
+  {#each frames as frame (frame.id)}
+    {@const selected = selection.has(frame.timestampMs)}
     <button
       type="button"
-      onclick={() => ontoggle(frame.timestamp_ms)}
+      onclick={() => ontoggle(frame.timestampMs)}
       {disabled}
-      use:registerToggle={frame.timestamp_ms}
+      use:registerToggle={frame.timestampMs}
       aria-pressed={selected}
-      aria-label={`${sectionLabel}: ${formatTimestamp(frame.timestamp_ms)}`}
+      aria-label={`${sectionLabel}: ${formatTimestamp(frame.timestampMs)}`}
       class="group relative overflow-hidden rounded-lg border bg-surface text-left transition-colors {selected
         ? 'border-accent ring-1 ring-accent'
         : 'border-border hover:border-border-active'} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50"
     >
       <div class="relative bg-black" style={`aspect-ratio: ${aspectRatio}`}>
         <img
-          src={frame.url}
-          alt={formatTimestamp(frame.timestamp_ms)}
+          src={frame.previewUrl}
+          alt={formatTimestamp(frame.timestampMs)}
           class="h-full w-full object-contain"
-          onerror={() => onthumbnailerror(renderedPreviewVersion)}
         />
       </div>
       <span class="block truncate px-1.5 py-1 text-[10px] tabular-nums text-text-muted">
-        {formatTimestamp(frame.timestamp_ms)}
+        {formatTimestamp(frame.timestampMs)}
       </span>
       {#if selected}
         <span

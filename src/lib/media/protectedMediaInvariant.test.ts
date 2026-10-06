@@ -3,7 +3,6 @@ import { http, HttpResponse } from 'msw';
 import { server } from '../../mocks/server';
 import { makeMediaObject } from '../../mocks/factories/media';
 import { clearAuth, setAuth, type UserProfile } from '$lib/stores/auth';
-import { loadAuthenticatedMediaBlob } from './loadAuthenticatedMediaBlob';
 import { fetchOriginalBytes } from './progressive';
 import { fetchOriginalBlob } from './save/fetchOriginal';
 import { parseProtectedContentUrl, probeProtectedContent } from './protectedContent';
@@ -93,14 +92,6 @@ afterEach(() => {
 });
 
 describe('protected media bytes use content-cookie credentials, never a Bearer header', () => {
-  it('frame decoding blob load (loadAuthenticatedMediaBlob)', async () => {
-    server.use(capture('video/mp4'));
-
-    await loadAuthenticatedMediaBlob('/v1/content/outputs/output-1');
-
-    expectCookieOnlyContentRequest('/v1/content/outputs/output-1');
-  });
-
   it('progressive original upgrade (fetchOriginalBytes)', async () => {
     server.use(capture('image/jpeg'));
     const media = makeMediaObject();

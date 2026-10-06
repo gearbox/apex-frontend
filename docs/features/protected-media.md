@@ -39,7 +39,6 @@ its own resolver and keep `toMediaSrc` strict.
 
 Scripted reads of protected bytes all call `fetchProtectedContent()`:
 
-- frame decoding (`loadAuthenticatedMediaBlob`);
 - the progressive original upgrade (`fetchOriginalBytes`);
 - save/share (`fetchOriginalBlob`).
 
@@ -99,9 +98,15 @@ product-origin policy may reject them. Content-cookie failures on those previews
 nothing about production. Do not relax cookie or CORS policy to make them work. Validate
 content-cookie behaviour on the production topology, or on a same-site staging pair.
 
-## Out of scope: frame-preview presigned URLs
+## Client video frame extraction
 
-The automatic frame-preview job still returns short-lived presigned R2 URLs
-(`FramePreviewResult.frames[*].url`, `expires_in_seconds`). `FrameStrip` renders those
-directly, and they never pass through `toMediaSrc`. That flow is being migrated
-separately.
+The extractor uses one native `<video crossorigin="use-credentials">` with a validated stable
+content URL. Set `crossOrigin` before `src`; native HTTP Range loading avoids whole-video JS
+buffering. Automatic previews, scrubbing, and full-resolution captures share that decoder.
+Only image cards receive ephemeral blob URLs, revoked on removal or disposal.
+
+Backend `Vary: Origin` on every content response separates ordinary no-cors playback from
+credentialed CORS extraction in the HTTP cache. Library playback remains no-cors. Without
+this header, watching a video first can cache a response that fails the extractor's CORS check.
+Both playback and extraction share `mediaErrorRecovery.ts`: ambiguous native errors receive a
+cookie-only one-byte probe; only a proven 401 triggers recovery and one same-URL retry.

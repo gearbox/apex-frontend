@@ -362,7 +362,6 @@
   "frames_title": "Izdvoji kadrove",
   "frames_extract_action": "Izdvoji kadrove",
   "frames_preview_loading": "Priprema pregleda kadrova…",
-  "frames_preview_error": "Pregled kadrova nije mogao da se učita. Pokušajte ponovo.",
   "frames_preview_ready": "Izaberite kadrove za izdvajanje",
   "frames_automatic": "Automatski",
   "frames_manually_chosen": "Ručno izabrani kadrovi",
@@ -374,8 +373,6 @@
   "frames_already_available_automatic": "Već je dostupan u odeljku Automatski",
   "frames_remove_manual_frame": "Ukloni ručno izabrani kadar u {timestamp}",
   "frames_frame_display_error": "Ovaj video-kadar nije moguće prikazati",
-  "frames_live_preview_too_large": "Pregled ručno izabranih kadrova nije dostupan za ovaj preveliki video. Automatski kadrovi su i dalje dostupni.",
-  "frames_frame_capture_cors_error": "Ovaj kadar nije moguće sačuvati jer je pristup videu blokiran. Ponovo učitajte pregled i pokušajte ponovo.",
   "frames_frame_loading": "Učitavanje pregleda kadra…",
   "frames_retry_frame_preview": "Pokušaj ponovo pregled kadra",
   "frames_selected_count": "Izabrano: {count}",
@@ -384,7 +381,6 @@
   "frames_no_selection": "Izaberite najmanje jedan kadar za izdvajanje.",
   "frames_extract_loading": "Izdvajanje kadrova…",
   "frames_use_as_input": "Koristi kao ulaz",
-  "frames_job_failed_retry": "Zadatak izdvajanja kadrova nije uspeo. Pokušajte ponovo",
   "frames_close": "Zatvori",
   "offline_banner_message": "Nemate internet vezu. Neke funkcije nisu dostupne.",
   "offline_page_title": "Nema veze",
@@ -864,5 +860,12 @@
   "feedback_admin_confirm_dismiss": "Odbaciti ovu prijavu? Ova radnja se ne može opozvati.",
   "feedback_admin_confirm": "Potvrdi",
   "feedback_admin_concurrent_update": "Drugi administrator je ažurirao ovu prijavu. Učitan je najnoviji status.",
-  "feedback_admin_update_error": "Nije moguće ažurirati prijavu. Pokušajte ponovo."
+  "feedback_admin_update_error": "Nije moguće ažurirati prijavu. Pokušajte ponovo.",
+  "frames_unsupported_title": "Овај видео не може да се отвори у овом прегледачу",
+  "frames_unsupported_body": "Покушајте да га отворите на уређају на ком је снимљен или у другом прегледачу.",
+  "frames_unavailable_body": "Издвајање кадрова није доступно за овај видео",
+  "frames_report_video": "Пријави проблем са видеом",
+  "frames_retry": "Покушај поново",
+  "frames_operation_failed": "Није могуће издвојити кадрове. Покушајте поново.",
+  "frames_encoding_too_large": "Кадар у пуној резолуцији премашује ограничење од 20 MiB. Изаберите други кадар."
 }

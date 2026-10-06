@@ -1,14 +1,38 @@
 import { API_BASE_URL } from '$lib/utils/constants';
 import { withAuthOperation } from '$lib/api/authedFetch';
 import { parseApiError, ApiRequestError } from '$lib/api/errors';
+import { parseAssetRef } from '$lib/utils/assetRef';
 import type { components } from '$lib/api/types';
 
-type UploadResponse = components['schemas']['UploadResponse'];
+export type UploadResponse = components['schemas']['UploadResponse'];
 
-async function doUpload(file: File, token: string | null, signal: AbortSignal): Promise<Response> {
+export interface FrameLineage {
+  sourceAssetRef: string;
+  timestampMs: number;
+}
+export interface UploadOptions {
+  lineage?: FrameLineage;
+  signal?: AbortSignal;
+}
+
+async function doUpload(
+  file: File,
+  token: string | null,
+  signal: AbortSignal,
+  options: UploadOptions,
+): Promise<Response> {
   // Built fresh per attempt — a FormData tied to a previous fetch body cannot be reused.
   const formData = new FormData();
   formData.append('data', file);
+  if (options.lineage) {
+    formData.append('source_asset_ref', options.lineage.sourceAssetRef);
+    formData.append(
+      'source_timestamp_ms',
+      String(Math.max(0, Math.round(options.lineage.timestampMs))),
+    );
+  }
+  const requestSignal = options.signal ? AbortSignal.any([signal, options.signal]) : signal;
+  requestSignal.throwIfAborted();
 
   const headers: Record<string, string> = {};
   if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -20,7 +44,7 @@ async function doUpload(file: File, token: string | null, signal: AbortSignal): 
     method: 'POST',
     headers,
     body: formData,
-    signal,
+    signal: requestSignal,
   });
 }
 
@@ -35,16 +59,26 @@ async function doUpload(file: File, token: string | null, signal: AbortSignal): 
  * @param file - The media file to upload (supported images or videos, max 20MB)
  * @returns The upload response with the new media ID
  */
-export async function uploadMedia(file: File): Promise<UploadResponse> {
+export async function uploadMedia(
+  file: File,
+  options: UploadOptions = {},
+): Promise<UploadResponse> {
+  if (options.lineage) {
+    parseAssetRef(options.lineage.sourceAssetRef);
+    if (!Number.isFinite(options.lineage.timestampMs)) throw new Error('invalid_frame_lineage');
+  }
+  options.signal?.throwIfAborted();
   return withAuthOperation(
-    (token, signal) => doUpload(file, token, signal),
+    (token, signal) => doUpload(file, token, signal, options),
     async (res) => {
       if (!res.ok) {
         const body = await res.json().catch(() => null);
         throw new ApiRequestError(parseApiError(body, res.status));
       }
 
-      return (await res.json()) as UploadResponse;
+      const result = (await res.json()) as UploadResponse;
+      options.signal?.throwIfAborted();
+      return result;
     },
   );
 }
