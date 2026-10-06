@@ -260,6 +260,26 @@ describe('VideoFrameCapture', () => {
     expect(fixture.cancelFrameCallback).toHaveBeenCalledWith(1);
   });
 
+  it('ignores a presented callback while the native seek is still pending', async () => {
+    const fixture = createFixture();
+    let seeking = true;
+    Object.defineProperty(fixture.video, 'seeking', { configurable: true, get: () => seeking });
+    const capture = new VideoFrameCapture({
+      ...fixture,
+      onFrame: (frame) => fixture.frames.push(frame),
+      onSeekingChange: () => undefined,
+    });
+    const pending = capture.seek(900);
+    await Promise.resolve();
+    fixture.emitNextFrame();
+    expect(fixture.frames).toHaveLength(0);
+    seeking = false;
+    fixture.video.dispatchEvent(new Event('seeked'));
+    fixture.emitNextFrame();
+    await expect(pending).resolves.toMatchObject({ timestampMs: 900 });
+    capture.dispose();
+  });
+
   it('caps landscape, portrait, square, and very large preview dimensions without upscaling', () => {
     expect(scaledFrameDimensions(640, 360)).toEqual({ width: 640, height: 360 });
     expect(scaledFrameDimensions(3840, 2160)).toEqual({ width: 960, height: 540 });

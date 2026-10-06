@@ -341,3 +341,84 @@ describe('uploadMedia() — 401 refresh-and-retry (H2)', () => {
     expect(uploadCallCount).toBe(1);
   });
 });
+
+// Reading text avoids jsdom File / Node undici File identity conflicts in Request.formData().
+async function multipartFields(request: Request): Promise<Map<string, string>> {
+  const body = await request.text();
+  return new Map(
+    [...body.matchAll(/name="(source_asset_ref|source_timestamp_ms)"\r\n\r\n([^\r]+)/g)].map(
+      (match) => [match[1], match[2]],
+    ),
+  );
+}
+
+describe('frame lineage uploads', () => {
+  const lineage = {
+    sourceAssetRef: 'upload:c0000000-0000-4000-8000-000000000001',
+    timestampMs: 1234.6,
+  };
+  it('appends canonical source and rounded integer milliseconds', async () => {
+    let fields: Map<string, string> | undefined;
+    server.use(
+      http.post(UPLOAD_URL, async ({ request }) => {
+        fields = await multipartFields(request);
+        return HttpResponse.json(mockUploadResponse);
+      }),
+    );
+    await uploadMedia(new File(['png'], 'frame.png'), { lineage });
+    expect(fields?.get('source_asset_ref')).toBe(lineage.sourceAssetRef);
+    expect(fields?.get('source_timestamp_ms')).toBe('1235');
+  });
+  it('omits lineage fields for ordinary uploads', async () => {
+    let fields: Map<string, string> | undefined;
+    server.use(
+      http.post(UPLOAD_URL, async ({ request }) => {
+        fields = await multipartFields(request);
+        return HttpResponse.json(mockUploadResponse);
+      }),
+    );
+    await uploadMedia(new File(['png'], 'ordinary.png'));
+    expect(fields?.has('source_asset_ref')).toBe(false);
+    expect(fields?.has('source_timestamp_ms')).toBe(false);
+  });
+  it('rebuilds FormData with lineage on authentication replay', async () => {
+    setAuth(authTokens('old-token', 'refresh-token'), makeUserProfile());
+    const forms: Map<string, string>[] = [];
+    const fetch = vi.spyOn(globalThis, 'fetch');
+    server.use(
+      http.post(`${BASE}/v1/auth/refresh`, () => HttpResponse.json(makeTokenResponse())),
+      http.post(UPLOAD_URL, async ({ request }) => {
+        forms.push(await multipartFields(request));
+        return forms.length === 1
+          ? new HttpResponse(null, { status: 401 })
+          : HttpResponse.json(mockUploadResponse);
+      }),
+    );
+    await uploadMedia(new File(['png'], 'frame.png'), { lineage });
+    expect(forms).toHaveLength(2);
+    const bodies = fetch.mock.calls
+      .filter((call) => String(call[0]) === UPLOAD_URL)
+      .map((call) => call[1]?.body);
+    expect(bodies).toHaveLength(2);
+    expect(bodies[0]).not.toBe(bodies[1]);
+    fetch.mockRestore();
+    expect(forms.map((form) => form.get('source_timestamp_ms'))).toEqual(['1235', '1235']);
+  });
+  it('honours a session abort signal', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    await expect(
+      uploadMedia(new File(['png'], 'frame.png'), { lineage, signal: controller.signal }),
+    ).rejects.toMatchObject({ name: 'AbortError' });
+  });
+  it('rejects invalid asset references without sending a request', async () => {
+    const fetch = vi.spyOn(globalThis, 'fetch');
+    await expect(
+      uploadMedia(new File(['png'], 'frame.png'), {
+        lineage: { sourceAssetRef: 'bad', timestampMs: 0 },
+      }),
+    ).rejects.toThrow();
+    expect(fetch).not.toHaveBeenCalled();
+    fetch.mockRestore();
+  });
+});

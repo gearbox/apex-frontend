@@ -1,7 +1,7 @@
 <script lang="ts">
   import { toMediaSrc, posterSrc } from '$lib/media/index';
-  import { recoverContentAccess } from '$lib/media/contentAccessRecovery';
-  import { parseProtectedContentUrl, probeProtectedContent } from '$lib/media/protectedContent';
+  import { recoverFromMediaError } from '$lib/media/mediaErrorRecovery';
+  import { parseProtectedContentUrl } from '$lib/media/protectedContent';
   import { contentCredentialsRevision } from '$lib/services/contentCookie';
   import type { components } from '$lib/api/types';
 
@@ -153,33 +153,20 @@
     const controller = new AbortController();
     probeController = controller;
 
-    let probe: Response;
-    try {
-      probe = await probeProtectedContent(target, { signal: controller.signal });
-    } catch {
-      // A transient probe failure says nothing about credentials. Preserve the native error and
-      // never escalate it into a token/content-cookie refresh.
-      if (isCurrentAttempt(failedSrc, element, generation, controller)) {
-        nativeFailureState = 'permanent';
-      }
+    const recovery = await recoverFromMediaError(target, element.error, {
+      signal: controller.signal,
+      onUnauthorized: () => {
+        if (!isCurrentAttempt(failedSrc, element, generation, controller)) return false;
+        nativeFailureState = 'waiting-for-content-credentials';
+        waitingForContentCredentials = failedSrc;
+        return true;
+      },
+    });
+    if (!isCurrentAttempt(failedSrc, element, generation, controller)) return;
+    if (!recovery.retry) {
+      if (recovery.failure !== 'authentication') nativeFailureState = 'permanent';
       return;
     }
-
-    if (!isCurrentAttempt(failedSrc, element, generation, controller)) return;
-    if (probe.status !== 401) {
-      // 200/206 prove the cookie is accepted; 403/404 and server failures likewise are not proof
-      // of an expired credential. Leave the browser's native playback failure in place.
-      nativeFailureState = 'permanent';
-      return;
-    }
-
-    nativeFailureState = 'waiting-for-content-credentials';
-    waitingForContentCredentials = failedSrc;
-
-    const recovery = await recoverContentAccess({ signal: controller.signal });
-    // A stale answer must not reload an element that has since moved to other media.
-    if (!isCurrentAttempt(failedSrc, element, generation, controller)) return;
-    if (!recovery.ok) return;
 
     waitingForContentCredentials = null;
     nativeFailureState = 'idle';

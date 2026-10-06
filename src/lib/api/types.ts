@@ -3084,6 +3084,7 @@ export interface components {
             height?: number | null;
             content_type: string;
             size_bytes: number;
+            duration_ms?: number | null;
         };
         /**
          * MediaSlot
@@ -3724,6 +3725,8 @@ export interface components {
         UploadForm: {
             /** Format: binary */
             data: string;
+            source_asset_ref?: string | null;
+            source_timestamp_ms?: string | null;
         };
         /** UploadResponse */
         UploadResponse: {
@@ -8647,6 +8650,7 @@ export interface operations {
             /** @description Request fulfilled, document follows */
             200: {
                 headers: {
+                    Vary?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -8684,6 +8688,7 @@ export interface operations {
             /** @description Request fulfilled, document follows */
             200: {
                 headers: {
+                    Vary?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -8721,6 +8726,7 @@ export interface operations {
             /** @description Request fulfilled, document follows */
             200: {
                 headers: {
+                    Vary?: string;
                     [name: string]: unknown;
                 };
                 content: {

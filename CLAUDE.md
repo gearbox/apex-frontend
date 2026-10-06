@@ -625,3 +625,14 @@ pnpm test:all           # Unit + E2E (use before pushing)
 - **No inline styles** — Tailwind utility classes only
 - **Import convention:** relative imports within `$lib/`, `$app/` for SvelteKit internals
 - **File naming:** `PascalCase.svelte` for components, `camelCase.ts` for modules
+
+## Video frame extraction
+
+`FrameExtractionSession` owns one credentialed native ranged decoder, bounded preview canvas,
+and reusable full-resolution canvas per modal. Frames are captured locally, then uploaded
+sequentially with `source_asset_ref` and actual decoded `source_timestamp_ms`, bounded by
+`MediaOriginal.duration_ms`. A null duration makes extraction unavailable. Completed timestamps
+are retained across batch retries. Native decode support is required; unsupported videos can
+open the existing feedback dialog with their asset attached. There is no server extraction fallback.
+See `docs/contracts/video-frame-extraction-fe-contract.md` for the canonical backend contract
+and its real-device staging acceptance gate before backend Phase B.

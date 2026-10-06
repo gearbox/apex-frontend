@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount, tick } from 'svelte';
   import { goto } from '$app/navigation';
-  import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
+  import { createQuery, useQueryClient } from '@tanstack/svelte-query';
   import { X } from '@lucide/svelte';
   import FrameScrubber from '$lib/components/frames/FrameScrubber.svelte';
   import FrameStrip from '$lib/components/frames/FrameStrip.svelte';
@@ -10,19 +10,16 @@
   } from '$lib/components/frames/ManualFrameStrip.svelte';
   import MediaImage from '$lib/media/MediaImage.svelte';
   import {
-    extractFramesMutationOptions,
-    frameJobQueryFn,
-    previewFramesMutationOptions,
-    DEFAULT_FRAME_PREVIEW_COUNT,
-    type FrameSource,
-  } from '$lib/queries/frames';
-  import {
-    releaseFramePreview,
-    type CapturedVideoFrame,
-  } from '$lib/components/frames/videoFrameCapture';
+    FrameExtractionSession,
+    FrameSessionError,
+    type LocalPreviewFrame,
+    type ExtractedLocalFrame,
+  } from './frameExtractionSession';
+  import { FrameEncodingError } from './frameEncoding';
+  import { openFeedbackDialog } from '$lib/stores/feedbackDialog.svelte';
+  import { type CapturedVideoFrame } from '$lib/components/frames/videoFrameCapture';
   import { storageKeys } from '$lib/queries/storage';
   import { libraryKeys } from '$lib/queries/library';
-  import { createFrameJobPoller } from '$lib/services/frameJobPoller';
   import { generationStore } from '$lib/stores/generation';
   import { toMediaSrc } from '$lib/media';
   import { isDesktop } from '$lib/utils/breakpoints';
@@ -35,20 +32,15 @@
   import { providersQueryOptions } from '$lib/queries/providers';
 
   type MediaObject = components['schemas']['MediaObject'];
-  type FrameJobResponse = components['schemas']['FrameJobResponse'];
-  type FramePreviewResult = components['schemas']['FramePreviewResult'];
-  type ExtractedFrame = components['schemas']['ExtractedFrame'];
-  type Poller = { stop: () => void };
-
   const MAX_SELECTIONS = 50;
 
   let {
-    source,
+    assetRef,
     media,
     onclose,
     trigger = null,
   }: {
-    source: FrameSource;
+    assetRef: string;
     media: MediaObject;
     onclose: () => void;
     /** The parent lightbox's Extract frames button, used for explicit focus restoration. */
@@ -58,9 +50,8 @@
   let dialogEl: HTMLDivElement;
   let scrollViewport: HTMLDivElement;
   let closeButton: HTMLButtonElement | null = null;
-  let preview = $state<FramePreviewResult | null>(null);
-  let previewJobId = $state<string | null>(null);
-  let extractedFrames = $state<ExtractedFrame[]>([]);
+  let preview = $state<LocalPreviewFrame[] | null>(null);
+  let extractedFrames = $state<ExtractedLocalFrame[]>([]);
   let selection = $state<Set<number>>(new Set());
   let manualFrames = $state<ManualFrame[]>([]);
   let manualFeedback = $state('');
@@ -68,17 +59,21 @@
   let manualFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
   let submittedTimestamps = $state<number[] | null>(null);
   let scrubTimestamp = $state(0);
-  let staleAt = $state(0);
-  let refreshingPreview = $state(false);
-  let previewVersion = $state(0);
-  let phase = $state<'previewing' | 'ready' | 'extracting' | 'results' | 'failed'>('previewing');
+  let phase = $state<'loading' | 'ready' | 'extracting' | 'results' | 'unsupported' | 'failed'>(
+    'loading',
+  );
+  let timelineMax = $state(0);
+  let progress = $state({ done: 0, total: 0 });
+  let unavailable = $state(false);
+  let session = $state<FrameExtractionSession>();
+  let sessionUnsubscribe: (() => void) | null = null;
+  let decoderHost: HTMLDivElement;
   let failedOperation = $state<'preview' | 'extract'>('preview');
   let errorMessage = $state('');
-  let retryMessage = $state('');
   let disposed = false;
   let operationVersion = 0;
-  let poller: Poller | null = null;
   let previouslyFocused: HTMLElement | null = null;
+  let focusRestoreScheduled = false;
   let backdropPointer: { id: number; x: number; y: number } | null = null;
   let addFrameButton: HTMLButtonElement | null = null;
   const automaticFrameButtons = new Map<number, HTMLButtonElement>();
@@ -86,20 +81,15 @@
 
   const queryClient = useQueryClient();
   const providersQuery = createQuery(() => providersQueryOptions());
-  const previewMutation = createMutation(() => previewFramesMutationOptions());
-  const extractMutation = createMutation(() => extractFramesMutationOptions());
-
-  const durationMs = $derived(preview?.duration_ms ?? 0);
-  const maxTimestamp = $derived(Math.max(0, durationMs - 1));
+  const durationMs = $derived(media.original.duration_ms ?? 0);
+  const maxTimestamp = $derived(timelineMax);
   const selectedTimestamps = $derived.by(() => [...selection].sort((a, b) => a - b));
   const selectedCount = $derived(selection.size);
   const selectionLocked = $derived(phase === 'extracting');
   const canEditSelection = $derived((phase === 'ready' || phase === 'failed') && !disposed);
   const canExtract = $derived(selectedCount > 0 && canEditSelection);
   const videoAspectRatio = $derived(
-    media.original.width && media.original.height
-      ? `${media.original.width} / ${media.original.height}`
-      : '16 / 9',
+    preview?.[0] ? `${preview[0].width} / ${preview[0].height}` : '16 / 9',
   );
 
   function formatTimestamp(timestampMs: number): string {
@@ -114,18 +104,11 @@
 
   function clampTimestamp(timestampMs: number): number {
     if (durationMs < 1) return 0;
-    return Math.min(Math.max(0, Math.round(timestampMs)), durationMs - 1);
-  }
-
-  function applyPreview(nextPreview: FramePreviewResult) {
-    preview = nextPreview;
-    staleAt = Date.now() + nextPreview.expires_in_seconds * 1_000;
-    previewVersion += 1;
-    scrubTimestamp = clampTimestamp(scrubTimestamp);
+    return Math.min(Math.max(0, Math.round(timestampMs)), durationMs);
   }
 
   function clearManualFrames() {
-    manualFrames.forEach((frame) => releaseFramePreview(frame.previewUrl));
+    manualFrames.forEach((frame) => session?.release(frame.previewUrl));
     manualFrames = [];
   }
 
@@ -152,114 +135,75 @@
 
   function setFailure(operation: 'preview' | 'extract', error: unknown) {
     if (disposed) return;
-    poller = null;
     failedOperation = operation;
-    errorMessage = error instanceof Error ? error.message : String(error);
-    submittedTimestamps = null;
+    if (
+      (error instanceof FrameSessionError || error instanceof FrameEncodingError) &&
+      ['unsupported', 'canvas-not-origin-clean', 'timeout', 'unavailable'].includes(
+        error instanceof FrameSessionError ? error.failure : error.code,
+      )
+    ) {
+      unavailable = error instanceof FrameSessionError && error.failure === 'unavailable';
+      phase = 'unsupported';
+      return;
+    }
+    errorMessage =
+      error instanceof FrameEncodingError && error.code === 'frame-too-large'
+        ? m.frames_encoding_too_large()
+        : m.frames_operation_failed();
     phase = 'failed';
   }
 
-  function finishPreview(job: FrameJobResponse, version: number) {
-    if (disposed || version !== operationVersion) return;
-    if (!job.preview) {
-      setFailure('preview', new Error(m.frames_preview_error()));
-      return;
-    }
-    poller = null;
-    applyPreview(job.preview);
-    retryMessage = '';
-    phase = 'ready';
+  function restoreFocus() {
+    previouslyFocused?.focus({ preventScroll: true });
   }
 
-  function finishExtraction(job: FrameJobResponse, version: number) {
-    if (disposed || version !== operationVersion) return;
-    if (!job.extracted) {
-      setFailure('extract', new Error(m.frames_preview_error()));
-      return;
-    }
-    poller = null;
-    clearManualFrames();
-    submittedTimestamps = null;
-    extractedFrames = job.extracted.frames;
-    retryMessage = '';
-    phase = 'results';
-    void queryClient.invalidateQueries({ queryKey: storageKeys.all });
-    void queryClient.invalidateQueries({ queryKey: libraryKeys.all });
+  function closeModal(): Promise<void> {
+    focusRestoreScheduled = true;
+    disposed = true;
+    operationVersion++;
+    sessionUnsubscribe?.();
+    sessionUnsubscribe = null;
+    session?.dispose();
+    onclose();
+    return tick().then(restoreFocus);
   }
 
-  function stopActivePoller() {
-    poller?.stop();
-    poller = null;
+  async function reportVideo() {
+    await closeModal();
+    openFeedbackDialog({ assetRef, initialCategory: 'bug' });
   }
 
   async function startPreview() {
     const version = ++operationVersion;
-    stopActivePoller();
+    sessionUnsubscribe?.();
+    sessionUnsubscribe = null;
+    session?.dispose();
+    session = new FrameExtractionSession({
+      assetRef,
+      media,
+      onFailure: (error) => setFailure('preview', error),
+    });
+    const currentSession = session;
+    sessionUnsubscribe = currentSession.subscribe(() => {
+      if (session !== currentSession || disposed) return;
+      extractedFrames = [...currentSession.results];
+      progress = { ...currentSession.progress };
+    });
+    session.mountVideo(decoderHost);
     preview = null;
-    previewJobId = null;
     extractedFrames = [];
+    progress = { done: 0, total: 0 };
     selection = new Set();
     clearManualFrames();
-    clearManualFeedback();
-    submittedTimestamps = null;
-    scrubTimestamp = 0;
-    staleAt = 0;
-    previewVersion += 1;
-    errorMessage = '';
-    retryMessage = '';
-    phase = 'previewing';
-
+    phase = 'loading';
     try {
-      const created = await previewMutation.mutateAsync({
-        source,
-        frameCount: DEFAULT_FRAME_PREVIEW_COUNT,
-      });
+      const frames = await session.load();
       if (disposed || version !== operationVersion) return;
-      previewJobId = created.job_id;
-      poller = createFrameJobPoller({
-        jobId: created.job_id,
-        onUpdate: () => {
-          retryMessage = '';
-        },
-        onRetry: (error) => {
-          retryMessage = error.message;
-        },
-        onComplete: (job) => finishPreview(job, version),
-        onError: (error) => setFailure('preview', error),
-      });
+      preview = frames;
+      timelineMax = session.maxTimestamp;
+      phase = 'ready';
     } catch (error) {
       if (version === operationVersion) setFailure('preview', error);
-    }
-  }
-
-  async function refreshPreviewUrls(requestVersion = previewVersion): Promise<void> {
-    const jobId = previewJobId;
-    if (!jobId || refreshingPreview || !preview || requestVersion !== previewVersion || disposed) {
-      return;
-    }
-
-    refreshingPreview = true;
-    try {
-      const job = await frameJobQueryFn(jobId);
-      if (
-        !disposed &&
-        requestVersion === previewVersion &&
-        job.status === 'completed' &&
-        job.preview
-      ) {
-        applyPreview(job.preview);
-      }
-    } catch {
-      // Do not mark a failed refresh as consumed: a later image error or user
-      // action can retry. `refreshingPreview` is the single-flight guard.
-    } finally {
-      if (!disposed) refreshingPreview = false;
-    }
-  }
-
-  async function ensureFreshPreviewUrls() {
-    if (preview && Date.now() >= staleAt) {
-      await refreshPreviewUrls();
     }
   }
 
@@ -273,7 +217,6 @@
   }
 
   async function toggleTimestamp(timestampMs: number) {
-    await ensureFreshPreviewUrls();
     if (!canEditSelection) return;
     const clampedTimestamp = clampTimestamp(timestampMs);
     if (selection.has(clampedTimestamp)) {
@@ -285,8 +228,7 @@
 
   function setScrubTimestamp(timestampMs: number): number {
     if (!canEditSelection) return scrubTimestamp;
-    scrubTimestamp = clampTimestamp(timestampMs);
-    void ensureFreshPreviewUrls();
+    scrubTimestamp = Math.min(maxTimestamp, clampTimestamp(timestampMs));
     return scrubTimestamp;
   }
 
@@ -308,18 +250,17 @@
   }
 
   async function handleAddFrame(frame: CapturedVideoFrame) {
-    await ensureFreshPreviewUrls();
     if (!canEditSelection) {
-      releaseFramePreview(frame.previewUrl);
+      session?.release(frame.previewUrl);
       return;
     }
 
     const timestampMs = clampTimestamp(frame.timestampMs);
-    const automaticFrame = preview?.frames.find(
-      (candidate) => clampTimestamp(candidate.timestamp_ms) === timestampMs,
+    const automaticFrame = preview?.find(
+      (candidate) => clampTimestamp(candidate.timestampMs) === timestampMs,
     );
     if (automaticFrame) {
-      releaseFramePreview(frame.previewUrl);
+      session?.release(frame.previewUrl);
       if (selectTimestamp(timestampMs)) {
         showManualFeedback(m.frames_already_available_automatic());
         await tick();
@@ -332,7 +273,7 @@
 
     const existingFrame = manualFrames.find((candidate) => candidate.timestampMs === timestampMs);
     if (existingFrame) {
-      releaseFramePreview(frame.previewUrl);
+      session?.release(frame.previewUrl);
       if (selectTimestamp(timestampMs)) {
         showManualFeedback(m.frames_frame_already_added());
         await tick();
@@ -344,7 +285,7 @@
     }
 
     if (manualFrames.length >= MAX_SELECTIONS || !selectTimestamp(timestampMs)) {
-      releaseFramePreview(frame.previewUrl);
+      session?.release(frame.previewUrl);
       showManualFeedback(m.frames_selected_limit());
       return;
     }
@@ -358,7 +299,7 @@
   async function removeManualFrame(frame: ManualFrame) {
     if (!canEditSelection) return;
     const removedIndex = manualFrames.findIndex((candidate) => candidate.id === frame.id);
-    releaseFramePreview(frame.previewUrl);
+    session?.release(frame.previewUrl);
     manualFrames = manualFrames.filter((candidate) => candidate.id !== frame.id);
     selection = new Set([...selection].filter((timestampMs) => timestampMs !== frame.timestampMs));
     clearManualFeedback();
@@ -372,61 +313,42 @@
   }
 
   async function startExtraction() {
-    if (!canEditSelection || selectedTimestamps.length === 0) return;
-    await ensureFreshPreviewUrls();
-    if (!canEditSelection) return;
-
-    const nextSubmittedTimestamps = [...new Set(selectedTimestamps.map(clampTimestamp))].sort(
-      (a, b) => a - b,
-    );
-    if (nextSubmittedTimestamps.length === 0) return;
-
+    if (!canEditSelection || selectedTimestamps.length === 0 || !session) return;
     const version = ++operationVersion;
-    stopActivePoller();
-    errorMessage = '';
-    retryMessage = '';
-    submittedTimestamps = nextSubmittedTimestamps;
+    submittedTimestamps = [...selectedTimestamps];
     phase = 'extracting';
-
+    errorMessage = '';
     try {
-      const created = await extractMutation.mutateAsync({
-        source,
-        // All inserts are clamped, and clamp again at the final boundary so an
-        // out-of-range job failure is unreachable by construction.
-        timestampsMs: submittedTimestamps ?? nextSubmittedTimestamps,
+      const frames = await session.extract(submittedTimestamps, () => {
+        void queryClient.invalidateQueries({ queryKey: storageKeys.all });
+        void queryClient.invalidateQueries({ queryKey: libraryKeys.all });
       });
       if (disposed || version !== operationVersion) return;
-      poller = createFrameJobPoller({
-        jobId: created.job_id,
-        onUpdate: () => {
-          retryMessage = '';
-        },
-        onRetry: (error) => {
-          retryMessage = error.message;
-        },
-        onComplete: (job) => finishExtraction(job, version),
-        onError: (error) => setFailure('extract', error),
-      });
+      extractedFrames = [...frames];
+      phase = 'results';
     } catch (error) {
       if (version === operationVersion) setFailure('extract', error);
     }
   }
 
   function retry() {
-    if (failedOperation === 'preview') {
+    if (failedOperation === 'preview' && preview && session) {
+      phase = 'ready';
+      session.scrub(scrubTimestamp, (error) => setFailure('preview', error));
+    } else if (failedOperation === 'preview') {
       void startPreview();
     } else {
       void startExtraction();
     }
   }
 
-  function useAsInput(frame: ExtractedFrame) {
+  function useAsInput(frame: ExtractedLocalFrame) {
     const didPrefill = prefillSourceForGeneration({
       providers: providersQuery.data,
       mode: 'i2i',
       preferredModel: $generationStore.model,
       source: {
-        ...sourceMediaDraft(`upload:${frame.upload_id}`, frame.media, 'Extracted frame'),
+        ...sourceMediaDraft(`upload:${frame.id}`, frame.media, 'Extracted frame'),
         previewUrl: toMediaSrc(frame.media.original.url),
       },
     });
@@ -435,7 +357,7 @@
       return;
     }
     void goto(ROUTES.create);
-    onclose();
+    closeModal();
   }
 
   function focusableDialogElements(): HTMLElement[] {
@@ -451,7 +373,7 @@
     event.stopPropagation();
     if (event.key === 'Escape') {
       event.preventDefault();
-      onclose();
+      closeModal();
       return;
     }
     if (event.key !== 'Tab') return;
@@ -514,7 +436,7 @@
     ) {
       return;
     }
-    onclose();
+    closeModal();
   }
 
   onMount(() => {
@@ -526,10 +448,12 @@
 
   onDestroy(() => {
     disposed = true;
-    stopActivePoller();
+    sessionUnsubscribe?.();
+    sessionUnsubscribe = null;
+    session?.dispose();
     clearManualFeedback();
     clearManualFrames();
-    previouslyFocused?.focus({ preventScroll: true });
+    if (!focusRestoreScheduled) void tick().then(restoreFocus);
   });
 </script>
 
@@ -549,19 +473,20 @@
   <div
     class="flex h-[100dvh] max-h-none w-full flex-col overflow-hidden rounded-none bg-bg shadow-2xl md:h-auto md:max-h-[92dvh] md:max-w-3xl md:rounded-2xl md:border md:border-border"
   >
+    <div bind:this={decoderHost} aria-hidden="true"></div>
     <header
       class="flex shrink-0 items-center justify-between border-b border-border px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] md:px-5 md:py-3"
     >
       <div>
         <h2 class="text-base font-semibold text-text">{m.frames_title()}</h2>
         {#if preview}
-          <p class="mt-0.5 text-xs text-text-dim">{formatTimestamp(preview.duration_ms)}</p>
+          <p class="mt-0.5 text-xs text-text-dim">{formatTimestamp(durationMs)}</p>
         {/if}
       </div>
       <button
         bind:this={closeButton}
         type="button"
-        onclick={onclose}
+        onclick={closeModal}
         class="flex min-h-11 min-w-11 items-center justify-center rounded-lg p-1.5 text-text-muted transition-colors hover:bg-surface-hover hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
         aria-label={m.frames_close()}
       >
@@ -576,15 +501,25 @@
       style="overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch;"
     >
       <div class="min-h-full p-4 pb-[max(1rem,env(safe-area-inset-bottom))] md:min-h-0 md:p-5">
-        {#if phase === 'previewing'}
+        {#if phase === 'unsupported'}
+          <div class="flex min-h-48 flex-col items-center justify-center gap-3 text-center">
+            <h3 class="text-base font-semibold text-text">{m.frames_unsupported_title()}</h3>
+            <p class="max-w-lg text-sm text-text-muted">
+              {unavailable ? m.frames_unavailable_body() : m.frames_unsupported_body()}
+            </p>
+            <button
+              type="button"
+              onclick={() => void reportVideo()}
+              class="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white"
+              >{m.frames_report_video()}</button
+            >
+          </div>
+        {:else if phase === 'loading'}
           <div class="flex min-h-48 flex-col items-center justify-center gap-3 text-center">
             <Spinner size="xl" />
             <p class="text-sm text-text-muted" role="status" aria-live="polite">
               {m.frames_preview_loading()}
             </p>
-            {#if retryMessage}
-              <p class="text-xs text-text-dim">{retryMessage}</p>
-            {/if}
           </div>
         {:else if phase === 'failed' && !preview}
           <div class="flex min-h-48 flex-col items-center justify-center gap-3 text-center">
@@ -594,39 +529,11 @@
               onclick={retry}
               class="rounded-lg bg-accent px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-accent/90"
             >
-              {m.frames_job_failed_retry()}
+              {m.frames_retry()}
             </button>
           </div>
         {:else if phase === 'results'}
-          <div class="flex flex-col gap-4">
-            <p class="text-sm text-text-muted">{m.frames_preview_ready()}</p>
-            <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-              {#each extractedFrames as frame (frame.upload_id)}
-                <article class="overflow-hidden rounded-xl border border-border bg-surface">
-                  <div class="bg-black" style={`aspect-ratio: ${aspectRatioFor(frame.media)}`}>
-                    <MediaImage
-                      media={frame.media}
-                      alt={formatTimestamp(frame.timestamp_ms)}
-                      sizes="(max-width: 640px) 45vw, 180px"
-                      class="h-full w-full object-contain"
-                    />
-                  </div>
-                  <div class="flex items-center justify-between gap-2 p-2">
-                    <span class="text-[11px] tabular-nums text-text-dim">
-                      {formatTimestamp(frame.timestamp_ms)}
-                    </span>
-                    <button
-                      type="button"
-                      onclick={() => useAsInput(frame)}
-                      class="rounded-md bg-accent/15 px-2 py-1 text-[11px] font-semibold text-accent transition-colors hover:bg-accent/25"
-                    >
-                      {m.frames_use_as_input()}
-                    </button>
-                  </div>
-                </article>
-              {/each}
-            </div>
-          </div>
+          <p class="text-sm text-text-muted">{m.frames_preview_ready()}</p>
         {:else if preview}
           <div class="flex flex-col gap-5">
             {#if phase === 'failed'}
@@ -639,7 +546,7 @@
                   onclick={retry}
                   class="rounded-md border border-danger/30 px-2.5 py-1 text-xs font-semibold text-danger transition-colors hover:bg-danger/10"
                 >
-                  {m.frames_job_failed_retry()}
+                  {m.frames_retry()}
                 </button>
               </div>
             {:else if phase === 'extracting'}
@@ -649,8 +556,9 @@
                 aria-live="polite"
               >
                 <Spinner size="sm" />
-                <span>{m.frames_extract_loading()}</span>
-                {#if retryMessage}<span class="text-text-dim">{retryMessage}</span>{/if}
+                <span>
+                  {m.frames_extract_progress({ done: progress.done, total: progress.total })}
+                </span>
               </div>
             {/if}
 
@@ -662,14 +570,12 @@
                 </span>
               </div>
               <FrameStrip
-                frames={preview.frames}
+                frames={preview}
                 {selection}
-                {previewVersion}
                 sectionLabel={m.frames_automatic()}
                 aspectRatio={videoAspectRatio}
                 disabled={selectionLocked}
                 ontoggle={(timestampMs) => void toggleTimestamp(timestampMs)}
-                onthumbnailerror={(version) => void refreshPreviewUrls(version)}
                 onbuttonready={(timestampMs, element) =>
                   setFrameButton(automaticFrameButtons, timestampMs, element)}
               />
@@ -710,22 +616,21 @@
               {/if}
             </section>
 
-            <FrameScrubber
-              {media}
-              timestamp={scrubTimestamp}
-              {maxTimestamp}
-              canAdd={manualFrames.length < MAX_SELECTIONS && selectedCount < MAX_SELECTIONS}
-              disabled={selectionLocked}
-              onscrub={setScrubTimestamp}
-              onadd={handleAddFrame}
-              onAddButtonReady={(element) => (addFrameButton = element)}
-              addingLabel={m.frames_adding_frame()}
-              retryLabel={m.frames_retry_frame_preview()}
-              displayErrorLabel={m.frames_frame_display_error()}
-              corsCaptureErrorLabel={m.frames_frame_capture_cors_error()}
-              authErrorLabel={m.error_unauthorized()}
-              tooLargeMediaErrorLabel={m.frames_live_preview_too_large()}
-            />
+            {#if session}
+              <FrameScrubber
+                {session}
+                timestamp={scrubTimestamp}
+                {maxTimestamp}
+                canAdd={manualFrames.length < MAX_SELECTIONS && selectedCount < MAX_SELECTIONS}
+                disabled={selectionLocked}
+                onscrub={setScrubTimestamp}
+                onadd={handleAddFrame}
+                onerror={(error) => {
+                  if (phase !== 'extracting') setFailure('preview', error);
+                }}
+                onAddButtonReady={(element) => (addFrameButton = element)}
+              />
+            {/if}
 
             <div class="flex items-center justify-between gap-3 border-t border-border pt-4">
               <p class="text-xs text-text-dim">
@@ -742,6 +647,34 @@
                 {m.frames_extract_action()}
               </button>
             </div>
+          </div>
+        {/if}
+        {#if extractedFrames.length > 0}
+          <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+            {#each extractedFrames as frame (frame.id)}
+              <article class="overflow-hidden rounded-xl border border-border bg-surface">
+                <div class="bg-black" style={`aspect-ratio: ${aspectRatioFor(frame.media)}`}>
+                  <MediaImage
+                    media={frame.media}
+                    alt={formatTimestamp(frame.timestampMs)}
+                    sizes="(max-width: 640px) 45vw, 180px"
+                    class="h-full w-full object-contain"
+                  />
+                </div>
+                <div class="flex items-center justify-between gap-2 p-2">
+                  <span class="text-[11px] tabular-nums text-text-dim">
+                    {formatTimestamp(frame.timestampMs)}
+                  </span>
+                  <button
+                    type="button"
+                    onclick={() => useAsInput(frame)}
+                    class="rounded-md bg-accent/15 px-2 py-1 text-[11px] font-semibold text-accent transition-colors hover:bg-accent/25"
+                  >
+                    {m.frames_use_as_input()}
+                  </button>
+                </div>
+              </article>
+            {/each}
           </div>
         {/if}
       </div>

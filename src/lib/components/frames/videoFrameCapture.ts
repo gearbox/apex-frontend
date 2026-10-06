@@ -1,4 +1,6 @@
+import { encodeFrame } from './frameEncoding';
 export interface RenderedVideoFrame {
+  requestedTimestampMs: number;
   timestampMs: number;
   width: number;
   height: number;
@@ -11,16 +13,23 @@ export interface CapturedVideoFrame extends RenderedVideoFrame {
 interface VideoFrameCaptureOptions {
   video: HTMLVideoElement;
   canvas: HTMLCanvasElement;
+  fullCanvas?: HTMLCanvasElement;
+  durationMs?: number;
+  clock?: Pick<typeof globalThis, 'setTimeout' | 'clearTimeout'>;
   onFrame: (frame: RenderedVideoFrame) => void;
   onSeekingChange: (seeking: boolean) => void;
 }
 
 type VideoWithFrameCallback = HTMLVideoElement & {
-  requestVideoFrameCallback?: (callback: () => void) => number;
+  requestVideoFrameCallback?: (
+    callback: (now: number, metadata: VideoFrameCallbackMetadata) => void,
+  ) => number;
   cancelVideoFrameCallback?: (handle: number) => void;
 };
 
 export type VideoFrameCaptureErrorCode =
+  | 'timeout'
+  | 'aborted'
   | 'metadata-timeout'
   | 'frame-timeout'
   | 'media-error'
@@ -133,14 +142,29 @@ export class VideoFrameCapture {
   private readonly canvas: HTMLCanvasElement;
   private readonly onFrame: (frame: RenderedVideoFrame) => void;
   private readonly onSeekingChange: (seeking: boolean) => void;
+  private readonly fullCanvas: HTMLCanvasElement;
+  private readonly durationMs: number;
+  private readonly clock: Pick<typeof globalThis, 'setTimeout' | 'clearTimeout'>;
+  private presentedTime: number | null = null;
   private requestVersion = 0;
   private disposed = false;
   private pendingCleanup: (() => void) | null = null;
   private activeFrame: RenderedVideoFrame | null = null;
 
-  constructor({ video, canvas, onFrame, onSeekingChange }: VideoFrameCaptureOptions) {
+  constructor({
+    video,
+    canvas,
+    fullCanvas,
+    durationMs = Infinity,
+    clock = globalThis,
+    onFrame,
+    onSeekingChange,
+  }: VideoFrameCaptureOptions) {
     this.video = video;
     this.canvas = canvas;
+    this.fullCanvas = fullCanvas ?? canvas.ownerDocument.createElement('canvas');
+    this.durationMs = durationMs;
+    this.clock = clock;
     this.onFrame = onFrame;
     this.onSeekingChange = onSeekingChange;
   }
@@ -160,6 +184,7 @@ export class VideoFrameCapture {
       const metadataReady = await this.waitForMetadata();
       if (!metadataReady || !this.isCurrent(version)) return null;
 
+      this.presentedTime = null;
       const frameReady = await this.waitForDecodedFrame(timestampMs / 1_000);
       if (!frameReady || !this.isCurrent(version)) return null;
 
@@ -189,7 +214,13 @@ export class VideoFrameCapture {
     const context = manualCanvas.getContext('2d');
     if (!context) throw new VideoFrameCaptureError('canvas-unavailable');
     context.drawImage(this.canvas, 0, 0, manualCanvas.width, manualCanvas.height);
-    const blob = await canvasBlob(manualCanvas);
+    let blob: Blob;
+    try {
+      blob = await canvasBlob(manualCanvas);
+    } finally {
+      manualCanvas.width = manualCanvas.height = 0;
+    }
+    if (this.disposed) throw new VideoFrameCaptureError('aborted');
 
     return {
       ...this.activeFrame,
@@ -198,11 +229,38 @@ export class VideoFrameCapture {
     };
   }
 
+  async captureFullResolution(): Promise<Blob> {
+    if (!this.activeFrame || this.disposed) throw new VideoFrameCaptureError('frame-not-ready');
+    const canvas = this.fullCanvas;
+    canvas.width = this.video.videoWidth;
+    canvas.height = this.video.videoHeight;
+    try {
+      const context = canvas.getContext('2d');
+      if (!context) throw new VideoFrameCaptureError('canvas-unavailable');
+      context.drawImage(this.video, 0, 0, canvas.width, canvas.height);
+      return await encodeFrame(canvas);
+    } finally {
+      canvas.width = canvas.height = 0;
+    }
+  }
+
+  checkOriginClean(): void {
+    try {
+      this.canvas.getContext('2d')?.getImageData(0, 0, 1, 1);
+    } catch (error) {
+      throw new VideoFrameCaptureError(
+        isCanvasSecurityError(error) ? 'canvas-not-origin-clean' : 'canvas-unavailable',
+      );
+    }
+  }
+
   dispose(): void {
     this.disposed = true;
     this.requestVersion += 1;
     this.cancelPending();
     this.activeFrame = null;
+    this.canvas.width = this.canvas.height = 0;
+    this.fullCanvas.width = this.fullCanvas.height = 0;
   }
 
   private isCurrent(version: number): boolean {
@@ -222,7 +280,7 @@ export class VideoFrameCapture {
       const finish = (error?: VideoFrameCaptureError, ready = false) => {
         if (settled) return;
         settled = true;
-        clearTimeout(timer);
+        this.clock.clearTimeout(timer);
         this.video.removeEventListener('loadedmetadata', onMetadata);
         this.video.removeEventListener('error', onError);
         if (this.pendingCleanup === cancel) this.pendingCleanup = null;
@@ -232,7 +290,7 @@ export class VideoFrameCapture {
       const onMetadata = () => finish(undefined, true);
       const onError = () => finish(new VideoFrameCaptureError('media-error'));
       const cancel = () => finish(undefined, false);
-      const timer = window.setTimeout(
+      const timer = this.clock.setTimeout(
         () => finish(new VideoFrameCaptureError('metadata-timeout')),
         READY_TIMEOUT_MS,
       );
@@ -255,13 +313,14 @@ export class VideoFrameCapture {
       let paintScheduled = false;
       let seekObserved = this.isAtTimestamp(targetSeconds);
 
-      const hasCurrentFrame = () => this.video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA;
+      const hasCurrentFrame = () =>
+        !this.video.seeking && this.video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA;
       const isReadyAtTarget = () => hasCurrentFrame() && this.isAtTimestamp(targetSeconds);
 
       const finish = (error?: VideoFrameCaptureError, ready = false) => {
         if (settled) return;
         settled = true;
-        clearTimeout(timer);
+        this.clock.clearTimeout(timer);
         this.video.removeEventListener('seeked', onSeeked);
         this.video.removeEventListener('loadeddata', onReadyState);
         this.video.removeEventListener('canplay', onReadyState);
@@ -287,9 +346,10 @@ export class VideoFrameCapture {
       const observeDecodedFrame = () => {
         if (!this.video.requestVideoFrameCallback || settled || frameCallbackHandle !== null)
           return;
-        frameCallbackHandle = this.video.requestVideoFrameCallback(() => {
+        frameCallbackHandle = this.video.requestVideoFrameCallback((_now, metadata) => {
           frameCallbackHandle = null;
           if (isReadyAtTarget()) {
+            this.presentedTime = metadata?.mediaTime ?? this.video.currentTime;
             finish(undefined, true);
           } else {
             observeDecodedFrame();
@@ -313,7 +373,7 @@ export class VideoFrameCapture {
       const onReadyState = () => maybeReady();
       const onError = () => finish(new VideoFrameCaptureError('media-error'));
       const cancel = () => finish(undefined, false);
-      const timer = window.setTimeout(
+      const timer = this.clock.setTimeout(
         () => finish(new VideoFrameCaptureError('frame-timeout')),
         READY_TIMEOUT_MS,
       );
@@ -353,6 +413,14 @@ export class VideoFrameCapture {
     this.canvas.height = height;
     context.drawImage(this.video, 0, 0, width, height);
 
-    return { timestampMs, width, height };
+    return {
+      requestedTimestampMs: timestampMs,
+      timestampMs: Math.min(
+        this.durationMs,
+        Math.max(0, Math.round((this.presentedTime ?? this.video.currentTime) * 1000)),
+      ),
+      width,
+      height,
+    };
   }
 }

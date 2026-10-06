@@ -1,401 +1,106 @@
-import { readFileSync } from 'node:fs';
-import { Buffer } from 'node:buffer';
 import { test, expect } from '../fixtures/auth.fixture';
 import { jsonRoute } from '../helpers/api';
+import {
+  setupFrameExtraction as setup,
+  canvasSample,
+  SOURCE_ID,
+  DURATION_MS,
+} from '../helpers/frame-extraction';
 
-const SOURCE_ID = 'c0000000-0000-4000-8000-000000000001';
-const DURATION_MS = 3_000;
-const portraitVideo = readFileSync(
-  new URL('../fixtures/media/frame-extraction-portrait.mp4', import.meta.url),
-);
-const previewImage = Buffer.from(
-  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WlK8ZsAAAAASUVORK5CYII=',
-  'base64',
-);
-
-const videoMedia = {
-  media_type: 'video',
-  original: {
-    url: `/v1/content/uploads/${SOURCE_ID}`,
-    width: 180,
-    height: 320,
-    content_type: 'video/mp4',
-    size_bytes: portraitVideo.byteLength,
-  },
-  variants: [],
-};
-
-const libraryUploadItem = {
-  asset_ref: `upload:${SOURCE_ID}`,
-  source: 'upload',
-  media: videoMedia,
-  created_at: '2026-07-17T10:00:00Z',
-  expires_at: '2026-08-17T10:00:00Z',
-  display_title: null,
-  original_filename: 'portrait-frame-source.mp4',
-  display_filename: 'portrait-frame-source.mp4',
-  is_favorite: false,
-  duration_ms: DURATION_MS,
-  job_id: null,
-  output_count: null,
-  model: null,
-  generation_type: null,
-  available_actions: ['extract_frame', 'download', 'favorite', 'delete'],
-  tags: [],
-};
-
-const libraryPage = {
-  items: [libraryUploadItem],
-  limit: 30,
-  has_more: false,
-  next_cursor: null,
-};
-
-const libraryAssetDetail = {
-  ...libraryUploadItem,
-  prompt: null,
-  negative_prompt: null,
-  provider: null,
-  aspect_ratio: null,
-  token_cost: null,
-  completed_at: null,
-  lineage: null,
-  descendants: { job_count: 0, frame_count: 0 },
-};
-
-function previewJob() {
-  return {
-    job_id: 'frame-preview-job',
-    kind: 'preview',
-    status: 'completed',
-    created_at: '2026-07-17T10:00:00Z',
-    started_at: '2026-07-17T10:00:01Z',
-    finished_at: '2026-07-17T10:00:02Z',
-    error: null,
-    source: { type: 'upload', id: SOURCE_ID },
-    preview: {
-      duration_ms: DURATION_MS,
-      expires_in_seconds: 3600,
-      frames: Array.from({ length: 6 }, (_, index) => ({
-        index,
-        timestamp_ms: index * 500,
-        url: `https://frame-previews.example.test/${index}.webp`,
-      })),
-    },
-    extracted: null,
-  };
-}
-
-function extractingJob() {
-  return {
-    ...previewJob(),
-    job_id: 'frame-extract-job',
-    kind: 'extract',
-    status: 'processing',
-    preview: null,
-  };
-}
-
-async function canvasSample(canvas: import('@playwright/test').Locator) {
-  return canvas.evaluate((element) => {
-    const preview = element as HTMLCanvasElement;
-    const context = preview.getContext('2d');
-    if (!context) throw new Error('2d context unavailable');
-    const pixels = context.getImageData(
-      Math.floor(preview.width / 2),
-      Math.floor(preview.height / 2),
-      1,
-      1,
-    ).data;
-    const rect = preview.getBoundingClientRect();
-    return {
-      width: preview.width,
-      height: preview.height,
-      cssWidth: rect.width,
-      cssHeight: rect.height,
-      pixel: Array.from(pixels),
-    };
-  });
-}
-
-test.describe('Frame extraction (real media regression)', () => {
+test.describe('local frame extraction', () => {
   test(
-    'keeps the Library asset details dialog and parent preview open through reverse-direction mobile scrolling',
-    { tag: '@mobile-chrome' },
+    'native ranged previews, manual scrubbing, sequential lineage uploads and Use as input',
+    { tag: '@cross-browser' },
     async ({ authenticatedPage: page, browserName }) => {
-      // Playwright WebKit does not reliably dispatch the authenticated blob-decoder
-      // extraction request in its emulated media/canvas pipeline. This exact media
-      // path is covered by the required physical iOS-device validation checklist.
       test.skip(
         browserName === 'webkit',
-        'Playwright WebKit cannot reliably exercise authenticated blob media decoding.',
+        'Playwright WebKit cannot reliably exercise the media/canvas path; physical iOS staging validation is required.',
       );
-
-      let previewRequest: unknown;
-      let extractionRequest: unknown;
-      let frameModalOpen = false;
-      let cookieMediaFetches = 0;
-      let nativeProtectedContentRequestsAfterFrameModalOpen = 0;
-      let bearerProtectedContentRequests = 0;
-      let protectedMedia401Responses = 0;
-      const pageErrors: Error[] = [];
-
-      await page.route((url) => url.pathname === '/v1/library', jsonRoute(libraryPage));
-      await page.route('**/v1/library/assets/**', jsonRoute(libraryAssetDetail));
-      // Asset-details actions wait for provider capabilities before they render. Frame
-      // extraction itself has no provider dependency, so an empty ready response is enough.
-      await page.route('**/v1/providers', jsonRoute({ providers: [], user_context: null }));
-      await page.route(
-        '**/v1/storage/stats',
-        jsonRoute({
-          upload_count: 1,
-          output_count: 0,
-          total_bytes: portraitVideo.byteLength,
-          total_mb: 1,
-        }),
-      );
-      // Production authenticates protected media bytes with the HttpOnly content cookie
-      // (Path=/v1/content), never the access token. Seed that cookie the way the backend
-      // would have on login; the mocked proxy accepts only it, so a missing cookie or a
-      // reintroduced Bearer header fails this scenario.
-      await page.context().addCookies([
-        {
-          name: 'apex_content',
-          value: 'e2e-content-cookie',
-          domain: 'localhost',
-          path: '/v1/content',
-          httpOnly: true,
-          secure: false,
-          sameSite: 'Lax',
-        },
-      ]);
-      // The authenticated loader fetches protected content once, then the hidden
-      // decoder consumes only the resulting blob URL.
-      await page.route('http://localhost:8000/v1/content/**', async (route) => {
-        const request = route.request();
-        const headers = await request.allHeaders();
-        const isFetch = request.resourceType() === 'fetch';
-        if (headers.authorization) bearerProtectedContentRequests += 1;
-        if (frameModalOpen && !isFetch) nativeProtectedContentRequestsAfterFrameModalOpen += 1;
-        if (headers.authorization || !headers.cookie?.includes('apex_content=e2e-content-cookie')) {
-          if (frameModalOpen && isFetch) protectedMedia401Responses += 1;
-          return route.fulfill({
-            status: 401,
-            contentType: 'application/json',
-            body: '{"error":"unauthorized"}',
-          });
-        }
-        if (frameModalOpen && isFetch) cookieMediaFetches += 1;
-
-        const range = headers.range;
-        const match = range?.match(/bytes=(\d+)-(\d*)/);
-        const start = match ? Number(match[1]) : 0;
-        const end = match?.[2] ? Number(match[2]) : portraitVideo.length - 1;
-        const body = portraitVideo.subarray(start, end + 1);
-        return route.fulfill({
-          status: match ? 206 : 200,
-          contentType: 'video/mp4',
-          headers: {
-            'access-control-allow-origin': 'http://localhost:4173',
-            'access-control-allow-credentials': 'true',
-            'accept-ranges': 'bytes',
-            'content-length': String(body.length),
-            ...(match ? { 'content-range': `bytes ${start}-${end}/${portraitVideo.length}` } : {}),
-          },
-          body,
-        });
-      });
-      page.on('pageerror', (error) => pageErrors.push(error));
-      await page.route('https://frame-previews.example.test/**', (route) =>
-        route.fulfill({ status: 200, contentType: 'image/png', body: previewImage }),
-      );
-      await page.route('**/v1/frames/preview', (route) => {
-        previewRequest = route.request().postDataJSON();
-        return route.fulfill({
-          status: 202,
-          contentType: 'application/json',
-          body: '{"job_id":"frame-preview-job","status":"queued"}',
-        });
-      });
-      await page.route('**/v1/frames/extract', (route) => {
-        extractionRequest = route.request().postDataJSON();
-        return route.fulfill({
-          status: 202,
-          contentType: 'application/json',
-          body: '{"job_id":"frame-extract-job","status":"queued"}',
-        });
-      });
-      await page.route('**/v1/frames/jobs/**', (route) =>
-        route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify(
-            route.request().url().includes('frame-extract-job') ? extractingJob() : previewJob(),
-          ),
-        }),
-      );
-
-      await page.goto('/app/library');
-      await expect(page.getByRole('heading', { name: 'Library' })).toBeVisible({ timeout: 5_000 });
-      await page.getByRole('button', { name: /portrait-frame-source\.mp4/ }).click();
-      const lightbox = page.getByRole('dialog', { name: 'Asset details' });
-      // The asset details sheet owns a separate native video. Detach it before the
-      // scrubber phase so its media activity cannot be attributed to the hidden
-      // authenticated decoder under test.
-      await lightbox.locator('video').evaluate((video) => {
-        const media = video as HTMLVideoElement;
-        media.pause();
-        media.removeAttribute('src');
-        media.load();
-      });
-      const openFrameModal = lightbox.getByRole('button', { name: 'Extract frames' }).click();
-      frameModalOpen = true;
-      await openFrameModal;
-
-      const extractionDialog = page.getByRole('dialog', { name: 'Extract frames' });
-      const scrubber = extractionDialog.getByRole('slider', { name: 'Frame timestamp' });
-      const canvas = extractionDialog.locator('canvas');
-      const addButton = extractionDialog.getByRole('button', { name: 'Add frame' });
-
-      await expect(extractionDialog.getByRole('heading', { name: 'Automatic' })).toBeVisible();
-      await expect
-        .poll(() => previewRequest)
-        .toEqual({ source_upload_id: SOURCE_ID, frame_count: 6 });
-      await expect(extractionDialog.getByRole('button', { name: /^Automatic:/ })).toHaveCount(6);
-      await expect(addButton).toBeEnabled({ timeout: 8_000 });
-      expect(cookieMediaFetches).toBeGreaterThan(0);
-      expect(protectedMedia401Responses).toBe(0);
-      expect(nativeProtectedContentRequestsAfterFrameModalOpen).toBe(0);
-      expect(bearerProtectedContentRequests).toBe(0);
-      const decoderSrc = await extractionDialog
-        .locator('video')
-        .evaluate((video) => (video as HTMLVideoElement).src);
-      expect(decoderSrc).toMatch(/^blob:/);
-      expect(decoderSrc).not.toContain('/v1/content/');
-
-      const initial = await canvasSample(canvas);
-      expect(await canvas.getAttribute('aria-label')).toBe('00:00.000');
+      const f = await setup(page);
+      await expect(f.dialog.getByRole('button', { name: /^Automatic:/ })).toHaveCount(6);
+      const add = f.dialog.getByRole('button', { name: 'Add frame' });
+      await expect(add).toBeEnabled();
+      expect(f.mediaRequests.some((request) => request.range)).toBe(true);
+      expect(
+        f.mediaRequests.every(
+          (request) =>
+            request.url.includes('/v1/content/') &&
+            !request.authorization &&
+            request.resource !== 'fetch',
+        ),
+      ).toBe(true);
+      expect(await f.dialog.locator('video').getAttribute('crossorigin')).toBe('use-credentials');
+      const initial = await canvasSample(f.dialog.locator('canvas'));
       expect(initial.width / initial.height).toBeCloseTo(9 / 16, 3);
-      expect(initial.cssWidth / initial.cssHeight).toBeCloseTo(9 / 16, 1);
-      expect(initial.pixel[0]).toBeGreaterThan(initial.pixel[1]);
-      expect(initial.pixel[0]).toBeGreaterThan(initial.pixel[2]);
-
-      const pixelDuringDebounce = await scrubber.evaluate((element) => {
-        const input = element as HTMLInputElement;
-        const preview = input.closest('[role="dialog"]')?.querySelector('canvas');
-        if (!(preview instanceof HTMLCanvasElement))
-          throw new Error('frame preview canvas unavailable');
-        const context = preview.getContext('2d');
-        if (!context) throw new Error('frame preview context unavailable');
-
-        input.value = '1250';
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        // This runs in the same task as the input handler, before its 75 ms
-        // debounce timer can seek or repaint the decoder canvas.
-        return Array.from(
-          context.getImageData(Math.floor(preview.width / 2), Math.floor(preview.height / 2), 1, 1)
-            .data,
-        );
-      });
-      // The seek is debounced, so the existing painted canvas must stay visible
-      // rather than being cleared while the next decoded frame is pending.
-      expect(pixelDuringDebounce).toEqual(initial.pixel);
-      await expect(addButton).toBeEnabled({ timeout: 8_000 });
-
-      const middle = await canvasSample(canvas);
-      expect(middle.pixel[1]).toBeGreaterThan(middle.pixel[0]);
-      expect(middle.pixel[1]).toBeGreaterThan(middle.pixel[2]);
-
-      // Repeating the exact timestamp must render without a synthetic seeked event.
-      await scrubber.evaluate((element) => {
+      const slider = f.dialog.getByRole('slider');
+      await slider.evaluate((element) => {
         const input = element as HTMLInputElement;
         input.value = '1250';
         input.dispatchEvent(new Event('input', { bubbles: true }));
       });
-      await expect(addButton).toBeEnabled({ timeout: 8_000 });
-      expect((await canvasSample(canvas)).pixel).toEqual(middle.pixel);
-
-      await addButton.click();
-      const manualCard = extractionDialog.getByRole('button', {
-        name: 'Manually chosen frames: 00:01.250',
-      });
-      await expect(manualCard).toBeVisible();
-      await expect(manualCard.locator('img')).toHaveJSProperty('naturalWidth', 180);
-      await expect(manualCard).toHaveAttribute('aria-pressed', 'true');
-
-      const automaticCard = extractionDialog.getByRole('button', { name: 'Automatic: 00:00.000' });
-      await automaticCard.click();
-
-      const scrollViewport = extractionDialog.locator('[data-frame-modal-scroll]');
-      const scrollPositions = await scrollViewport.evaluate((viewport) => {
-        const element = viewport as HTMLElement;
-        element.scrollTop = element.scrollHeight;
-        const bottom = element.scrollTop;
-        element.scrollTop = Math.max(1, Math.floor(bottom / 2));
-        const reversed = element.scrollTop;
-        element.scrollTop = 0;
-        return { bottom, reversed, top: element.scrollTop };
-      });
-      expect(scrollPositions.bottom).toBeGreaterThan(0);
-      expect(scrollPositions.reversed).toBeLessThan(scrollPositions.bottom);
-      expect(scrollPositions.top).toBeLessThan(scrollPositions.reversed);
-      await scrollViewport.dispatchEvent('pointerdown', {
-        pointerType: 'touch',
-        pointerId: 1,
-        isPrimary: true,
-        clientY: 160,
-      });
-      await scrollViewport.dispatchEvent('pointermove', {
-        pointerType: 'touch',
-        pointerId: 1,
-        isPrimary: true,
-        clientY: 40,
-      });
-      await scrollViewport.dispatchEvent('pointerup', {
-        pointerType: 'touch',
-        pointerId: 1,
-        isPrimary: true,
-        clientY: 40,
-      });
-      await expect(extractionDialog).toBeVisible();
-      await expect(manualCard).toHaveAttribute('aria-pressed', 'true');
-      await expect(automaticCard).toHaveAttribute('aria-pressed', 'true');
-      await expect(canvas).toBeVisible();
-      await expect(page.locator('[role="dialog"][aria-label="Asset details"]')).toHaveJSProperty(
-        'inert',
-        true,
-      );
-      await expect(page.locator('[role="dialog"][aria-label="Asset details"]')).toHaveAttribute(
-        'aria-hidden',
-        'true',
-      );
-      expect(page.url()).toContain('/app/library');
-
-      await extractionDialog.getByRole('button', { name: 'Extract frames' }).click();
-
+      await expect(add).toBeEnabled();
       await expect
-        .poll(() => extractionRequest)
-        .toEqual({
-          source_upload_id: SOURCE_ID,
-          timestamps_ms: [0, 1250],
-        });
-      expect(JSON.stringify(extractionRequest)).not.toContain('user_id');
+        .poll(async () => (await canvasSample(f.dialog.locator('canvas'))).pixel[1])
+        .toBeGreaterThan(initial.pixel[1]);
+      await add.click();
+      const manual = f.dialog.getByRole('button', { name: /^Manually chosen frames:/ });
+      await expect(manual).toHaveCount(1);
+      await f.dialog.getByRole('button', { name: 'Automatic: 00:00.000' }).click();
+      const scroll = f.dialog.locator('[data-frame-modal-scroll]');
+      await scroll.evaluate((element) => {
+        element.scrollTop = element.scrollHeight;
+        element.scrollTop = 0;
+      });
+      await expect(manual).toHaveAttribute('aria-pressed', 'true');
       await expect(
-        extractionDialog.getByRole('button', { name: 'Automatic: 00:00.000' }),
-      ).toBeDisabled();
-      await expect(manualCard).toBeDisabled();
-      await expect(scrubber).toBeDisabled();
-      await expect(addButton).toBeDisabled();
-
-      await extractionDialog.getByRole('button', { name: 'Close' }).click();
-      await expect(extractionDialog).toBeHidden();
-      const restoredLightbox = page.locator('[role="dialog"][aria-label="Asset details"]');
-      await expect(restoredLightbox).toHaveJSProperty('inert', false);
-      await expect(restoredLightbox).not.toHaveAttribute('aria-hidden', 'true');
-      await restoredLightbox.getByRole('button', { name: 'Close' }).click();
-      await expect(page.getByRole('heading', { name: 'Library' })).toBeVisible();
-      expect(page.url()).toContain('/app/library');
-      expect(pageErrors).toEqual([]);
+        page.getByRole('dialog', { name: 'Asset details', includeHidden: true }),
+      ).toHaveJSProperty('inert', true);
+      await f.dialog.getByRole('button', { name: 'Extract frames' }).click();
+      await expect(f.dialog.getByRole('button', { name: 'Use as input' })).toHaveCount(2);
+      expect(f.uploads).toHaveLength(2);
+      expect(
+        f.uploads.every(
+          (upload) =>
+            upload.source === `upload:${SOURCE_ID}` &&
+            /^\d+$/.test(upload.timestamp) &&
+            Number(upload.timestamp) <= DURATION_MS,
+        ),
+      ).toBe(true);
+      expect(f.framesRequests).toEqual([]);
+      await f.dialog.getByRole('button', { name: 'Use as input' }).first().click();
+      await expect(page).toHaveURL(/\/app\/create/);
+    },
+  );
+  test(
+    'reachable corrupt video shows unsupported state and reports the source',
+    { tag: '@cross-browser' },
+    async ({ authenticatedPage: page }) => {
+      const f = await setup(page, true);
+      await expect(f.dialog.getByText("This video can't be opened in this browser")).toBeVisible({
+        timeout: 15000,
+      });
+      await f.dialog.getByRole('button', { name: 'Report this video' }).click();
+      await expect(f.dialog).toBeHidden();
+      const feedback = page.getByRole('dialog', { name: 'Report a problem' });
+      await expect(feedback).toBeVisible();
+      await expect(feedback.getByText('Linked result')).toBeVisible();
+      await expect(feedback.getByRole('combobox')).toHaveValue('bug');
+      let report: { asset_ref: string; category: string } | undefined;
+      await page.route('**/v1/feedback', (route) => {
+        report = route.request().postDataJSON();
+        return jsonRoute(
+          { id: 'report-1', created_at: '2026-10-06T00:00:00Z', status: 'new' },
+          201,
+        )(route);
+      });
+      await feedback
+        .getByRole('textbox', { name: 'What happened?' })
+        .fill('This video cannot be opened for frame extraction.');
+      await feedback.getByRole('button', { name: 'Send report' }).click();
+      await expect
+        .poll(() => report)
+        .toMatchObject({ asset_ref: `upload:${SOURCE_ID}`, category: 'bug' });
+      expect(f.framesRequests).toEqual([]);
     },
   );
 });

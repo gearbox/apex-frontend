@@ -901,7 +901,7 @@
 {#if showFrameExtraction && currentDetail}
   {@const parsedRef = parseAssetRef(selectedAssetRef)}
   <FrameExtractModal
-    source={{ type: parsedRef.source, id: parsedRef.id }}
+    assetRef={`${parsedRef.source}:${parsedRef.id}`}
     media={stageMedia ?? currentDetail.media}
     trigger={frameExtractionTrigger}
     onclose={() => (showFrameExtraction = false)}

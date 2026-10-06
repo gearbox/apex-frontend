@@ -37,3 +37,10 @@ policy changes. Apex does not hard-block browsers or use user-agent sniffing.
 Feature detection remains appropriate for optional, permission-gated, or device-dependent features
 that may not be available even in a supported browser, such as push subscriptions, installation
 affordances, and camera or media APIs.
+
+## Video frame extraction
+
+Frame extraction depends on the browser's native video decoder, including in installed PWAs.
+Readiness is verified by decoding and reading a canvas pixel, rather than codec capability hints.
+Typical unsupported cases include HEVC on Linux Chrome or Firefox, and AV1 on older Apple devices.
+Unsupported videos offer a report action. HDR frames are captured without client tone mapping.
