@@ -63,8 +63,10 @@
     'loading',
   );
   let timelineMax = $state(0);
+  let progress = $state({ done: 0, total: 0 });
   let unavailable = $state(false);
   let session = $state<FrameExtractionSession>();
+  let sessionUnsubscribe: (() => void) | null = null;
   let decoderHost: HTMLDivElement;
   let failedOperation = $state<'preview' | 'extract'>('preview');
   let errorMessage = $state('');
@@ -159,6 +161,8 @@
     focusRestoreScheduled = true;
     disposed = true;
     operationVersion++;
+    sessionUnsubscribe?.();
+    sessionUnsubscribe = null;
     session?.dispose();
     onclose();
     return tick().then(restoreFocus);
@@ -171,14 +175,24 @@
 
   async function startPreview() {
     const version = ++operationVersion;
+    sessionUnsubscribe?.();
+    sessionUnsubscribe = null;
     session?.dispose();
     session = new FrameExtractionSession({
       assetRef,
       media,
       onFailure: (error) => setFailure('preview', error),
     });
+    const currentSession = session;
+    sessionUnsubscribe = currentSession.subscribe(() => {
+      if (session !== currentSession || disposed) return;
+      extractedFrames = [...currentSession.results];
+      progress = { ...currentSession.progress };
+    });
     session.mountVideo(decoderHost);
     preview = null;
+    extractedFrames = [];
+    progress = { done: 0, total: 0 };
     selection = new Set();
     clearManualFrames();
     phase = 'loading';
@@ -310,7 +324,7 @@
         void queryClient.invalidateQueries({ queryKey: libraryKeys.all });
       });
       if (disposed || version !== operationVersion) return;
-      extractedFrames = frames;
+      extractedFrames = [...frames];
       phase = 'results';
     } catch (error) {
       if (version === operationVersion) setFailure('extract', error);
@@ -434,6 +448,8 @@
 
   onDestroy(() => {
     disposed = true;
+    sessionUnsubscribe?.();
+    sessionUnsubscribe = null;
     session?.dispose();
     clearManualFeedback();
     clearManualFrames();
@@ -517,35 +533,7 @@
             </button>
           </div>
         {:else if phase === 'results'}
-          <div class="flex flex-col gap-4">
-            <p class="text-sm text-text-muted">{m.frames_preview_ready()}</p>
-            <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-              {#each extractedFrames as frame (frame.id)}
-                <article class="overflow-hidden rounded-xl border border-border bg-surface">
-                  <div class="bg-black" style={`aspect-ratio: ${aspectRatioFor(frame.media)}`}>
-                    <MediaImage
-                      media={frame.media}
-                      alt={formatTimestamp(frame.timestampMs)}
-                      sizes="(max-width: 640px) 45vw, 180px"
-                      class="h-full w-full object-contain"
-                    />
-                  </div>
-                  <div class="flex items-center justify-between gap-2 p-2">
-                    <span class="text-[11px] tabular-nums text-text-dim">
-                      {formatTimestamp(frame.timestampMs)}
-                    </span>
-                    <button
-                      type="button"
-                      onclick={() => useAsInput(frame)}
-                      class="rounded-md bg-accent/15 px-2 py-1 text-[11px] font-semibold text-accent transition-colors hover:bg-accent/25"
-                    >
-                      {m.frames_use_as_input()}
-                    </button>
-                  </div>
-                </article>
-              {/each}
-            </div>
-          </div>
+          <p class="text-sm text-text-muted">{m.frames_preview_ready()}</p>
         {:else if preview}
           <div class="flex flex-col gap-5">
             {#if phase === 'failed'}
@@ -568,7 +556,9 @@
                 aria-live="polite"
               >
                 <Spinner size="sm" />
-                <span>{m.frames_extract_loading()}</span>
+                <span>
+                  {m.frames_extract_progress({ done: progress.done, total: progress.total })}
+                </span>
               </div>
             {/if}
 
@@ -657,6 +647,34 @@
                 {m.frames_extract_action()}
               </button>
             </div>
+          </div>
+        {/if}
+        {#if extractedFrames.length > 0}
+          <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+            {#each extractedFrames as frame (frame.id)}
+              <article class="overflow-hidden rounded-xl border border-border bg-surface">
+                <div class="bg-black" style={`aspect-ratio: ${aspectRatioFor(frame.media)}`}>
+                  <MediaImage
+                    media={frame.media}
+                    alt={formatTimestamp(frame.timestampMs)}
+                    sizes="(max-width: 640px) 45vw, 180px"
+                    class="h-full w-full object-contain"
+                  />
+                </div>
+                <div class="flex items-center justify-between gap-2 p-2">
+                  <span class="text-[11px] tabular-nums text-text-dim">
+                    {formatTimestamp(frame.timestampMs)}
+                  </span>
+                  <button
+                    type="button"
+                    onclick={() => useAsInput(frame)}
+                    class="rounded-md bg-accent/15 px-2 py-1 text-[11px] font-semibold text-accent transition-colors hover:bg-accent/25"
+                  >
+                    {m.frames_use_as_input()}
+                  </button>
+                </div>
+              </article>
+            {/each}
           </div>
         {/if}
       </div>

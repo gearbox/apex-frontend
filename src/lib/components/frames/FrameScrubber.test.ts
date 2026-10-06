@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { FrameExtractionSession } from './frameExtractionSession';
-import { ASSET_REF, videoMedia, installMediaMocks } from './frameTestFixtures';
+import { ASSET_REF, videoMedia, installMediaMocks } from './testing/frameTestFixtures';
 import FrameScrubber from './FrameScrubber.svelte';
 let session: FrameExtractionSession;
 afterEach(() => {

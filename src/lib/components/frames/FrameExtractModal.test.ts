@@ -1,17 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { writable } from 'svelte/store';
-import { ASSET_REF, videoMedia, uploaded, installMediaMocks } from './frameTestFixtures';
+import { ASSET_REF, videoMedia, uploaded, installMediaMocks } from './testing/frameTestFixtures';
 import { FrameExtractionSession } from './frameExtractionSession';
+import { ApiRequestError } from '$lib/api/errors';
 import { feedbackDialog } from '$lib/stores/feedbackDialog.svelte';
 
-const { upload, invalidate, goto, prefill } = vi.hoisted(() => ({
+const { upload, invalidate, goto, prefill, recover } = vi.hoisted(() => ({
   upload: vi.fn(),
   invalidate: vi.fn(),
   goto: vi.fn(),
   prefill: vi.fn<(options: { source: { assetRef: string } }) => boolean>(() => true),
+  recover: vi.fn(),
 }));
 vi.mock('$lib/api/upload', () => ({ uploadMedia: upload }));
+vi.mock('$lib/media/mediaErrorRecovery', () => ({ recoverFromMediaError: recover }));
 vi.mock('$app/navigation', () => ({ goto }));
 vi.mock('@tanstack/svelte-query', () => ({
   useQueryClient: () => ({ invalidateQueries: invalidate }),
@@ -28,6 +31,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   installMediaMocks();
   upload.mockResolvedValue(uploaded);
+  recover.mockResolvedValue({ retry: false, failure: 'unsupported' });
   feedbackDialog.reset();
 });
 afterEach(() => {
@@ -144,5 +148,108 @@ describe('client frame modal', () => {
       expect(screen.getAllByRole('button', { name: 'Use as input' })).toHaveLength(2),
     );
     expect(upload.mock.calls.map((call) => call[1].lineage.timestampMs)).toEqual([0, 500, 500]);
+  });
+  it('lets Retry recover after an earlier successful recovery and a transient preview failure', async () => {
+    recover
+      .mockResolvedValueOnce({ retry: true })
+      .mockResolvedValueOnce({ retry: false, failure: 'network' })
+      .mockResolvedValueOnce({ retry: true });
+    modal();
+    await ready();
+    const video = screen.getByRole('dialog').querySelector('video');
+    if (!video) throw new Error('Expected the decoder video');
+    let nativeError: MediaError | null = null;
+    Object.defineProperty(video, 'error', { configurable: true, get: () => nativeError });
+    const reload = vi.spyOn(video, 'load').mockImplementation(() => {
+      nativeError = null;
+    });
+    reload.mockClear();
+
+    nativeError = { code: 4 } as MediaError;
+    await fireEvent.input(screen.getByRole('slider'), { target: { value: '1500' } });
+    await waitFor(() => expect(recover).toHaveBeenCalledOnce());
+    await waitFor(() => expect(reload).toHaveBeenCalledOnce());
+
+    nativeError = { code: 2 } as MediaError;
+    await fireEvent.input(screen.getByRole('slider'), { target: { value: '1700' } });
+    await screen.findByRole('button', { name: 'Retry' });
+    expect(recover).toHaveBeenCalledTimes(2);
+
+    nativeError = { code: 4 } as MediaError;
+    await fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await waitFor(() => expect(recover).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(reload).toHaveBeenCalledTimes(2));
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
+    expect(screen.getByRole('slider')).toBeTruthy();
+  });
+  it('shows completed frames alongside the unavailable state after a lineage error', async () => {
+    upload.mockResolvedValueOnce(uploaded).mockRejectedValueOnce(
+      new ApiRequestError({
+        error: 'invalid_frame_lineage',
+        message: 'source missing',
+        status_code: 400,
+      }),
+    );
+    modal();
+    await ready();
+    for (const timestamp of ['00:00.000', '00:00.500', '00:01.000']) {
+      await fireEvent.click(screen.getByRole('button', { name: `Automatic: ${timestamp}` }));
+    }
+    await fireEvent.click(screen.getByRole('button', { name: 'Extract frames' }));
+
+    await screen.findByText("Frame extraction isn't available for this video");
+    expect(screen.getAllByRole('button', { name: 'Use as input' })).toHaveLength(1);
+    expect(screen.getByRole('button', { name: 'Report this video' })).toBeTruthy();
+  });
+  it('shows partial results beside Retry and resumes only the remaining uploads', async () => {
+    const first = { ...uploaded, id: 'c0000000-0000-4000-8000-000000000012' };
+    const second = { ...uploaded, id: 'c0000000-0000-4000-8000-000000000013' };
+    const third = { ...uploaded, id: 'c0000000-0000-4000-8000-000000000014' };
+    upload
+      .mockResolvedValueOnce(first)
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce(second)
+      .mockResolvedValueOnce(third);
+    modal();
+    await ready();
+    for (const timestamp of ['00:00.000', '00:00.500', '00:01.000']) {
+      await fireEvent.click(screen.getByRole('button', { name: `Automatic: ${timestamp}` }));
+    }
+    await fireEvent.click(screen.getByRole('button', { name: 'Extract frames' }));
+
+    await screen.findByRole('button', { name: 'Retry' });
+    expect(screen.getAllByRole('button', { name: 'Use as input' })).toHaveLength(1);
+    await fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await waitFor(() =>
+      expect(screen.getAllByRole('button', { name: 'Use as input' })).toHaveLength(3),
+    );
+    expect(upload.mock.calls.map((call) => call[1].lineage.timestampMs)).toEqual([
+      0, 500, 500, 1000,
+    ]);
+  });
+  it('updates the saving progress after each upload completes', async () => {
+    const pending: Array<(value: typeof uploaded) => void> = [];
+    upload.mockImplementation(
+      () => new Promise((resolve) => pending.push(resolve as (value: typeof uploaded) => void)),
+    );
+    modal();
+    await ready();
+    for (const timestamp of ['00:00.000', '00:00.500', '00:01.000']) {
+      await fireEvent.click(screen.getByRole('button', { name: `Automatic: ${timestamp}` }));
+    }
+    await fireEvent.click(screen.getByRole('button', { name: 'Extract frames' }));
+    await waitFor(() => expect(upload).toHaveBeenCalledOnce());
+    expect(screen.getByText('Saving 0 of 3')).toBeTruthy();
+
+    pending[0]({ ...uploaded, id: 'c0000000-0000-4000-8000-000000000015' });
+    await waitFor(() => expect(upload).toHaveBeenCalledTimes(2));
+    expect(screen.getByText('Saving 1 of 3')).toBeTruthy();
+    pending[1]({ ...uploaded, id: 'c0000000-0000-4000-8000-000000000016' });
+    await waitFor(() => expect(upload).toHaveBeenCalledTimes(3));
+    expect(screen.getByText('Saving 2 of 3')).toBeTruthy();
+    pending[2]({ ...uploaded, id: 'c0000000-0000-4000-8000-000000000017' });
+    await waitFor(() =>
+      expect(screen.getAllByRole('button', { name: 'Use as input' })).toHaveLength(3),
+    );
   });
 });

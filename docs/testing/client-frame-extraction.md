@@ -13,8 +13,8 @@ Remaining migration search hits are intentional:
 
 - Generated schema/types describe backend Phase A's deprecated routes.
 - The canonical contract describes the routes Phase B must remove.
-- `BACKEND_API_REFERENCE.md` and `apex-pwa-design.md` retain historical server API/design
-  descriptions; the canonical client extraction contract supersedes those frame flows.
+- `apex-pwa-design.md` retains historical server-side frame extraction design notes; the
+  canonical client extraction contract supersedes that flow.
 - URL validation tests contain rejected presigned URLs. Frame tests assert that the old
   frame endpoints are never requested.
 - Thumbnail contract and CLAUDE notes describe stable content URLs and reject signed access.

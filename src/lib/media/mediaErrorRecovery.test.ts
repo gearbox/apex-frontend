@@ -40,6 +40,15 @@ describe('native media recovery', () => {
     ).toEqual({ retry: false, failure: 'unsupported' });
     expect(probeProtectedContent).not.toHaveBeenCalled();
   });
+  it.each([
+    [error(1), 'aborted'],
+    [null, 'network'],
+  ] as const)('classifies media error %s without probing', async (mediaError, failure) => {
+    expect(
+      await recoverFromMediaError(target, mediaError, { signal: new AbortController().signal }),
+    ).toEqual({ retry: false, failure });
+    expect(probeProtectedContent).not.toHaveBeenCalled();
+  });
   it('honours cancellation before probing', async () => {
     const controller = new AbortController();
     controller.abort();

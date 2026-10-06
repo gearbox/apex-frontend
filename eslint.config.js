@@ -24,6 +24,23 @@ export default ts.config(
     },
   },
   {
+    files: ['src/**/*.ts', 'src/**/*.svelte'],
+    ignores: ['src/**/*.test.ts', 'src/**/*.test.svelte', 'src/**/*.test-double.svelte'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/testing/**'],
+              message: 'Testing support modules must only be imported by test files.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     rules: {
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
       'svelte/require-each-key': 'error',

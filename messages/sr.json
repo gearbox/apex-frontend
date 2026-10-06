@@ -380,6 +380,7 @@
   "frames_scrubber_label": "Vremenska oznaka kadra",
   "frames_no_selection": "Izaberite najmanje jedan kadar za izdvajanje.",
   "frames_extract_loading": "Izdvajanje kadrova…",
+  "frames_extract_progress": "Sačuvano kadrova: {done} od {total}",
   "frames_use_as_input": "Koristi kao ulaz",
   "frames_close": "Zatvori",
   "offline_banner_message": "Nemate internet vezu. Neke funkcije nisu dostupne.",

@@ -380,6 +380,7 @@
   "frames_scrubber_label": "Frame timestamp",
   "frames_no_selection": "Select at least one frame to extract.",
   "frames_extract_loading": "Extracting frames…",
+  "frames_extract_progress": "Saving {done} of {total}",
   "frames_use_as_input": "Use as input",
   "frames_close": "Close",
   "offline_banner_message": "You're offline. Some features may be unavailable.",

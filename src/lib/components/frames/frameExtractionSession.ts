@@ -49,6 +49,11 @@ export function automaticTimestamps(maxTimestamp: number): number[] {
   ];
 }
 
+function canonicalAssetRef(assetRef: string): string {
+  const { source, id } = parseAssetRef(assetRef);
+  return `${source}:${id.toLowerCase()}`;
+}
+
 /** One native decoder and two reusable canvases for the lifetime of the modal. */
 export class FrameExtractionSession {
   readonly canvas: HTMLCanvasElement;
@@ -56,6 +61,7 @@ export class FrameExtractionSession {
   readonly signal: AbortSignal;
   previews: LocalPreviewFrame[] = [];
   results: ExtractedLocalFrame[] = [];
+  progress = { done: 0, total: 0 };
   frame: RenderedVideoFrame | null = null;
   seeking = false;
   maxTimestamp = 0;
@@ -67,6 +73,8 @@ export class FrameExtractionSession {
   private readonly listeners = new Set<() => void>();
   private generation = 0;
   private retried = false;
+  private originCleanChecked = false;
+  private readonly assetRefMatchesMedia: boolean;
   private stale = false;
   private extracting = false;
   private operationActive = false;
@@ -84,6 +92,13 @@ export class FrameExtractionSession {
     this.signal = this.abort.signal;
     this.clock = options.clock ?? globalThis;
     this.durationMs = options.media.original.duration_ms ?? null;
+    try {
+      this.assetRefMatchesMedia =
+        options.media.asset_ref == null ||
+        canonicalAssetRef(options.media.asset_ref) === canonicalAssetRef(options.assetRef);
+    } catch {
+      this.assetRefMatchesMedia = false;
+    }
     this.target = parseProtectedContentUrl(options.media.original.url);
     this.upload = options.upload ?? uploadMedia;
     this.recover = options.recover ?? recoverFromMediaError;
@@ -147,6 +162,7 @@ export class FrameExtractionSession {
   private loadVideo() {
     if (this.durationMs === null) throw new FrameSessionError('unavailable');
     if (!this.target) throw new FrameSessionError('not-found');
+    this.originCleanChecked = false;
     this.video.addEventListener('error', this.onNativeError);
     this.video.crossOrigin = 'use-credentials';
     this.video.preload = 'metadata';
@@ -196,6 +212,7 @@ export class FrameExtractionSession {
       this.teardownVideo();
       this.video = this.createVideo();
       this.capture = this.makeCapture();
+      this.retried = false;
       if (host) this.mountVideo(host);
       this.loadVideo();
       await this.seekFrame(0);
@@ -213,7 +230,11 @@ export class FrameExtractionSession {
       if (this.video.videoWidth <= 0 || this.video.videoHeight <= 0)
         throw new FrameSessionError('unsupported');
       this.updateTimeline();
-      this.capture.checkOriginClean();
+      if (!this.originCleanChecked) {
+        this.capture.checkOriginClean();
+        this.originCleanChecked = true;
+      }
+      this.retried = false;
       return frame;
     } catch (error) {
       this.assertCurrent();
@@ -226,15 +247,17 @@ export class FrameExtractionSession {
         return this.seekFrame(timestampMs);
       }
       if (error instanceof VideoFrameCaptureError && error.code === 'media-error' && this.target) {
-        if (this.retried) throw new FrameSessionError('authentication');
         const result = await this.recover(this.target, this.video.error, { signal: this.signal });
         this.assertCurrent();
-        if (result.retry && !this.retried) {
+        if (result.retry) {
+          if (this.retried) {
+            throw new FrameSessionError('authentication');
+          }
           this.retried = true;
           this.video.load();
           return this.seekFrame(timestampMs);
         }
-        throw new FrameSessionError(result.retry ? 'authentication' : result.failure);
+        throw new FrameSessionError(result.failure);
       }
       if (error instanceof VideoFrameCaptureError) {
         if (error.code === 'metadata-timeout' || error.code === 'frame-timeout')
@@ -249,6 +272,7 @@ export class FrameExtractionSession {
 
   load(): Promise<LocalPreviewFrame[]> {
     return this.serial(async () => {
+      if (!this.assetRefMatchesMedia) throw new FrameSessionError('unavailable');
       parseAssetRef(this.options.assetRef);
       this.loadVideo();
       this.previews.forEach((frame) => this.release(frame.previewUrl));
@@ -308,6 +332,11 @@ export class FrameExtractionSession {
     if (selection.length > 50 || this.extracting)
       return Promise.reject(new Error('invalid-selection'));
     this.extracting = true;
+    this.progress = {
+      done: selection.filter((timestamp) => this.completed.has(timestamp)).length,
+      total: selection.length,
+    };
+    this.notify();
     this.scrubVersion++;
     this.capture.supersede();
     if (this.seekTimer) this.clock.clearTimeout(this.seekTimer);
@@ -320,6 +349,8 @@ export class FrameExtractionSession {
           const frame = await this.seekFrame(timestamp);
           if (this.completed.has(frame.timestampMs)) {
             this.completed.add(timestamp);
+            this.progress = { ...this.progress, done: this.progress.done + 1 };
+            this.notify();
             continue;
           }
           const blob = await this.capture.captureFullResolution();
@@ -337,7 +368,9 @@ export class FrameExtractionSession {
           this.assertCurrent();
           this.completed.add(timestamp);
           this.completed.add(frame.timestampMs);
-          this.results.push({ ...upload, timestampMs: frame.timestampMs });
+          this.results = [...this.results, { ...upload, timestampMs: frame.timestampMs }];
+          this.progress = { ...this.progress, done: this.progress.done + 1 };
+          this.notify();
           changed = true;
         }
         return this.results;
@@ -348,6 +381,7 @@ export class FrameExtractionSession {
       } finally {
         this.extracting = false;
         if (changed && !this.signal.aborted) invalidate();
+        this.notify();
       }
     });
   }

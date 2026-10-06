@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { FrameExtractionSession, automaticTimestamps } from './frameExtractionSession';
-import { ASSET_REF, videoMedia, uploaded, installMediaMocks } from './frameTestFixtures';
+import { ASSET_REF, videoMedia, uploaded, installMediaMocks } from './testing/frameTestFixtures';
 import { ApiRequestError } from '$lib/api/errors';
 
 const sessions: FrameExtractionSession[] = [];
@@ -62,6 +62,17 @@ describe('FrameExtractionSession', () => {
       expect(src).not.toHaveBeenCalled();
     },
   );
+  it('rejects media whose canonical asset reference differs before requesting it', async () => {
+    const media = structuredClone(videoMedia);
+    media.asset_ref = 'upload:c0000000-0000-4000-8000-000000000099';
+    const f = fixture({}, { media });
+    const src = vi.spyOn(f.video, 'src', 'set');
+    const load = vi.spyOn(f.video, 'load');
+    await expect(f.session.load()).rejects.toMatchObject({ failure: 'unavailable' });
+    expect(src).not.toHaveBeenCalled();
+    expect(load).not.toHaveBeenCalled();
+    expect(f.upload).not.toHaveBeenCalled();
+  });
   it('rejects an audio-only decoder without auth recovery', async () => {
     const f = fixture({ width: 0 });
     await expect(f.session.load()).rejects.toMatchObject({ failure: 'unsupported' });
@@ -171,6 +182,7 @@ describe('FrameExtractionSession', () => {
   it('reloads a stale decoder on visibility resume and never repeats completed uploads', async () => {
     const f = fixture();
     await f.session.load();
+    expect(f.getImageData).toHaveBeenCalledOnce();
     await f.session.extract([0], vi.fn());
     vi.spyOn(f.video, 'readyState', 'get').mockReturnValue(0);
     vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
@@ -178,6 +190,7 @@ describe('FrameExtractionSession', () => {
     vi.spyOn(f.video, 'readyState', 'get').mockReturnValue(2);
     await f.session.extract([0, 500], vi.fn());
     expect(f.upload.mock.calls.map((call) => call[1].lineage.timestampMs)).toEqual([0, 500]);
+    expect(f.getImageData).toHaveBeenCalledTimes(2);
   });
   it('never sends lineage above server duration', async () => {
     const f = fixture({ duration: 4, actualOffsetMs: 100 });
@@ -244,6 +257,89 @@ describe('session operation boundaries', () => {
     expect(f.recover).toHaveBeenCalledOnce();
     expect(load).toHaveBeenCalledTimes(2);
     expect(f.video.src).toContain(videoMedia.original.url);
+  });
+  it('recovers separate media-error episodes after a successful frame seek', async () => {
+    const f = fixture();
+    let nativeError: MediaError | null = null;
+    Object.defineProperty(f.video, 'error', { configurable: true, get: () => nativeError });
+    await f.session.load();
+    const reload = vi.spyOn(f.video, 'load').mockImplementation(() => {
+      nativeError = null;
+    });
+    reload.mockClear();
+    f.recover.mockResolvedValue({ retry: true });
+
+    nativeError = { code: 4 } as MediaError;
+    await f.session.extract([0], vi.fn());
+    expect(f.recover).toHaveBeenCalledOnce();
+    for (const timestamp of [200, 450, 900]) {
+      f.session.scrub(timestamp, vi.fn());
+      await vi.waitFor(() => expect(f.session.frame?.timestampMs).toBe(timestamp));
+    }
+
+    nativeError = { code: 2 } as MediaError;
+    await f.session.extract([2000], vi.fn());
+    expect(f.recover).toHaveBeenCalledTimes(2);
+    expect(reload).toHaveBeenCalledTimes(2);
+    expect(f.upload.mock.calls.map((call) => call[1].lineage.timestampMs)).toEqual([0, 2000]);
+  });
+  it('allows only one retry when the same media-error episode keeps failing', async () => {
+    const f = fixture();
+    let nativeError: MediaError | null = null;
+    Object.defineProperty(f.video, 'error', { configurable: true, get: () => nativeError });
+    await f.session.load();
+    const reload = vi.spyOn(f.video, 'load').mockImplementation(() => undefined);
+    reload.mockClear();
+    f.recover.mockResolvedValue({ retry: true });
+    nativeError = { code: 4 } as MediaError;
+
+    await expect(f.session.extract([0], vi.fn())).rejects.toMatchObject({
+      failure: 'authentication',
+    });
+    expect(f.recover).toHaveBeenCalledTimes(2);
+    expect(reload).toHaveBeenCalledOnce();
+  });
+  it('classifies a decode error after recovery as unsupported', async () => {
+    const f = fixture();
+    let nativeError: MediaError | null = null;
+    Object.defineProperty(f.video, 'error', { configurable: true, get: () => nativeError });
+    await f.session.load();
+    vi.spyOn(f.video, 'load').mockImplementation(() => {
+      nativeError = null;
+    });
+    f.recover.mockImplementation(async (_target, error) =>
+      error?.code === 3 ? { retry: false, failure: 'unsupported' } : { retry: true },
+    );
+
+    nativeError = { code: 4 } as MediaError;
+    await f.session.extract([0], vi.fn());
+    nativeError = { code: 3 } as MediaError;
+    await expect(f.session.extract([500], vi.fn())).rejects.toMatchObject({
+      failure: 'unsupported',
+    });
+    expect(f.recover).toHaveBeenCalledTimes(2);
+  });
+  it('checks origin cleanliness once per decoder load instead of on every seek', async () => {
+    const f = fixture();
+    await f.session.load();
+    expect(f.getImageData).toHaveBeenCalledOnce();
+    for (const timestamp of [200, 400, 600, 800, 1000, 1200, 1400, 1600, 1800, 2000]) {
+      f.session.scrub(timestamp, vi.fn());
+      await vi.waitFor(() => expect(f.session.frame?.timestampMs).toBe(timestamp));
+    }
+    expect(f.getImageData).toHaveBeenCalledOnce();
+  });
+  it('checks origin cleanliness again after a visibility-triggered decoder reload', async () => {
+    const f = fixture();
+    await f.session.load();
+    expect(f.getImageData).toHaveBeenCalledOnce();
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    const readyState = vi.spyOn(f.video, 'readyState', 'get').mockReturnValue(0);
+    document.dispatchEvent(new Event('visibilitychange'));
+    readyState.mockReturnValue(2);
+    f.session.scrub(500, vi.fn());
+    await vi.waitFor(() => expect(f.session.frame?.timestampMs).toBe(500));
+    expect(f.getImageData).toHaveBeenCalledTimes(2);
   });
 });
 

@@ -380,6 +380,7 @@
   "frames_scrubber_label": "Метка времени кадра",
   "frames_no_selection": "Выберите хотя бы один кадр для извлечения.",
   "frames_extract_loading": "Извлечение кадров…",
+  "frames_extract_progress": "Сохранено кадров: {done} из {total}",
   "frames_use_as_input": "Использовать как входное изображение",
   "frames_close": "Закрыть",
   "offline_banner_message": "Нет подключения к интернету. Некоторые функции недоступны.",

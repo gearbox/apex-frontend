@@ -1,6 +1,50 @@
 # Backend API Reference — Apex REST API
 
-> _Last updated: 2026-07-28 — **Review remediation r2: serialize push-subscription creation
+> _Last updated: 2026-10-01 — **Client-side frame extraction support** (Phase A, additive; the
+> `/v1/frames/*` API and the storage access/download routes keep working and are deprecated — they are
+> removed in Phase B once the frontend has migrated). (1) `MediaOriginal` gains `duration_ms: int | null`
+> on every surface that serializes a media original (video duration from ingest; `null` for images and
+> legacy rows). (2) `POST /v1/storage/upload` accepts two optional multipart fields,
+> `source_asset_ref` + `source_timestamp_ms`, recording the source video of a frame the browser captured;
+> every lineage failure returns the single `400 invalid_frame_lineage`. (3) Every `/v1/content/*`
+> response now carries `Vary: Origin` (200/206/304/404/416/502, with or without a request `Origin`) so a
+> no-cors cache entry can't poison a later credentialed CORS-mode `<video crossorigin>` request.
+> (4) Config: `FRAME_EXTRACT_MAX_VIDEO_SECONDS` is renamed `MEDIA_VIDEO_MAX_DURATION_SECONDS` (no alias).
+> See `docs/contracts/video-frame-extraction-fe-contract.md`. Frontend should regenerate types
+> (`gen:api`)._
+>
+> _Prior (2026-09-29): **Admin view of a reported asset**: new `GET /v1/content/feedback/{report_id}`
+> (§9, ADMIN/SUPERADMIN, cookie- or Bearer-authenticated, `Cache-Control: private, no-store`, audit-logged)
+> streams the asset a feedback report points at; `FeedbackReportAdmin` gains `asset_url`. The owner routes
+> `/v1/content/outputs|uploads/{id}` are unchanged and still 404 for an admin who is not the owner._
+>
+> _Prior (2026-09-28): **In-product problem reports** (new §12b, admin triage in §13).
+> New `POST /v1/feedback` (authenticated, **legal-exempt**, `10/hour` per IP via
+> `RATE_LIMIT_FEEDBACK`) returns `201 {id, status, created_at}`. New admin endpoints are
+> `GET /v1/admin/feedback`, `GET /v1/admin/feedback/{report_id}` and
+> `PATCH /v1/admin/feedback/{report_id}`. The status lifecycle is `open → in_progress →
+> resolved | dismissed` (terminal, no reopen; any other transition returns
+> `409 invalid_status_transition`). New product-scoped ops notification class
+> `feedback.submitted` (§15c) carries IDs and the category only, never the message text. New
+> enums `FeedbackCategory`, `FeedbackStatus` (§17). Rate-limit path matching now ignores a
+> trailing slash, so `/x` and `/x/` share one budget (§20). Canonical contract:
+> `docs/contracts/feedback-contract.md`._
+>
+> _Prior (2026-09-25): **Legal documents & acceptance** (new §2b). **Breaking:**
+> `POST /v1/auth/register` now requires `accepted_documents: [{doc_type, version, sha256}]`, exactly
+> the product's required set at current versions (vex: `terms`, `privacy`, `sensitive_data_consent`;
+> synthara: `[]`). `RegisterRequest` also rejects unknown fields. New public endpoints are
+> `GET /v1/legal/current` and `GET /v1/legal/documents/{doc_type}[?version=]`. New authenticated
+> endpoints are `GET /v1/legal/status` and `POST /v1/legal/acceptances`. Access tokens carry a new
+> `lgl` claim. Every non-GET call behind `auth_guard` returns `428 legal_acceptance_required` when
+> that claim isn't current (it goes stale when a version flagged `requires_reacceptance` takes
+> effect at 00:00 UTC). To recover, call `POST /v1/legal/acceptances` and then `POST /v1/auth/refresh`.
+> New error codes are `409 legal_version_stale`, `422 legal_acceptance_incomplete`, and
+> `404 legal_document_not_found`. `DELETE /v1/users/me` now also records withdrawal of
+> sensitive-data consent. Canonical contract: `docs/contracts/legal-documents-contract.md`. The
+> frontend must regenerate types (`gen:api`)._
+>
+> _Prior (2026-07-28): **Review remediation r2: serialize push-subscription creation
 > against bulk revocation** (§15b): `POST /v1/push/subscriptions` could commit a fresh
 > subscription row *after* a concurrent bulk revocation (logout-all, password change/reset,
 > deactivation, refresh-token reuse detection) had already run its cleanup — `push_subscriptions.
@@ -336,11 +380,14 @@ Response: {
   product: string,              // "vex" | "synthara"
   display_name: string,         // e.g. "example.com"
   age_gate: string,             // "none" | "checkbox" | "date_of_birth"
-  allowed_auth_methods: string[],  // e.g. ["email_password", "google_oauth"]
+  allowed_auth_methods: string[],  // e.g. ["email_password", "google_oauth"] — sorted
   content_rating: string,       // "sfw" | "permissive"
   payment_providers: string[]   // e.g. ["stripe", "nowpayments"]
 }
 Note:     Public endpoint — no auth needed. Frontend calls this on load.
+          `allowed_auth_methods` lists only methods that are allowed for the product AND usable:
+          an OAuth method appears only when its client credentials are configured (§2c). Render
+          a "Continue with Google" button iff "google_oauth" is present.
 ```
 
 #### `POST /v1/auth/register`
@@ -437,6 +484,8 @@ Rate:     3/hour
 Request:  { token: string (20-100 chars), new_password: string (8-128 chars) }
 Response: { message: string }
 Errors:   400 (invalid_token | expired)
+Effect:   Also marks the email verified if it wasn't (a consumed reset link proves inbox
+          control).
 Headers:  (200 only) Clear-Site-Data: "cache", "storage" — the calling device ends its own
           session here too, and this is the compromised-account recovery path.
 Note:     One of the five bulk-revocation sites — also deletes every Web Push subscription the
@@ -470,6 +519,53 @@ Note:     Re-mints the apex_content cookie (same attributes login/register/refre
           does NOT authorize this endpoint — only a valid Bearer access token does.
 ```
 
+#### `POST /v1/auth/login` — OAuth-only accounts
+
+An account created through OAuth signup (§2c) has no password. Password login against it returns
+the same `401 invalid_credentials` as an unknown email (same timing). The user can set a password
+through `POST /v1/auth/forgot-password`.
+
+---
+
+## 2b. Legal Documents & Acceptance
+
+Versioned Terms of Use, Privacy Policy and sensitive-data consent, served per product from the
+backend repo (`legal/`). Full semantics, types and the 428 recovery flow are in
+**`docs/contracts/legal-documents-contract.md`**. It is the canonical frontend contract.
+
+| Method | Path | Auth | Notes |
+|---|---|---|---|
+| GET | `/v1/legal/current` | public | Current `{doc_type, version, sha256, requires_reacceptance}` of each required document |
+| GET | `/v1/legal/documents/{doc_type}` | public | Current version, or `?version=YYYY-MM-DD`; `ETag: "<sha256>"`, `Cache-Control: public, max-age=300` |
+| GET | `/v1/legal/status` | Bearer | Per-type `required_version` / `current_version` / `accepted_version` / `satisfied`, plus `all_satisfied` |
+| POST | `/v1/legal/acceptances` | Bearer (legal-exempt) | `{accepted_documents}` → status. Then call `POST /v1/auth/refresh` |
+
+**Enforcement:** every non-safe method behind `auth_guard` returns `428 legal_acceptance_required`
+unless the token's `lgl` claim matches the currently required digest. Exempt routes:
+`POST /v1/legal/acceptances`, `DELETE /v1/users/me`, `POST /v1/users/me/logout-all`,
+`POST /v1/auth/resend-verification`, `POST /v1/auth/content-cookie`, `POST /v1/events/sse-ticket`.
+
+---
+
+## 2c. OAuth Sign-In (Google)
+
+Server-side OIDC authorization-code flow (confidential client + PKCE S256, `state`, `nonce`). The
+full sequence, fragment grammar, error codes with UX copy, and frontend rules live in
+**`docs/contracts/oauth-contract.md`** — the canonical frontend contract.
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/v1/auth/oauth/{provider}/authorize?return_to=/path` | **Top-level navigation.** 302 → provider, sets `apex_oauth_tx` (HttpOnly, `SameSite=Lax`, `Path=/v1/auth/oauth`, host-only). 404 if the provider isn't enabled for the product; 400 `invalid_return_to` |
+| GET | `/v1/auth/oauth/{provider}/callback` | Provider redirect target. Always 302 → `{app_url}/auth/callback#result=login&code=…` / `#result=signup&ticket=…` / `#result=error&error=<code>` |
+| POST | `/v1/auth/oauth/exchange` | `{code}` → 200 `TokenResponse` + `apex_content` cookie; clears `apex_oauth_tx`. 400 `invalid_handoff`, 401 `account_inactive` |
+| POST | `/v1/auth/oauth/signup-info` | `{ticket}` → 200 `{email, provider}` (non-consuming). 400 `invalid_signup_ticket` |
+| POST | `/v1/auth/oauth/complete-signup` | `{ticket, accepted_documents, display_name?}` → 201 `TokenResponse` + cookie; clears `apex_oauth_tx`. 400 `invalid_signup_ticket` / `email_exists`, 409 `identity_conflict`, 422/409 legal (ticket **not** consumed) |
+
+`provider` is `google` today. All POSTs need `credentials: 'include'` (the binding cookie). Rate
+limits: authorize + callback `20/minute`, exchange + signup-info `20/minute`, complete-signup
+`5/hour` (per IP). Tokens are minted only at `exchange` / `complete-signup`. Access tokens carry
+the `lgl` digest like register/login/refresh do.
+
 ---
 
 ## 3. User Profile
@@ -490,6 +586,12 @@ Response: {
   created_at: datetime,
   updated_at: datetime,
   age_verified: bool,                  // true once the user has passed the age gate
+  email_verified: bool,                // always present: true once the email is verified (verification
+                                       // link, password reset, or Google sign-in)
+  has_password: bool,                  // always present (no default): false for OAuth-only accounts,
+                                       // including one that signed in with Google and claimed a
+                                       // previously unverified account: hide change-password,
+                                       // offer "set a password" via forgot-password instead
   age_verified_at: datetime | null,    // timestamp of first successful verification; null if never
   date_of_birth: date | null           // stored only for DATE_OF_BIRTH-policy products; else null
 }
@@ -525,6 +627,8 @@ Note:     Age capture is policy-driven by the active product's age_gate (see GET
 Request:  { current_password: string, new_password: string }
 Response: { message: string }
 Errors:   400 invalid_password
+          409 password_not_set — OAuth-only account (`has_password: false`); set a password
+              through POST /v1/auth/forgot-password instead
 Headers:  (200 only) Clear-Site-Data: "cache", "storage" — the caller's own session ends here too.
 Note:     Revokes ALL refresh tokens, plus all live access tokens and the content cookie
           (issue #142) — the most security-sensitive of the three bulk-revocation sites,
@@ -799,56 +903,9 @@ UserContext: {
 }
 ```
 
-`generation_modes` is the authoritative contract. The backend repository
-(`gearbox/apex/docs/contracts/fe-api-contract-workflow-media-arc.md` §1.1) is the canonical
-source; this frontend repository keeps a frozen snapshot at
-`docs/contracts/fe-api-contract-workflow-media-arc.md` for its semantics and resolution rules.
-
-Current frontend behavior implements that automatic resolution: Create has no user-facing
-generation-type selector. The user picks a model, a prompt, optional source media, and
-generation parameters; `generation_type` is derived purely from the pure resolver in
-`src/lib/utils/generationModeResolver.ts` (`resolveGenerationMode`), fed the current model's
-advertised `generation_modes` and the actual ordered `sourceMedia` draft — never a stored
-technical mode selection. Adding/removing source media transitions the resolved mode
-automatically (e.g. adding an image moves an image model from `t2i` to `i2i`; removing the
-last source returns it to `t2i`). `src/lib/utils/sourceMediaAffordance.ts` derives which media
-kinds can legally be appended or used to replace a given source position by simulating the
-resolver against a hypothetical draft, so generic "add source" UI never offers an action that
-would create an ambiguous or invalid combination. An `ambiguous`/`incomplete`/`invalid`
-resolution disables pricing and submission; only a `resolved` mode reaches the request.
-`generationStore.mode` still exists for Library replay/prefill/backward-compatible state
-plumbing, but generic Create behavior never reads it as a sticky preference.
-
-**Positional source roles (Phase 4).** `generation_modes[*].source_media.roles` is no longer
-carried-but-unused: `SourceMediaDraft` (`src/lib/stores/generation.ts`) has a `role:
-MediaSlot | null` field that travels with each source item as its single semantic assignment.
-`role: null` means generic/interchangeable — legal only against a `roles: null` candidate — and
-is what every plain "add source"/"Choose from library" action still produces, unchanged from
-Phase 3. A named role (`reference` | `first_frame` | `last_frame` | `source`) is written only by
-an explicit user action against a candidate whose `roles` array actually contains it: a
-positional slot in `SourceMediaInput.svelte` (rendered from `roleSlotsForModel`, driven purely by
-discovery — never a model-name branch), or a Library `use_as_first_frame`/`use_as_last_frame`
-action. The resolver (`generationModeResolver.ts`) treats the two kinds of source as mutually
-exclusive per candidate: a `roles: null` candidate rejects any role-tagged source, and a
-positional candidate requires every selected source to carry one of its own roles exactly once,
-with a media kind matching that role's protocol-fixed kind (`src/lib/utils/mediaSlots.ts`). A
-non-empty proper subset of a positional contract's required roles is a legitimate sparse
-`incomplete` draft — e.g. only `last_frame` filled resolves an incomplete FLF2V, and the user may
-fill `first_frame` afterward. Turning an existing *generic* source into part of a positional
-selection (e.g. "Add end frame" after one plain reference image) is handled by a dedicated pure
-transition planner, `src/lib/utils/sourceRolePlanner.ts` (`planRoleSelection`) — it is the only
-place a draft's existing role assignment is ever promoted, and it refuses to guess (returns
-`allowed: false`) whenever more than one distinct promotion would be legal. Request projection
-(`src/lib/utils/generatePayload.ts`) reorders a positional draft into the contract's advertised
-role order before serializing — store/editing order is never wire order once roles are involved
-— while a `roles: null` draft still serializes in plain insertion order; no role name ever
-reaches the wire request (`SourceMediaReference` remains `{ asset_ref }` only). Re-Generate
-hydrates roles by position from the *live* selected model's contract
-(`src/lib/services/generationPrefill.ts`, `replayGenerationPrefill`), and fails closed rather than
-reinterpreting history if the live positional role count no longer matches the historical group.
-Library's `use_as_first_frame` / `use_as_last_frame` resolve an enabled model by actual role
-capability (`resolveModelForRole`/`enabledRoles` in `src/lib/utils/generationModes.ts`), never by
-checking `availableModes.has('flf2v')` — there is no fixed mode name for a role action.
+`generation_modes` is the authoritative contract. See
+[`fe-api-contract-workflow-media-arc.md` §1.1](contracts/fe-api-contract-workflow-media-arc.md#11-new-generation_modes-authoritative)
+for its semantics and resolution rules.
 
 > **Deprecated flat format** (`providers` + `models` as a flat list) was removed in v2.
 
@@ -890,6 +947,7 @@ interface MediaOriginal {
   height: number | null;
   content_type: string; // "image/png", "image/jpeg", "image/webp", "video/mp4", etc.
   size_bytes: number;
+  duration_ms: number | null; // video duration in ms (probed at ingest); null for images and legacy rows
 }
 
 interface ImageVariant {
@@ -1277,6 +1335,10 @@ Request:  multipart/form-data, field "data" (max 20MB)
           Images:  PNG, JPEG, WebP, HEIC/HEIF, AVIF — non-PNG/JPEG/WebP inputs
                     are converted to PNG.
           Videos:  MP4, WebM, QuickTime (.mov) — stored as-is, never re-encoded.
+          Optional frame lineage (a frame the client captured from a video it has;
+          both fields or neither — see docs/contracts/video-frame-extraction-fe-contract.md):
+            source_asset_ref:    "upload:<uuid>" | "output:<uuid>"  (the source VIDEO)
+            source_timestamp_ms: decimal integer string, 0 <= ts <= source duration_ms
 Response: {
   id: UUID,
   filename: string,
@@ -1285,10 +1347,26 @@ Response: {
   media: MediaObject    // original + sm/md WEBP variants (generated synchronously)
 }
 Status:   201 Created
-Errors:   400 (invalid_file_type | file_too_large | empty_file | validation_error)
-Note:     Returns image id used for I2I/I2V generation requests, or (for
-          videos) as source_upload_id on POST /v1/frames/preview|extract (§9b).
+Errors:   400 (invalid_file_type | file_too_large | empty_file | validation_error |
+               invalid_frame_lineage)
+          413 (file_too_large — decoded image exceeds the pixel cap)
+          502 (upstream_error — object storage failed; message "Storage backend unavailable")
+          503 (service_unavailable — media processing out of capacity or failed
+               operationally; retryable; message "Media processing is temporarily unavailable")
+Note:     Returns the id/asset_ref used for I2I/I2V generation requests.
           Thumbnail/poster generation is non-fatal; variants may be empty on failure.
+
+          Frame lineage: with both lineage fields present the upload is a captured
+          frame (an image; a video file with lineage is rejected). The source must
+          be an owned, same-product, non-thumbnail VIDEO with a known duration, and
+          the timestamp must not exceed it. The frame is stored with lineage (source
+          upload/output + timestamp), shows up in the source's library lineage, and
+          — for an upload source — slides that source's retention window. Exactly one
+          field present, or any lineage problem, returns the single error
+            { "error": "invalid_frame_lineage",
+              "message": "Frame source is not available", "status_code": 400 }
+          — one status/code/message for every reason (no existence oracle; the reason
+          is logged server-side only as storage.upload_frame_lineage_rejected).
 
           Videos are probed server-side (ffprobe) before acceptance — the
           declared Content-Type is never trusted. A validation_error 400 is
@@ -1299,8 +1377,9 @@ Note:     Returns image id used for I2I/I2V generation requests, or (for
             { "error": "validation_error",
               "message": "Video duration 620.0s exceeds maximum 300s", "status_code": 400 }
 
-          Video duration is not currently exposed on any response — poll a
-          preview job (§9b) to learn frame timestamps within the clip.
+          Video duration is returned as media.original.duration_ms (also on every
+          library / group / lineage / job-output surface; null for images). The cap
+          is MEDIA_VIDEO_MAX_DURATION_SECONDS (default 300) for every ingested video.
 ```
 
 > **Removed (2026-07-22):** `GET /v1/storage/uploads` (list, and its `ImageListItem` response
@@ -1393,7 +1472,7 @@ Provides stable, non-expiring authenticated URLs for user content. The server re
 
 ### Auth: the `apex_content` cookie
 
-Requests here accept either a Bearer access token or the `apex_content` cookie (`HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/v1/content`) — see §2 for how it's minted/re-minted. Its lifetime is `content_cookie_ttl_hours` (default **24h**, configurable up to **168h**/7d) — raised from a 1h default specifically so the cookie survives a suspended PWA: with no API traffic there's no `/v1/auth/refresh` to re-attach it, so a short TTL ages out during suspension and the first batch of `<img>` requests on resume all 401 before any JSON call can trigger recovery. This is deliberately asymmetric with the 15-minute access token (§2.1) — the content token is `type: "content"` (structurally rejected by the access-token decoder), product-scoped, and every request here still performs the full ownership check below regardless of which credential was presented; its blast radius is read access to the bearer's own media on one product. As of issue #142, `content_auth_guard` also consults `TokenRevocationService`: `POST /v1/auth/logout` clears the cookie client-side *and* denylists a presenting access token's own jti, while `logout-all`/password-change/deactivation (§3) reject any token — access or content — issued before that event, closing the exposure window the 24h TTL raise opened.
+Requests here accept either a Bearer access token or the `apex_content` cookie (`HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/v1/content`) — see §2 for how it's minted/re-minted. Its lifetime is `content_cookie_ttl_hours` (default **24h**, configurable up to **168h**/7d) — raised from a 1h default specifically so the cookie survives a suspended PWA: with no API traffic there's no `/v1/auth/refresh` to re-attach it, so a short TTL ages out during suspension and the first batch of `<img>` requests on resume all 401 before any JSON call can trigger recovery. This is deliberately asymmetric with the 15-minute access token (§2.1) — the content token is `type: "content"` (structurally rejected by the access-token decoder), product-scoped, and every request here still performs the full ownership check below regardless of which credential was presented; its blast radius is read access to the bearer's own media on one product (and, for ADMIN/SUPERADMIN, the assets referenced by that product's feedback reports — audit-logged). As of issue #142, `content_auth_guard` also consults `TokenRevocationService`: `POST /v1/auth/logout` clears the cookie client-side *and* denylists a presenting access token's own jti, while `logout-all`/password-change/deactivation (§3) reject any token — access or content — issued before that event, closing the exposure window the 24h TTL raise opened.
 
 ### Response Headers
 
@@ -1414,6 +1493,10 @@ Both endpoints below honor a `Range: bytes=<start>-<end>` request header — the
 - A range whose start is at or beyond the object's size → `416 Range Not Satisfiable`, `Content-Range: bytes */<size>`, no body.
 - **Multipart ranges are out of scope** — a comma-separated `Range` header (multiple ranges in one request) is treated as if no `Range` header were sent: a normal full `200`.
 - No `Range` header, or a malformed one → full body, `200 OK`.
+
+#### CORS and `Vary: Origin`
+
+Every response from these routes (200, 206, 304, 404, 416, 502 — with or without a request `Origin`) carries `Vary: Origin`. Responses are `private, max-age=<ttl>, immutable`; the app plays them without `crossorigin` (no `Origin` header) while the frame extractor loads them with `<video crossorigin="use-credentials">` (CORS mode). Litestar's CORS middleware only adds `Vary: Origin` when the request has an `Origin`, so without this the browser would reuse an immutable no-cors entry for the CORS-mode request, find no `Access-Control-Allow-Origin`, and never revalidate. Allowed product origins get the exact `Access-Control-Allow-Origin` plus `Access-Control-Allow-Credentials: true` on 200/206/304.
 
 #### Conditional GET
 
@@ -1441,6 +1524,23 @@ Errors:   404 not_found (ownership check failed or wrong product),
           416 range_not_satisfiable (Range start at/beyond object size),
           502 upstream_error (R2 fetch failed)
 Note:     Only returns uploads owned by the authenticated user and matching the current product.
+```
+
+#### `GET /v1/content/feedback/{report_id}` *(ADMIN / SUPERADMIN)*
+
+```
+Path:     report_id (UUID)
+Headers:  Range?: bytes=<start>-<end>, If-None-Match?: "<etag>"
+Response: 200 Raw bytes | 206 Partial Content | 304 Not Modified (no body)
+Errors:   401 (not authenticated / not an admin),
+          404 feedback_not_found (no such report in this product),
+          404 asset_not_found (no asset_ref, reporter purged, or asset deleted / retention-expired),
+          416 range_not_satisfiable, 502 upstream_error
+Note:     Streams the asset a feedback report points at, resolved as the reporter (owner-scoped)
+          within the request's product. Cache-Control is `private, no-store`. Writes one
+          admin_audit_log row (`feedback.asset.view`, IDs only) when the server starts serving the
+          asset (no Range, or a Range starting at byte 0); `304`, `404`, `416`, and `502` are not
+          audited. Use FeedbackReportAdmin.asset_url; never the owner URL.
 ```
 
 > **Removed (2026-07-22):** `DELETE /v1/content/{content_id}` — deletion is now typed via
@@ -2177,6 +2277,39 @@ MemberResponse: {
 
 ---
 
+## 12b. Feedback / Problem Reports *(authenticated)*
+
+The in-product reporting function (vex Terms §11.1). The report text stays inside apex: operators get a Telegram ping with IDs only (§15c `feedback.submitted`) and read the report through the admin API (§13 *Feedback Triage*). No attachments, no confirmation email, no user-facing report history. Full semantics: `docs/contracts/feedback-contract.md`.
+
+#### `POST /v1/feedback`
+
+```
+Request:  {
+  category: "bug" | "generation" | "billing" | "account" | "content" | "other",
+  message: string,              // 10–4000 Unicode code points after trim; no NUL
+  job_id?: UUID | null,         // caller-owned, not soft-deleted
+  asset_ref?: string | null,    // "upload:<uuid>" | "output:<uuid>", caller-owned
+  client_path?: string | null,  // location.pathname only: starts with "/", ≤512, no ? # or control chars
+  app_version?: string | null   // 1–64 chars, no control chars
+}
+Response: { id: UUID, status: "open", created_at: datetime }
+Status:   201 Created
+Errors:   400 validation_error (message too short or too long after trim / NUL,
+              malformed asset_ref)
+          400 bad_request (framework schema violations incl. unknown fields — client bug)
+          404 job_not_found | asset_not_found (missing OR not owned — identical body)
+          413 (body > 64 KiB, per-handler bound; generic error "error" — client bug)
+          429 rate_limited (RATE_LIMIT_FEEDBACK, default 10/hour per IP)
+Note:     Both message bounds are checked only after trimming (code points, i.e. Python
+          len(); the FE should count [...text.trim()].length), so a 4000-char message with
+          a trailing newline is accepted. The schema puts no raw length bound on `message`.
+          Legal-exempt: never 428, so a user with a pending re-acceptance can still report.
+          User-Agent is read server-side (truncated to 512); the client IP is not stored.
+          The ops event is published only after the row is committed.
+```
+
+---
+
 ## 13. Admin *(authenticated — ADMIN or SUPERADMIN role)*
 
 ### Role Hierarchy
@@ -2383,6 +2516,56 @@ GenerationModelResponse: {
 Request:  { is_enabled: bool }
 Response: GenerationModelResponse
 Errors:   404
+```
+
+---
+
+### Feedback Triage
+
+All three endpoints are scoped to the request's product: a report of another product returns `404 feedback_not_found`, exactly like a missing one. Non-admins get `401` (the shared admin dependency).
+
+```
+FeedbackReportAdmin: {
+  id: UUID, category: FeedbackCategory, status: FeedbackStatus,
+  message: string,                         // untrusted — render as text
+  user_id: UUID | null, user_email: string | null,   // null once the user is hard-deleted
+  job_id: UUID | null, asset_ref: string | null,     // asset_ref may dangle (retention)
+  asset_url: string | null,                          // "/v1/content/feedback/{id}" iff asset_ref is set
+  client_path: string | null, app_version: string | null, user_agent: string | null,
+  admin_note: string | null,
+  resolved_at: datetime | null, resolved_by: UUID | null,  // written once, on entering a terminal status
+  created_at: datetime, updated_at: datetime
+}
+```
+
+#### `GET /v1/admin/feedback`
+
+```
+Query:    status?: FeedbackStatus, category?: FeedbackCategory, limit?: int (1–100, default 30), cursor?: string
+Response: CursorPage<FeedbackReportAdmin>   // newest first
+Errors:   400 invalid_cursor
+```
+
+#### `GET /v1/admin/feedback/{report_id}`
+
+```
+Response: FeedbackReportAdmin
+Errors:   404 feedback_not_found
+```
+
+#### `PATCH /v1/admin/feedback/{report_id}`
+
+```
+Request:  { status?: FeedbackStatus, admin_note?: string | null }   // ≤4000 chars, no NUL; null clears
+Response: FeedbackReportAdmin
+Errors:   400 validation_error (empty body)
+          404 feedback_not_found
+          409 invalid_status_transition  detail: { current, target }
+          428 legal_acceptance_required (not legal-exempt)
+Note:     open → in_progress | resolved | dismissed; in_progress → resolved | dismissed.
+          resolved/dismissed are terminal (no reopen). A same-status PATCH is a 409, not a
+          no-op. Note-only PATCHes work in any status. Concurrent terminal PATCHes are
+          serialized by a row lock — exactly one wins, the other gets 409.
 ```
 
 ---
@@ -3023,8 +3206,9 @@ Backend-driven **operational alerting for admins/superadmins**, delivered as Tel
 | `health.restored` | platform | A platform health subsystem recovers from a bad status back to a healthy one |
 | `token_revocation.failed` | platform | A bulk access-token revocation (Redis write) failed while Redis is otherwise configured — the affected user's existing access tokens/content cookies remain valid until they expire |
 | `push_subscriptions.cleanup_failed` | platform | A bulk-revocation event's push-subscription cleanup (`delete_all_for_user`) failed — the affected user's devices that should have been unsubscribed may still receive push notifications |
+| `feedback.submitted` | product | A user submitted an in-product problem report (§12b). The message carries the report id, user id, category and optional job id only — never the text |
 
-- **Product-scoped** classes (`user.registered`, `generation.created`, `gpu_node.started`, `generation.failed`) are delivered only to admins whose own account product matches the event's product — a `synthara` admin never sees a `vex` registration.
+- **Product-scoped** classes (`user.registered`, `generation.created`, `gpu_node.started`, `generation.failed`, `feedback.submitted`) are delivered only to admins whose own account product matches the event's product — a `synthara` admin never sees a `vex` registration.
 - **Platform-scoped** classes (`provider_authentication.failed`, `health.*`, `token_revocation.failed`, `push_subscriptions.cleanup_failed`) are delivered to every subscribed admin/superadmin regardless of product, since these describe the health/safety of the whole platform rather than any single product.
 - `token_revocation.failed` ships with a one-time seed (migration `029`); `push_subscriptions.cleanup_failed` ships with the same treatment (migration `032`); `provider_authentication.failed` ships the same way in migration `034` (kept separate from the `033` migration that introduced the class's schema/mapping, because Alembic never re-runs an already-applied revision — appending the seed to `033` would silently skip any environment already at `033`) — every admin who already has a Telegram link gets a subscription automatically, so existing installs don't start blind. It's still an ordinary preference row after that — a subsequent full-set `PUT /v1/admin/notifications/preferences` that omits it un-subscribes the admin, same as any other class. Unlike `token_revocation.failed`, `push_subscriptions.cleanup_failed` and `provider_authentication.failed` have no second, preference-independent channel (no health checker watches them), which is why seeding — not just a release note — was judged necessary there.
 - Subscription is **row-presence**, not a flag: `PUT /v1/admin/notifications/preferences` is a full-set replace — a class omitted from the request body is unsubscribed.
@@ -3331,6 +3515,7 @@ Values: `"billing_adjust"`
 | `health.restored` | platform | A health subsystem recovers |
 | `token_revocation.failed` | platform | A bulk access-token revocation failed to write to Redis |
 | `push_subscriptions.cleanup_failed` | platform | A bulk-revocation event's push-subscription cleanup failed |
+| `feedback.submitted` | product | A user submitted an in-product problem report |
 
 > Admin ops-notification subscription classes — see [§15c Admin Ops Notifications (Telegram)](#15c-admin-ops-notifications-telegram) for the full subscribe/throttle/delivery model.
 
@@ -3359,6 +3544,16 @@ Values: `"upload"`, `"output"`
 Which table a Library asset lives in (`user_images` vs. `generation_outputs`). Prefixes every
 `asset_ref` on the wire (`"upload:<uuid>"` / `"output:<uuid>"`) and is the `source=` filter value
 on `GET /v1/library/`.
+
+### FeedbackCategory
+
+Values: `"bug"`, `"generation"`, `"billing"`, `"account"`, `"content"`, `"other"`
+
+### FeedbackStatus
+
+Values: `"open"`, `"in_progress"`, `"resolved"`, `"dismissed"`
+
+> `resolved` and `dismissed` are terminal. Allowed transitions: `open → in_progress | resolved | dismissed`, `in_progress → resolved | dismissed`. See §13 *Feedback Triage*.
 
 ### LibrarySort
 
@@ -3434,7 +3629,7 @@ The `error` code is always a stable snake_case string — treat it like an enum.
 | 409 | `conflict`, `refund_not_eligible`, `organization_balance_nonzero`, `no_active_gpu_session`, `session_already_exists`, `invalid_state`, `jobs_in_flight` | `balance`, `in_flight_count` |
 | 422 | `validation_error`, `moderation`, `provider_moderation_rejected` | `provider`, `policy` (Apex moderation only) |
 | 429 | `too_many_requests`, `rate_limited`, `provider_rate_limited` | `retry_after` (global rate limit only) |
-| 502 | `provider_malformed_response`, `provider_output_not_delivered` | — |
+| 502 | `upstream_error`, `provider_malformed_response`, `provider_output_not_delivered` | — |
 | 503 | `service_unavailable`, `no_gpu_capacity`, `provisioning_failed`, `provider_timeout`, `provider_unavailable`, `provider_execution_failed`, `generation_session_terminated`, `provider_authentication_failed`, `provider_unknown` | — |
 
 **Example responses:**
@@ -3514,7 +3709,13 @@ These URLs:
 | `POST /auth/login` | 10/minute per IP |
 | `POST /auth/forgot-password` | 3/hour per IP |
 | `POST /auth/resend-verification` | 3/hour per IP |
+| `GET /v1/auth/oauth/{provider}/authorize`, `/callback` | 20/minute per IP |
+| `POST /v1/auth/oauth/exchange`, `/signup-info` | 20/minute per IP |
+| `POST /v1/auth/oauth/complete-signup` | 5/hour per IP |
 | `POST /v1/events/sse-ticket` | 10/minute per user |
+| `POST /v1/feedback` | 10/hour per IP (`RATE_LIMIT_FEEDBACK`) |
+
+Paths are matched with any trailing slash removed, so `/x` and `/x/` share one budget.
 
 Rate limit headers are **not currently exposed** in responses. The frontend should handle 429 responses gracefully with a user-friendly message.
 

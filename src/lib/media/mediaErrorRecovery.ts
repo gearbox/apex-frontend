@@ -21,6 +21,8 @@ export async function recoverFromMediaError(
 ): Promise<MediaRecoveryResult> {
   const fail = (failure: MediaFailure): MediaRecoveryResult => ({ retry: false, failure });
   if (opts.signal.aborted) return fail('aborted');
+  if (error === null) return fail('network');
+  if (error.code === 1) return fail('aborted');
   if (error?.code !== 2 && error?.code !== 4) return fail('unsupported');
   try {
     const probe = await probeProtectedContent(target, { signal: opts.signal });
