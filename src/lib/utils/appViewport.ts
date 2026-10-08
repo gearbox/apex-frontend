@@ -1,6 +1,6 @@
 import type { InstallPlatform } from './platform';
 
-export interface AppViewportHeightInput {
+interface AppViewportHeightInput {
   visualViewportHeight?: number;
   innerHeight: number;
   screenWidth: number;

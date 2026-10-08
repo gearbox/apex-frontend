@@ -2,19 +2,19 @@ import apiClient from '$lib/api/client';
 import type { components } from '$lib/api/types';
 import { throwApiError } from '$lib/api/errors';
 
-export type StripeCheckoutResponse = components['schemas']['StripeCheckoutResponse'];
-export type NowPaymentsInvoiceResponse = components['schemas']['NowPaymentsInvoiceResponse'];
+type StripeCheckoutResponse = components['schemas']['StripeCheckoutResponse'];
+type NowPaymentsInvoiceResponse = components['schemas']['NowPaymentsInvoiceResponse'];
 export type TopUpOptionsResponse = components['schemas']['TopUpOptionsResponse'];
 export type TopUpTierResponse = components['schemas']['TopUpTierResponse'];
 export type PublicPaymentProvider = components['schemas']['PublicPaymentProvider'];
 export type PublicCurrency = components['schemas']['PublicCurrency'];
-export type BalanceResponse = components['schemas']['BalanceResponse'];
+type BalanceResponse = components['schemas']['BalanceResponse'];
 export type TransactionResponse = components['schemas']['TransactionResponse'];
-export type TransactionListResponse =
+type TransactionListResponse =
   components['schemas']['CursorPage_src.api.schemas.billing.TransactionResponse_'];
 export type TopUpStripeRequest = components['schemas']['TopUpStripeRequest'];
 export type TopUpNowPaymentsRequest = components['schemas']['TopUpNowPaymentsRequest'];
-export type PricingRuleResponse = components['schemas']['PricingRuleResponse'];
+type PricingRuleResponse = components['schemas']['PricingRuleResponse'];
 
 /** Fetch tiered top-up bounds and discount schedule. */
 export async function fetchTopUpOptions(): Promise<TopUpOptionsResponse> {

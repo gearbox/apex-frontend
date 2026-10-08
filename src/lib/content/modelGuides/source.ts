@@ -4,11 +4,11 @@ import type { ModelGuide } from './types';
 
 type ModelType = components['schemas']['ModelType'];
 
-export interface ModelGuideSource {
+interface ModelGuideSource {
   get(modelKey: string): ModelGuide | null;
 }
 
-export function createStaticModelGuideSource(
+function createStaticModelGuideSource(
   registry: Readonly<Partial<Record<ModelType, ModelGuide>>>,
 ): ModelGuideSource {
   return {

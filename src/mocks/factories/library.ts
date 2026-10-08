@@ -72,9 +72,7 @@ export function makeLibraryLineage(overrides: Partial<LibraryLineage> = {}): Lib
   };
 }
 
-export function makeLibraryDescendants(
-  overrides: Partial<LibraryDescendants> = {},
-): LibraryDescendants {
+function makeLibraryDescendants(overrides: Partial<LibraryDescendants> = {}): LibraryDescendants {
   return {
     job_count: 0,
     frame_count: 0,

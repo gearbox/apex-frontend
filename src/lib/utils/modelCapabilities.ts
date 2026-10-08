@@ -11,7 +11,7 @@ type MediaSlot = components['schemas']['MediaSlot'];
  * cardinality and also drives requiredness: a mode requires source media only
  * when its `min > 0`.
  */
-export interface SourceMediaPolicy {
+interface SourceMediaPolicy {
   accepted: boolean;
   required: boolean;
   min: number;
@@ -56,7 +56,7 @@ export function sourceMediaPolicy(
 }
 
 /** Backend parameters with writable Create-draft controls. */
-export type GenerationParameter =
+type GenerationParameter =
   | 'aspect_ratio'
   | 'batch_size'
   | 'cfg'

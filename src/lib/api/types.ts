@@ -1495,57 +1495,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/storage/outputs/{output_id}/download": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** DownloadOutput */
-        get: operations["V1StorageOutputsOutputIdDownloadDownloadOutput"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/storage/uploads/{image_id}/download": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** DownloadUpload */
-        get: operations["V1StorageUploadsImageIdDownloadDownloadUpload"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/storage/outputs/{output_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** GetOutputAccess */
-        get: operations["V1StorageOutputsOutputIdGetOutputAccess"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/v1/storage/stats": {
         parameters: {
             query?: never;
@@ -1555,57 +1504,6 @@ export interface paths {
         };
         /** GetStorageStats */
         get: operations["V1StorageStatsGetStorageStats"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/storage/uploads/{image_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** GetUploadAccess */
-        get: operations["V1StorageUploadsImageIdGetUploadAccess"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/storage/jobs/{job_id}/outputs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** ListJobOutputs */
-        get: operations["V1StorageJobsJobIdOutputsListJobOutputs"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/storage/outputs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** ListOutputs */
-        get: operations["V1StorageOutputsListOutputs"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1625,57 +1523,6 @@ export interface paths {
         put?: never;
         /** UploadImage */
         post: operations["V1StorageUploadUploadImage"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/frames/extract": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** CreateExtract */
-        post: operations["V1FramesExtractCreateExtract"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/frames/preview": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** CreatePreview */
-        post: operations["V1FramesPreviewCreatePreview"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/frames/jobs/{job_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** GetJob */
-        get: operations["V1FramesJobsJobIdGetJob"];
-        put?: never;
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2418,13 +2265,6 @@ export interface components {
             has_more: boolean;
             next_cursor?: string | null;
         };
-        /** CursorPage[OutputListItem] */
-        "CursorPage_src.api.schemas.storage.OutputListItem_": {
-            items: components["schemas"]["OutputListItem"][];
-            limit: number;
-            has_more: boolean;
-            next_cursor?: string | null;
-        };
         /** DeleteAccountResponse */
         DeleteAccountResponse: {
             message: string;
@@ -2490,13 +2330,6 @@ export interface components {
                 [key: string]: unknown;
             } | null;
         };
-        /** ExtractedFrame */
-        ExtractedFrame: {
-            timestamp_ms: number;
-            /** Format: uuid */
-            upload_id: string;
-            media: components["schemas"]["MediaObject"];
-        };
         /** FeedbackAdminPatch */
         FeedbackAdminPatch: {
             status?: components["schemas"]["FeedbackStatus"];
@@ -2560,56 +2393,6 @@ export interface components {
         /** ForgotPasswordRequest */
         ForgotPasswordRequest: {
             email: string;
-        };
-        /** FrameExtractRequest */
-        FrameExtractRequest: {
-            source_output_id?: string | null;
-            source_upload_id?: string | null;
-            timestamps_ms: number[];
-        };
-        /** FrameExtractResult */
-        FrameExtractResult: {
-            frames: components["schemas"]["ExtractedFrame"][];
-        };
-        /** FrameJobCreatedResponse */
-        FrameJobCreatedResponse: {
-            /** Format: uuid */
-            job_id: string;
-            status: string;
-        };
-        /** FrameJobResponse */
-        FrameJobResponse: {
-            /** Format: uuid */
-            job_id: string;
-            kind: string;
-            status: string;
-            /** Format: date-time */
-            created_at: string;
-            started_at?: string | null;
-            finished_at?: string | null;
-            error?: string | null;
-            source: components["schemas"]["FrameJobSource"];
-            preview?: components["schemas"]["FramePreviewResult"] | null;
-            extracted?: components["schemas"]["FrameExtractResult"] | null;
-        };
-        /** FrameJobSource */
-        FrameJobSource: {
-            type: string;
-            /** Format: uuid */
-            id: string;
-        };
-        /** FramePreviewRequest */
-        FramePreviewRequest: {
-            source_output_id?: string | null;
-            source_upload_id?: string | null;
-            /** @default 12 */
-            frame_count: number;
-        };
-        /** FramePreviewResult */
-        FramePreviewResult: {
-            frames: components["schemas"]["PreviewFrame"][];
-            expires_in_seconds: number;
-            duration_ms: number;
         };
         /** GenerationModeInfo */
         GenerationModeInfo: {
@@ -2695,15 +2478,6 @@ export interface components {
             checked_at: string;
             overall_status: string;
             snapshot_data: Record<string, never>;
-        };
-        /** ImageAccessResponse */
-        ImageAccessResponse: {
-            id: string;
-            storage_key: string;
-            presigned_url: string;
-            content_type: string;
-            size_bytes: number;
-            expires_in_seconds: number;
         };
         /** ImageConstraints */
         ImageConstraints: {
@@ -3332,17 +3106,6 @@ export interface components {
             /** Format: date-time */
             created_at: string;
         };
-        /** OutputListItem */
-        OutputListItem: {
-            id: string;
-            job_id: string;
-            output_index: number;
-            /** Format: date-time */
-            created_at: string;
-            /** Format: date-time */
-            expires_at: string;
-            media: components["schemas"]["MediaObject"];
-        };
         /** PatchPricingRuleRequest */
         PatchPricingRuleRequest: {
             token_cost?: number | null;
@@ -3374,12 +3137,6 @@ export interface components {
             /** Format: date-time */
             created_at: string;
             completed_at: string | null;
-        };
-        /** PreviewFrame */
-        PreviewFrame: {
-            index: number;
-            timestamp_ms: number;
-            url: string;
         };
         /** PricingRuleResponse */
         PricingRuleResponse: {
@@ -7211,120 +6968,6 @@ export interface operations {
             };
         };
     };
-    V1StorageOutputsOutputIdDownloadDownloadOutput: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                output_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Request fulfilled, document follows */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": string | components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Bad request syntax or unsupported method */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        status_code: number;
-                        detail: string;
-                        extra?: null | {
-                            [key: string]: unknown;
-                        } | unknown[];
-                    };
-                };
-            };
-        };
-    };
-    V1StorageUploadsImageIdDownloadDownloadUpload: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                image_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Request fulfilled, document follows */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": string | components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Bad request syntax or unsupported method */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        status_code: number;
-                        detail: string;
-                        extra?: null | {
-                            [key: string]: unknown;
-                        } | unknown[];
-                    };
-                };
-            };
-        };
-    };
-    V1StorageOutputsOutputIdGetOutputAccess: {
-        parameters: {
-            query?: {
-                /** @description URL validity in seconds */
-                expires_in?: number;
-            };
-            header?: never;
-            path: {
-                output_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Request fulfilled, document follows */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ImageAccessResponse"] | components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Bad request syntax or unsupported method */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        status_code: number;
-                        detail: string;
-                        extra?: null | {
-                            [key: string]: unknown;
-                        } | unknown[];
-                    };
-                };
-            };
-        };
-    };
     V1StorageStatsGetStorageStats: {
         parameters: {
             query?: never;
@@ -7341,121 +6984,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StorageStatsResponse"];
-                };
-            };
-        };
-    };
-    V1StorageUploadsImageIdGetUploadAccess: {
-        parameters: {
-            query?: {
-                /** @description URL validity in seconds (1 min to 24 hours) */
-                expires_in?: number;
-            };
-            header?: never;
-            path: {
-                image_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Request fulfilled, document follows */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ImageAccessResponse"] | components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Bad request syntax or unsupported method */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        status_code: number;
-                        detail: string;
-                        extra?: null | {
-                            [key: string]: unknown;
-                        } | unknown[];
-                    };
-                };
-            };
-        };
-    };
-    V1StorageJobsJobIdOutputsListJobOutputs: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                job_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Request fulfilled, document follows */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CursorPage_src.api.schemas.storage.OutputListItem_"] | components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Bad request syntax or unsupported method */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        status_code: number;
-                        detail: string;
-                        extra?: null | {
-                            [key: string]: unknown;
-                        } | unknown[];
-                    };
-                };
-            };
-        };
-    };
-    V1StorageOutputsListOutputs: {
-        parameters: {
-            query?: {
-                limit?: number;
-                cursor?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Request fulfilled, document follows */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CursorPage_src.api.schemas.storage.OutputListItem_"];
-                };
-            };
-            /** @description Bad request syntax or unsupported method */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        status_code: number;
-                        detail: string;
-                        extra?: null | {
-                            [key: string]: unknown;
-                        } | unknown[];
-                    };
                 };
             };
         };
@@ -7480,121 +7008,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UploadResponse"] | components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Bad request syntax or unsupported method */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        status_code: number;
-                        detail: string;
-                        extra?: null | {
-                            [key: string]: unknown;
-                        } | unknown[];
-                    };
-                };
-            };
-        };
-    };
-    V1FramesExtractCreateExtract: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["FrameExtractRequest"];
-            };
-        };
-        responses: {
-            /** @description Document created, URL follows */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FrameJobCreatedResponse"] | components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Bad request syntax or unsupported method */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        status_code: number;
-                        detail: string;
-                        extra?: null | {
-                            [key: string]: unknown;
-                        } | unknown[];
-                    };
-                };
-            };
-        };
-    };
-    V1FramesPreviewCreatePreview: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["FramePreviewRequest"];
-            };
-        };
-        responses: {
-            /** @description Document created, URL follows */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FrameJobCreatedResponse"] | components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Bad request syntax or unsupported method */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        status_code: number;
-                        detail: string;
-                        extra?: null | {
-                            [key: string]: unknown;
-                        } | unknown[];
-                    };
-                };
-            };
-        };
-    };
-    V1FramesJobsJobIdGetJob: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                job_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Request fulfilled, document follows */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FrameJobResponse"] | components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Bad request syntax or unsupported method */

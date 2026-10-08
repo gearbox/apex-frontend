@@ -9,9 +9,9 @@
   let { docType, version }: { docType: LegalDocType; version?: string } = $props();
 
   const titleFor: Record<LegalDocType, () => string> = {
-    terms: m.legal_document_terms,
-    privacy: m.legal_document_privacy,
-    sensitive_data_consent: m.legal_document_sensitive_data_consent,
+    terms: () => m.legal_document_terms(),
+    privacy: () => m.legal_document_privacy(),
+    sensitive_data_consent: () => m.legal_document_sensitive_data_consent(),
   };
 
   // Public legal pages only request `/v1/legal/documents/*`, so they never need session refresh.

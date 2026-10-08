@@ -151,7 +151,9 @@
       setPasswordNotice = m.profile_set_password_sent();
     } catch (err) {
       setPasswordError =
-        err instanceof AuthError && err.status === 429 ? m.error_rate_limited() : m.error_generic();
+        err instanceof AuthError && err.status_code === 429
+          ? m.error_rate_limited()
+          : m.error_generic();
     }
   }
 </script>

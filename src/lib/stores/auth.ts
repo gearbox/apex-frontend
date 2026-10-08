@@ -52,7 +52,7 @@ export interface UserProfile {
   date_of_birth?: string | null;
 }
 
-export type AuthStatus = 'unknown' | 'authenticated' | 'unauthenticated';
+type AuthStatus = 'unknown' | 'authenticated' | 'unauthenticated';
 
 /* ─── Internal State ─── */
 const authStatus = writable<AuthStatus>('unknown');
@@ -70,8 +70,6 @@ function parseContentCookieExpiry(value: string): Date | null {
 /* ─── Derived Stores (read-only exports) ─── */
 export const currentUser = { subscribe: user.subscribe };
 export const currentAuthStatus = { subscribe: authStatus.subscribe };
-/** The only source of truth the content-cookie keep-alive scheduler reads (see contentCookie.ts). */
-export const currentContentCookieExpiresAt = { subscribe: contentCookieExpiresAt.subscribe };
 export const isAuthenticated = derived(authStatus, ($s) => $s === 'authenticated');
 /** True when the user has superadmin role. */
 export const isSuperAdmin = derived(user, ($u) => $u?.role === 'superadmin');

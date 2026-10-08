@@ -1,7 +1,7 @@
 import { pushNudge } from '$lib/stores/pushNudge.svelte';
 import { pushSubscription } from '$lib/stores/pushSubscription.svelte';
 
-export interface LaunchNudgeParams {
+interface LaunchNudgeParams {
   userId: string | undefined;
   authenticated: boolean;
   standalone: boolean;
@@ -13,7 +13,7 @@ export interface LaunchNudgeParams {
  * rules (subscribed/dismissed/denied/retry) stay in pushNudge.maybeShow(); this never
  * duplicates them.
  */
-export class PushNudgeLaunchOrchestrator {
+class PushNudgeLaunchOrchestrator {
   private evaluatedForUserId: string | undefined;
 
   /** Call on user switch, logout, or layout teardown so the next eligible user is re-evaluated. */

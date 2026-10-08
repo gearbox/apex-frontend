@@ -2,7 +2,7 @@ import type { QueryClient } from '@tanstack/svelte-query';
 import type { components } from '$lib/api/types';
 import { getOperation, type GpuSessionResponse } from '$lib/api/sessions';
 
-export type OperationResponse = components['schemas']['OperationResponse'];
+type OperationResponse = components['schemas']['OperationResponse'];
 
 /** Canonical, revision-ordered cache for durable GPU operations. */
 export const operationKeys = {

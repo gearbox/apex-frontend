@@ -5,10 +5,7 @@ import type { components } from '$lib/api/types';
 type UnifiedJobResponse = components['schemas']['UnifiedJobResponse'];
 
 /** Best-effort project assignment shared by Library uploads and Create completions. */
-export async function setProjectForAssets(
-  projectId: string | null,
-  assetRefs: string[],
-): Promise<void> {
+async function setProjectForAssets(projectId: string | null, assetRefs: string[]): Promise<void> {
   if (!projectId || assetRefs.length === 0) return;
   const { error } = await apiClient.POST('/v1/library/assets/bulk', {
     body: { type: 'set_project', project_id: projectId, asset_refs: assetRefs },

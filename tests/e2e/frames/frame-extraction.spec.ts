@@ -66,7 +66,6 @@ test.describe('local frame extraction', () => {
             Number(upload.timestamp) <= DURATION_MS,
         ),
       ).toBe(true);
-      expect(f.framesRequests).toEqual([]);
       await f.dialog.getByRole('button', { name: 'Use as input' }).first().click();
       await expect(page).toHaveURL(/\/app\/create/);
     },
@@ -100,7 +99,6 @@ test.describe('local frame extraction', () => {
       await expect
         .poll(() => report)
         .toMatchObject({ asset_ref: `upload:${SOURCE_ID}`, category: 'bug' });
-      expect(f.framesRequests).toEqual([]);
     },
   );
 });

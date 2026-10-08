@@ -9,7 +9,7 @@ const DEFAULT_VIDEO_CONSTRAINTS = {
   resolutions: ['480p', '720p'] as readonly VideoResolution[],
 };
 
-export interface VideoConstraints {
+interface VideoConstraints {
   readonly maxDuration: number;
   readonly resolutions: readonly VideoResolution[];
 }

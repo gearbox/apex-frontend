@@ -4,7 +4,7 @@ import { toMediaSrc } from './toMediaSrc';
 type MediaObject = components['schemas']['MediaObject'];
 type ImageVariant = components['schemas']['ImageVariant'];
 
-export interface ImgAttrs {
+interface ImgAttrs {
   /** Null when the original is not a valid protected-content URL — render unavailable instead. */
   src: string | null;
   srcset?: string;

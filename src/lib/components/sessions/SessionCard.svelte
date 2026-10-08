@@ -14,15 +14,15 @@
   };
 
   const SESSION_STATUS_LABELS: Record<string, () => string> = {
-    pending: m.session_status_pending,
-    provisioning: m.session_status_provisioning,
-    active: m.session_status_active,
-    stale: m.session_status_stale,
-    paused: m.session_status_paused,
-    resuming: m.session_status_resuming,
-    stopping: m.session_status_stopping,
-    stopped: m.session_status_stopped,
-    failed: m.session_status_failed,
+    pending: () => m.session_status_pending(),
+    provisioning: () => m.session_status_provisioning(),
+    active: () => m.session_status_active(),
+    stale: () => m.session_status_stale(),
+    paused: () => m.session_status_paused(),
+    resuming: () => m.session_status_resuming(),
+    stopping: () => m.session_status_stopping(),
+    stopped: () => m.session_status_stopped(),
+    failed: () => m.session_status_failed(),
   };
 </script>
 

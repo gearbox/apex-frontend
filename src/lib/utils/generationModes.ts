@@ -9,12 +9,7 @@ type ProvidersResponse = components['schemas']['ProvidersResponse'];
 type ModelInfo = components['schemas']['ModelInfo'];
 type ModelType = components['schemas']['ModelType'];
 /** Frontend presentation classification for video parameter layout, not capability policy. */
-export const VIDEO_MODES = [
-  't2v',
-  'i2v',
-  'v2v',
-  'flf2v',
-] as const satisfies readonly GenerationMode[];
+const VIDEO_MODES = ['t2v', 'i2v', 'v2v', 'flf2v'] as const satisfies readonly GenerationMode[];
 
 export function isGenerationMode(value: string | null | undefined): value is GenerationMode {
   return typeof value === 'string' && value.length > 0;
@@ -219,7 +214,7 @@ export function resolveModelForMode(
   return model ? (model.model_key as ModelType) : null;
 }
 
-export interface ReferenceModelTarget {
+interface ReferenceModelTarget {
   model: ModelType;
   mode: GenerationMode;
   role: null | 'reference';

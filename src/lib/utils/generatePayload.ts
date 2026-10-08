@@ -9,12 +9,12 @@ type ModelInfo = components['schemas']['ModelInfo'];
 type UnifiedGenerationRequest = components['schemas']['UnifiedGenerationRequest'];
 type SourceMediaReference = components['schemas']['SourceMediaReference'];
 
-export interface SourceMediaValidation {
+interface SourceMediaValidation {
   valid: boolean;
   message: string | null;
 }
 
-export type SourceMediaProjection =
+type SourceMediaProjection =
   | { valid: true; sourceMedia: SourceMediaReference[] | undefined }
   | { valid: false; reason: string };
 

@@ -1,6 +1,6 @@
 import type { FeedbackCategory } from '$lib/api/feedback';
 
-export interface FeedbackDialogContext {
+interface FeedbackDialogContext {
   jobId?: string;
   assetRef?: string;
   initialCategory?: FeedbackCategory;

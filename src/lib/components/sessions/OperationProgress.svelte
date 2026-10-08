@@ -2,15 +2,15 @@
   import * as m from '$paraglide/messages';
 
   const PHASE_LABELS: Record<string, () => string> = {
-    preflight: m.operation_phase_preflight,
-    comfyui: m.operation_phase_comfyui,
-    requirements_base: m.operation_phase_requirements_base,
-    requirements_locked: m.operation_phase_requirements_locked,
-    custom_nodes: m.operation_phase_custom_nodes,
-    models: m.operation_phase_models,
-    workflow: m.operation_phase_workflow,
-    verifying: m.operation_phase_verifying,
-    restart: m.operation_phase_restart,
+    preflight: () => m.operation_phase_preflight(),
+    comfyui: () => m.operation_phase_comfyui(),
+    requirements_base: () => m.operation_phase_requirements_base(),
+    requirements_locked: () => m.operation_phase_requirements_locked(),
+    custom_nodes: () => m.operation_phase_custom_nodes(),
+    models: () => m.operation_phase_models(),
+    workflow: () => m.operation_phase_workflow(),
+    verifying: () => m.operation_phase_verifying(),
+    restart: () => m.operation_phase_restart(),
   };
 </script>
 

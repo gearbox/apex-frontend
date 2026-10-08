@@ -34,10 +34,10 @@ import {
   type ReplayFailureReason,
 } from '$lib/services/generationPrefill';
 
-export type LibraryAction = components['schemas']['LibraryAction'];
+type LibraryAction = components['schemas']['LibraryAction'];
 /** Frontend-only pseudo-action layered on top of the backend enum — never sent to the API. */
-export type LibraryUiAction = LibraryAction | 'share';
-export type LibraryActionGroup = 'save' | 'navigate';
+type LibraryUiAction = LibraryAction | 'share';
+type LibraryActionGroup = 'save' | 'navigate';
 type MediaObject = components['schemas']['MediaObject'];
 type GenerationType = components['schemas']['GenerationType'];
 type LibraryAssetDetail = components['schemas']['LibraryAssetDetail'];
@@ -45,7 +45,7 @@ type LibraryGroupDetail = components['schemas']['LibraryGroupDetail'];
 type ProvidersResponse = components['schemas']['ProvidersResponse'];
 
 /** Common shape shared by LibraryAssetItem and LibraryAssetDetail — enough for action dispatch. */
-export interface LibraryActionAsset {
+interface LibraryActionAsset {
   asset_ref: string;
   media: MediaObject;
   model?: string | null;
@@ -55,7 +55,7 @@ export interface LibraryActionAsset {
 }
 
 /** Callbacks for actions that need caller-owned UI (confirm dialogs, modals, sheets). */
-export interface LibraryActionCallbacks {
+interface LibraryActionCallbacks {
   onDelete?: () => void;
   onFavorite?: () => void;
   onRename?: () => void;
@@ -103,7 +103,7 @@ const ROLE_ACTION_POLICY: Record<RoleSourceAction, { role: MediaSlot }> = {
 };
 
 /** The generation mode each mode-based navigation action prefills toward. Also drives visibility. */
-export const ACTION_MODE: Partial<Record<LibraryAction, GenerationMode>> = {
+const ACTION_MODE: Partial<Record<LibraryAction, GenerationMode>> = {
   remix: MODE_ACTION_POLICY.remix.mode,
   create_variation: MODE_ACTION_POLICY.create_variation.mode,
   animate: MODE_ACTION_POLICY.animate.mode,
@@ -118,7 +118,7 @@ export const ACTION_MODE: Partial<Record<LibraryAction, GenerationMode>> = {
  * `resolveModelForReference` instead because it supports both roleless i2i
  * and an explicitly named `reference` role.
  */
-export const ACTION_ROLE: Partial<Record<LibraryAction, MediaSlot>> = {
+const ACTION_ROLE: Partial<Record<LibraryAction, MediaSlot>> = {
   use_as_first_frame: ROLE_ACTION_POLICY.use_as_first_frame.role,
   use_as_last_frame: ROLE_ACTION_POLICY.use_as_last_frame.role,
 };

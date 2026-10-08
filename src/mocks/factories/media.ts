@@ -5,7 +5,7 @@ type ImageVariant = components['schemas']['ImageVariant'];
 
 /* ─── MediaObject factories ─── */
 
-export function makeImageVariant(overrides: Partial<ImageVariant> = {}): ImageVariant {
+function makeImageVariant(overrides: Partial<ImageVariant> = {}): ImageVariant {
   return {
     label: 'sm',
     width: 150,
@@ -67,21 +67,5 @@ export function makeVideoMediaObject(overrides: Partial<MediaObject> = {}): Medi
       }),
     ],
     ...overrides,
-  };
-}
-
-/** MediaObject with no variants — tests legacy/empty-variant rendering */
-export function makeEmptyVariantsMediaObject(): MediaObject {
-  return {
-    ...makeStandardImageMedia('out_legacy_001', {
-      original: {
-        url: '/v1/content/outputs/out_legacy_001',
-        width: 800,
-        height: 600,
-        content_type: 'image/jpeg',
-        size_bytes: 50000,
-      },
-    }),
-    variants: [],
   };
 }

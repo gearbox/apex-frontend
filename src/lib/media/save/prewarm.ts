@@ -6,7 +6,7 @@ import type { MediaObject } from './types';
 /** Never speculatively pull a large video — only the click path should pay that cost. */
 export const PREWARM_MAX_BYTES = 64 * 1024 * 1024;
 
-export interface PrewarmMediaOptions {
+interface PrewarmMediaOptions {
   signal?: AbortSignal;
   ttlMs?: number;
 }

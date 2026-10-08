@@ -3,7 +3,7 @@ import { http, HttpResponse } from 'msw';
 const BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
 
 /** Default happy-path handler for SSE ticket */
-export const sseTicketHandler = http.post(`${BASE}/v1/events/sse-ticket`, () =>
+const sseTicketHandler = http.post(`${BASE}/v1/events/sse-ticket`, () =>
   HttpResponse.json({ ticket: 'mock-sse-ticket-abc123' }, { status: 201 }),
 );
 

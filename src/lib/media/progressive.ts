@@ -16,7 +16,7 @@ export interface OriginalFetchProgress {
   total: number | null;
 }
 
-export interface FetchOriginalBytesOptions {
+interface FetchOriginalBytesOptions {
   signal?: AbortSignal;
   onprogress?: (progress: OriginalFetchProgress) => void;
 }

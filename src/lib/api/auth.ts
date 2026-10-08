@@ -446,7 +446,7 @@ function purgeTerminalSessionCache(refreshToken: string, accessToken: string | n
  * Kept behind a dynamic import to avoid a module-init cycle with apiClient's auth middleware.
  * This is deliberately best effort: an explicit logout must still complete if cleanup cannot.
  */
-export async function detachCurrentUserPush(userId = getCurrentUser()?.id): Promise<void> {
+async function detachCurrentUserPush(userId = getCurrentUser()?.id): Promise<void> {
   if (!userId) return;
 
   try {

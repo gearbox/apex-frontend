@@ -5,9 +5,9 @@ import { throwApiError } from '$lib/api/errors';
 export type GpuSessionResponse = components['schemas']['GpuSessionResponse'];
 export type GpuSessionListItemResponse = components['schemas']['GpuSessionListItemResponse'];
 export type StopConfirmationResponse = components['schemas']['StopConfirmationResponse'];
-export type OperationResponse = components['schemas']['OperationResponse'];
+type OperationResponse = components['schemas']['OperationResponse'];
 export type DeploymentResponse = components['schemas']['DeploymentResponse'];
-export type DeploymentMutationResponse = components['schemas']['DeploymentMutationResponse'];
+type DeploymentMutationResponse = components['schemas']['DeploymentMutationResponse'];
 export type ModelType = components['schemas']['ModelType'];
 
 export async function listSessions(includeTerminal = false): Promise<GpuSessionListItemResponse[]> {

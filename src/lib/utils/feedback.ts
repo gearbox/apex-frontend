@@ -3,7 +3,7 @@ import { APP_VERSION, BUILD_SHA } from '$lib/utils/appVersion';
 import type { FeedbackCategory, FeedbackStatus } from '$lib/api/feedback';
 import * as m from '$paraglide/messages';
 
-export const FEEDBACK_MESSAGE_MIN_CODE_POINTS = 10;
+const FEEDBACK_MESSAGE_MIN_CODE_POINTS = 10;
 export const FEEDBACK_MESSAGE_MAX_CODE_POINTS = 4000;
 export const FEEDBACK_ADMIN_NOTE_MAX_CODE_POINTS = 4000;
 
@@ -16,7 +16,7 @@ export const FEEDBACK_STATUS_COLORS: Record<FeedbackStatus, string> = {
 
 export type FeedbackMessageValidity = 'valid' | 'too_short' | 'too_long' | 'contains_nul';
 
-export interface FeedbackMessageValidation {
+interface FeedbackMessageValidation {
   trimmed: string;
   codePointCount: number;
   validity: FeedbackMessageValidity;

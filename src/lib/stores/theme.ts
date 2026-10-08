@@ -47,17 +47,11 @@ const systemPrefersDark = writable(getSystemPrefersDark());
 export const themePrefs = writable<ThemePrefs>(loadPrefs());
 
 /** The currently resolved color set. */
-export const currentColors = derived([themePrefs, systemPrefersDark], ([$prefs, $systemDark]) => {
+const currentColors = derived([themePrefs, systemPrefersDark], ([$prefs, $systemDark]) => {
   const def = themes[$prefs.theme];
   const variant = resolveVariant($prefs.mode, $systemDark);
   return def[variant];
 });
-
-/** Current resolved variant for conditional logic. */
-export const isDark = derived(
-  [themePrefs, systemPrefersDark],
-  ([$prefs, $systemDark]) => resolveVariant($prefs.mode, $systemDark) === 'dark',
-);
 
 /* ─── Actions ─── */
 export function setTheme(name: ThemeName): void {

@@ -1,7 +1,7 @@
 import { writable, derived } from 'svelte/store';
 import { isBrowser } from '$lib/utils/env';
 
-export type NetworkState = 'online' | 'offline';
+type NetworkState = 'online' | 'offline';
 
 const { subscribe, set } = writable<NetworkState>(
   isBrowser() ? (navigator.onLine ? 'online' : 'offline') : 'online',

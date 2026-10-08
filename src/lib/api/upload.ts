@@ -6,11 +6,11 @@ import type { components } from '$lib/api/types';
 
 export type UploadResponse = components['schemas']['UploadResponse'];
 
-export interface FrameLineage {
+interface FrameLineage {
   sourceAssetRef: string;
   timestampMs: number;
 }
-export interface UploadOptions {
+interface UploadOptions {
   lineage?: FrameLineage;
   signal?: AbortSignal;
 }

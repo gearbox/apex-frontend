@@ -1,7 +1,7 @@
 import { writable, derived } from 'svelte/store';
 import type { SystemNotificationPayload, SystemNotificationLevel } from '$lib/api/events';
 
-export interface SystemNotification {
+interface SystemNotification {
   id: string;
   level: SystemNotificationLevel;
   title: string;

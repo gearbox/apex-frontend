@@ -5,8 +5,8 @@ import type { PaymentStorageScope } from './paymentScope';
 const STORAGE_VERSION = 1;
 const INTENT_PREFIX = 'apex:checkout-intent';
 const STRIPE_RETURN_PREFIX = 'apex:stripe-return';
-export const CHECKOUT_INTENT_TTL_MS = 24 * 60 * 60 * 1000;
-export const STRIPE_RETURN_POINTER_TTL_MS = 2 * 60 * 60 * 1000;
+const CHECKOUT_INTENT_TTL_MS = 24 * 60 * 60 * 1000;
+const STRIPE_RETURN_POINTER_TTL_MS = 2 * 60 * 60 * 1000;
 const CLOCK_SKEW_MS = 5 * 60 * 1000;
 
 export type PersistedCheckoutIntent =

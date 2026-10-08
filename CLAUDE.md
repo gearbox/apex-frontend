@@ -88,7 +88,7 @@ src/
 │   │   │   ├── ConfirmDeleteModal.svelte # Reusable danger confirmation dialog (z-index 200)
 │   │   │   ├── SwipeToDelete.svelte      # Mobile swipe-left gesture wrapper (touch events only)
 │   │   │   ├── ContextMenu.svelte        # Desktop right-click context menu (z-index 100)
-│   │   │   ├── Pagination.svelte
+│   │   │   ├── CursorPagination.svelte
 │   │   │   ├── StatusBadge.svelte
 │   │   │   └── ToggleSwitch.svelte
 │   │   ├── billing/
@@ -511,8 +511,9 @@ pnpm build                  # Production build → build/
 pnpm preview                # Preview production build locally
 
 # Code Quality
-pnpm check                  # svelte-check (TS + Svelte)
-pnpm lint                   # ESLint
+pnpm check                  # svelte-check, fails on warnings
+pnpm lint                   # ESLint, zero warnings allowed
+pnpm knip                   # No unused files, exports, types, dependencies or binaries
 pnpm format                 # Prettier
 
 # Testing
@@ -587,7 +588,9 @@ it('redirects to /login when refresh is revoked', async () => {
 
 - Default handlers in `src/mocks/handlers/index.ts` represent the happy path.
 - Export named override handlers (e.g. `failedRefreshHandler`) from each handler file for use in negative-path tests.
-- Never call the real API in unit tests.
+- Never call the real API in unit tests. MSW uses `onUnhandledRequest: 'error'`; register each required request explicitly, without catch-all handlers.
+- `pnpm verify` runs check (`--fail-on-warnings`), lint (`--max-warnings 0`, unused variables are errors), knip, formatting, unit tests and the production build.
+- `src/tests/i18n-keys.test.ts` requires every translation key to have a direct `m.<key>(...)` call outside generated Paraglide code, and identical English, Russian and Serbian key sets.
 
 ### Playwright Usage Pattern
 
@@ -635,4 +638,4 @@ sequentially with `source_asset_ref` and actual decoded `source_timestamp_ms`, b
 are retained across batch retries. Native decode support is required; unsupported videos can
 open the existing feedback dialog with their asset attached. There is no server extraction fallback.
 See `docs/contracts/video-frame-extraction-fe-contract.md` for the canonical backend contract
-and its real-device staging acceptance gate before backend Phase B.
+and its real-device staging acceptance record; Android standalone PWA remains the open pre-launch gate.

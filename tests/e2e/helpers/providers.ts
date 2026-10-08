@@ -25,7 +25,7 @@ export function makeModelRuntime(
   };
 }
 
-export function makeProvidersResponse(providers: ProviderInfo[]): ProvidersResponse {
+function makeProvidersResponse(providers: ProviderInfo[]): ProvidersResponse {
   return { providers, user_context: null };
 }
 

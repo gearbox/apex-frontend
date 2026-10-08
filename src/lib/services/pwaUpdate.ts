@@ -9,7 +9,7 @@ import {
   isPwaWorkerToClientMessage,
 } from '$lib/pwa/protocol';
 
-export type PwaUpdateState =
+type PwaUpdateState =
   | 'idle'
   | 'checking'
   | 'downloading'
@@ -20,16 +20,16 @@ export type PwaUpdateState =
   | 'offline'
   | 'failed';
 
-export type UpdateCheckSource =
+type UpdateCheckSource =
   'startup' | 'visibility' | 'pageshow' | 'online' | 'interval' | 'manual' | 'backend-event';
 
-export interface AppVersionManifest {
+interface AppVersionManifest {
   version: string;
   buildSha: string;
   builtAt: string;
 }
 
-export type PwaUpdateError =
+type PwaUpdateError =
   | 'network'
   | 'timeout'
   | 'invalid-manifest'
@@ -39,7 +39,7 @@ export type PwaUpdateError =
   | 'worker-activation-timeout'
   | 'worker-build-mismatch';
 
-export interface PwaUpdateSnapshot {
+interface PwaUpdateSnapshot {
   state: PwaUpdateState;
   source?: UpdateCheckSource;
   targetBuildSha?: string;
@@ -48,7 +48,7 @@ export interface PwaUpdateSnapshot {
   error?: PwaUpdateError;
 }
 
-export type UpdateCheckStatus =
+type UpdateCheckStatus =
   | 'up-to-date'
   | 'update-available'
   | 'offline'
@@ -56,13 +56,13 @@ export type UpdateCheckStatus =
   | 'registration-unavailable'
   | 'skipped-cooldown';
 
-export interface UpdateCheckResult {
+interface UpdateCheckResult {
   status: UpdateCheckStatus;
   source: UpdateCheckSource;
   remote?: AppVersionManifest;
 }
 
-export interface RemoteAppUpdateEvent {
+interface RemoteAppUpdateEvent {
   targetBuildSha?: string;
   minimumVersion?: string;
   /** `force` is reserved for a future mandatory-update policy; it never bypasses draft safety. */
@@ -123,7 +123,7 @@ function isValidBuildSha(value: unknown): value is string {
   );
 }
 
-export function isUsableBuildSha(value: unknown): value is string {
+function isUsableBuildSha(value: unknown): value is string {
   return isValidBuildSha(value) && value.trim().toLowerCase() !== 'dev';
 }
 
@@ -230,7 +230,7 @@ function workerReferences(registration: ServiceWorkerRegistration): WorkerRefere
 }
 
 /** A bounded handshake; older workers are intentionally treated as unknown. */
-export function getWorkerBuildSha(worker: ServiceWorker | null): Promise<string | undefined> {
+function getWorkerBuildSha(worker: ServiceWorker | null): Promise<string | undefined> {
   if (
     !worker ||
     typeof worker.postMessage !== 'function' ||
@@ -263,7 +263,7 @@ export function getWorkerBuildSha(worker: ServiceWorker | null): Promise<string 
   });
 }
 
-export async function fetchAppVersionManifest(): Promise<AppVersionManifest> {
+async function fetchAppVersionManifest(): Promise<AppVersionManifest> {
   const controller = new AbortController();
   let timedOut = false;
   let timer: ReturnType<typeof globalThis.setTimeout> | undefined;
@@ -517,7 +517,7 @@ async function activateWaitingWorker(force: boolean): Promise<boolean> {
  * Reconciliation intentionally reads state rather than relying only on events:
  * a worker can have installed while a standalone PWA was suspended.
  */
-export async function reconcileRegistration(
+async function reconcileRegistration(
   registration = activeRegistration,
   context: ReconcileContext = 'manual',
 ): Promise<void> {

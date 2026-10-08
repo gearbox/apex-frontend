@@ -1,16 +1,9 @@
 import { writable } from 'svelte/store';
 import { getLocale, setLocale } from '$paraglide/runtime';
 import { browser } from '$app/environment';
-import { PARAGLIDE_LOCAL_STORAGE_KEY } from '$lib/i18n/constants';
 
 const SUPPORTED_LOCALES = ['en', 'ru', 'sr'] as const;
 export type Locale = (typeof SUPPORTED_LOCALES)[number];
-
-/**
- * Compatibility-only key used before Paraglide v2 owned locale persistence.
- * A valid value is migrated once at startup and then removed.
- */
-export const LEGACY_LOCALE_STORAGE_KEY = 'apex-locale';
 
 function isLocale(value: string | null | undefined): value is Locale {
   return value !== null && value !== undefined && SUPPORTED_LOCALES.includes(value as Locale);
@@ -28,18 +21,6 @@ function syncDocumentLanguage(nextLocale: Locale): void {
 
 function detectInitialLocale(): Locale {
   if (!browser) return 'en';
-
-  const legacyLocale = localStorage.getItem(LEGACY_LOCALE_STORAGE_KEY);
-  if (isLocale(legacyLocale)) {
-    applyToParaglide(legacyLocale);
-    // Paraglide's localStorage strategy is synchronous. Keep the old key if storage
-    // failed, so a future successful startup can still perform the migration.
-    if (localStorage.getItem(PARAGLIDE_LOCAL_STORAGE_KEY) === legacyLocale) {
-      localStorage.removeItem(LEGACY_LOCALE_STORAGE_KEY);
-    }
-    syncDocumentLanguage(legacyLocale);
-    return legacyLocale;
-  }
 
   // getLocale resolves configured persistence, browser preference, then the base locale.
   // Calling setLocale applies that resolved value before any translated layout renders.

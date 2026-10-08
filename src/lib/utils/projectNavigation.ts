@@ -1,6 +1,6 @@
 const LIBRARY_PATH = '/app/library';
 
-export interface ProjectNavigationTarget {
+interface ProjectNavigationTarget {
   href: string;
   replaceState: boolean;
 }

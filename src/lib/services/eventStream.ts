@@ -55,7 +55,7 @@ import { get } from 'svelte/store';
 import { getCurrentUser } from '$lib/stores/auth';
 import { getAuthEpoch, isAuthEpochCurrent } from '$lib/stores/authLifecycle';
 
-export interface EventStreamServiceOptions {
+interface EventStreamServiceOptions {
   queryClient: QueryClient;
   /** Required by the app layout. Optional only for existing isolated service tests. */
   userId?: string;

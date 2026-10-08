@@ -1,6 +1,6 @@
 import { writable, derived } from 'svelte/store';
 
-export type EventStreamStatus = 'disconnected' | 'connecting' | 'connected' | 'fallback';
+type EventStreamStatus = 'disconnected' | 'connecting' | 'connected' | 'fallback';
 
 const status = writable<EventStreamStatus>('disconnected');
 

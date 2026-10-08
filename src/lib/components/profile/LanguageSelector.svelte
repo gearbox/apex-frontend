@@ -10,9 +10,9 @@
   const queryClient = useQueryClient();
 
   const LOCALE_LABELS: Record<Locale, () => string> = {
-    en: m.profile_language_en,
-    ru: m.profile_language_ru,
-    sr: m.profile_language_sr,
+    en: () => m.profile_language_en(),
+    ru: () => m.profile_language_ru(),
+    sr: () => m.profile_language_sr(),
   };
 
   const updateLocale = createMutation(() => ({

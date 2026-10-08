@@ -1,13 +1,13 @@
 import type { OAuthErrorCode } from '$lib/api/oauth';
 import { safeReturnPath } from '$lib/utils/returnPath';
 
-export type OAuthFragment =
+type OAuthFragment =
   | { result: 'login'; code: string; returnTo: string | null }
   | { result: 'signup'; ticket: string; returnTo: string | null }
   | { result: 'error'; error: OAuthErrorCode }
   | { result: 'invalid' };
 
-export const OAUTH_CALLBACK_PATH = '/auth/callback';
+const OAUTH_CALLBACK_PATH = '/auth/callback';
 
 // Only parsed data is retained so opaque callback values are never kept as a raw URL string.
 let captured: OAuthFragment | null = null;

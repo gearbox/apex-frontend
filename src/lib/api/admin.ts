@@ -3,24 +3,22 @@ import type { components } from '$lib/api/types';
 import { throwApiError } from '$lib/api/errors';
 
 export type AdminRoleResponse = components['schemas']['AdminRoleResponse'];
-export type AuditLogEntry = components['schemas']['AuditLogEntry'];
 export type AuditLogPage = components['schemas']['CursorPage_src.api.schemas.admin.AuditLogEntry_'];
 export type AdminUserResponse = components['schemas']['AdminUserResponse'];
-export type AdminUserListResponse =
+type AdminUserListResponse =
   components['schemas']['CursorPage_src.api.schemas.admin.AdminUserResponse_'];
 export type AdminOrgResponse = components['schemas']['AdminOrgResponse'];
-export type AdminOrgListResponse =
+type AdminOrgListResponse =
   components['schemas']['CursorPage_src.api.schemas.admin.AdminOrgResponse_'];
-export type GenerationModelResponse = components['schemas']['GenerationModelResponse'];
-export type ModelListResponse = components['schemas']['ModelListResponse'];
+type GenerationModelResponse = components['schemas']['GenerationModelResponse'];
+type ModelListResponse = components['schemas']['ModelListResponse'];
 export type PaymentResponse = components['schemas']['PaymentResponse'];
-export type PaymentListResponse =
+type PaymentListResponse =
   components['schemas']['CursorPage_src.api.schemas.billing.PaymentResponse_'];
-export type BalanceResponse = components['schemas']['BalanceResponse'];
-export type TransactionResponse = components['schemas']['TransactionResponse'];
-export type TransactionListResponse =
+type BalanceResponse = components['schemas']['BalanceResponse'];
+type TransactionListResponse =
   components['schemas']['CursorPage_src.api.schemas.billing.TransactionResponse_'];
-export type AdminAdjustResponse = components['schemas']['AdminAdjustResponse'];
+type AdminAdjustResponse = components['schemas']['AdminAdjustResponse'];
 export type PricingRuleResponse = components['schemas']['PricingRuleResponse'];
 export type CreatePricingRuleRequest = components['schemas']['CreatePricingRuleRequest'];
 export type PatchPricingRuleRequest = components['schemas']['PatchPricingRuleRequest'];
@@ -134,14 +132,6 @@ export async function fetchAdminPayments(params?: {
     params: { query: params },
   });
   if (error || !data) throwApiError(error, 'Failed to fetch admin payments');
-  return data;
-}
-
-export async function fetchAdminPayment(paymentId: string): Promise<PaymentResponse> {
-  const { data, error } = await apiClient.GET('/v1/admin/payments/{payment_id}', {
-    params: { path: { payment_id: paymentId } },
-  });
-  if (error || !data) throwApiError(error, 'Failed to fetch payment');
   return data;
 }
 

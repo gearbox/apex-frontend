@@ -15,7 +15,7 @@ function makeMockVapidPublicKey(): string {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-export const MOCK_VAPID_PUBLIC_KEY = makeMockVapidPublicKey();
+const MOCK_VAPID_PUBLIC_KEY = makeMockVapidPublicKey();
 
 export const pushHandlers = [
   http.get(`${BASE}/v1/push/vapid-public-key`, () =>

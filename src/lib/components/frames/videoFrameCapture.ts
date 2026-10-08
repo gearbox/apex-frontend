@@ -27,7 +27,7 @@ type VideoWithFrameCallback = HTMLVideoElement & {
   cancelVideoFrameCallback?: (handle: number) => void;
 };
 
-export type VideoFrameCaptureErrorCode =
+type VideoFrameCaptureErrorCode =
   | 'timeout'
   | 'aborted'
   | 'metadata-timeout'
@@ -57,7 +57,7 @@ export class VideoFrameCaptureError extends Error {
 }
 
 export const MAX_FRAME_PREVIEW_LONG_EDGE = 960;
-export const MAX_FRAME_PREVIEW_PIXELS = 1_000_000;
+const MAX_FRAME_PREVIEW_PIXELS = 1_000_000;
 const SEEK_EPSILON_SECONDS = 0.05;
 const READY_TIMEOUT_MS = 8_000;
 

@@ -28,10 +28,10 @@ export interface PushDisableResult {
   status: PushDisableStatus;
 }
 
-export type PushPreparationStatus =
+type PushPreparationStatus =
   'prepared' | 'needs-install' | 'service-worker-unavailable' | 'vapid-unavailable' | 'unsupported';
 
-export interface PushPreparationResult {
+interface PushPreparationResult {
   status: PushPreparationStatus;
 }
 
@@ -47,7 +47,7 @@ interface StoredPushPromptState {
   users: Record<string, PushPromptPreference>;
 }
 
-export interface PushPromptPreference {
+interface PushPromptPreference {
   dismissed: boolean;
   retryPending: boolean;
 }
@@ -166,28 +166,24 @@ export function readStoredPushRegistration(): StoredPushRegistration | null {
   return registration;
 }
 
-/** Persist the confirmed API registration before retiring the unscoped legacy marker. */
+/** Persist the confirmed API registration. */
 export function storePushRegistration(registration: StoredPushRegistration): void {
   writeStorage(STORAGE_KEYS.PUSH_REGISTRATION, JSON.stringify(registration));
-  removeStorage(STORAGE_KEYS.PUSH_ENDPOINT);
 }
 
-export function clearStoredPushRegistration(): void {
+function clearStoredPushRegistration(): void {
   removeStorage(STORAGE_KEYS.PUSH_REGISTRATION);
 }
 
 /** Clear account-scoped push markers without touching the device-level PushSubscription. */
 export function clearPersistedPushState(): void {
   clearStoredPushRegistration();
-  removeStorage(STORAGE_KEYS.PUSH_ENDPOINT);
 }
 
 export function getPushPromptPreference(userId: string): PushPromptPreference {
   const raw = readStorage(STORAGE_KEYS.PUSH_PROMPT_STATE);
   const state = parseStoredPushPromptState(raw);
   if (raw !== null && !state) removeStorage(STORAGE_KEYS.PUSH_PROMPT_STATE);
-  // The old global dismissal must never suppress a different account's prompt.
-  removeStorage(STORAGE_KEYS.PUSH_NUDGE_DISMISSED);
   return state?.users[userId] ?? { dismissed: false, retryPending: false };
 }
 
@@ -200,7 +196,6 @@ export function updatePushPromptPreference(
   const current = state.users[userId] ?? { dismissed: false, retryPending: false };
   state.users[userId] = { ...current, ...updates };
   writeStorage(STORAGE_KEYS.PUSH_PROMPT_STATE, JSON.stringify(state));
-  removeStorage(STORAGE_KEYS.PUSH_NUDGE_DISMISSED);
 }
 
 /**
@@ -534,7 +529,6 @@ export async function unsubscribe(userId: string): Promise<PushDisableResult> {
     }
     // The live endpoint is gone, so no account can retain a confirmed local marker for it.
     clearStoredPushRegistration();
-    removeStorage(STORAGE_KEYS.PUSH_ENDPOINT);
     return { status: 'disabled' };
   }
 
@@ -673,7 +667,7 @@ export function resetPushNotificationStateForTesting(): void {
 
 /* ─── Contextual nudge eligibility (pure) ─── */
 
-export interface PushNudgeEligibilityInput {
+interface PushNudgeEligibilityInput {
   support: PushSupport;
   permission: NotificationPermission;
   subscribed: boolean;

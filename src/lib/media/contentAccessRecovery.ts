@@ -14,7 +14,7 @@ export type ContentAccessRecovery =
       reason: 'revoked' | 'unauthorized' | 'rate_limited' | 'transient' | 'stale' | 'aborted';
     };
 
-export interface RecoverContentAccessOptions {
+interface RecoverContentAccessOptions {
   /** The consumer's own lifetime. Recovery flights are shared, so this only detaches the caller. */
   signal?: AbortSignal;
 }

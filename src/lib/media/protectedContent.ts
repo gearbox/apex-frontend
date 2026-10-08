@@ -64,12 +64,12 @@ export function parseProtectedContentUrl(value: string): ProtectedContentUrl | n
   } as ProtectedContentUrl;
 }
 
-export interface FetchProtectedContentOptions {
+interface FetchProtectedContentOptions {
   signal?: AbortSignal;
   cache?: RequestCache;
 }
 
-export interface ProbeProtectedContentOptions {
+interface ProbeProtectedContentOptions {
   signal?: AbortSignal;
 }
 

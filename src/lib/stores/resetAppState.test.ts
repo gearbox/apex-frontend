@@ -17,7 +17,6 @@ import {
   setCurrentLegalDocuments,
 } from './legal';
 import { makeUserProfile } from '../../mocks/factories/user';
-import { LEGACY_CONTENT_MEDIA_CACHE_NAME } from '$lib/utils/cacheNames';
 import { STORAGE_KEYS } from '$lib/utils/constants';
 import { operationKeys, upsertOperation } from '$lib/queries/operations';
 import type { components } from '$lib/api/types';
@@ -157,12 +156,10 @@ describe('resetAppState()', () => {
         userId: 'user-a',
       }),
     );
-    localStorage.setItem(STORAGE_KEYS.PUSH_ENDPOINT, 'https://push.example.com/previous');
 
     resetAppState();
 
     expect(localStorage.getItem(STORAGE_KEYS.PUSH_REGISTRATION)).toBeNull();
-    expect(localStorage.getItem(STORAGE_KEYS.PUSH_ENDPOINT)).toBeNull();
   });
 
   it('continues resetting when push storage access throws', () => {
@@ -180,30 +177,6 @@ describe('resetAppState()', () => {
   it('is safe to call when nothing was ever set (idempotent, no throw)', () => {
     expect(() => resetAppState()).not.toThrow();
     expect(() => resetAppState()).not.toThrow();
-  });
-
-  it('a synchronously-throwing caches.delete does not prevent the query cache being cleared (A5)', () => {
-    getQueryClient().setQueryData(['probe'], 42);
-    vi.stubGlobal('caches', {
-      delete: () => {
-        throw new Error('Cache Storage unavailable');
-      },
-    });
-
-    expect(() => resetAppState()).not.toThrow();
-
-    expect(getQueryClient().getQueryData(['probe'])).toBeUndefined();
-    vi.unstubAllGlobals();
-  });
-
-  it('deletes the legacy content cache without awaiting cache storage', () => {
-    const deleteCache = vi.fn().mockResolvedValue(false);
-    vi.stubGlobal('caches', { delete: deleteCache });
-
-    expect(resetAppState()).toBeUndefined();
-    expect(deleteCache).toHaveBeenCalledWith(LEGACY_CONTENT_MEDIA_CACHE_NAME);
-
-    vi.unstubAllGlobals();
   });
 });
 

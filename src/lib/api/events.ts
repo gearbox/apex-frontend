@@ -4,7 +4,7 @@ type JobStatus = components['schemas']['JobStatus'];
 type GpuSessionStatus = components['schemas']['GpuSessionStatus'];
 type DeploymentStatus = components['schemas']['DeploymentStatus'];
 type ModelType = components['schemas']['ModelType'];
-export type OperationResponse = components['schemas']['OperationResponse'];
+type OperationResponse = components['schemas']['OperationResponse'];
 
 /* ─── SSE Event Names ─── */
 export const SSE_EVENTS = {
@@ -17,8 +17,6 @@ export const SSE_EVENTS = {
   GPU_SESSION_OPERATION_UPDATED: 'gpu_session.operation_updated',
   GPU_SESSION_CREDIT_WARNING: 'gpu_session.credit_warning',
 } as const;
-
-export type SSEEventType = (typeof SSE_EVENTS)[keyof typeof SSE_EVENTS];
 
 /* ─── Payload Interfaces ─── */
 export interface JobStatusPayload {
@@ -56,9 +54,6 @@ export const KNOWN_TRANSACTION_TYPES = {
   TOPUP: 'topup',
 } as const;
 
-export type KnownTransactionType =
-  (typeof KNOWN_TRANSACTION_TYPES)[keyof typeof KNOWN_TRANSACTION_TYPES];
-
 export type SystemNotificationLevel = 'info' | 'warning' | 'critical';
 
 export interface SystemNotificationPayload {
@@ -95,17 +90,6 @@ export interface GpuSessionCreditWarningPayload {
   terminate_at: string | null;
   balance: number;
 }
-
-/* ─── Union Type ─── */
-export type SSEPayload =
-  | { event: typeof SSE_EVENTS.JOB_STATUS; data: JobStatusPayload }
-  | { event: typeof SSE_EVENTS.JOB_PROGRESS; data: JobProgressPayload }
-  | { event: typeof SSE_EVENTS.BALANCE_UPDATED; data: BalanceUpdatedPayload }
-  | { event: typeof SSE_EVENTS.SYSTEM_NOTIFICATION; data: SystemNotificationPayload }
-  | { event: typeof SSE_EVENTS.GPU_SESSION_STATUS; data: GpuSessionStatusPayload }
-  | { event: typeof SSE_EVENTS.GPU_SESSION_DEPLOYMENT_STATUS; data: GpuDeploymentStatusPayload }
-  | { event: typeof SSE_EVENTS.GPU_SESSION_OPERATION_UPDATED; data: OperationResponse }
-  | { event: typeof SSE_EVENTS.GPU_SESSION_CREDIT_WARNING; data: GpuSessionCreditWarningPayload };
 
 /* ─── Type Guards ─── */
 export function isJobStatusPayload(data: unknown): data is JobStatusPayload {

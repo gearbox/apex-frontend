@@ -1,7 +1,7 @@
 import { writable, derived, get } from 'svelte/store';
 import type { RateLimitHeaders } from '$lib/api/rateLimit';
 
-export type RateLimitState = RateLimitHeaders;
+type RateLimitState = RateLimitHeaders;
 
 const rateLimitMap = writable<Record<string, RateLimitState>>({});
 

@@ -67,7 +67,7 @@ export function makeGpuSessionListItemResponse(
 }
 
 /** Projects a detailed session fixture into the intentionally thinner list contract. */
-export function makeGpuSessionListItemFromSession(
+function makeGpuSessionListItemFromSession(
   session: GpuSessionResponse,
 ): GpuSessionListItemResponse {
   return makeGpuSessionListItemResponse({

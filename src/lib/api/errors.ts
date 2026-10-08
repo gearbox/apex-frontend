@@ -5,7 +5,7 @@
  *
  * Every non-2xx response from the backend uses this format.
  */
-export interface ApiError {
+interface ApiError {
   error: string;
   message: string;
   status_code: number;
@@ -35,7 +35,7 @@ function fallbackMessage(status: number): string {
 }
 
 /** Normalize every object-shaped backend error body in one place. */
-export function parseObjectApiError(value: Record<string, unknown>, status: number): ApiError {
+function parseObjectApiError(value: Record<string, unknown>, status: number): ApiError {
   if (
     !('code' in value) &&
     !('error' in value) &&
@@ -110,11 +110,6 @@ export class AuthError extends Error {
     this.error = apiError.error;
     this.status_code = apiError.status_code;
     this.detail = apiError.detail;
-  }
-
-  /** Alias kept for backwards-compat with any `err.status` usages. */
-  get status(): number {
-    return this.status_code;
   }
 }
 

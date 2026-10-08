@@ -6,11 +6,11 @@ export const PWA_GET_BUILD_INFO = 'APEX_GET_BUILD_INFO';
 export const PWA_BUILD_INFO = 'APEX_BUILD_INFO';
 export const PWA_ACTIVATE_UPDATE = 'APEX_ACTIVATE_UPDATE';
 
-export type PwaClientToWorkerMessage =
+type PwaClientToWorkerMessage =
   | { type: typeof PWA_GET_BUILD_INFO }
   | { type: typeof PWA_ACTIVATE_UPDATE; targetBuildSha: string };
 
-export interface PwaWorkerToClientMessage {
+interface PwaWorkerToClientMessage {
   type: typeof PWA_BUILD_INFO;
   buildSha: string;
 }

@@ -30,7 +30,7 @@ type ModelType = components['schemas']['ModelType'];
 type ProvidersResponse = components['schemas']['ProvidersResponse'];
 type MediaObject = components['schemas']['MediaObject'];
 
-export interface SourcePrefillRequest {
+interface SourcePrefillRequest {
   providers: ProvidersResponse | null | undefined;
   mode: GenerationMode;
   preferredModel?: string | null;
@@ -70,7 +70,7 @@ export function prefillSourceForGeneration(request: SourcePrefillRequest): boole
   return true;
 }
 
-export interface RoleSourcePrefillRequest {
+interface RoleSourcePrefillRequest {
   providers: ProvidersResponse | null | undefined;
   role: MediaSlot;
   preferredModel?: string | null;
@@ -140,7 +140,7 @@ export function sourceMediaDraft(
   };
 }
 
-export interface ReplaySource {
+interface ReplaySource {
   generation_type?: string | null;
   model?: string | null;
   prompt?: string | null;
@@ -148,13 +148,13 @@ export interface ReplaySource {
   aspect_ratio?: string | null;
 }
 
-export type ReplayPrefillResult =
+type ReplayPrefillResult =
   { ok: true; params: Partial<GenerationState> } | { ok: false; reason: ReplayFailureReason };
 
 export type ReplayFailureReason =
   'no-model' | 'missing-source' | 'duplicate-source' | 'incompatible-source-policy';
 
-export interface ReplayModelRequest {
+interface ReplayModelRequest {
   providers: ProvidersResponse | null | undefined;
   mode: GenerationMode;
   preferredModel?: string | null;
@@ -233,7 +233,7 @@ function withReplayRoles(
  * An original source list must fit the live model policy in its entirety: it is
  * never normalized, shortened, or given a fabricated media kind here.
  */
-export function resolveModelForReplay({
+function resolveModelForReplay({
   providers,
   mode,
   preferredModel,
@@ -279,7 +279,7 @@ function hasEnabledModeModel(
 }
 
 /** i2i edits use edit ratios; every other mode uses the regular aspect ratio. */
-export function aspectRatioPrefill(
+function aspectRatioPrefill(
   aspectRatio: string | null | undefined,
   mode: GenerationMode,
   model: ModelType,

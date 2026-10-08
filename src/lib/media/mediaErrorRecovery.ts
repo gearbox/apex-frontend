@@ -11,7 +11,7 @@ export type MediaFailure =
   | 'timeout'
   | 'aborted'
   | 'unavailable';
-export type MediaRecoveryResult = { retry: true } | { retry: false; failure: MediaFailure };
+type MediaRecoveryResult = { retry: true } | { retry: false; failure: MediaFailure };
 
 /** Classifies native errors using a cookie-only, one-byte probe. No protected diagnostics escape. */
 export async function recoverFromMediaError(

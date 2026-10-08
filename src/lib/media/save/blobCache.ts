@@ -8,7 +8,7 @@ interface CacheEntry {
   ttlMs: number;
 }
 
-export interface BlobCacheOptions {
+interface BlobCacheOptions {
   /** Per-entry lifetime. Save/share behavior keeps the one-minute default. */
   ttlMs?: number;
   /** This caller's own cancellation. Omitting it makes this a permanent attachment (the

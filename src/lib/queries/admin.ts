@@ -62,7 +62,7 @@ export const adminKeys = {
 
 /* ─── Query Options ─── */
 
-export interface AdminUsersFilters {
+interface AdminUsersFilters {
   is_active?: boolean;
   role?: string;
   email?: string;
@@ -80,7 +80,7 @@ export function adminUsersQueryOptions(filters: AdminUsersFilters = {}) {
   };
 }
 
-export interface AdminOrgsFilters {
+interface AdminOrgsFilters {
   is_active?: boolean;
   limit?: number;
   cursor?: string;
@@ -96,7 +96,7 @@ export function adminOrgsQueryOptions(filters: AdminOrgsFilters = {}) {
   };
 }
 
-export interface AdminModelsFilters {
+interface AdminModelsFilters {
   enabled_only?: boolean;
 }
 
@@ -109,7 +109,7 @@ export function adminModelsQueryOptions(filters: AdminModelsFilters = {}) {
   };
 }
 
-export interface AdminPaymentsFilters {
+interface AdminPaymentsFilters {
   status?: string;
   payment_provider?: string;
   limit?: number;
@@ -167,7 +167,7 @@ export function toggleAdminModelMutationOptions(queryClient: QueryClient) {
   };
 }
 
-export interface AdminPricingFilters {
+interface AdminPricingFilters {
   active_only?: boolean;
 }
 

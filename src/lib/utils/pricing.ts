@@ -5,7 +5,7 @@ type ModelType = components['schemas']['ModelType'];
 type PricingRuleResponse = components['schemas']['PricingRuleResponse'];
 
 /** Mirrors the backend's active-window predicate for cached pricing data. */
-export function isPricingRuleEffective(rule: PricingRuleResponse, nowMs = Date.now()): boolean {
+function isPricingRuleEffective(rule: PricingRuleResponse, nowMs = Date.now()): boolean {
   const from = Date.parse(rule.effective_from);
   const until = rule.effective_until ? Date.parse(rule.effective_until) : null;
 

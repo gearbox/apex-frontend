@@ -176,14 +176,12 @@ describe('subscribe', () => {
       'default',
       vi.fn().mockResolvedValue('granted'),
     );
-    localStorage.setItem(STORAGE_KEYS.PUSH_ENDPOINT, fakeSub.endpoint);
 
     await expect(subscribe(USER_A)).resolves.toEqual({ status: 'enabled' });
 
     expect(requestPermission).toHaveBeenCalledOnce();
     expect(subscribeMock).toHaveBeenCalledWith(expect.objectContaining({ userVisibleOnly: true }));
     expectRegistration(USER_A, fakeSub.endpoint);
-    expect(localStorage.getItem(STORAGE_KEYS.PUSH_ENDPOINT)).toBeNull();
   });
 
   it('clears a matching confirmed record when an existing subscription POST fails', async () => {
@@ -399,7 +397,6 @@ describe('reconcileOnLaunch', () => {
     const fakeSub = makeFakeSubscription('https://push.example.com/shared-after-reset');
     stubPushSupported({ pushManager: { getSubscription: vi.fn().mockResolvedValue(fakeSub) } });
     storePushRegistration({ version: 1, endpoint: fakeSub.endpoint, userId: USER_A });
-    localStorage.setItem(STORAGE_KEYS.PUSH_ENDPOINT, fakeSub.endpoint);
     let posts = 0;
     server.use(
       http.post(`${BASE}/v1/push/subscriptions`, () => {
@@ -410,31 +407,11 @@ describe('reconcileOnLaunch', () => {
 
     resetAppState();
     expect(readStoredPushRegistration()).toBeNull();
-    expect(localStorage.getItem(STORAGE_KEYS.PUSH_ENDPOINT)).toBeNull();
 
     await reconcileOnLaunch(USER_B);
 
     expect(posts).toBe(1);
     expectRegistration(USER_B, fakeSub.endpoint);
-  });
-
-  it('does not treat the legacy bare endpoint as a current-user confirmation', async () => {
-    const fakeSub = makeFakeSubscription('https://push.example.com/legacy');
-    stubPushSupported({ pushManager: { getSubscription: vi.fn().mockResolvedValue(fakeSub) } });
-    localStorage.setItem(STORAGE_KEYS.PUSH_ENDPOINT, fakeSub.endpoint);
-    let posts = 0;
-    server.use(
-      http.post(`${BASE}/v1/push/subscriptions`, () => {
-        posts += 1;
-        return HttpResponse.json({}, { status: 201 });
-      }),
-    );
-
-    await reconcileOnLaunch(USER_A);
-
-    expect(posts).toBe(1);
-    expectRegistration(USER_A, fakeSub.endpoint);
-    expect(localStorage.getItem(STORAGE_KEYS.PUSH_ENDPOINT)).toBeNull();
   });
 
   it('deletes a stale backend row when the current user has no live subscription', async () => {

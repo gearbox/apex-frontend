@@ -1,6 +1,6 @@
 import { tick } from 'svelte';
 
-export interface DialogControllerOptions {
+interface DialogControllerOptions {
   /** Whether the dialog may currently be dismissed (Escape, backdrop click, or the close control). */
   canClose: () => boolean;
   /** Element to focus once the dialog opens. Falls back to the dialog itself. */
@@ -35,7 +35,7 @@ export function isDialogBackdropClick(dialog: HTMLDialogElement, event: MouseEve
  * `dialog` to the `<dialog>` element and wire `handleCancel`/`handleBackdropClick` to its
  * `oncancel`/`onclick`; call `open()` from `onMount` (its return value is the cleanup function).
  */
-export class DialogController {
+class DialogController {
   dialog = $state<HTMLDialogElement>();
   #options: DialogControllerOptions;
   #previousFocus: HTMLElement | null = null;

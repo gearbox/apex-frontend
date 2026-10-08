@@ -27,7 +27,7 @@ function emptyRuntime(): ModelRuntimeResponse {
   return { state: 'none', session_id: null, deployment_id: null, operation_id: null };
 }
 
-export interface ScenarioModel {
+interface ScenarioModel {
   modelType: ModelType;
   name: string;
 }

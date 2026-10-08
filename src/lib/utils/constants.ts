@@ -12,24 +12,14 @@ export const STORAGE_KEYS = {
   SIDEBAR_COLLAPSED: 'apex-sidebar-collapsed',
   PWA_INSTALL_DISMISSED: 'apex-pwa-install-dismissed',
   VPDEBUG: 'apex-vpdebug',
-  /** Legacy, unscoped marker. It is never considered proof of an active registration. */
-  PUSH_ENDPOINT: 'apex:push:endpoint',
   PUSH_REGISTRATION: 'apex:push:registration',
   PUSH_PROMPT_STATE: 'apex:push:prompt-state',
-  /** Legacy, unscoped preference. It is never applied to a signed-in user. */
-  PUSH_NUDGE_DISMISSED: 'apex:push:nudge-dismissed',
 } as const;
 
 /* ─── Breakpoints ─── */
 export const BREAKPOINT_MD = 768;
-
-/* ─── Job Polling ─── */
-export const JOB_POLL_INTERVAL_MS = 2000;
 export const POLL_INTERVAL_MS = 2000;
-export const FRAME_POLL_INTERVAL_MS = 1000;
-export const FRAME_POLL_BUDGET_MS = 7 * 60_000;
 export const TERMINAL_JOB_STATUSES = ['completed', 'failed', 'cancelled', 'moderated'] as const;
-export const ACTIVE_JOB_STATUSES = ['pending', 'queued', 'running'] as const;
 
 /* ─── Library ─── */
 export const LIBRARY_PAGE_SIZE = 30;
@@ -52,41 +42,6 @@ export const SSE_RECONNECT_BASE_MS = 2000;
 export const SSE_RECONNECT_MAX_MS = 30_000;
 export const SSE_MAX_CONSECUTIVE_FAILURES = 5;
 export const SSE_FALLBACK_RETRY_MS = 60_000;
-export const SSE_TICKET_RATE_LIMIT_BUFFER_MS = 500;
 
 /* ─── Prompt Limits ─── */
 export const MAX_PROMPT_LENGTH = 4096;
-
-/* ─── Navigation Items ─── */
-export interface NavItem {
-  label: string;
-  href: string;
-  icon: string; // lucide icon name
-}
-
-export const MORE_ITEMS: NavItem[] = [
-  { label: 'Billing & Tokens', href: '/app/billing', icon: 'coins' },
-  { label: 'Job History', href: '/app/jobs', icon: 'activity' },
-  { label: 'Profile & Settings', href: '/app/profile', icon: 'user' },
-];
-
-export const ADMIN_NAV_ITEM: NavItem = {
-  label: 'Admin',
-  href: '/app/admin',
-  icon: 'shield',
-};
-
-export const ADMIN_MORE_ITEM: NavItem = {
-  label: 'Admin Panel',
-  href: '/app/admin',
-  icon: 'shield',
-};
-
-/** All sidebar items for desktop (flat list) */
-export const SIDEBAR_ITEMS: NavItem[] = [
-  { label: 'Create', href: '/app/create', icon: 'plus' },
-  { label: 'Library', href: '/app/library', icon: 'library' },
-  { label: 'Jobs', href: '/app/jobs', icon: 'activity' },
-  { label: 'Billing', href: '/app/billing', icon: 'coins' },
-  { label: 'Profile', href: '/app/profile', icon: 'user' },
-];

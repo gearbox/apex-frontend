@@ -104,11 +104,6 @@ export function formatRelativeTime(iso: string): string {
   return timeAgo(iso);
 }
 
-/** Format file size in human-readable form. e.g. "1.4 MB", "340 KB" */
-export function formatFileSize(bytes: number): string {
-  return formatBytes(bytes);
-}
-
 /** Format an aspect ratio value, falling back to the "Auto (source)" label when unset. */
 export function formatAspectRatio(value: string | null | undefined): string {
   return value ?? m.media_aspect_auto_source();

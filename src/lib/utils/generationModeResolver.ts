@@ -5,7 +5,7 @@ type ModelInfo = components['schemas']['ModelInfo'];
 type SourceMediaModeConstraints = components['schemas']['SourceMediaModeConstraints'];
 
 /** Provider-discovered generation modes are intentionally open-ended — never a frontend enum. */
-export type GenerationMode = string;
+type GenerationMode = string;
 
 export interface ResolverSource {
   assetRef: string;
@@ -23,7 +23,7 @@ export interface ResolverSource {
   role: MediaSlot | null;
 }
 
-export interface ModeResolutionInput {
+interface ModeResolutionInput {
   modelInfo: ModelInfo | null | undefined;
   sourceMedia: readonly ResolverSource[];
   /**
@@ -35,7 +35,7 @@ export interface ModeResolutionInput {
   preferredMode?: GenerationMode | null;
 }
 
-export type ModeResolution =
+type ModeResolution =
   | {
       status: 'resolved';
       mode: GenerationMode;

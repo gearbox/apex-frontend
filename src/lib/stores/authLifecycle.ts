@@ -50,10 +50,3 @@ export function isAuthOperationCurrent(operation: AuthOperation): boolean {
 export function __getAuthOperationCountForTesting(): number {
   return controllers.size;
 }
-
-/** Test-only reset. No production transition should ever move the epoch backwards. */
-export function __resetAuthLifecycleForTesting(): void {
-  for (const controller of controllers) controller.abort();
-  controllers.clear();
-  authEpoch = 0;
-}

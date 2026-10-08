@@ -1,5 +1,4 @@
 import type { UserProfile } from '$lib/stores/auth';
-import type { UserStatsResponse } from '$lib/api/user';
 
 export function makeUserProfile(overrides: Partial<UserProfile> = {}): UserProfile {
   return {
@@ -15,18 +14,6 @@ export function makeUserProfile(overrides: Partial<UserProfile> = {}): UserProfi
     age_verified: false,
     age_verified_at: null,
     date_of_birth: null,
-    ...overrides,
-  };
-}
-
-export function makeUserStats(overrides?: Partial<UserStatsResponse>): UserStatsResponse {
-  return {
-    total_jobs: 42,
-    completed_jobs: 38,
-    failed_jobs: 4,
-    total_outputs: 76,
-    total_uploads: 12,
-    storage_used_bytes: 157_286_400,
     ...overrides,
   };
 }

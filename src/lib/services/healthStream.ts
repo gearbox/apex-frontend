@@ -5,7 +5,7 @@ import type { DetailedHealthResponse } from '$lib/api/admin';
 
 export type HealthStreamStatus = 'connecting' | 'connected' | 'fallback' | 'disconnected';
 
-export interface HealthStreamCallbacks {
+interface HealthStreamCallbacks {
   onSnapshot: (snapshot: DetailedHealthResponse) => void;
   onStatus: (status: HealthStreamStatus) => void;
 }

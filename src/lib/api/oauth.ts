@@ -3,11 +3,8 @@ import type { components } from '$lib/api/types';
 import { safeReturnPath } from '$lib/utils/returnPath';
 import * as oauthReturnTarget from './oauthReturnTarget';
 
-export type OAuthProvider = 'google';
-export type OAuthExchangeRequest = components['schemas']['OAuthExchangeRequest'];
-export type OAuthSignupInfoRequest = components['schemas']['OAuthSignupInfoRequest'];
+type OAuthProvider = 'google';
 export type OAuthSignupInfo = components['schemas']['OAuthSignupInfoResponse'];
-export type OAuthCompleteSignupRequest = components['schemas']['OAuthCompleteSignupRequest'];
 
 export type OAuthErrorCode =
   | 'oauth_cancelled'

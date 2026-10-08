@@ -68,19 +68,3 @@ export const userHandlers = [
     });
   }),
 ];
-
-/** Override: returns 400 underage error for age verification */
-export const underageDobHandler = http.patch(`${BASE}/v1/users/me`, () =>
-  HttpResponse.json(
-    { error: 'validation_error', message: 'You must be 18 or older.', status_code: 400 },
-    { status: 400 },
-  ),
-);
-
-/** Override: returns 400 write-once error for age verification */
-export const dobWriteOnceHandler = http.patch(`${BASE}/v1/users/me`, () =>
-  HttpResponse.json(
-    { error: 'validation_error', message: 'Date of birth has already been set.', status_code: 400 },
-    { status: 400 },
-  ),
-);

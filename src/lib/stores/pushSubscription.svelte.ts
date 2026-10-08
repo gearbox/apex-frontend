@@ -21,7 +21,7 @@ import {
   type StoredPushRegistration,
 } from '$lib/services/pushNotifications';
 
-export type PushUiStatus = PushEnableStatus | PushDisableStatus;
+type PushUiStatus = PushEnableStatus | PushDisableStatus;
 
 function currentPermission(): NotificationPermission {
   return isBrowser() && 'Notification' in window ? Notification.permission : 'denied';
@@ -69,7 +69,7 @@ export function shouldShowSubscribeErrorToast(status: PushEnableStatus): boolean
   }
 }
 
-export class PushSubscriptionState {
+class PushSubscriptionState {
   support: PushSupport = $state(isBrowser() ? getPushSupport() : 'unsupported');
   permission: NotificationPermission = $state(currentPermission());
   subscribed = $state(false);

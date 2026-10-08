@@ -19,7 +19,7 @@ export function toggleSidebar(): void {
 }
 
 /* ─── Mobile navigation sheets ─── */
-export type MobileNavSheet = 'projects' | 'more' | null;
+type MobileNavSheet = 'projects' | 'more' | null;
 
 /** One authoritative drawer state prevents competing backdrops and focus locks. */
 export const mobileNavSheet = writable<MobileNavSheet>(null);

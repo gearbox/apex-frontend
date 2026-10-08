@@ -22,7 +22,6 @@ import {
   isPwaClientToWorkerMessage,
 } from './lib/pwa/protocol';
 import { isTrustedPwaMessageSender } from './lib/pwa/messageSource';
-import { LEGACY_CONTENT_MEDIA_CACHE_NAME } from './lib/utils/cacheNames';
 
 declare const __BUILD_SHA__: string;
 
@@ -71,12 +70,6 @@ self.addEventListener('message', (event) => {
 /* ─── Precaching ─── */
 precacheAndRoute(self.__WB_MANIFEST);
 cleanupOutdatedCaches();
-
-// Retired in feat/session-isolation-and-content-cookie: remove the old script-readable cache
-// from upgrading installs. A fresh install has no such cache, so deleting a missing cache is safe.
-self.addEventListener('activate', (event) => {
-  event.waitUntil(caches.delete(LEGACY_CONTENT_MEDIA_CACHE_NAME).catch(() => undefined));
-});
 
 /* ─── SPA navigation fallback — mirrors the previous generateSW config exactly ─── */
 const NAVIGATE_FALLBACK_DENYLIST = [/^\/v1\//, /^\/api\//, /^\/docs\//];

@@ -18,7 +18,7 @@
       sent = true;
     } catch (err) {
       error =
-        err instanceof AuthError && err.status === 429
+        err instanceof AuthError && err.status_code === 429
           ? m.error_rate_limited()
           : err instanceof AuthError
             ? err.message

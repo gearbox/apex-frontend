@@ -47,6 +47,10 @@ Apex is an AI media generation platform. The PWA is a mobile-first, installable 
 
 ## 3. Architecture
 
+Media is served through the Apex API at `/v1/content/...` content-proxy URLs.
+Protected media uses the HTTP cache with `Cache-Control: private, immutable` and
+`Vary: Origin`; there is no separate object-storage cache tier in the PWA.
+
 ```
 ┌──────────────────────────────────────────────-───────┐
 │                  Cloudflare Pages                    │
@@ -73,7 +77,7 @@ Apex is an AI media generation platform. The PWA is a mobile-first, installable 
            │             │
            │  ┌──────────▼──────────┐
            │  │   Cloudflare R2     │
-           │  │  (presigned URLs)   │
+           │  │  (backend storage)  │
            │  └─────────────────────┘
            │
     ┌──────▼─────────-┐
@@ -223,7 +227,7 @@ The primary workspace.
 
 - **Grid:** 2 columns on mobile, `auto-fill(minmax(200px, 1fr))` on desktop
 - **Filter bar:** All / Images / Videos pill toggles + item count
-- **Cards:** Gradient placeholder thumbnails (real images via presigned URLs in production), video badge with play icon, prompt text, time ago, token cost
+- **Cards:** Gradient placeholder thumbnails (real images via /v1/content/... content-proxy URLs), video badge with play icon, prompt text, time ago, token cost
 - **Lightbox:** Full-screen overlay with metadata (model, ratio, cost), download button, re-generate button, close (X) button
 - **Pagination:** Infinite scroll (increment `offset` on scroll to bottom)
 
@@ -305,7 +309,7 @@ Three tabs:
 | `/v1/billing/pricing`       | Stale-while-revalidate | 1 hour                  |
 | `/v1/grok/` (provider info) | Stale-while-revalidate | 1 hour                  |
 | `/v1/jobs`, `/gallery`      | Network-first          | No cache                |
-| R2 presigned images         | Cache-first            | Until URL expires (~1h) |
+| Protected content media     | HTTP cache             | `Cache-Control: private, immutable` + `Vary: Origin` |
 
 ### Viewport
 

@@ -13,7 +13,7 @@ import {
   type RenderedVideoFrame,
 } from './videoFrameCapture';
 
-export const DEFAULT_FRAME_PREVIEW_COUNT = 6;
+const DEFAULT_FRAME_PREVIEW_COUNT = 6;
 export interface LocalPreviewFrame extends CapturedVideoFrame {
   id: string;
 }

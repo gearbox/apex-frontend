@@ -2,16 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { get } from 'svelte/store';
 
 const PARAGLIDE_STORAGE_KEY = 'PARAGLIDE_LOCALE';
-const LEGACY_STORAGE_KEY = 'apex-locale';
 
-async function coldLoad(options: { persisted?: string; legacy?: string } = {}) {
+async function coldLoad(options: { persisted?: string } = {}) {
   localStorage.clear();
   document.documentElement.lang = '';
   if (options.persisted !== undefined) {
     localStorage.setItem(PARAGLIDE_STORAGE_KEY, options.persisted);
-  }
-  if (options.legacy !== undefined) {
-    localStorage.setItem(LEGACY_STORAGE_KEY, options.legacy);
   }
 
   vi.resetModules();
@@ -57,15 +53,6 @@ describe('locale store', () => {
     expect(runtime.getLocale()).toBe('en');
     expect(messages.language_selector_label()).toBe('Language');
     expect(document.documentElement.lang).toBe('en');
-  });
-
-  it('migrates a valid apex-locale value to Paraglide persistence once', async () => {
-    const { locale, messages } = await coldLoad({ legacy: 'ru' });
-
-    expect(get(locale)).toBe('ru');
-    expect(messages.language_selector_label()).toBe('Язык');
-    expect(localStorage.getItem(PARAGLIDE_STORAGE_KEY)).toBe('ru');
-    expect(localStorage.getItem(LEGACY_STORAGE_KEY)).toBeNull();
   });
 
   it('updates translated content without a full reload when the user selects another locale', async () => {

@@ -76,14 +76,6 @@ const mockProjects = [
   },
 ];
 
-// Exported failure variant for testing
-export const libraryAssetNotFoundHandler = http.delete(`${BASE}/v1/library/assets/:asset_ref`, () =>
-  HttpResponse.json(
-    { error: 'not_found', message: 'Library asset not found', status_code: 404 },
-    { status: 404 },
-  ),
-);
-
 export const libraryHandlers = [
   // List
   http.get(`${BASE}/v1/library`, ({ request }) => {

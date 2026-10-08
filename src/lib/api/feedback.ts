@@ -5,10 +5,10 @@ import type { components } from '$lib/api/types';
 export type FeedbackCategory = components['schemas']['FeedbackCategory'];
 export type FeedbackStatus = components['schemas']['FeedbackStatus'];
 export type FeedbackCreate = components['schemas']['FeedbackCreate'];
-export type FeedbackCreated = components['schemas']['FeedbackCreated'];
-export type FeedbackReportAdmin = components['schemas']['FeedbackReportAdmin'];
+type FeedbackCreated = components['schemas']['FeedbackCreated'];
+type FeedbackReportAdmin = components['schemas']['FeedbackReportAdmin'];
 export type FeedbackAdminPatch = components['schemas']['FeedbackAdminPatch'];
-export type FeedbackAdminPage =
+type FeedbackAdminPage =
   components['schemas']['CursorPage_src.api.schemas.feedback.FeedbackReportAdmin_'];
 
 /** Submit a signed-in user's report. This is intentionally the only user feedback transport. */

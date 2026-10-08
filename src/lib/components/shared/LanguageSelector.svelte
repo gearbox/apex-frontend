@@ -9,9 +9,9 @@
   let containerEl = $state<HTMLDivElement | undefined>();
 
   const LOCALE_LABELS: Record<Locale, () => string> = {
-    en: m.profile_language_en,
-    ru: m.profile_language_ru,
-    sr: m.profile_language_sr,
+    en: () => m.profile_language_en(),
+    ru: () => m.profile_language_ru(),
+    sr: () => m.profile_language_sr(),
   };
 
   function select(tag: Locale) {

@@ -22,7 +22,7 @@ export interface ExactDocuments {
  * Payloads are compared by content, not identity: a query result hands out a new reference on
  * every update, and a background refetch of an unchanged set must not reset the form.
  */
-export interface ExactDocumentsOptions {
+interface ExactDocumentsOptions {
   /** Defaults to the component's client; pass one explicitly outside a component tree. */
   queryClient?: QueryClient;
   /**

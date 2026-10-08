@@ -2,7 +2,7 @@ import type { components } from '$lib/api/types';
 
 type LibraryAssetSource = components['schemas']['LibraryAssetSource'];
 
-export interface ParsedAssetRef {
+interface ParsedAssetRef {
   source: LibraryAssetSource;
   id: string;
 }

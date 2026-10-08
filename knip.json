@@ -1,0 +1,6 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "ignore": ["docs/**", "static/pwa-lifecycle-fixture/**", "src/lib/api/types.ts"],
+  "ignoreDependencies": ["workbox-window"],
+  "ignoreBinaries": ["view"]
+}

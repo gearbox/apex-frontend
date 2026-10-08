@@ -30,7 +30,7 @@ describe('parseProtectedContentUrl', () => {
     'http://localhost:8000.attacker.example.test/v1/content/outputs/out-1',
     'https://localhost:8000/v1/content/outputs/out-1',
     'http://localhost:9000/v1/content/outputs/out-1',
-    // A presigned object-storage URL must never pass as protected content.
+    // A signed object-storage URL must never pass as protected content.
     'https://bucket.r2.cloudflarestorage.com/outputs/out-1.png?X-Amz-Signature=abc',
     // Protocol-relative and backslash tricks.
     '//attacker.example.test/v1/content/outputs/out-1',

@@ -340,7 +340,7 @@ export const generationStore = createGenerationStore();
  * Canonical source-list normalization at state boundaries. It preserves the
  * first occurrence and its position, so valid replay order is never changed.
  */
-export function normalizeSourceMedia(sourceMedia: readonly SourceMediaDraft[]): SourceMediaDraft[] {
+function normalizeSourceMedia(sourceMedia: readonly SourceMediaDraft[]): SourceMediaDraft[] {
   const unique: SourceMediaDraft[] = [];
   const seen = new Set<string>();
   for (const source of sourceMedia) {
@@ -428,9 +428,4 @@ export const isGenerating = derived(
     $s.jobStatus !== 'failed' &&
     $s.jobStatus !== 'cancelled' &&
     $s.jobStatus !== 'moderated',
-);
-
-export const canGenerate = derived(
-  generationStore,
-  ($s) => $s.prompt.trim().length > 0 && !get(isGenerating),
 );

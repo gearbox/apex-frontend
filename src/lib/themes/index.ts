@@ -19,7 +19,7 @@ export interface ThemeColors {
   danger: string;
 }
 
-export interface ThemeDefinition {
+interface ThemeDefinition {
   name: ThemeName;
   label: string;
   light: ThemeColors;

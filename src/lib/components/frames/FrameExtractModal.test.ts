@@ -51,12 +51,10 @@ async function ready() {
 }
 
 describe('client frame modal', () => {
-  it('renders six local automatic previews and no requests to the old API', async () => {
-    const fetch = vi.spyOn(globalThis, 'fetch');
+  it('renders six local automatic previews', async () => {
     modal();
     await ready();
     expect(screen.getAllByRole('button', { name: /^Automatic:/ })).toHaveLength(6);
-    expect(fetch.mock.calls.some((call) => String(call[0]).includes('/v1/frames'))).toBe(false);
     expect(screen.getByText('Frames added from the scrubber will appear here.')).toBeTruthy();
   });
   it('traps focus, handles Escape and restores focus on destruction', async () => {

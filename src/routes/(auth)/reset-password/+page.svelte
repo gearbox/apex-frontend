@@ -48,12 +48,12 @@
       clearAuth();
       await goto('/login?reset=done', { replaceState: true });
     } catch (err) {
-      if (err instanceof AuthError && err.status === 400 && err.error === 'invalid_token') {
+      if (err instanceof AuthError && err.status_code === 400 && err.error === 'invalid_token') {
         invalid = true;
         token = null;
       } else {
         error =
-          err instanceof AuthError && err.status === 429
+          err instanceof AuthError && err.status_code === 429
             ? m.error_rate_limited()
             : m.error_generic();
       }

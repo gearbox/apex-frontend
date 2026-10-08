@@ -5,7 +5,7 @@ import type { components } from '$lib/api/types';
 
 type UnifiedJobResponse = components['schemas']['UnifiedJobResponse'];
 
-export interface PollOptions {
+interface PollOptions {
   jobId: string;
   intervalMs?: number;
   onUpdate: (job: UnifiedJobResponse) => void;

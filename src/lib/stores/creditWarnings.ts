@@ -1,7 +1,7 @@
 import { writable, derived } from 'svelte/store';
 import type { GpuSessionCreditWarningPayload } from '$lib/api/events';
 
-export interface CreditWarning {
+interface CreditWarning {
   session_id: string;
   level: 'warning' | 'critical';
   terminate_at: string | null;

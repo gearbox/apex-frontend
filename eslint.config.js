@@ -25,7 +25,7 @@ export default ts.config(
   },
   {
     files: ['src/**/*.ts', 'src/**/*.svelte'],
-    ignores: ['src/**/*.test.ts', 'src/**/*.test.svelte', 'src/**/*.test-double.svelte'],
+    ignores: ['src/**/*.test.ts', 'src/**/*.test.svelte'],
     rules: {
       'no-restricted-imports': [
         'error',
@@ -42,7 +42,7 @@ export default ts.config(
   },
   {
     rules: {
-      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
       'svelte/require-each-key': 'error',
       'svelte/no-navigation-without-resolve': 'off',
     },
@@ -54,7 +54,6 @@ export default ts.config(
       'node_modules/',
       'playwright-report/',
       'test-results/',
-      'public/mockServiceWorker.js',
       'src/paraglide/',
     ],
   },

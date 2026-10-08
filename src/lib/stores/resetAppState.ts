@@ -10,8 +10,6 @@ import { setEventStreamStatus } from '$lib/stores/eventStream';
 import { clearPersistedPushState } from '$lib/services/pushNotifications';
 import { resetLegalState } from '$lib/stores/legal';
 import { feedbackDialog } from '$lib/stores/feedbackDialog.svelte';
-import { isBrowser } from '$lib/utils/env';
-import { LEGACY_CONTENT_MEDIA_CACHE_NAME } from '$lib/utils/cacheNames';
 
 /**
  * Clears every module-level cache/store that could otherwise carry one account's data into the
@@ -40,7 +38,6 @@ export function resetAppState(): void {
     clearPersistedPushState,
     resetLegalState,
     () => feedbackDialog.reset(),
-    deleteLegacyContentMediaCache,
   ];
 
   for (const step of steps) {
@@ -49,15 +46,5 @@ export function resetAppState(): void {
     } catch {
       // A single step's failure must not block the rest of the reset.
     }
-  }
-}
-
-/**
- * Covers the upgrade window where an old worker can still control the page before the new worker
- * activates. Keep this fire-and-forget so dead-session cleanup remains synchronous and resilient.
- */
-function deleteLegacyContentMediaCache(): void {
-  if (isBrowser() && typeof caches !== 'undefined') {
-    void caches.delete(LEGACY_CONTENT_MEDIA_CACHE_NAME).catch(() => undefined);
   }
 }

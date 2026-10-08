@@ -25,7 +25,7 @@ export function isProvisioningMode(value: string | null | undefined): value is P
   return value === 'always_on' || value === 'on_demand';
 }
 
-export interface DeriveCardStateArgs {
+interface DeriveCardStateArgs {
   provisioningMode: ProvisioningMode;
   available: boolean;
   isEnabled: boolean;

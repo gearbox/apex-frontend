@@ -91,14 +91,9 @@ export async function setupFrameExtraction(
   corrupt = false,
   unavailable = false,
 ) {
-  const framesRequests: string[] = [];
   const mediaRequests: { url: string; range?: string; authorization?: string; resource: string }[] =
     [];
   const uploads: { source: string; timestamp: string }[] = [];
-  page.on('request', (request) => {
-    if (new URL(request.url()).pathname.startsWith('/v1/frames'))
-      framesRequests.push(request.url());
-  });
   const detail = unavailable
     ? {
         ...libraryAssetDetail,
@@ -254,7 +249,6 @@ export async function setupFrameExtraction(
   await lightbox.getByRole('button', { name: 'Extract frames' }).click();
   return {
     dialog: page.getByRole('dialog', { name: 'Extract frames' }),
-    framesRequests,
     mediaRequests,
     uploads,
   };

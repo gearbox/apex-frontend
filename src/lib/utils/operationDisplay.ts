@@ -1,6 +1,6 @@
 import type { components } from '$lib/api/types';
 
-export type OperationWork = components['schemas']['OperationWorkResponse'];
+type OperationWork = components['schemas']['OperationWorkResponse'];
 
 export function clampProgress(progress: number): number {
   return Math.min(100, Math.max(0, progress));

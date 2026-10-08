@@ -4,12 +4,12 @@ import type { TransactionResponse } from '$lib/api/billing';
 import { getPaymentStorageScope, type PaymentStorageScope } from './paymentScope';
 
 const STORAGE_VERSION = 1;
-export const PENDING_PAYMENT_STORAGE_PREFIX = 'apex:pending-payments';
+const PENDING_PAYMENT_STORAGE_PREFIX = 'apex:pending-payments';
 const RECONCILIATION_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 export type PendingPaymentScope = PaymentStorageScope;
 
-export interface PendingPayment {
+interface PendingPayment {
   paymentId: string;
   provider: string;
   amountUsd: number;
@@ -201,7 +201,7 @@ export function hasPaymentsAwaitingReconciliation(scope: PendingPaymentScope): b
   return getPendingPaymentIdsAwaitingReconciliation(scope).length > 0;
 }
 
-export function getRecentPendingPaymentIds(scope: PendingPaymentScope): string[] {
+function getRecentPendingPaymentIds(scope: PendingPaymentScope): string[] {
   const cutoff = Date.now() - RECONCILIATION_WINDOW_MS;
   return getPendingPayments(scope).flatMap((record) => {
     const createdAt = Date.parse(record.createdAt);

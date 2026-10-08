@@ -26,7 +26,7 @@ export function isMediaSlot(value: string | null | undefined): value is MediaSlo
   return value != null && Object.hasOwn(SLOT_MEDIA_KIND, value);
 }
 
-export interface RoleFilterResult {
+interface RoleFilterResult {
   /** The recognized subset, or `null` when the raw array itself was `null`/`undefined`. */
   roles: MediaSlot[] | null;
   /** Whether the raw array contained any value outside the closed vocabulary. */

@@ -4,16 +4,7 @@ import { knownMediaSlots, mediaKindForSlot, type MediaSlot } from './mediaSlots'
 
 type ModelInfo = components['schemas']['ModelInfo'];
 
-/**
- * The user-triggered intent behind a source selection. `interchangeable` is
- * the generic "Add reference"-style action (legal only against a
- * `roles: null` candidate); `role` names the exact positional slot the user
- * explicitly chose (e.g. clicking "Add last frame").
- */
-export type SourceSelectionIntent =
-  { kind: 'interchangeable'; mediaKind: string } | { kind: 'role'; role: MediaSlot };
-
-export type RoleSelectionPlan =
+type RoleSelectionPlan =
   | {
       allowed: true;
       /** Existing draft indices that must be promoted to a named role before the new source is appended. */

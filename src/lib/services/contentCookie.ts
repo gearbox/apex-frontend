@@ -8,8 +8,8 @@ import { readonly, writable } from 'svelte/store';
 export const MIN_REMINT_INTERVAL_MS = 5 * 60 * 1000;
 /** Re-mint proactively well before the cookie lapses — see BACKEND_API_REFERENCE.md §2. */
 export const REMINT_LIFETIME_FRACTION = 0.75;
-export const TRANSIENT_REMINT_RETRY_BASE_MS = 30 * 1000;
-export const TRANSIENT_REMINT_RETRY_MAX_MS = 5 * 60 * 1000;
+const TRANSIENT_REMINT_RETRY_BASE_MS = 30 * 1000;
+const TRANSIENT_REMINT_RETRY_MAX_MS = 5 * 60 * 1000;
 
 const contentCredentialsRevisionStore = writable(0);
 /**

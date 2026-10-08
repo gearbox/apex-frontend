@@ -8,24 +8,27 @@ type ModelType = components['schemas']['ModelType'];
 export const modelGuides: Partial<Record<ModelType, ModelGuide>> = {
   'grok-imagine-image': {
     modelKey: 'grok-imagine-image',
-    tagline: m.model_guide_grok_imagine_image_tagline,
+    tagline: () => m.model_guide_grok_imagine_image_tagline(),
     goodAt: [
-      m.model_guide_grok_imagine_image_good_at_1,
-      m.model_guide_grok_imagine_image_good_at_2,
+      () => m.model_guide_grok_imagine_image_good_at_1(),
+      () => m.model_guide_grok_imagine_image_good_at_2(),
     ],
     chooseWhen: [
-      m.model_guide_grok_imagine_image_choose_when_1,
-      m.model_guide_grok_imagine_image_choose_when_2,
+      () => m.model_guide_grok_imagine_image_choose_when_1(),
+      () => m.model_guide_grok_imagine_image_choose_when_2(),
     ],
     restrictions: [
-      m.model_guide_grok_imagine_image_restrictions_1,
-      m.model_guide_grok_imagine_image_restrictions_2,
+      () => m.model_guide_grok_imagine_image_restrictions_1(),
+      () => m.model_guide_grok_imagine_image_restrictions_2(),
     ],
     billingRules: [
-      m.model_guide_grok_imagine_image_billing_1,
-      m.model_guide_grok_imagine_image_billing_2,
+      () => m.model_guide_grok_imagine_image_billing_1(),
+      () => m.model_guide_grok_imagine_image_billing_2(),
     ],
-    promptTips: [m.model_guide_grok_imagine_image_tips_1, m.model_guide_grok_imagine_image_tips_2],
+    promptTips: [
+      () => m.model_guide_grok_imagine_image_tips_1(),
+      () => m.model_guide_grok_imagine_image_tips_2(),
+    ],
     examples: [
       {
         prompt:
@@ -50,21 +53,27 @@ export const modelGuides: Partial<Record<ModelType, ModelGuide>> = {
   },
   'grok-2-image-1212': {
     modelKey: 'grok-2-image-1212',
-    tagline: m.model_guide_grok_2_image_1212_tagline,
-    goodAt: [m.model_guide_grok_2_image_1212_good_at_1, m.model_guide_grok_2_image_1212_good_at_2],
+    tagline: () => m.model_guide_grok_2_image_1212_tagline(),
+    goodAt: [
+      () => m.model_guide_grok_2_image_1212_good_at_1(),
+      () => m.model_guide_grok_2_image_1212_good_at_2(),
+    ],
     chooseWhen: [
-      m.model_guide_grok_2_image_1212_choose_when_1,
-      m.model_guide_grok_2_image_1212_choose_when_2,
+      () => m.model_guide_grok_2_image_1212_choose_when_1(),
+      () => m.model_guide_grok_2_image_1212_choose_when_2(),
     ],
     restrictions: [
-      m.model_guide_grok_2_image_1212_restrictions_1,
-      m.model_guide_grok_2_image_1212_restrictions_2,
+      () => m.model_guide_grok_2_image_1212_restrictions_1(),
+      () => m.model_guide_grok_2_image_1212_restrictions_2(),
     ],
     billingRules: [
-      m.model_guide_grok_2_image_1212_billing_1,
-      m.model_guide_grok_2_image_1212_billing_2,
+      () => m.model_guide_grok_2_image_1212_billing_1(),
+      () => m.model_guide_grok_2_image_1212_billing_2(),
     ],
-    promptTips: [m.model_guide_grok_2_image_1212_tips_1, m.model_guide_grok_2_image_1212_tips_2],
+    promptTips: [
+      () => m.model_guide_grok_2_image_1212_tips_1(),
+      () => m.model_guide_grok_2_image_1212_tips_2(),
+    ],
     examples: [
       {
         prompt:
@@ -88,24 +97,27 @@ export const modelGuides: Partial<Record<ModelType, ModelGuide>> = {
   },
   'grok-imagine-video': {
     modelKey: 'grok-imagine-video',
-    tagline: m.model_guide_grok_imagine_video_tagline,
+    tagline: () => m.model_guide_grok_imagine_video_tagline(),
     goodAt: [
-      m.model_guide_grok_imagine_video_good_at_1,
-      m.model_guide_grok_imagine_video_good_at_2,
+      () => m.model_guide_grok_imagine_video_good_at_1(),
+      () => m.model_guide_grok_imagine_video_good_at_2(),
     ],
     chooseWhen: [
-      m.model_guide_grok_imagine_video_choose_when_1,
-      m.model_guide_grok_imagine_video_choose_when_2,
+      () => m.model_guide_grok_imagine_video_choose_when_1(),
+      () => m.model_guide_grok_imagine_video_choose_when_2(),
     ],
     restrictions: [
-      m.model_guide_grok_imagine_video_restrictions_1,
-      m.model_guide_grok_imagine_video_restrictions_2,
+      () => m.model_guide_grok_imagine_video_restrictions_1(),
+      () => m.model_guide_grok_imagine_video_restrictions_2(),
     ],
     billingRules: [
-      m.model_guide_grok_imagine_video_billing_1,
-      m.model_guide_grok_imagine_video_billing_2,
+      () => m.model_guide_grok_imagine_video_billing_1(),
+      () => m.model_guide_grok_imagine_video_billing_2(),
     ],
-    promptTips: [m.model_guide_grok_imagine_video_tips_1, m.model_guide_grok_imagine_video_tips_2],
+    promptTips: [
+      () => m.model_guide_grok_imagine_video_tips_1(),
+      () => m.model_guide_grok_imagine_video_tips_2(),
+    ],
     examples: [
       {
         prompt:
@@ -129,12 +141,24 @@ export const modelGuides: Partial<Record<ModelType, ModelGuide>> = {
   },
   'aisha-image': {
     modelKey: 'aisha-image',
-    tagline: m.model_guide_aisha_image_tagline,
-    goodAt: [m.model_guide_aisha_image_good_at_1, m.model_guide_aisha_image_good_at_2],
-    chooseWhen: [m.model_guide_aisha_image_choose_when_1, m.model_guide_aisha_image_choose_when_2],
-    restrictions: [m.model_guide_aisha_image_restrictions_1],
-    billingRules: [m.model_guide_aisha_image_billing_1, m.model_guide_aisha_image_billing_2],
-    promptTips: [m.model_guide_aisha_image_tips_1, m.model_guide_aisha_image_tips_2],
+    tagline: () => m.model_guide_aisha_image_tagline(),
+    goodAt: [
+      () => m.model_guide_aisha_image_good_at_1(),
+      () => m.model_guide_aisha_image_good_at_2(),
+    ],
+    chooseWhen: [
+      () => m.model_guide_aisha_image_choose_when_1(),
+      () => m.model_guide_aisha_image_choose_when_2(),
+    ],
+    restrictions: [() => m.model_guide_aisha_image_restrictions_1()],
+    billingRules: [
+      () => m.model_guide_aisha_image_billing_1(),
+      () => m.model_guide_aisha_image_billing_2(),
+    ],
+    promptTips: [
+      () => m.model_guide_aisha_image_tips_1(),
+      () => m.model_guide_aisha_image_tips_2(),
+    ],
     examples: [
       {
         prompt:
@@ -157,12 +181,24 @@ export const modelGuides: Partial<Record<ModelType, ModelGuide>> = {
   },
   'aisha-video': {
     modelKey: 'aisha-video',
-    tagline: m.model_guide_aisha_video_tagline,
-    goodAt: [m.model_guide_aisha_video_good_at_1, m.model_guide_aisha_video_good_at_2],
-    chooseWhen: [m.model_guide_aisha_video_choose_when_1, m.model_guide_aisha_video_choose_when_2],
-    restrictions: [m.model_guide_aisha_video_restrictions_1],
-    billingRules: [m.model_guide_aisha_video_billing_1, m.model_guide_aisha_video_billing_2],
-    promptTips: [m.model_guide_aisha_video_tips_1, m.model_guide_aisha_video_tips_2],
+    tagline: () => m.model_guide_aisha_video_tagline(),
+    goodAt: [
+      () => m.model_guide_aisha_video_good_at_1(),
+      () => m.model_guide_aisha_video_good_at_2(),
+    ],
+    chooseWhen: [
+      () => m.model_guide_aisha_video_choose_when_1(),
+      () => m.model_guide_aisha_video_choose_when_2(),
+    ],
+    restrictions: [() => m.model_guide_aisha_video_restrictions_1()],
+    billingRules: [
+      () => m.model_guide_aisha_video_billing_1(),
+      () => m.model_guide_aisha_video_billing_2(),
+    ],
+    promptTips: [
+      () => m.model_guide_aisha_video_tips_1(),
+      () => m.model_guide_aisha_video_tips_2(),
+    ],
     examples: [
       {
         prompt:

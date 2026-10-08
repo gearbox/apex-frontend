@@ -5,7 +5,7 @@ import { isBrowser } from '$lib/utils/env';
 
 type JobStatus = components['schemas']['JobStatus'];
 
-export interface ActiveJob {
+interface ActiveJob {
   jobId: string;
   status: JobStatus;
 }

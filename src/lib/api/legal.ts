@@ -5,7 +5,7 @@ import type { components } from '$lib/api/types';
 export type LegalDocType = components['schemas']['LegalDocumentType'];
 export type AcceptedDocument = components['schemas']['AcceptedDocument'];
 export type LegalDocumentMeta = components['schemas']['LegalDocumentMeta'];
-export type LegalDocument = components['schemas']['LegalDocumentResponse'];
+type LegalDocument = components['schemas']['LegalDocumentResponse'];
 export type LegalStatus = components['schemas']['LegalStatusResponse'];
 
 /** Returns the document set required by the active product. This endpoint is public. */

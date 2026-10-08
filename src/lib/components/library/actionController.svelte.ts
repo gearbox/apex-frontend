@@ -1,6 +1,6 @@
 import { SvelteSet } from 'svelte/reactivity';
 
-export type ActionGroup = 'save' | 'navigate';
+type ActionGroup = 'save' | 'navigate';
 
 /** Tracks per-action pending state while serializing navigation actions that would otherwise
  * race each other. Save actions remain independent, but a second tap on the same one is ignored. */

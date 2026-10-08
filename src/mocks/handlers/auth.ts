@@ -95,14 +95,6 @@ export const failedContentCookieRemintHandler = http.post(`${BASE}/v1/auth/conte
   ),
 );
 
-/** Override for simulating a 401 login response. */
-export const failedLoginHandler = http.post(`${BASE}/v1/auth/login`, () =>
-  HttpResponse.json(
-    { error: 'invalid_credentials', message: 'Invalid email or password', status_code: 401 },
-    { status: 401 },
-  ),
-);
-
 /** Override for simulating a 429 on login (rate limited, with Retry-After and remaining count). */
 export const rateLimitedLoginHandler = http.post(`${BASE}/v1/auth/login`, () =>
   HttpResponse.json(
@@ -131,23 +123,6 @@ export const rateLimitWarningLoginHandler = http.post(`${BASE}/v1/auth/login`, (
       'X-RateLimit-Reset': '1710345600',
     },
   }),
-);
-
-/** Override: Synthara product — SFW, no age gate, Stripe only. */
-export const syntharaProductHandler = http.get(`${BASE}/v1/auth/product-info`, () =>
-  HttpResponse.json({
-    product: 'synthara',
-    display_name: 'Synthara',
-    age_gate: 'none',
-    allowed_auth_methods: ['email_password'],
-    content_rating: 'sfw',
-    payment_providers: ['stripe'],
-  }),
-);
-
-/** Override: vex product with no age gate (for simplified test scenarios). */
-export const vexNoAgeGateProductHandler = http.get(`${BASE}/v1/auth/product-info`, () =>
-  HttpResponse.json({ ...vexProductInfo, age_gate: 'none' }),
 );
 
 /** Override: Vex product with the Google provider configured. */
@@ -196,13 +171,5 @@ export const legalStaleSignupHandler = http.post(`${BASE}/v1/auth/oauth/complete
   HttpResponse.json(
     { error: 'legal_version_stale', message: 'Legal documents changed.', status_code: 409 },
     { status: 409 },
-  ),
-);
-
-/** Override: product-info fetch fails (network error). */
-export const productInfoErrorHandler = http.get(`${BASE}/v1/auth/product-info`, () =>
-  HttpResponse.json(
-    { error: 'unknown_product', message: 'Unknown product', status_code: 400 },
-    { status: 400 },
   ),
 );

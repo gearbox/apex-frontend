@@ -65,49 +65,6 @@ export const jobHandlers = [
   http.delete(`${BASE}/v1/jobs/:job_id`, () => new HttpResponse(null, { status: 204 })),
 ];
 
-export const jobNotFoundHandler = http.get(
-  `${BASE}/v1/jobs/:job_id`,
-  () => new HttpResponse(null, { status: 404 }),
-);
-
-export const jobDeleteFailHandler = http.delete(`${BASE}/v1/jobs/:job_id`, () =>
-  HttpResponse.json({ status_code: 500, detail: 'Internal error' }, { status: 500 }),
-);
-
-// Override: aisha provider unavailable (orthogonality test — never offer Start when unavailable)
-export const aishaUnavailableHandler = http.get(`${BASE}/v1/providers`, () =>
-  HttpResponse.json({
-    providers: [
-      {
-        provider: 'aisha',
-        name: 'Aisha',
-        available: false,
-        provisioning_mode: 'on_demand',
-        models: [makeAishaImageModelInfo({ aspect_ratios: ['1:1'], runtime: makeRuntime('none') })],
-      },
-    ],
-    user_context: null,
-  }),
-);
-
-// Override: aisha provider with an active runtime.
-export const aishaActiveSessionHandler = http.get(`${BASE}/v1/providers`, () =>
-  HttpResponse.json({
-    providers: [
-      {
-        provider: 'aisha',
-        name: 'Aisha',
-        available: true,
-        provisioning_mode: 'on_demand',
-        models: [
-          makeAishaImageModelInfo({ aspect_ratios: ['1:1'], runtime: makeRuntime('active') }),
-        ],
-      },
-    ],
-    user_context: null,
-  }),
-);
-
 function makeRuntime(state: 'none' | 'provisioning' | 'active' | 'paused' | 'stale' | 'stopping') {
   return {
     state,
@@ -116,34 +73,3 @@ function makeRuntime(state: 'none' | 'provisioning' | 'active' | 'paused' | 'sta
     operation_id: state === 'provisioning' ? 'op_aisha_001' : null,
   };
 }
-
-function makeAishaProvider(state: 'provisioning' | 'stale' | 'stopping' | 'paused') {
-  return {
-    providers: [
-      {
-        provider: 'aisha',
-        name: 'Aisha',
-        available: true,
-        provisioning_mode: 'on_demand',
-        models: [makeAishaImageModelInfo({ aspect_ratios: ['1:1'], runtime: makeRuntime(state) })],
-      },
-    ],
-    user_context: null,
-  };
-}
-
-export const aishaProvisioningHandler = http.get(`${BASE}/v1/providers`, () =>
-  HttpResponse.json(makeAishaProvider('provisioning')),
-);
-
-export const aishaStaleHandler = http.get(`${BASE}/v1/providers`, () =>
-  HttpResponse.json(makeAishaProvider('stale')),
-);
-
-export const aishaStoppingHandler = http.get(`${BASE}/v1/providers`, () =>
-  HttpResponse.json(makeAishaProvider('stopping')),
-);
-
-export const aishaPausedHandler = http.get(`${BASE}/v1/providers`, () =>
-  HttpResponse.json(makeAishaProvider('paused')),
-);

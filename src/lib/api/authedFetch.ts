@@ -21,8 +21,8 @@ export interface AuthRequestContext {
   finish(): void;
 }
 
-export type AuthRequestRunner = (token: string | null, signal: AbortSignal) => Promise<Response>;
-export type StaleAuthErrorFactory = () => Error;
+type AuthRequestRunner = (token: string | null, signal: AbortSignal) => Promise<Response>;
+type StaleAuthErrorFactory = () => Error;
 
 function abortError(): DOMException {
   return new DOMException('Aborted', 'AbortError');
