@@ -588,9 +588,9 @@ it('redirects to /login when refresh is revoked', async () => {
 
 - Default handlers in `src/mocks/handlers/index.ts` represent the happy path.
 - Export named override handlers (e.g. `failedRefreshHandler`) from each handler file for use in negative-path tests.
-- Never call the real API in unit tests. MSW uses `onUnhandledRequest: 'error'`; register each required request explicitly, without catch-all handlers.
+- Never call the real API in unit tests. The test harness records unhandled MSW requests and fails the test afterward; register each required request explicitly, without catch-all handlers.
 - `pnpm verify` runs check (`--fail-on-warnings`), lint (`--max-warnings 0`, unused variables are errors), knip, formatting, unit tests and the production build.
-- `src/tests/i18n-keys.test.ts` requires every translation key to have a direct `m.<key>(...)` call outside generated Paraglide code, and identical English, Russian and Serbian key sets.
+- `src/tests/i18n-keys.test.ts` requires every translation key to be referenced in a file importing Paraglide messages as `m`, and identical English, Russian and Serbian key sets.
 
 ### Playwright Usage Pattern
 

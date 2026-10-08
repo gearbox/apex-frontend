@@ -21,21 +21,33 @@ function localeKeys(locale: string): string[] {
     .sort();
 }
 
+function collectMessageReferences(source: string): string[] {
+  if (!/import\s+\*\s+as\s+m\s+from\s+['"]\$paraglide\/messages['"]/.test(source)) {
+    return [];
+  }
+  return [...source.matchAll(/\bm\.([A-Za-z0-9_]+)\b/g)].map((match) => match[1]);
+}
+
 describe('translation keys', () => {
   it('keeps the English, Russian and Serbian key sets identical', () => {
     expect(localeKeys('ru')).toEqual(localeKeys('en'));
     expect(localeKeys('sr')).toEqual(localeKeys('en'));
   });
 
-  it('references every key with a direct message call', () => {
+  it('references every key through Paraglide message imports', () => {
     const references = new Set(
-      sourceFiles('src').flatMap((path) =>
-        [...readFileSync(path, 'utf8').matchAll(/\bm\.([A-Za-z0-9_]+)\s*\(/g)].map(
-          (match) => match[1],
-        ),
-      ),
+      sourceFiles('src').flatMap((path) => collectMessageReferences(readFileSync(path, 'utf8'))),
     );
-    // Dynamic message access must add an explicit key allowlist here before use.
+    // Dynamic access (m[key], template-literal lookups) must add an explicit key allowlist here.
     expect(localeKeys('en').filter((key) => !references.has(key))).toEqual([]);
+  });
+
+  it('collects a message function passed by reference', () => {
+    const source = `import * as m from '$paraglide/messages';\nconst labels = { en: m.some_key };`;
+    expect(collectMessageReferences(source)).toEqual(['some_key']);
+  });
+
+  it('ignores ordinary m properties without the Paraglide import', () => {
+    expect(collectMessageReferences('const models = [{ provider: m.provider }];')).toEqual([]);
   });
 });

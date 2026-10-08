@@ -8,6 +8,7 @@ type LibraryOutputItem = components['schemas']['LibraryOutputItem'];
 type LibraryLineage = components['schemas']['LibraryLineage'];
 type LibraryGroupLineage = components['schemas']['LibraryGroupLineage'];
 type LibraryDescendants = components['schemas']['LibraryDescendants'];
+type LibraryTagListItem = components['schemas']['LibraryTagListItem'];
 
 const ALL_ACTIONS = [
   'remix',
@@ -149,5 +150,14 @@ export function makeLibraryCursorPage(
     limit: 30,
     has_more: hasMore,
     next_cursor: hasMore ? 'eyJtb2NrIjoiY3Vyc29yIn0=' : null,
+  };
+}
+
+export function makeLibraryTagPage() {
+  return {
+    items: [] as LibraryTagListItem[],
+    limit: 50,
+    has_more: false,
+    next_cursor: null,
   };
 }
