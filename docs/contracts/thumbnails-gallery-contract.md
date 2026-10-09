@@ -90,8 +90,6 @@ Grep each removed field; every call site must move to `media`. Old fields are **
 | `GalleryGridItem` | `cover_url`, `video_url`, top-level `media_type` | `cover: MediaObject` (derive media type from `cover.media_type`) |
 | `GalleryOutputItem` | `url`, `thumbnail_url`, `content_type`, `media_type`, `format`, `size_bytes` | `{ id, output_index, created_at, media }` |
 | `GalleryGroupDetail` | `input_image_url` | `input_media: MediaObject \| null` (+ new `lineage` — see §4); keeps group-level `media_type` |
-| `ImageListItem` (uploads) | `content_type`, `size_bytes` | `{ id, filename, created_at, expires_at, media }` |
-| `OutputListItem` | `url`, `thumbnail_url`, `content_type`, `size_bytes` | `{ id, job_id, output_index, created_at, expires_at, media }` |
 | `UploadResponse` | `storage_key`, `content_type`, `size_bytes` | `{ id, filename, created_at, expires_at, media }` |
 
 Authoritative current field sets (post-fix), for reference:

@@ -2,6 +2,7 @@ import { http, HttpResponse } from 'msw';
 import { MOCK_BASE_URL as BASE } from '../config';
 import {
   makeLibraryCursorPage,
+  makeLibraryTagPage,
   makeLibraryAssetDetail,
   makeLibraryGroupDetail,
   makeLibraryOutputItem,
@@ -99,6 +100,9 @@ export const libraryHandlers = [
 
     return HttpResponse.json(makeLibraryCursorPage(6, {}, true));
   }),
+
+  // Tags
+  http.get(`${BASE}/v1/library/tags`, () => HttpResponse.json(makeLibraryTagPage())),
 
   // Projects
   http.get(`${BASE}/v1/library/projects`, () =>
