@@ -6,7 +6,12 @@ const unhandledRequests: string[] = [];
 beforeAll(() =>
   server.listen({
     onUnhandledRequest(request) {
-      unhandledRequests.push(`${request.method} ${request.url}`);
+      const description = `${request.method} ${request.url}`;
+      unhandledRequests.push(description);
+      // Throwing is the only way to stop MSW from performing the request for real: in MSW 2.x a
+      // custom callback that only logs and returns bypasses to the network.
+      // MSW resolves the aborted request with a synthetic 500; the afterEach assertion fails the test.
+      throw new Error(`Unhandled request in a unit test: ${description}`);
     },
   }),
 );
@@ -20,6 +25,7 @@ afterEach(() => {
 
 afterAll(() => server.close());
 
+/** Test-only: lets the harness self-test consume the requests it deliberately leaves unmocked. */
 export function takeUnhandledRequests(): string[] {
   return unhandledRequests.splice(0);
 }
