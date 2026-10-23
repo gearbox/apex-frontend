@@ -71,7 +71,7 @@
     normalizeVideoParams,
     videoParameterViolation,
   } from '$lib/utils/videoParams';
-  import { outOfRangeImageTokens } from '$lib/utils/r2vTokens';
+  import { r2vPromptViolation } from '$lib/utils/r2vTokens';
   import { isGenerationMode, isVideoMode } from '$lib/utils/generationModes';
   import { libraryGroupQueryOptions } from '$lib/queries/library';
   import { resolveGenerationMode } from '$lib/utils/generationModeResolver';
@@ -285,16 +285,9 @@
   );
   const parameterViolation = $derived(videoParameterViolation(effectiveState, currentModelInfo));
   let promptInput = $state<{ insertAtCursor: (text: string) => Promise<void> }>();
-  let orphanedToken = $state<string | null>(null);
-  const tokenWarning = $derived(
-    effectiveMode === 'r2v' &&
-      (outOfRangeImageTokens($generationStore.prompt, $generationStore.sourceMedia.length).length >
-        0 ||
-        (orphanedToken !== null &&
-          [...$generationStore.prompt.matchAll(/\bImage (\d+)\b/g)].some(
-            (match) => match[0] === orphanedToken,
-          )))
-      ? m.r2v_missing_tokens()
+  const r2vViolation = $derived(
+    effectiveMode === 'r2v'
+      ? r2vPromptViolation($generationStore.prompt, $generationStore.sourceMedia.length)
       : null,
   );
   const currentPricingRule = $derived(
@@ -344,7 +337,8 @@
     generateEnabled &&
       modeResolution.status === 'resolved' &&
       sourceValidation.valid &&
-      parameterViolation === null,
+      parameterViolation === null &&
+      r2vViolation === null,
   );
 
   // ── Age gate state
@@ -489,11 +483,14 @@
 
     const state = effectiveState;
 
+    if (r2vViolation) {
+      addToast({ type: 'warning', message: r2vViolation });
+      return;
+    }
     if (parameterViolation) {
       addToast({ type: 'warning', message: parameterViolation });
       return;
     }
-    if (tokenWarning) addToast({ type: 'warning', message: tokenWarning });
     if (!sourceValidation.valid) {
       addToast({
         type: 'error',
@@ -591,14 +588,13 @@
         modelInfo={currentModelInfo ?? null}
         {effectiveMode}
         oninserttoken={(token) => promptInput?.insertAtCursor(token)}
-        onorphan={(token) => (orphanedToken = token)}
       />
     {/if}
 
     <PromptInput
       bind:this={promptInput}
       maxLength={currentModelInfo?.max_prompt_length}
-      warning={tokenWarning}
+      warning={r2vViolation}
     />
     {#if isGenerationParameterSupported(currentModelInfo, 'negative_prompt')}
       <NegativePromptInput />

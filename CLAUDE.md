@@ -659,8 +659,9 @@ model limits: [contract](https://github.com/gearbox/apex/blob/master/docs/contra
 ## R2V prompt tokens
 
 Reference chips insert exact `Image N` tokens at the remembered cursor. Generic-row removal
-renumbers subsequent exact tokens without deleting the removed reference's prose; missing or
-orphaned references show a warning. There is no reorder or Library R2V entry. See the
+replaces references to that row with `[removed image]` and renumbers subsequent exact tokens.
+Removed markers and out-of-range references block Generate until the prompt is fixed. There is no
+reorder or Library R2V entry. See the
 [contract](https://github.com/gearbox/apex/blob/master/docs/contracts/wan-video-contract.md).
 
 ## In-flight jobs

@@ -42,12 +42,10 @@
     modelInfo,
     effectiveMode = '',
     oninserttoken,
-    onorphan,
   }: {
     modelInfo: ModelInfo | null;
     effectiveMode?: string;
     oninserttoken?: (token: string) => void;
-    onorphan?: (token: string) => void;
   } = $props();
 
   const queryClient = useQueryClient();
@@ -294,7 +292,6 @@
     if (effectiveMode === 'r2v') {
       const result = renumberAfterRemoval($generationStore.prompt, index + 1);
       generationStore.setPrompt(result.prompt);
-      if (result.orphaned) onorphan?.(`Image ${index + 1}`);
     }
     generationStore.removeSourceMedia(index);
   }

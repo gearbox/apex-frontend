@@ -159,10 +159,13 @@ test('Wan R2V inserts at cursor and renumbers sources @cross-browser', async ({
   const prompt = page.getByRole('textbox').first();
   await prompt.fill('waves');
   for (let index = 0; index < 5; index++) await prompt.press('ArrowLeft');
-  await page.getByRole('button', { name: 'Image 2', exact: true }).click();
-  await expect(prompt).toHaveValue('Image 2 waves');
-  await page.getByRole('button', { name: 'Remove source media', exact: true }).first().click();
+  await page.getByRole('button', { name: 'Image 1', exact: true }).click();
   await expect(prompt).toHaveValue('Image 1 waves');
+  await page.getByRole('button', { name: 'Remove source media', exact: true }).first().click();
+  await expect(prompt).toHaveValue('[removed image] waves');
+  await expect(page.getByRole('button', { name: /Generate/i }).first()).toBeDisabled();
+  await prompt.fill('waves');
+  await expect(page.getByRole('button', { name: /Generate/i }).first()).toBeEnabled();
   await expect(page.getByRole('button', { name: 'Image 3', exact: true })).toHaveCount(0);
 });
 test('Wan V2V disables WebM and caps extension duration @cross-browser', async ({

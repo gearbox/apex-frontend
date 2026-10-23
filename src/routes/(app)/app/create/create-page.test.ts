@@ -835,3 +835,45 @@ it('shows the shared source-limit reason for an incompatible retained video', ()
   expect(screen.getByText('Use MOV, MP4.')).toBeTruthy();
   expect(generateButtons().every((button) => button.disabled)).toBe(true);
 });
+
+it('blocks an R2V prompt containing a removed-image marker until the user fixes it', async () => {
+  providersData = {
+    providers: [
+      {
+        provider: 'alibaba',
+        name: 'Alibaba Wan',
+        available: true,
+        provisioning_mode: 'always_on',
+        models: [makeWanModelInfo()],
+      },
+    ],
+    user_context: null,
+  };
+  generationStore.prefill({
+    model: 'wan3.0-video',
+    mode: 'r2v',
+    prompt: '[removed image] waves at Image 1',
+    sourceMedia: [
+      {
+        assetRef: 'upload:one',
+        mediaType: 'image',
+        role: null,
+        available: true,
+        previewUrl: null,
+        label: null,
+        media: { url: '', content_type: 'image/png', size_bytes: 1, duration_ms: null },
+      },
+    ],
+  });
+
+  render(Page);
+  const prompt = screen.getByRole('textbox') as HTMLTextAreaElement;
+  expect(prompt.value).toBe('[removed image] waves at Image 1');
+  expect(screen.getByRole('alert').textContent).toContain('removed image');
+  expect(generateButtons().every((button) => button.disabled)).toBe(true);
+
+  await fireEvent.input(prompt, { target: { value: 'A landscape waves at Image 1' } });
+
+  await waitFor(() => expect(generateButtons().every((button) => !button.disabled)).toBe(true));
+  expect(screen.queryByRole('alert')).toBeNull();
+});

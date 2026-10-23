@@ -1,14 +1,14 @@
-export function renumberAfterRemoval(
-  prompt: string,
-  removedIndex1: number,
-): { prompt: string; orphaned: boolean } {
-  let orphaned = false;
+import * as m from '$paraglide/messages';
+
+export const REMOVED_IMAGE_MARKER = '[removed image]';
+
+export function renumberAfterRemoval(prompt: string, removedIndex1: number): { prompt: string } {
   const rewritten = prompt.replace(/\bImage (\d+)\b/g, (token, raw: string) => {
     const index = Number(raw);
-    if (index === removedIndex1) orphaned = true;
+    if (index === removedIndex1) return REMOVED_IMAGE_MARKER;
     return index > removedIndex1 ? `Image ${index - 1}` : token;
   });
-  return { prompt: rewritten, orphaned };
+  return { prompt: rewritten };
 }
 export function outOfRangeImageTokens(prompt: string, count: number): string[] {
   return [
@@ -19,6 +19,13 @@ export function outOfRangeImageTokens(prompt: string, count: number): string[] {
     ),
   ];
 }
+
+export function r2vPromptViolation(prompt: string, count: number): string | null {
+  if (prompt.includes(REMOVED_IMAGE_MARKER)) return m.r2v_removed_reference();
+  if (outOfRangeImageTokens(prompt, count).length > 0) return m.r2v_missing_tokens();
+  return null;
+}
+
 export function insertPromptToken(
   prompt: string,
   text: string,

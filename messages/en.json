@@ -826,6 +826,7 @@
   "source_min_duration": "Source must be at least {seconds} s.",
   "source_max_duration": "Source must be at most {seconds} s.",
   "r2v_missing_tokens": "A referenced image was removed or is missing. Check Image N references in your prompt.",
+  "r2v_removed_reference": "Your prompt refers to a removed image — replace or delete [removed image].",
   "prompt_insert_limit": "The image reference would exceed the prompt length limit.",
   "jobs_in_flight_delete_note": "Running — you can delete it once it finishes.",
   "video_not_priced": "This model and resolution are not priced yet.",
