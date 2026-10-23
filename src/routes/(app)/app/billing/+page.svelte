@@ -5,6 +5,7 @@
   import { page } from '$app/stores';
   import * as m from '$paraglide/messages';
   import { formatNumber } from '$lib/utils/format';
+  import { formatPricingRule } from '$lib/utils/pricing';
   import { appDisplayName, productInfo } from '$lib/stores/product';
   import { currentUser } from '$lib/stores/auth';
   import { isSSEConnected } from '$lib/stores/eventStream';
@@ -238,12 +239,7 @@
               {meta.label} · {row.generation_type}
             </p>
             <p class="font-mono text-base font-extrabold text-accent">
-              {row.per_second_token_cost > 0
-                ? m.pricing_rate({
-                    tokens: String(row.per_second_token_cost),
-                    resolution: row.video_resolution ?? m.pricing_any_resolution(),
-                  })
-                : `◈${row.token_cost}`}
+              {formatPricingRule(row)}
             </p>
           </div>
         {/each}

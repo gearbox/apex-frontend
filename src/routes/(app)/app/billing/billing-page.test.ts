@@ -3,10 +3,12 @@ import { render, screen } from '@testing-library/svelte';
 import type { components } from '$lib/api/types';
 
 type TransactionResponse = components['schemas']['TransactionResponse'];
+type PricingRuleResponse = components['schemas']['PricingRuleResponse'];
 
 const state = vi.hoisted(() => ({
   pageUrl: new URL('http://localhost/app/billing?tab=history'),
   transactions: [] as TransactionResponse[],
+  pricing: [] as PricingRuleResponse[],
 }));
 
 vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
@@ -39,6 +41,9 @@ vi.mock('@tanstack/svelte-query', () => ({
         isFetching: false,
       };
     }
+    if (queryKey[0] === 'billing' && queryKey[1] === 'pricing') {
+      return { data: state.pricing, isLoading: false, isError: false };
+    }
     if (queryKey[0] === 'billing' && queryKey[1] === 'balance') {
       return { data: { balance: 0, account_type: 'personal', organization_name: null } };
     }
@@ -67,6 +72,33 @@ function makeTransaction(overrides: Partial<TransactionResponse> = {}): Transact
 beforeEach(() => {
   state.pageUrl = new URL('http://localhost/app/billing?tab=history');
   state.transactions = [];
+  state.pricing = [];
+});
+
+describe('/app/billing pricing cards', () => {
+  it('shows flat and per-second parts of a resolution rule', () => {
+    state.pageUrl = new URL('http://localhost/app/billing?tab=overview');
+    state.pricing = [
+      {
+        id: 'wan-rule',
+        provider: 'alibaba',
+        generation_type: 't2v',
+        model: 'wan3.0-video',
+        token_cost: 1,
+        input_token_cost: 0,
+        per_second_token_cost: 3,
+        video_resolution: '720p',
+        is_active: true,
+        effective_from: '2026-01-01T00:00:00Z',
+        effective_until: null,
+        notes: null,
+      },
+    ];
+
+    render(Page);
+
+    expect(screen.getByText('1 ◈ + 3 ◈/s · 720p')).toBeTruthy();
+  });
 });
 
 describe('/app/billing payment-method labels', () => {

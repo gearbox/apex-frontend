@@ -108,32 +108,31 @@ describe('deriveModelBillingFacts', () => {
 });
 
 it('shows per-second resolution prices for Wan instead of zero base costs', () => {
+  const highResolutionRule = rule({
+    provider: 'alibaba',
+    model: 'wan3.0-video',
+    generation_type: 'r2v',
+    token_cost: 0,
+    per_second_token_cost: 8,
+    video_resolution: '1080p',
+  });
+  const lowResolutionRule = rule({
+    provider: 'alibaba',
+    model: 'wan3.0-video',
+    generation_type: 'r2v',
+    token_cost: 1,
+    per_second_token_cost: 4,
+    video_resolution: '480p',
+  });
   const facts = deriveModelBillingFacts({
     modelInfo: makeWanModelInfo(),
     provider: 'alibaba',
     provisioningMode: 'always_on',
     nowMs: Date.parse('2026-02-15T00:00:00Z'),
-    pricing: [
-      rule({
-        provider: 'alibaba',
-        model: 'wan3.0-video',
-        generation_type: 'r2v',
-        token_cost: 0,
-        per_second_token_cost: 8,
-        video_resolution: '1080p',
-      }),
-      rule({
-        provider: 'alibaba',
-        model: 'wan3.0-video',
-        generation_type: 'r2v',
-        token_cost: 0,
-        per_second_token_cost: 4,
-        video_resolution: '480p',
-      }),
-    ],
+    pricing: [highResolutionRule, lowResolutionRule],
   });
   expect(facts.costs.find((cost) => cost.mode === 'r2v')?.resolutionRows).toEqual([
-    { resolution: '480p', perSecond: 4 },
-    { resolution: '1080p', perSecond: 8 },
+    { resolution: '480p', rule: lowResolutionRule },
+    { resolution: '1080p', rule: highResolutionRule },
   ]);
 });

@@ -47,7 +47,7 @@ it('sends every single-rule pricing field', async () => {
     }),
   );
   await open();
-  await fireEvent.input(screen.getByLabelText('Token Cost'), { target: { value: '0' } });
+  await fireEvent.input(screen.getByLabelText('Flat cost per job'), { target: { value: '0' } });
   await fireEvent.input(screen.getByLabelText('Tokens per input image'), {
     target: { value: '2' },
   });
@@ -63,6 +63,19 @@ it('sends every single-rule pricing field', async () => {
       token_cost: 0,
     }),
   );
+});
+it('defaults video flat cost to zero and previews composed bulk prices', async () => {
+  await open();
+  const flatCost = screen.getByLabelText('Flat cost per job') as HTMLInputElement;
+  expect(flatCost.value).toBe('0');
+  await fireEvent.input(flatCost, { target: { value: '1' } });
+  await fireEvent.input(screen.getByLabelText('Tokens per input image'), {
+    target: { value: '2' },
+  });
+  await fireEvent.click(screen.getByLabelText('One rule per resolution'));
+  await fireEvent.input(screen.getByLabelText('720p'), { target: { value: '3' } });
+
+  expect(await screen.findByText('1 ◈ + 2 ◈/source + 3 ◈/s · 720p')).toBeTruthy();
 });
 it('creates three resolution rows sequentially and retries only the failed row', async () => {
   const requests: string[] = [];

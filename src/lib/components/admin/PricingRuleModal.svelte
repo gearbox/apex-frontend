@@ -1,6 +1,7 @@
 <script lang="ts">
   import { videoResolutionValues, type components } from '$lib/api/types';
   import { isVideoMode } from '$lib/utils/generationModes';
+  import { formatPricingRule } from '$lib/utils/pricing';
   import { createPricingRule } from '$lib/api/admin';
   import { billingKeys } from '$lib/queries/billing';
   import * as m from '$paraglide/messages';
@@ -42,6 +43,7 @@
   let generationType = $state(untrack(() => rule?.generation_type ?? 't2i'));
   let model = $state(untrack(() => rule?.model ?? ''));
   let tokenCost = $state(untrack(() => rule?.token_cost ?? 1));
+  let tokenCostTouched = $state(false);
   let inputTokenCost = $state(untrack(() => rule?.input_token_cost ?? 0));
   let perSecondCost = $state(untrack(() => rule?.per_second_token_cost ?? 0));
   let videoResolution = $state<components['schemas']['VideoResolution'] | null>(
@@ -86,6 +88,20 @@
   const editMutation = createMutation(() => patchPricingRuleMutationOptions(queryClient));
 
   const isPending = $derived(createRuleMutation.isPending || editMutation.isPending || bulkPending);
+
+  function handleGenerationTypeChange(event: Event) {
+    generationType = (event.currentTarget as HTMLSelectElement).value;
+    if (!isEdit && !tokenCostTouched) tokenCost = isVideoMode(generationType) ? 0 : 1;
+  }
+
+  function bulkRowPreview(row: (typeof bulkRows)[number]): string {
+    return formatPricingRule({
+      token_cost: tokenCost,
+      input_token_cost: inputTokenCost,
+      per_second_token_cost: Number(row.cost || 0),
+      video_resolution: row.resolution,
+    });
+  }
 
   async function handleSave() {
     if (isPending) return;
@@ -254,7 +270,8 @@
           <select
             id="pricing-gen-type"
             class="field-select"
-            bind:value={generationType}
+            value={generationType}
+            onchange={handleGenerationTypeChange}
             disabled={bulkStarted}
           >
             {#each Object.keys(GENERATION_TYPES) as gt (gt)}
@@ -289,9 +306,9 @@
         {/if}
       </div>
 
-      <!-- Token Cost -->
+      <!-- Flat cost -->
       <div class="field">
-        <label class="field-label" for="pricing-cost">Token Cost</label>
+        <label class="field-label" for="pricing-cost">{m.pricing_flat_cost()}</label>
         <input
           id="pricing-cost"
           class="field-input"
@@ -299,6 +316,7 @@
           min="0"
           step="1"
           bind:value={tokenCost}
+          oninput={() => (tokenCostTouched = true)}
         />
       </div>
 
@@ -337,6 +355,7 @@
                   disabled={row.status === 'created'}
                 />
               </div>
+              <p class="field-hint">{bulkRowPreview(row)}</p>
               {#if row.status === 'created'}<p class="field-hint">
                   ✓ {m.pricing_created()}
                 </p>{:else if row.status === 'error'}<p role="alert" class="error-msg">

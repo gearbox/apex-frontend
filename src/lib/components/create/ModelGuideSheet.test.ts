@@ -57,6 +57,11 @@ vi.mock('$paraglide/messages', () => ({
   model_guide_mode_i2v: () => 'Image to video',
   model_guide_mode_v2v: () => 'Video to video',
   model_guide_mode_flf2v: () => 'First and last frame to video',
+  model_guide_mode_r2v: () => 'References to video',
+  pricing_part_flat: ({ tokens }: { tokens: string }) => `${tokens} ◈`,
+  pricing_part_per_source: ({ tokens }: { tokens: string }) => `${tokens} ◈/source`,
+  pricing_part_per_second: ({ tokens }: { tokens: string }) => `${tokens} ◈/s`,
+  pricing_any_resolution: () => 'Any resolution',
 }));
 
 vi.mock('$lib/utils/format', () => ({
@@ -107,6 +112,42 @@ function renderSheet(
 }
 
 describe('ModelGuideSheet', () => {
+  it('shows flat and per-second parts for a resolution price', () => {
+    renderSheet({
+      billingFacts: {
+        costs: [
+          {
+            mode: 'r2v',
+            tokenCost: 1,
+            inputTokenCost: 0,
+            resolutionRows: [
+              {
+                resolution: '720p',
+                rule: {
+                  id: 'rule-1',
+                  provider: 'alibaba',
+                  generation_type: 'r2v',
+                  model: 'wan3.0-video',
+                  token_cost: 1,
+                  input_token_cost: 0,
+                  per_second_token_cost: 3,
+                  video_resolution: '720p',
+                  is_active: true,
+                  effective_from: '2026-01-01T00:00:00Z',
+                  effective_until: null,
+                  notes: null,
+                },
+              },
+            ],
+          },
+        ],
+        billedBySession: false,
+      },
+    });
+
+    expect(screen.getByText('1 ◈ + 3 ◈/s · 720p')).not.toBeNull();
+  });
+
   it('renders every guide section and pricing per output', () => {
     renderSheet();
 

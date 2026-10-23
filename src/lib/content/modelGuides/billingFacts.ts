@@ -11,7 +11,7 @@ type PricingRuleResponse = components['schemas']['PricingRuleResponse'];
 
 export interface ModelModePricing {
   readonly mode: GenerationMode;
-  readonly resolutionRows?: readonly { resolution: string | null; perSecond: number }[];
+  readonly resolutionRows?: readonly { resolution: string | null; rule: PricingRuleResponse }[];
   /** null means no active matching pricing rule was found. */
   readonly tokenCost: number | null;
   /** null means no active matching pricing rule was found. */
@@ -68,7 +68,7 @@ export function deriveModelBillingFacts(params: {
                     ? [
                         {
                           resolution: match.video_resolution,
-                          perSecond: match.per_second_token_cost,
+                          rule: match,
                         },
                       ]
                     : [];

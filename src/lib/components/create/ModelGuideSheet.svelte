@@ -3,6 +3,7 @@
   import { X } from '@lucide/svelte';
   import * as m from '$paraglide/messages';
   import { formatNumber } from '$lib/utils/format';
+  import { formatPricingRule } from '$lib/utils/pricing';
   import { createSupportedModes } from '$lib/utils/generationModes';
   import { generationModeLabel } from '$lib/content/generationModeLabels';
   import { getEditAspectRatios, getT2iAspectRatios } from '$lib/utils/modelCapabilities';
@@ -226,12 +227,7 @@
                 >
                   {#if cost.resolutionRows?.length}
                     {#each cost.resolutionRows as row (row.resolution)}
-                      <p>
-                        {m.pricing_rate({
-                          tokens: formatNumber(row.perSecond),
-                          resolution: row.resolution ?? m.pricing_any_resolution(),
-                        })}
-                      </p>
+                      <p>{formatPricingRule(row.rule)}</p>
                     {/each}
                   {:else}
                     {cost.tokenCost === null || cost.inputTokenCost === null

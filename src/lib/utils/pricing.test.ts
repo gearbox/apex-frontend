@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { components } from '$lib/api/types';
-import { estimatePricingRuleCost, findPricingRule, lookupCost } from './pricing';
+import { estimatePricingRuleCost, findPricingRule, formatPricingRule, lookupCost } from './pricing';
 
 type PricingRuleResponse = components['schemas']['PricingRuleResponse'];
 
@@ -21,6 +21,38 @@ function rule(overrides: Partial<PricingRuleResponse> = {}): PricingRuleResponse
     ...overrides,
   };
 }
+
+describe('formatPricingRule', () => {
+  it.each([
+    [{ token_cost: 1, input_token_cost: 0, per_second_token_cost: 0 }, '1 ◈'],
+    [{ token_cost: 0, input_token_cost: 2, per_second_token_cost: 0 }, '2 ◈/source'],
+    [
+      { token_cost: 0, input_token_cost: 0, per_second_token_cost: 3, video_resolution: '720p' },
+      '3 ◈/s · 720p',
+    ],
+    [{ token_cost: 1, input_token_cost: 2, per_second_token_cost: 0 }, '1 ◈ + 2 ◈/source'],
+    [
+      { token_cost: 1, input_token_cost: 0, per_second_token_cost: 3, video_resolution: '720p' },
+      '1 ◈ + 3 ◈/s · 720p',
+    ],
+    [
+      { token_cost: 0, input_token_cost: 2, per_second_token_cost: 3, video_resolution: '720p' },
+      '2 ◈/source + 3 ◈/s · 720p',
+    ],
+    [
+      { token_cost: 1, input_token_cost: 2, per_second_token_cost: 3, video_resolution: '720p' },
+      '1 ◈ + 2 ◈/source + 3 ◈/s · 720p',
+    ],
+  ] as const)('formats every price component: %o', (parts, expected) => {
+    expect(formatPricingRule(rule(parts))).toBe(expected);
+  });
+
+  it('labels a per-second rule that applies at any resolution', () => {
+    expect(formatPricingRule(rule({ token_cost: 0, per_second_token_cost: 3 }))).toBe(
+      '3 ◈/s · Any resolution',
+    );
+  });
+});
 
 describe('findPricingRule', () => {
   const now = Date.parse('2026-02-15T00:00:00Z');
