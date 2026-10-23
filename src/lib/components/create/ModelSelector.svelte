@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { components } from '$lib/api/types';
+  import { modelPresentation } from '$lib/content/modelPresentation';
 
   type ModelType = components['schemas']['ModelType'];
   type ModelInfo = components['schemas']['ModelInfo'];
@@ -11,25 +12,13 @@
   }
 
   let { models = [], selectedModel, onSelect }: Props = $props();
-
-  const MODEL_META: Partial<Record<ModelType, { label: string; icon: string }>> = {
-    'wan3.0-video': { label: 'Wan 3.0', icon: '◇▶' },
-    'grok-imagine-image': { label: 'Grok Imagine', icon: '✦' },
-    'grok-2-image-1212': { label: 'Grok 2', icon: '◈' },
-    'grok-imagine-video': { label: 'Grok Video', icon: '▶' },
-    'aisha-image': { label: 'Aisha', icon: '◆' },
-    'aisha-video': { label: 'Aisha Video', icon: '◆▶' },
-  };
 </script>
 
 <div class="flex flex-col gap-2">
   <span class="text-[11px] font-semibold uppercase tracking-wider text-text-muted">Model</span>
   <div class="flex gap-1.5">
     {#each models as model (model.model_key)}
-      {@const meta = MODEL_META[model.model_key as ModelType] ?? {
-        label: model.name || model.model_key,
-        icon: '✦',
-      }}
+      {@const meta = modelPresentation(model.model_key, model.name)}
       {@const isActive = selectedModel === model.model_key}
       <button
         onclick={() => onSelect(model.model_key as ModelType)}

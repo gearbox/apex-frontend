@@ -1,16 +1,18 @@
 <script lang="ts">
   import type { components } from '$lib/api/types';
-  import { generationStore } from '$lib/stores/generation';
+  import { generationStore, type GenerationMode } from '$lib/stores/generation';
+  import AspectRatioChips from './AspectRatioChips.svelte';
   import {
     type VideoLimits,
     videoLimits,
     normalizeVideoParams,
     videoParameterViolation,
   } from '$lib/utils/videoParams';
-  import { getT2iAspectRatios } from '$lib/utils/modelCapabilities';
   import * as m from '$paraglide/messages';
-  let { modelInfo, mode }: { modelInfo: components['schemas']['ModelInfo'] | null; mode: string } =
-    $props();
+  let {
+    modelInfo,
+    mode,
+  }: { modelInfo: components['schemas']['ModelInfo'] | null; mode: GenerationMode } = $props();
   const limits: VideoLimits | null = $derived(
     videoLimits(modelInfo, mode, $generationStore.sourceMedia),
   );
@@ -85,22 +87,7 @@
       </div>
     </fieldset>
     {#if !limits.anchoredModes.has(mode)}
-      <fieldset>
-        <legend class="mb-2 text-xs text-text-muted">{m.library_meta_aspect_ratio()}</legend>
-        <div class="flex flex-wrap gap-2">
-          {#each [null, ...getT2iAspectRatios(modelInfo)] as ratio (ratio)}
-            <button
-              type="button"
-              aria-pressed={$generationStore.videoAspectRatio === ratio}
-              onclick={() => generationStore.setVideoAspectRatio(ratio)}
-              class="rounded-lg border px-3 py-2 text-xs {ratio ===
-              $generationStore.videoAspectRatio
-                ? 'border-accent text-accent'
-                : 'border-border text-text-muted'}">{ratio ?? m.video_aspect_auto()}</button
-            >
-          {/each}
-        </div>
-      </fieldset>
+      <AspectRatioChips variant="video" {modelInfo} {mode} />
     {/if}
     {#each controls as control (control.key)}
       {#if limits.supported.has(control.key)}

@@ -11,7 +11,13 @@
     modelInfo = null,
     mode,
     aspectError = null,
-  }: { modelInfo?: ModelInfo | null; mode: GenerationMode; aspectError?: string | null } = $props();
+    variant = 'image',
+  }: {
+    modelInfo?: ModelInfo | null;
+    mode: GenerationMode;
+    aspectError?: string | null;
+    variant?: 'image' | 'video';
+  } = $props();
 
   interface RatioMeta {
     w: number;
@@ -48,6 +54,7 @@
   // stale selection reach buildGeneratePayload and 400 at submit time.
   $effect(() => {
     if (
+      variant === 'image' &&
       !isEditMode &&
       modelInfo != null &&
       t2iRatios.length > 0 &&
@@ -66,8 +73,11 @@
 
 {#snippet chip(label: string, isActive: boolean, onclick: () => void, meta?: RatioMeta)}
   <button
+    type="button"
     {onclick}
+    aria-pressed={isActive}
     class="flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-1.5 text-[11px] font-semibold transition-all
+      focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent
       {isActive
       ? 'border-accent-dim bg-accent-glow text-accent'
       : 'border-border text-text-muted hover:border-border-active hover:text-text'}"
@@ -94,9 +104,23 @@
 
 <div class="flex flex-col gap-2">
   <span class="text-[11px] font-semibold uppercase tracking-wider text-text-muted"
-    >Aspect Ratio</span
+    >{variant === 'video' ? m.library_meta_aspect_ratio() : 'Aspect Ratio'}</span
   >
-  {#if noReshape}
+  {#if variant === 'video'}
+    <div class="flex gap-1 overflow-x-auto">
+      {@render chip(m.video_aspect_auto(), $generationStore.videoAspectRatio === null, () =>
+        generationStore.setVideoAspectRatio(null),
+      )}
+      {#each t2iRatios as ratio (ratio)}
+        {@render chip(
+          RATIO_META[ratio].label,
+          $generationStore.videoAspectRatio === ratio,
+          () => generationStore.setVideoAspectRatio(ratio),
+          RATIO_META[ratio],
+        )}
+      {/each}
+    </div>
+  {:else if noReshape}
     <p class="rounded-md border border-border bg-surface px-2.5 py-2 text-xs text-text-muted">
       {m.create_aspect_no_reshape()}
     </p>

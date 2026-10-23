@@ -6,6 +6,9 @@
   import * as m from '$paraglide/messages';
   import { formatNumber } from '$lib/utils/format';
   import { formatPricingRule } from '$lib/utils/pricing';
+  import { modelPresentation } from '$lib/content/modelPresentation';
+  import { generationModeLabel } from '$lib/content/generationModeLabels';
+  import { providersQueryOptions } from '$lib/queries/providers';
   import { appDisplayName, productInfo } from '$lib/stores/product';
   import { currentUser } from '$lib/stores/auth';
   import { isSSEConnected } from '$lib/stores/eventStream';
@@ -57,6 +60,7 @@
 
   const balanceQuery = createQuery(() => billingBalanceQueryOptions(balancePollingInterval));
   const pricingQuery = createQuery(() => billingPricingQueryOptions());
+  const providersQuery = createQuery(() => providersQueryOptions());
   const transactionsQuery = createQuery(() =>
     billingTransactionsQueryOptions({ limit: PAGE_SIZE, ...pager.param }, false),
   );
@@ -109,15 +113,9 @@
             videoResolutionValues.findIndex((r) => r === b.video_resolution),
       ),
   );
-  const MODEL_META: Record<string, { icon: string; label: string }> = {
-    'grok-imagine-image': { icon: '✦', label: 'Grok Imagine' },
-    'grok-2-image-1212': { icon: '◈', label: 'Grok 2' },
-    'grok-imagine-video': { icon: '▶', label: 'Grok Video' },
-    t2i: { icon: '✦', label: 'Text → Image' },
-    t2v: { icon: '▶', label: 'Text → Video' },
-    i2i: { icon: '◈', label: 'Image → Image' },
-    i2v: { icon: '▶', label: 'Image → Video' },
-  };
+  const discoveredModels = $derived(
+    (providersQuery.data?.providers ?? []).flatMap((provider) => provider.models),
+  );
   const appTitle = $derived($appDisplayName);
 
   function truncatePaymentId(paymentId: string): string {
@@ -232,11 +230,14 @@
       {:else if costRows.length > 0}
         {#each costRows as row (row.id)}
           {@const metaKey = row.model ?? row.generation_type}
-          {@const meta = MODEL_META[metaKey] ?? { icon: '◆', label: metaKey }}
+          {@const discoveredModel = row.model
+            ? discoveredModels.find((model) => model.model_key === row.model)
+            : null}
+          {@const meta = modelPresentation(metaKey, discoveredModel?.name)}
           <div class="rounded-2.5 border border-border bg-surface p-3 md:p-4">
             <span class="text-lg">{meta.icon}</span>
             <p class="mt-1.5 text-[11px] font-semibold text-text">
-              {meta.label} · {row.generation_type}
+              {meta.label} · {generationModeLabel(row.generation_type)}
             </p>
             <p class="font-mono text-base font-extrabold text-accent">
               {formatPricingRule(row)}

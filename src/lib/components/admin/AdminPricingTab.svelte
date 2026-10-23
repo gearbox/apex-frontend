@@ -1,5 +1,4 @@
 <script lang="ts">
-  import * as m from '$paraglide/messages';
   import { createQuery, createMutation, useQueryClient } from '@tanstack/svelte-query';
   import { Coins, AlertCircle, Plus, Pencil, Trash2 } from '@lucide/svelte';
   import { adminPricingQueryOptions, patchPricingRuleMutationOptions } from '$lib/queries/admin';

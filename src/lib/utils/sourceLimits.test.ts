@@ -45,6 +45,10 @@ describe('source discovery limits', () => {
   it('uses decimal MB', () => expect(formatDecimalBytes(100000000)).toBe('100 MB'));
   it('defers unknown metadata to the backend', () =>
     expect(violation({ ...source(), media: null })).toBeNull());
+  it('rejects a video with missing duration when discovery requires a bounded duration', () =>
+    expect(violation(source({ duration_ms: null }))).toBe(
+      'Video duration is unavailable, so this source cannot be validated.',
+    ));
   it('rejects WebM with allowed formats', () =>
     expect(violation(source({ content_type: 'video/webm' }))).toMatch(/MOV.*MP4/));
   it.each([999, 1000, 1001, 14999, 15000, 15001])(

@@ -66,6 +66,8 @@ export function sourceMediaLimitViolation(
   if (draft.mediaType !== 'video') return null;
   const limits = modelInfo?.video?.input_video;
   const duration = draft.media.duration_ms;
+  if (limits && duration == null && (limits.min_duration_ms > 0 || limits.max_duration_ms != null))
+    return m.source_duration_unknown();
   if (limits && duration != null) {
     if (duration < limits.min_duration_ms)
       return m.source_min_duration({ seconds: limits.min_duration_ms / 1000 });
