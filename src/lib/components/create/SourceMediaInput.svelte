@@ -226,14 +226,12 @@
 
   function validateFile(file: File): string | null {
     const mediaType = mediaTypeForFile(file);
-    if (
-      !mediaType ||
-      !activeMediaKinds.includes(mediaType) ||
-      !acceptedFileTypes.includes(file.type)
-    ) {
-      return 'This model does not accept that file type.';
+    if (!mediaType || !activeMediaKinds.includes(mediaType)) {
+      return m.create_source_media_type_unsupported();
     }
-    return fileLimitViolation(file, modelInfo, mediaType);
+    const violation = fileLimitViolation(file, modelInfo, mediaType);
+    if (violation) return violation;
+    return acceptedFileTypes.includes(file.type) ? null : m.create_source_media_type_unsupported();
   }
 
   async function uploadFile(file: File) {

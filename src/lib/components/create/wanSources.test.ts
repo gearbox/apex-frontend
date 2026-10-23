@@ -9,6 +9,7 @@ import { makeWanModelInfo } from '../../../mocks/fixtures/wan';
 import { makeLibraryAssetItem } from '../../../mocks/factories/library';
 import { makeMediaObject } from '../../../mocks/factories/media';
 import { generationStore } from '$lib/stores/generation';
+import { clearToasts, toasts } from '$lib/stores/toasts';
 import QueryHarness from '../../../tests/QueryHarness.svelte';
 import MediaPickerModal from './MediaPickerModal.svelte';
 import SourceMediaInput from './SourceMediaInput.svelte';
@@ -29,6 +30,7 @@ beforeEach(() => {
     },
   );
   generationStore.reset();
+  clearToasts();
   client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
@@ -86,6 +88,7 @@ it('rejects WebM before making any upload request', async () => {
     target: { files: [new File(['x'], 'clip.webm', { type: 'video/webm' })] },
   });
   expect(uploads).toBe(0);
+  expect(get(toasts).at(-1)?.message).toBe('Use MOV, MP4.');
   expect(get(generationStore).sourceMedia).toHaveLength(0);
 });
 it('labels R2V sources in order and renumbers exact tokens on removal', async () => {
