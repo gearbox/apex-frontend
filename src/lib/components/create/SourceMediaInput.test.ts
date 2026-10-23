@@ -3,6 +3,8 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { get } from 'svelte/store';
 import { generationStore, type SourceMediaDraft } from '$lib/stores/generation';
 import { activeProject } from '$lib/stores/activeProject.svelte';
+import { clearToasts, toasts } from '$lib/stores/toasts';
+import { makeWanModelInfo } from '../../../mocks/fixtures/wan';
 import {
   generationModes,
   makeAishaVideoModelInfo,
@@ -35,9 +37,60 @@ beforeEach(() => {
   vi.clearAllMocks();
   generationStore.reset();
   activeProject.reset();
+  clearToasts();
 });
 
+function fileWithSize(name: string, type: string, size: number): File {
+  const file = new File(['x'], name, { type });
+  Object.defineProperty(file, 'size', { value: size });
+  return file;
+}
+
 describe('source-driven source picker', () => {
+  it.each([
+    [makeGrokVideoModelInfo(), 'v2v', 'clip.mp4', 'video/mp4', 50 * 1024 * 1024],
+    [makeWanModelInfo(), 'v2v', 'clip.mp4', 'video/mp4', 25 * 1024 * 1024],
+    [modelInfo, 'i2i', 'image.png', 'image/png', 30 * 1024 * 1024],
+  ] as const)(
+    'rejects an over-cap %s upload before transfer and shows the app limit',
+    async (info, mode, name, type, size) => {
+      const { container } = render(SourceMediaInput, { modelInfo: info, effectiveMode: mode });
+      await fireEvent.change(container.querySelector('input[type="file"]')!, {
+        target: { files: [fileWithSize(name, type, size)] },
+      });
+
+      expect(uploadMediaMock).not.toHaveBeenCalled();
+      expect(get(toasts).at(-1)?.message).toBe('File must be under 20 MB');
+    },
+  );
+
+  it('accepts an upload exactly at the inclusive 20 MiB app limit', async () => {
+    uploadMediaMock.mockResolvedValue({
+      id: '11111111-1111-1111-1111-111111111111',
+      media: {
+        media_type: 'video',
+        original: {
+          url: '/v1/content/uploads/one',
+          content_type: 'video/mp4',
+          size_bytes: 20 * 1024 * 1024,
+          duration_ms: 1000,
+        },
+        variants: [],
+      },
+    });
+    const { container } = render(SourceMediaInput, {
+      modelInfo: makeGrokVideoModelInfo(),
+      effectiveMode: 'v2v',
+    });
+
+    await fireEvent.change(container.querySelector('input[type="file"]')!, {
+      target: { files: [fileWithSize('clip.mp4', 'video/mp4', 20 * 1024 * 1024)] },
+    });
+
+    await waitFor(() => expect(uploadMediaMock).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(get(generationStore).sourceMedia).toHaveLength(1));
+  });
+
   it('renders ordered selected sources and identifies the primary reference', () => {
     generationStore.setSourceMedia([
       {

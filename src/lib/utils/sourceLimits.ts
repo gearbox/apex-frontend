@@ -1,6 +1,7 @@
 import type { components } from '$lib/api/types';
 import type { SourceMediaDraft } from '$lib/stores/generation';
 import { videoLimits } from './videoParams';
+import { MAX_UPLOAD_BYTES } from './constants';
 import * as m from '$paraglide/messages';
 
 type ModelInfo = components['schemas']['ModelInfo'];
@@ -45,6 +46,7 @@ export function fileLimitViolation(
   modelInfo: ModelInfo | null,
   kind: string,
 ): string | null {
+  if (file.size > MAX_UPLOAD_BYTES) return m.library_upload_too_large();
   return formatAndSizeViolation(file.type, file.size, modelInfo, kind);
 }
 export function sourceMediaLimitViolation(

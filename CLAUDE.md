@@ -649,10 +649,12 @@ anchored modes omit the ratio and unsupported/null parameters are omitted. See t
 
 ## Source limits
 
-Picker items and draft submission share `sourceMediaLimitViolation`. Uploads preflight the same
-format/decimal-byte checks before transfer. Source snapshots retain `MediaOriginal`; unavailable
+Picker items and draft submission share `sourceMediaLimitViolation`. New uploads also preflight the
+shared 20 MiB `MAX_UPLOAD_BYTES` app cap, which mirrors the backend `MAX_UPLOAD_SIZE_MB` setting;
+keep them in sync until the backend publishes the limit. The effective file limit is the lower of
+the app cap and the model's advertised cap. Source snapshots retain `MediaOriginal`; unavailable
 sources take precedence over limits and missing metadata defers to the backend. Discovery owns
-all limits: [contract](https://github.com/gearbox/apex/blob/master/docs/contracts/wan-video-contract.md).
+model limits: [contract](https://github.com/gearbox/apex/blob/master/docs/contracts/wan-video-contract.md).
 
 ## R2V prompt tokens
 

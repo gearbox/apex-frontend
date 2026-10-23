@@ -4,6 +4,8 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localho
 /* ─── Upload Media ─── */
 export const ACCEPTED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 export const ACCEPTED_VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/quicktime'];
+/** Mirrors the backend MAX_UPLOAD_SIZE_MB (20); keep this in sync until it is published to clients. */
+export const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 
 /* ─── LocalStorage Keys ─── */
 export const STORAGE_KEYS = {

@@ -27,7 +27,11 @@
   import { uploadMedia } from '$lib/api/upload';
   import { ApiRequestError } from '$lib/api/errors';
   import { addToast } from '$lib/stores/toasts';
-  import { ACCEPTED_IMAGE_TYPES, ACCEPTED_VIDEO_TYPES } from '$lib/utils/constants';
+  import {
+    ACCEPTED_IMAGE_TYPES,
+    ACCEPTED_VIDEO_TYPES,
+    MAX_UPLOAD_BYTES,
+  } from '$lib/utils/constants';
   import { activeProject } from '$lib/stores/activeProject.svelte';
   import { inheritProjectForUpload } from '$lib/services/projectInheritance';
   import AssetGrid from '$lib/components/library/AssetGrid.svelte';
@@ -49,7 +53,6 @@
   type LibraryAssetItem = components['schemas']['LibraryAssetItem'];
   type LibrarySort = components['schemas']['LibrarySort'];
 
-  const MAX_SIZE_BYTES = 20 * 1024 * 1024; // 20 MB
   const ACCEPTED_TYPES = [...ACCEPTED_IMAGE_TYPES, ...ACCEPTED_VIDEO_TYPES];
 
   let appTitle = $derived($appDisplayName);
@@ -411,7 +414,7 @@
       if (fileInput) fileInput.value = '';
       return;
     }
-    if (file.size > MAX_SIZE_BYTES) {
+    if (file.size > MAX_UPLOAD_BYTES) {
       addToast({ type: 'error', message: m.library_upload_too_large() });
       if (fileInput) fileInput.value = '';
       return;
