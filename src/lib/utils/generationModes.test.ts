@@ -1,3 +1,5 @@
+import { generationTypeValues } from '$lib/api/types';
+import { isVideoMode } from './generationModes';
 import { describe, expect, it } from 'vitest';
 import {
   createSupportedModes,
@@ -445,4 +447,10 @@ describe('soleAdvertisedRole', () => {
     });
     expect(soleAdvertisedRole(model, 'flf2v')).toBeNull();
   });
+});
+
+it('classifies every generated mode, including R2V, and tolerates unknown runtime modes', () => {
+  for (const mode of generationTypeValues)
+    expect(isVideoMode(mode)).toBe(!['t2i', 'i2i'].includes(mode));
+  expect(isVideoMode('future-mode')).toBe(false);
 });

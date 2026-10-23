@@ -224,16 +224,27 @@
                 <dd
                   class="min-w-0 whitespace-normal wrap-anywhere font-medium leading-relaxed text-text"
                 >
-                  {cost.tokenCost === null || cost.inputTokenCost === null
-                    ? pricingPending
-                      ? m.model_guide_cost_loading()
-                      : m.model_guide_cost_unknown()
-                    : cost.inputTokenCost > 0
-                      ? m.model_guide_cost_with_input_per_output({
-                          baseTokens: formatNumber(cost.tokenCost),
-                          inputTokens: formatNumber(cost.inputTokenCost),
-                        })
-                      : m.model_guide_cost_per_output({ tokens: formatNumber(cost.tokenCost) })}
+                  {#if cost.resolutionRows?.length}
+                    {#each cost.resolutionRows as row (row.resolution)}
+                      <p>
+                        {m.pricing_rate({
+                          tokens: formatNumber(row.perSecond),
+                          resolution: row.resolution ?? m.pricing_any_resolution(),
+                        })}
+                      </p>
+                    {/each}
+                  {:else}
+                    {cost.tokenCost === null || cost.inputTokenCost === null
+                      ? pricingPending
+                        ? m.model_guide_cost_loading()
+                        : m.model_guide_cost_unknown()
+                      : cost.inputTokenCost > 0
+                        ? m.model_guide_cost_with_input_per_output({
+                            baseTokens: formatNumber(cost.tokenCost),
+                            inputTokens: formatNumber(cost.inputTokenCost),
+                          })
+                        : m.model_guide_cost_per_output({ tokens: formatNumber(cost.tokenCost) })}
+                  {/if}
                 </dd>
               </div>
             {/each}

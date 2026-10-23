@@ -397,6 +397,7 @@ describe('createPricingRule()', () => {
       generation_type: 't2i',
       token_cost: 15,
       input_token_cost: 0,
+      per_second_token_cost: 0,
     });
     expect(result.id).toBe('rule_new');
     expect(result.provider).toBe('grok');
@@ -415,6 +416,7 @@ describe('createPricingRule()', () => {
         generation_type: 't2i',
         token_cost: 10,
         input_token_cost: 0,
+        per_second_token_cost: 0,
       }),
     ).rejects.toThrow();
   });

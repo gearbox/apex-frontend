@@ -119,7 +119,13 @@ export function makeGrokVideoModelInfo(overrides: Partial<ModelInfo> = {}): Mode
     generation_modes: generationModes(['t2v', 'i2v', 'v2v']),
     max_images: 1,
     image: null,
-    video: { max_duration: 15, resolutions: ['480p', '720p'] },
+    video: {
+      bills_input_video_seconds: false,
+      min_duration: 1,
+      supported_parameters: [],
+      max_duration: 15,
+      resolutions: ['480p', '720p'],
+    },
     ...overrides,
   });
 }
@@ -143,7 +149,13 @@ export function makeAishaVideoModelInfo(overrides: Partial<ModelInfo> = {}): Mod
     aspect_ratios: ['1:1', '16:9', '9:16'],
     requires_age_verification: true,
     image: null,
-    video: { max_duration: 10, resolutions: ['480p', '720p'] },
+    video: {
+      bills_input_video_seconds: false,
+      min_duration: 1,
+      supported_parameters: [],
+      max_duration: 10,
+      resolutions: ['480p', '720p'],
+    },
     ...overrides,
   });
 }

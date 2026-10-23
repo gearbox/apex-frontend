@@ -129,6 +129,8 @@ export function makeAuditLogEntry(overrides: Partial<AuditLogEntry> = {}): Audit
 
 export function makePricingRule(overrides: Partial<PricingRuleResponse> = {}): PricingRuleResponse {
   return {
+    per_second_token_cost: 0,
+    video_resolution: null,
     id: 'rule_mock_001',
     provider: 'grok',
     generation_type: 't2i',

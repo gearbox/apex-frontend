@@ -13,6 +13,7 @@
   let { models = [], selectedModel, onSelect }: Props = $props();
 
   const MODEL_META: Partial<Record<ModelType, { label: string; icon: string }>> = {
+    'wan3.0-video': { label: 'Wan 3.0', icon: '◇▶' },
     'grok-imagine-image': { label: 'Grok Imagine', icon: '✦' },
     'grok-2-image-1212': { label: 'Grok 2', icon: '◈' },
     'grok-imagine-video': { label: 'Grok Video', icon: '▶' },

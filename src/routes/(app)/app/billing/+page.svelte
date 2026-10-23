@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { videoResolutionValues } from '$lib/api/types';
   import { createQuery } from '@tanstack/svelte-query';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
@@ -99,10 +100,13 @@
 
   const costRows = $derived(
     (pricingQuery.data ?? [])
-      .filter(
-        (row: { is_active: boolean; provider: string }) => row.is_active && row.provider === 'grok',
-      )
-      .slice(0, 6),
+      .filter((row) => row.is_active)
+      .sort(
+        (a, b) =>
+          a.generation_type.localeCompare(b.generation_type) ||
+          videoResolutionValues.findIndex((r) => r === a.video_resolution) -
+            videoResolutionValues.findIndex((r) => r === b.video_resolution),
+      ),
   );
   const MODEL_META: Record<string, { icon: string; label: string }> = {
     'grok-imagine-image': { icon: '✦', label: 'Grok Imagine' },
@@ -230,8 +234,17 @@
           {@const meta = MODEL_META[metaKey] ?? { icon: '◆', label: metaKey }}
           <div class="rounded-2.5 border border-border bg-surface p-3 md:p-4">
             <span class="text-lg">{meta.icon}</span>
-            <p class="mt-1.5 text-[11px] font-semibold text-text">{meta.label}</p>
-            <p class="font-mono text-base font-extrabold text-accent">◈{row.token_cost}</p>
+            <p class="mt-1.5 text-[11px] font-semibold text-text">
+              {meta.label} · {row.generation_type}
+            </p>
+            <p class="font-mono text-base font-extrabold text-accent">
+              {row.per_second_token_cost > 0
+                ? m.pricing_rate({
+                    tokens: String(row.per_second_token_cost),
+                    resolution: row.video_resolution ?? m.pricing_any_resolution(),
+                  })
+                : `◈${row.token_cost}`}
+            </p>
           </div>
         {/each}
       {:else}

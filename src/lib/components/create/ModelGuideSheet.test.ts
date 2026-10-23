@@ -192,7 +192,13 @@ describe('ModelGuideSheet', () => {
       modelInfo: makeModelInfo({
         generation_modes: generationModes(['t2v', 'i2v', 'v2v', 'flf2v']),
         image: null,
-        video: { max_duration: 4, resolutions: ['480p'] },
+        video: {
+          bills_input_video_seconds: false,
+          min_duration: 1,
+          supported_parameters: [],
+          max_duration: 4,
+          resolutions: ['480p'],
+        },
       }),
     });
 

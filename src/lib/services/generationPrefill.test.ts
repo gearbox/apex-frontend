@@ -18,6 +18,7 @@ type ProvidersResponse = components['schemas']['ProvidersResponse'];
 type LibraryGroupDetail = components['schemas']['LibraryGroupDetail'];
 
 const source: SourceMediaDraft = {
+  media: null,
   assetRef: 'output:source-a',
   mediaType: 'image',
   previewUrl: '/v1/content/outputs/source-a',

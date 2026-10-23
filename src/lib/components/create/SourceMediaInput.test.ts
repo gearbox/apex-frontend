@@ -41,6 +41,7 @@ describe('source-driven source picker', () => {
   it('renders ordered selected sources and identifies the primary reference', () => {
     generationStore.setSourceMedia([
       {
+        media: null,
         assetRef: 'upload:one',
         mediaType: 'image',
         previewUrl: '/one.png',
@@ -82,6 +83,7 @@ describe('source-driven source picker', () => {
   it('hides the add controls once appending would exceed the advertised i2i cardinality', () => {
     generationStore.setSourceMedia([
       {
+        media: null,
         assetRef: 'upload:one',
         mediaType: 'image',
         previewUrl: '/one.png',
@@ -90,6 +92,7 @@ describe('source-driven source picker', () => {
         role: null,
       },
       {
+        media: null,
         assetRef: 'upload:two',
         mediaType: 'image',
         previewUrl: '/two.png',
@@ -106,6 +109,7 @@ describe('source-driven source picker', () => {
     const t2iOnly = makeModelInfo({ generation_modes: generationModes(['t2i']) });
     generationStore.setSourceMedia([
       {
+        media: null,
         assetRef: 'upload:one',
         mediaType: 'image',
         previewUrl: '/one.png',
@@ -125,6 +129,7 @@ describe('source-driven source picker', () => {
     const t2iOnly = makeModelInfo({ generation_modes: generationModes(['t2i']) });
     generationStore.setSourceMedia([
       {
+        media: null,
         assetRef: 'upload:one',
         mediaType: 'image',
         previewUrl: '/one.png',
@@ -145,6 +150,7 @@ describe('source-driven source picker', () => {
     });
     generationStore.setSourceMedia([
       {
+        media: null,
         assetRef: 'upload:stale-video',
         mediaType: 'video',
         previewUrl: '/one.mp4',
@@ -164,6 +170,7 @@ describe('source-driven source picker', () => {
 describe('positional role slots (Phase 4)', () => {
   it('keeps a retained role source visible and removable after switching to a roleless model', async () => {
     const firstFrame: SourceMediaDraft = {
+      media: null,
       assetRef: 'upload:first',
       mediaType: 'image',
       previewUrl: '/first.png',
@@ -186,6 +193,7 @@ describe('positional role slots (Phase 4)', () => {
   it('keeps a retained role source visible and removable after switching to a source-free model', async () => {
     generationStore.setSourceMedia([
       {
+        media: null,
         assetRef: 'upload:first',
         mediaType: 'image',
         previewUrl: '/first.png',
@@ -207,6 +215,7 @@ describe('positional role slots (Phase 4)', () => {
   it('keeps a generic retained source visible without silently assigning it a role after switching to a positional model', () => {
     generationStore.setSourceMedia([
       {
+        media: null,
         assetRef: 'upload:generic',
         mediaType: 'image',
         previewUrl: '/generic.png',
@@ -238,6 +247,7 @@ describe('positional role slots (Phase 4)', () => {
     });
     generationStore.setSourceMedia([
       {
+        media: null,
         assetRef: 'upload:future',
         mediaType: 'image',
         previewUrl: '/future.png',
@@ -268,6 +278,7 @@ describe('positional role slots (Phase 4)', () => {
 
   it('renders a sparse draft correctly: last_frame filled, first_frame slot still offered', () => {
     const lastFrame: SourceMediaDraft = {
+      media: null,
       assetRef: 'upload:last',
       mediaType: 'image',
       previewUrl: '/last.png',
@@ -284,6 +295,7 @@ describe('positional role slots (Phase 4)', () => {
 
   it('renders both previews once first + last frame are filled, with no remaining Add buttons', () => {
     const firstFrame: SourceMediaDraft = {
+      media: null,
       assetRef: 'upload:first',
       mediaType: 'image',
       previewUrl: '/first.png',
@@ -292,6 +304,7 @@ describe('positional role slots (Phase 4)', () => {
       role: 'first_frame',
     };
     const lastFrame: SourceMediaDraft = {
+      media: null,
       assetRef: 'upload:last',
       mediaType: 'image',
       previewUrl: '/last.png',
@@ -309,6 +322,7 @@ describe('positional role slots (Phase 4)', () => {
 
   it('an unavailable role source shows Replace and preserves its role label', () => {
     const lastFrame: SourceMediaDraft = {
+      media: null,
       assetRef: 'output:missing',
       mediaType: null,
       previewUrl: null,
@@ -324,6 +338,7 @@ describe('positional role slots (Phase 4)', () => {
 
   it('removing a role source acts on the correct position, leaving the other role intact', async () => {
     const firstFrame: SourceMediaDraft = {
+      media: null,
       assetRef: 'upload:first',
       mediaType: 'image',
       previewUrl: '/first.png',
@@ -332,6 +347,7 @@ describe('positional role slots (Phase 4)', () => {
       role: 'first_frame',
     };
     const lastFrame: SourceMediaDraft = {
+      media: null,
       assetRef: 'upload:last',
       mediaType: 'image',
       previewUrl: '/last.png',

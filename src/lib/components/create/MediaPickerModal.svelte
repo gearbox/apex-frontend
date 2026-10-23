@@ -7,6 +7,8 @@
     libraryAssetQueryOptions,
     deleteAssetMutationOptions,
   } from '$lib/queries/library';
+  import { generationStore } from '$lib/stores/generation';
+  import { sourceMediaLimitViolation } from '$lib/utils/sourceLimits';
   import { addToast } from '$lib/stores/toasts';
   import { isDesktop } from '$lib/utils/breakpoints';
   import { assetLabel } from '$lib/utils/assetName';
@@ -22,6 +24,7 @@
   type MediaKind = components['schemas']['MediaKind'];
 
   export interface MediaPickerSelection {
+    media: components['schemas']['MediaOriginal'];
     assetRef: string;
     mediaType: string;
     /** Null when the asset has no valid protected-content preview; the draft row shows no thumb. */
@@ -32,11 +35,17 @@
   let {
     open,
     mediaTypes,
+    modelInfo = null,
+    mode = '',
+    replacementIndex = null,
     onclose,
     onselect,
   }: {
     open: boolean;
     mediaTypes: readonly string[];
+    modelInfo?: components['schemas']['ModelInfo'] | null;
+    mode?: string;
+    replacementIndex?: number | null;
     onclose: () => void;
     onselect: (selection: MediaPickerSelection) => void;
   } = $props();
@@ -83,13 +92,34 @@
 
   /* ─── Confirm ─── */
 
+  function violationFor(item: LibraryAssetItem): string | null {
+    const source = {
+      assetRef: item.asset_ref,
+      mediaType: item.media.media_type,
+      media: item.media.original,
+      available: true,
+      previewUrl: null,
+      label: null,
+      role: null,
+    };
+    const sources = [...$generationStore.sourceMedia];
+    if (replacementIndex === null) sources.push(source);
+    else sources[replacementIndex] = source;
+    return sourceMediaLimitViolation(source, modelInfo, mode, sources);
+  }
+
   async function handleConfirm() {
-    if (!selectedItem || confirming) return;
+    if (!selectedItem || confirming || violationFor(selectedItem)) return;
     const item = selectedItem;
     const previewUrl = mediaFallbackSrc(item.media, 512);
 
     if (item.source === 'upload') {
-      onselect({ assetRef: item.asset_ref, mediaType: item.media.media_type, previewUrl });
+      onselect({
+        media: item.media.original,
+        assetRef: item.asset_ref,
+        mediaType: item.media.media_type,
+        previewUrl,
+      });
       return;
     }
 
@@ -98,13 +128,19 @@
     try {
       const detail = await queryClient.fetchQuery(libraryAssetQueryOptions(item.asset_ref));
       onselect({
+        media: item.media.original,
         assetRef: item.asset_ref,
         mediaType: item.media.media_type,
         previewUrl,
         prompt: detail.prompt,
       });
     } catch {
-      onselect({ assetRef: item.asset_ref, mediaType: item.media.media_type, previewUrl });
+      onselect({
+        media: item.media.original,
+        assetRef: item.asset_ref,
+        mediaType: item.media.media_type,
+        previewUrl,
+      });
     } finally {
       confirming = false;
     }
@@ -260,11 +296,14 @@
           <div class="grid grid-cols-3 gap-2 md:grid-cols-4">
             {#each uploadItems as item (item.asset_ref)}
               {@const isSelected = selectedItem?.asset_ref === item.asset_ref}
+              {@const violation = violationFor(item)}
               <div
-                class="group relative aspect-square overflow-hidden rounded-lg border-2 transition-colors
+                class="group relative aspect-square overflow-hidden rounded-lg border-2 transition-colors disabled:opacity-40
                   {isSelected ? 'border-accent' : 'border-transparent hover:border-border-active'}"
               >
                 <button
+                  disabled={violation !== null}
+                  title={violation ?? undefined}
                   onclick={() => (selectedItem = isSelected ? null : item)}
                   ontouchstart={() => {
                     if (!$isDesktop) startLongPress(item);
@@ -272,7 +311,7 @@
                   ontouchend={cancelLongPress}
                   ontouchmove={cancelLongPress}
                   ontouchcancel={cancelLongPress}
-                  class="h-full w-full"
+                  class="h-full w-full disabled:opacity-40"
                   aria-pressed={isSelected}
                   aria-label={m.imagepicker_upload_label({
                     name: assetLabel(item, m.imagepicker_upload_unnamed()),
@@ -284,6 +323,10 @@
                     sizes="(max-width: 768px) 33vw, 25vw"
                     class="h-full w-full object-cover"
                   />
+                  {#if violation}<span
+                      class="absolute inset-x-0 bottom-0 bg-bg/90 p-1 text-[10px] text-warning"
+                      >{violation}</span
+                    >{/if}
                   {#if isSelected}
                     <div class="absolute inset-0 flex items-center justify-center bg-accent/20">
                       <Check size={20} class="text-accent" />
@@ -340,9 +383,12 @@
           <div class="grid grid-cols-3 gap-2 md:grid-cols-4">
             {#each generatedItems as item (item.asset_ref)}
               {@const isSelected = selectedItem?.asset_ref === item.asset_ref}
+              {@const violation = violationFor(item)}
               <button
+                disabled={violation !== null}
+                title={violation ?? undefined}
                 onclick={() => (selectedItem = isSelected ? null : item)}
-                class="group relative aspect-square overflow-hidden rounded-lg border-2 transition-colors
+                class="group relative aspect-square overflow-hidden rounded-lg border-2 transition-colors disabled:opacity-40
                   {isSelected ? 'border-accent' : 'border-transparent hover:border-border-active'}"
                 aria-pressed={isSelected}
                 aria-label={isImageOnly ? 'Generated image' : 'Generated media'}
@@ -353,6 +399,10 @@
                   sizes="(max-width: 768px) 33vw, 25vw"
                   class="h-full w-full object-cover"
                 />
+                {#if violation}<span
+                    class="absolute inset-x-0 bottom-0 bg-bg/90 p-1 text-[10px] text-warning"
+                    >{violation}</span
+                  >{/if}
                 {#if isSelected}
                   <div class="absolute inset-0 flex items-center justify-center bg-accent/20">
                     <Check size={20} class="text-accent" />
@@ -384,7 +434,7 @@
     <div class="shrink-0 border-t border-border px-5 py-4">
       <button
         onclick={handleConfirm}
-        disabled={!selectedItem || confirming}
+        disabled={!selectedItem || confirming || violationFor(selectedItem) !== null}
         class="w-full rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors
           {selectedItem && !confirming
           ? 'bg-accent text-white hover:bg-accent/90'

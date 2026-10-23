@@ -1,3 +1,5 @@
+import { videoResolutionValues } from '$lib/api/types';
+import { isVideoMode } from '$lib/utils/generationModes';
 import type { components } from '$lib/api/types';
 import type { GenerationMode } from '$lib/stores/generation';
 import { findPricingRule } from '$lib/utils/pricing';
@@ -9,6 +11,7 @@ type PricingRuleResponse = components['schemas']['PricingRuleResponse'];
 
 export interface ModelModePricing {
   readonly mode: GenerationMode;
+  readonly resolutionRows?: readonly { resolution: string | null; perSecond: number }[];
   /** null means no active matching pricing rule was found. */
   readonly tokenCost: number | null;
   /** null means no active matching pricing rule was found. */
@@ -43,10 +46,44 @@ export function deriveModelBillingFacts(params: {
         provider,
         modelKey as components['schemas']['ModelType'],
         mode,
+        null,
         nowMs,
       );
       return {
         mode,
+        ...(isVideoMode(mode) && modelInfo.video
+          ? (() => {
+              const resolutionRows = videoResolutionValues
+                .filter((resolution) => modelInfo.video?.resolutions.includes(resolution))
+                .flatMap((resolution) => {
+                  const match = findPricingRule(
+                    pricing,
+                    provider,
+                    modelKey as components['schemas']['ModelType'],
+                    mode,
+                    resolution,
+                    nowMs,
+                  );
+                  return match && match.per_second_token_cost > 0
+                    ? [
+                        {
+                          resolution: match.video_resolution,
+                          perSecond: match.per_second_token_cost,
+                        },
+                      ]
+                    : [];
+                });
+              return resolutionRows.length
+                ? {
+                    resolutionRows: resolutionRows.filter(
+                      (row, index) =>
+                        resolutionRows.findIndex((other) => other.resolution === row.resolution) ===
+                        index,
+                    ),
+                  }
+                : {};
+            })()
+          : {}),
         tokenCost: rule?.token_cost ?? null,
         inputTokenCost: rule?.input_token_cost ?? null,
       };

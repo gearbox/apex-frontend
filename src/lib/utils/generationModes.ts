@@ -9,14 +9,30 @@ type ProvidersResponse = components['schemas']['ProvidersResponse'];
 type ModelInfo = components['schemas']['ModelInfo'];
 type ModelType = components['schemas']['ModelType'];
 /** Frontend presentation classification for video parameter layout, not capability policy. */
-const VIDEO_MODES = ['t2v', 'i2v', 'v2v', 'flf2v'] as const satisfies readonly GenerationMode[];
+const MODE_OUTPUT = {
+  t2i: 'image',
+  i2i: 'image',
+  t2v: 'video',
+  i2v: 'video',
+  v2v: 'video',
+  flf2v: 'video',
+  r2v: 'video',
+} as const satisfies Record<components['schemas']['GenerationType'], 'image' | 'video'>;
+const unknownModes = new Set<string>();
 
 export function isGenerationMode(value: string | null | undefined): value is GenerationMode {
   return typeof value === 'string' && value.length > 0;
 }
 
 export function isVideoMode(mode: GenerationMode): boolean {
-  return (VIDEO_MODES as readonly GenerationMode[]).includes(mode);
+  if (Object.hasOwn(MODE_OUTPUT, mode)) {
+    return Object.entries(MODE_OUTPUT).some(([key, output]) => key === mode && output === 'video');
+  }
+  if (!unknownModes.has(mode)) {
+    unknownModes.add(mode);
+    console.warn('[generation] Unknown output mode', mode);
+  }
+  return false;
 }
 
 /** Returns backend-advertised modes. No client-side mode allow-list is applied. */

@@ -6,6 +6,8 @@ type PricingRuleResponse = components['schemas']['PricingRuleResponse'];
 
 function rule(overrides: Partial<PricingRuleResponse> = {}): PricingRuleResponse {
   return {
+    per_second_token_cost: 0,
+    video_resolution: null,
     id: '00000000-0000-0000-0000-000000000001',
     provider: 'grok',
     generation_type: 't2i',
@@ -27,21 +29,21 @@ describe('findPricingRule', () => {
     const generic = rule();
     const specific = rule({ model: 'grok-imagine-image', token_cost: 24 });
 
-    expect(findPricingRule([generic, specific], 'grok', 'grok-imagine-image', 't2i', now)).toBe(
-      specific,
-    );
+    expect(
+      findPricingRule([generic, specific], 'grok', 'grok-imagine-image', 't2i', null, now),
+    ).toBe(specific);
   });
 
   it('falls back to a provider and mode wildcard rule', () => {
     const byType = rule({ token_cost: 18 });
 
-    expect(findPricingRule([byType], 'grok', 'grok-imagine-image', 't2i', now)).toBe(byType);
+    expect(findPricingRule([byType], 'grok', 'grok-imagine-image', 't2i', null, now)).toBe(byType);
   });
 
   it('does not match a provider and model rule with a different generation type', () => {
     const byModel = rule({ model: 'grok-imagine-image', generation_type: '', token_cost: 16 });
 
-    expect(findPricingRule([byModel], 'grok', 'grok-imagine-image', 't2i', now)).toBeNull();
+    expect(findPricingRule([byModel], 'grok', 'grok-imagine-image', 't2i', null, now)).toBeNull();
   });
 
   it('selects the newest exact rule regardless of catalog order', () => {
@@ -53,8 +55,12 @@ describe('findPricingRule', () => {
       effective_from: '2026-02-01T00:00:00Z',
     });
 
-    expect(findPricingRule([newer, older], 'grok', 'grok-imagine-image', 't2i', now)).toBe(newer);
-    expect(findPricingRule([older, newer], 'grok', 'grok-imagine-image', 't2i', now)).toBe(newer);
+    expect(findPricingRule([newer, older], 'grok', 'grok-imagine-image', 't2i', null, now)).toBe(
+      newer,
+    );
+    expect(findPricingRule([older, newer], 'grok', 'grok-imagine-image', 't2i', null, now)).toBe(
+      newer,
+    );
   });
 
   it('selects the newest wildcard rule regardless of catalog order', () => {
@@ -65,38 +71,44 @@ describe('findPricingRule', () => {
       effective_from: '2026-02-01T00:00:00Z',
     });
 
-    expect(findPricingRule([newer, older], 'grok', 'grok-imagine-image', 't2i', now)).toBe(newer);
-    expect(findPricingRule([older, newer], 'grok', 'grok-imagine-image', 't2i', now)).toBe(newer);
+    expect(findPricingRule([newer, older], 'grok', 'grok-imagine-image', 't2i', null, now)).toBe(
+      newer,
+    );
+    expect(findPricingRule([older, newer], 'grok', 'grok-imagine-image', 't2i', null, now)).toBe(
+      newer,
+    );
   });
 
   it('ignores inactive rules and returns null when no active rule matches', () => {
     const inactive = rule({ model: 'grok-imagine-image', is_active: false });
 
-    expect(findPricingRule([inactive], 'grok', 'grok-imagine-image', 't2i', now)).toBeNull();
+    expect(findPricingRule([inactive], 'grok', 'grok-imagine-image', 't2i', null, now)).toBeNull();
   });
 
   it('ignores future rules', () => {
     const future = rule({ effective_from: '2026-02-16T00:00:00Z' });
 
-    expect(findPricingRule([future], 'grok', 'grok-imagine-image', 't2i', now)).toBeNull();
+    expect(findPricingRule([future], 'grok', 'grok-imagine-image', 't2i', null, now)).toBeNull();
   });
 
   it('ignores expired rules', () => {
     const expired = rule({ effective_until: '2026-02-14T23:59:59Z' });
 
-    expect(findPricingRule([expired], 'grok', 'grok-imagine-image', 't2i', now)).toBeNull();
+    expect(findPricingRule([expired], 'grok', 'grok-imagine-image', 't2i', null, now)).toBeNull();
   });
 
   it('accepts a rule beginning exactly at the current time', () => {
     const beginsNow = rule({ effective_from: '2026-02-15T00:00:00Z' });
 
-    expect(findPricingRule([beginsNow], 'grok', 'grok-imagine-image', 't2i', now)).toBe(beginsNow);
+    expect(findPricingRule([beginsNow], 'grok', 'grok-imagine-image', 't2i', null, now)).toBe(
+      beginsNow,
+    );
   });
 
   it('rejects a rule ending exactly at the current time', () => {
     const endsNow = rule({ effective_until: '2026-02-15T00:00:00Z' });
 
-    expect(findPricingRule([endsNow], 'grok', 'grok-imagine-image', 't2i', now)).toBeNull();
+    expect(findPricingRule([endsNow], 'grok', 'grok-imagine-image', 't2i', null, now)).toBeNull();
   });
 
   it('does not let an expired newer rule shadow an older effective rule', () => {
@@ -109,17 +121,24 @@ describe('findPricingRule', () => {
     });
 
     expect(
-      findPricingRule([newerExpired, olderEffective], 'grok', 'grok-imagine-image', 't2i', now),
+      findPricingRule(
+        [newerExpired, olderEffective],
+        'grok',
+        'grok-imagine-image',
+        't2i',
+        null,
+        now,
+      ),
     ).toBe(olderEffective);
   });
 
   it('keeps a real zero-cost rule distinct from no rule', () => {
     const freeRule = rule({ model: 'grok-imagine-image', token_cost: 0 });
 
-    expect(findPricingRule([freeRule], 'grok', 'grok-imagine-image', 't2i', now)?.token_cost).toBe(
-      0,
-    );
-    expect(findPricingRule([], 'grok', 'grok-imagine-image', 't2i', now)).toBeNull();
+    expect(
+      findPricingRule([freeRule], 'grok', 'grok-imagine-image', 't2i', null, now)?.token_cost,
+    ).toBe(0);
+    expect(findPricingRule([], 'grok', 'grok-imagine-image', 't2i', null, now)).toBeNull();
   });
 
   it('keeps lookupCost as a zero fallback only for callers that need a scalar', () => {
@@ -149,5 +168,36 @@ describe('estimatePricingRuleCost', () => {
 
   it('combines input surcharges with multiple outputs', () => {
     expect(estimatePricingRuleCost(pricedRule, { outputCount: 4, inputImageCount: 1 })).toBe(36);
+  });
+});
+
+describe('video pricing mirror', () => {
+  it('selects all four specificity tiers and never prices image jobs with resolution rules', () => {
+    const tiers = [
+      rule({
+        model: 'wan3.0-video',
+        generation_type: 't2v',
+        provider: 'alibaba',
+        video_resolution: '1080p',
+      }),
+      rule({ model: 'wan3.0-video', generation_type: 't2v', provider: 'alibaba' }),
+      rule({ generation_type: 't2v', provider: 'alibaba', video_resolution: '1080p' }),
+      rule({ generation_type: 't2v', provider: 'alibaba' }),
+    ];
+    for (let index = 0; index < tiers.length; index++)
+      expect(
+        findPricingRule(tiers.slice(index).reverse(), 'alibaba', 'wan3.0-video', 't2v', '1080p'),
+      ).toBe(tiers[index]);
+    expect(findPricingRule([tiers[0]], 'alibaba', 'wan3.0-video', 't2v', null)).toBeNull();
+    expect(findPricingRule([tiers[0]], 'alibaba', 'wan3.0-video', 't2v', '720p')).toBeNull();
+  });
+  it('includes per-second costs or suppresses unknown duration', () => {
+    const price = rule({ token_cost: 0, per_second_token_cost: 3, input_token_cost: 2 });
+    expect(
+      estimatePricingRuleCost(price, { outputCount: 1, inputImageCount: 0, billedSeconds: 12 }),
+    ).toBe(36);
+    expect(
+      estimatePricingRuleCost(price, { outputCount: 1, inputImageCount: 0, billedSeconds: null }),
+    ).toBeNull();
   });
 });

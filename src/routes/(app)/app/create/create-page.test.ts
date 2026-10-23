@@ -69,7 +69,7 @@ const GROK_VIDEO_PROVIDERS: ProvidersResponse = {
           aspect_ratios: ['1:1', '16:9', '9:16'],
           requires_age_verification: false,
           image: null,
-          video: null,
+          video: makeGrokVideoModelInfo().video,
         },
       ],
     },
@@ -161,6 +161,8 @@ function generateButtons(): HTMLButtonElement[] {
 
 function pricingRule(overrides: Partial<PricingRuleResponse> = {}): PricingRuleResponse {
   return {
+    per_second_token_cost: 0,
+    video_resolution: null,
     id: '00000000-0000-0000-0000-000000000001',
     provider: 'grok',
     generation_type: 't2i',
@@ -279,6 +281,8 @@ describe('/app/create page — generate gating during providers load', () => {
     providersData = GROK_PROVIDERS;
     pricingData = [
       {
+        per_second_token_cost: 0,
+        video_resolution: null,
         id: '00000000-0000-0000-0000-000000000001',
         provider: 'grok',
         generation_type: 't2i',
@@ -303,6 +307,8 @@ describe('/app/create page — generate gating during providers load', () => {
     generationStore.setImageCount(4);
     pricingData = [
       {
+        per_second_token_cost: 0,
+        video_resolution: null,
         id: '00000000-0000-0000-0000-000000000001',
         provider: 'grok',
         generation_type: 't2i',
@@ -327,6 +333,7 @@ describe('/app/create page — generate gating during providers load', () => {
     generationStore.setMode('i2i');
     generationStore.setSourceMedia([
       {
+        media: null,
         assetRef: 'upload:image_001',
         mediaType: 'image',
         previewUrl: null,
@@ -337,6 +344,8 @@ describe('/app/create page — generate gating during providers load', () => {
     ]);
     pricingData = [
       {
+        per_second_token_cost: 0,
+        video_resolution: null,
         id: '00000000-0000-0000-0000-000000000001',
         provider: 'grok',
         generation_type: 'i2i',
@@ -381,6 +390,7 @@ describe('/app/create page — generate gating during providers load', () => {
     };
     generationStore.setSourceMedia([
       {
+        media: null,
         assetRef: 'upload:image_001',
         mediaType: 'image',
         previewUrl: null,
@@ -391,6 +401,8 @@ describe('/app/create page — generate gating during providers load', () => {
     ]);
     pricingData = [
       {
+        per_second_token_cost: 0,
+        video_resolution: null,
         id: '00000000-0000-0000-0000-000000000001',
         provider: 'grok',
         generation_type: 't2i',
@@ -418,6 +430,8 @@ describe('/app/create page — generate gating during providers load', () => {
     generationStore.setMode('t2v');
     pricingData = [
       {
+        per_second_token_cost: 0,
+        video_resolution: null,
         id: '00000000-0000-0000-0000-000000000001',
         provider: 'grok',
         generation_type: 't2v',
@@ -543,6 +557,8 @@ describe('/app/create page — source-driven generation mode (Phase 3)', () => {
     providersData = GROK_PROVIDERS;
     pricingData = [
       {
+        per_second_token_cost: 0,
+        video_resolution: null,
         id: '00000000-0000-0000-0000-000000000001',
         provider: 'grok',
         generation_type: 'i2i',
@@ -555,6 +571,8 @@ describe('/app/create page — source-driven generation mode (Phase 3)', () => {
         notes: null,
       },
       {
+        per_second_token_cost: 0,
+        video_resolution: null,
         id: '00000000-0000-0000-0000-000000000002',
         provider: 'grok',
         generation_type: 't2i',
@@ -572,6 +590,7 @@ describe('/app/create page — source-driven generation mode (Phase 3)', () => {
     generationStore.setMode('i2i');
     generationStore.setSourceMedia([
       {
+        media: null,
         assetRef: 'upload:image_001',
         mediaType: 'image',
         previewUrl: null,
@@ -625,6 +644,8 @@ const AISHA_VIDEO_PROVIDERS: ProvidersResponse = {
 
 const AISHA_VIDEO_PRICING: PricingRuleResponse[] = (['t2v', 'i2v', 'flf2v'] as const).map(
   (generation_type, index) => ({
+    per_second_token_cost: 0,
+    video_resolution: null,
     id: `00000000-0000-0000-0000-00000000000${index + 1}`,
     provider: 'aisha',
     generation_type,
@@ -654,6 +675,7 @@ describe('/app/create page — positional role source resolution (Phase 4, Aisha
   it('a first_frame role source resolves I2V', () => {
     generationStore.setSourceMedia([
       {
+        media: null,
         assetRef: 'upload:first',
         mediaType: 'image',
         previewUrl: null,
@@ -671,6 +693,7 @@ describe('/app/create page — positional role source resolution (Phase 4, Aisha
   it('first_frame + last_frame resolves FLF2V', () => {
     generationStore.setSourceMedia([
       {
+        media: null,
         assetRef: 'upload:first',
         mediaType: 'image',
         previewUrl: null,
@@ -679,6 +702,7 @@ describe('/app/create page — positional role source resolution (Phase 4, Aisha
         role: 'first_frame',
       },
       {
+        media: null,
         assetRef: 'upload:last',
         mediaType: 'image',
         previewUrl: null,
@@ -696,6 +720,7 @@ describe('/app/create page — positional role source resolution (Phase 4, Aisha
   it('removing last_frame from a complete FLF2V draft falls back to I2V', async () => {
     generationStore.setSourceMedia([
       {
+        media: null,
         assetRef: 'upload:first',
         mediaType: 'image',
         previewUrl: null,
@@ -704,6 +729,7 @@ describe('/app/create page — positional role source resolution (Phase 4, Aisha
         role: 'first_frame',
       },
       {
+        media: null,
         assetRef: 'upload:last',
         mediaType: 'image',
         previewUrl: null,
@@ -725,6 +751,7 @@ describe('/app/create page — positional role source resolution (Phase 4, Aisha
   it('removing first_frame while last_frame remains leaves an incomplete positional draft — Generate disabled', async () => {
     generationStore.setSourceMedia([
       {
+        media: null,
         assetRef: 'upload:first',
         mediaType: 'image',
         previewUrl: null,
@@ -733,6 +760,7 @@ describe('/app/create page — positional role source resolution (Phase 4, Aisha
         role: 'first_frame',
       },
       {
+        media: null,
         assetRef: 'upload:last',
         mediaType: 'image',
         previewUrl: null,
@@ -755,6 +783,7 @@ describe('/app/create page — positional role source resolution (Phase 4, Aisha
   it('removing the final positional source returns to T2V', async () => {
     generationStore.setSourceMedia([
       {
+        media: null,
         assetRef: 'upload:last',
         mediaType: 'image',
         previewUrl: null,

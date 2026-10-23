@@ -1,4 +1,5 @@
 <script lang="ts">
+  import * as m from '$paraglide/messages';
   import { createQuery, createMutation, useQueryClient } from '@tanstack/svelte-query';
   import { Coins, AlertCircle, Plus, Pencil, Trash2 } from '@lucide/svelte';
   import { adminPricingQueryOptions, patchPricingRuleMutationOptions } from '$lib/queries/admin';
@@ -104,7 +105,14 @@
                     <span class="all-models-badge">All models</span>
                   {/if}
                 </td>
-                <td class="cost-cell">{formatTokenCost(rule.token_cost)}</td>
+                <td class="cost-cell"
+                  >{rule.per_second_token_cost > 0
+                    ? m.pricing_rate({
+                        tokens: String(rule.per_second_token_cost),
+                        resolution: rule.video_resolution ?? m.pricing_any_resolution(),
+                      })
+                    : formatTokenCost(rule.token_cost)}</td
+                >
                 <td>
                   <ToggleSwitch
                     checked={rule.is_active}
@@ -163,7 +171,14 @@
                 ontoggle={() => onToggle(rule)}
               />
             </div>
-            <div class="card-cost">{formatTokenCost(rule.token_cost)}</div>
+            <div class="card-cost">
+              {rule.per_second_token_cost > 0
+                ? m.pricing_rate({
+                    tokens: String(rule.per_second_token_cost),
+                    resolution: rule.video_resolution ?? m.pricing_any_resolution(),
+                  })
+                : formatTokenCost(rule.token_cost)}
+            </div>
             <div class="card-dates">
               <span class="date-label">From:</span>
               <span class="date-value">{formatDate(rule.effective_from)}</span>

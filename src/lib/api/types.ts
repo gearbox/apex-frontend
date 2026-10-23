@@ -2189,6 +2189,9 @@ export interface components {
             token_cost: number;
             /** @default 0 */
             input_token_cost: number;
+            /** @default 0 */
+            per_second_token_cost: number;
+            video_resolution?: components["schemas"]["VideoResolution"] | null;
             notes?: string | null;
         };
         /** CurrencySuppressPatchRequest */
@@ -2412,10 +2415,10 @@ export interface components {
         };
         /**
          * GenerationType
-         * @description Generation type - text-to-image or image-to-image.
+         * @description Generation type: what a request takes as input and emits as output.
          * @enum {string}
          */
-        GenerationType: "t2i" | "i2i" | "t2v" | "i2v" | "v2v" | "flf2v";
+        GenerationType: "t2i" | "i2i" | "t2v" | "i2v" | "v2v" | "flf2v" | "r2v";
         /** GpuSessionHealthResponse */
         GpuSessionHealthResponse: {
             status: string;
@@ -2498,6 +2501,18 @@ export interface components {
             width: number;
             height: number;
             url: string;
+        };
+        /** InputImageConstraintsInfo */
+        InputImageConstraintsInfo: {
+            formats: string[];
+            max_bytes?: number | null;
+        };
+        /** InputVideoConstraintsInfo */
+        InputVideoConstraintsInfo: {
+            formats: string[];
+            min_duration_ms: number;
+            max_duration_ms?: number | null;
+            max_bytes?: number | null;
         };
         /** JobCreatedResponse */
         JobCreatedResponse: {
@@ -2898,6 +2913,7 @@ export interface components {
             requires_age_verification: boolean;
             image?: components["schemas"]["ImageConstraints"] | null;
             video?: components["schemas"]["VideoConstraints"] | null;
+            seed_range?: components["schemas"]["SeedRangeInfo"] | null;
             runtime?: components["schemas"]["ModelRuntimeResponse"] | null;
             provisioning?: components["schemas"]["ModelProvisioningHintResponse"] | null;
         };
@@ -2923,7 +2939,7 @@ export interface components {
          * @description Available model types.
          * @enum {string}
          */
-        ModelType: "aisha-image" | "aisha-image-lite" | "aisha-video" | "grok-imagine-image" | "grok-2-image-1212" | "grok-imagine-video";
+        ModelType: "aisha-image" | "aisha-image-lite" | "aisha-video" | "grok-imagine-image" | "grok-2-image-1212" | "grok-imagine-video" | "wan3.0-video";
         /** NotificationClassInfo */
         NotificationClassInfo: {
             notification_class: string;
@@ -3110,6 +3126,7 @@ export interface components {
         PatchPricingRuleRequest: {
             token_cost?: number | null;
             input_token_cost?: number | null;
+            per_second_token_cost?: number | null;
             is_active?: boolean | null;
             effective_until?: string | null;
             notes?: string | null;
@@ -3147,6 +3164,8 @@ export interface components {
             model: string | null;
             token_cost: number;
             input_token_cost: number;
+            per_second_token_cost: number;
+            video_resolution: string | null;
             is_active: boolean;
             /** Format: date-time */
             effective_from: string;
@@ -3167,7 +3186,7 @@ export interface components {
          * @description Generation provider.
          * @enum {string}
          */
-        Provider: "aisha" | "grok";
+        Provider: "aisha" | "grok" | "alibaba";
         /** ProvidersResponse */
         ProvidersResponse: {
             providers: components["schemas"]["schemas_providers_ProviderInfo"][];
@@ -3280,6 +3299,11 @@ export interface components {
          * @enum {string}
          */
         Scheduler: "normal" | "karras" | "exponential" | "sgm_uniform" | "simple" | "ddim_uniform" | "beta" | "linear_quadratic" | "kl_optimal";
+        /** SeedRangeInfo */
+        SeedRangeInfo: {
+            min: number;
+            max: number;
+        };
         /** SetBillingAccountRequest */
         SetBillingAccountRequest: {
             account: components["schemas"]["AccountType"];
@@ -3439,6 +3463,8 @@ export interface components {
             /** @default 5 */
             duration: number;
             resolution?: components["schemas"]["VideoResolution"];
+            audio?: boolean | null;
+            prompt_extend?: boolean | null;
             image_resolution?: components["schemas"]["Resolution"] | null;
             width?: number | null;
             height?: number | null;
@@ -3548,16 +3574,23 @@ export interface components {
         };
         /** VideoConstraints */
         VideoConstraints: {
+            bills_input_video_seconds: boolean;
+            min_duration: number;
             max_duration: number;
             resolutions: string[];
+            supported_parameters: string[];
+            input_video?: components["schemas"]["InputVideoConstraintsInfo"] | null;
+            input_image?: components["schemas"]["InputImageConstraintsInfo"] | null;
+            max_combined_duration?: number | null;
+            input_anchored_modes?: string[];
         };
         /**
          * VideoResolution
-         * @description Supported video resolutions for Grok.
+         * @description Supported video resolutions; each model narrows via ``VideoMeta.resolutions``.
          * @default 720p
          * @enum {string}
          */
-        VideoResolution: "480p" | "720p";
+        VideoResolution: "480p" | "720p" | "1080p";
         /**
          * WorkUnit
          * @description Units used by Aisha operation telemetry work counters.
@@ -8430,3 +8463,46 @@ export interface operations {
         };
     };
 }
+type FlattenedDeepRequired<T> = {
+    [K in keyof T]-?: FlattenedDeepRequired<T[K] extends unknown[] | undefined | null ? Extract<T[K], unknown[]>[number] : T[K]>;
+};
+type ReadonlyArray<T> = [
+    Exclude<T, undefined>
+] extends [
+    unknown[]
+] ? Readonly<Exclude<T, undefined>> : Readonly<Exclude<T, undefined>[]>;
+export const accountTypeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AccountType"]> = ["personal", "enterprise"];
+export const adminPermissionValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AdminPermission"]> = ["billing_adjust"];
+export const aspectRatioValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AspectRatio"]> = ["2:3", "3:2", "1:1", "9:16", "16:9", "3:4", "4:3"];
+export const deploymentStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["DeploymentStatus"]> = ["deploying", "active", "removing", "removed", "failed"];
+export const feedbackCategoryValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["FeedbackCategory"]> = ["bug", "generation", "billing", "account", "content", "other"];
+export const feedbackStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["FeedbackStatus"]> = ["open", "in_progress", "resolved", "dismissed"];
+export const generationTypeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["GenerationType"]> = ["t2i", "i2i", "t2v", "i2v", "v2v", "flf2v", "r2v"];
+export const gpuSessionStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["GpuSessionStatus"]> = ["pending", "provisioning", "active", "stale", "paused", "resuming", "stopping", "stopped", "failed"];
+export const jobStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["JobStatus"]> = ["pending", "queued", "running", "completed", "failed", "cancelled", "moderated"];
+export const legalDocumentTypeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["LegalDocumentType"]> = ["terms", "privacy", "sensitive_data_consent"];
+export const libraryActionValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["LibraryAction"]> = ["remix", "create_variation", "animate", "extend", "extract_frame", "use_as_reference", "use_as_first_frame", "use_as_last_frame", "view_settings", "reproduce", "favorite", "rename", "download", "delete"];
+export const libraryAssetSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["LibraryAssetSource"]> = ["upload", "output"];
+export const libraryBadgeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["LibraryBadge"]> = ["image", "prompt"];
+export const libraryGroupSourceTypeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["LibraryGroupSourceType"]> = ["upload", "output"];
+export const librarySortValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["LibrarySort"]> = ["newest", "oldest", "expiring_soon"];
+export const lineageRelationValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["LineageRelation"]> = ["generated_from_upload", "generated_from_output", "frame_of_output", "frame_of_upload"];
+export const mediaKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MediaKind"]> = ["image", "video"];
+export const mediaSlotValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MediaSlot"]> = ["reference", "first_frame", "last_frame", "source"];
+export const modelTypeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ModelType"]> = ["aisha-image", "aisha-image-lite", "aisha-video", "grok-imagine-image", "grok-2-image-1212", "grok-imagine-video", "wan3.0-video"];
+export const notificationLevelValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["NotificationLevel"]> = ["info", "warning", "critical"];
+export const operationKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["OperationKind"]> = ["session_bootstrap", "bundle_provision", "bundle_removal", "comfyui_restart"];
+export const operationStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["OperationStatus"]> = ["queued", "running", "succeeded", "failed"];
+export const paymentProviderValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PaymentProvider"]> = ["stripe", "nowpayments"];
+export const providerValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Provider"]> = ["aisha", "grok", "alibaba"];
+export const provisioningPhaseValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ProvisioningPhase"]> = ["preflight", "comfyui", "requirements_base", "requirements_locked", "custom_nodes", "models", "workflow", "verifying", "restart"];
+export const rateUnitValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["RateUnit"]> = ["bytes_per_second"];
+export const resolutionValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Resolution"]> = ["draft", "standard", "high", "ultra"];
+export const runtimeStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["RuntimeState"]> = ["none", "provisioning", "active", "suspended", "removing", "paused", "stale", "stopping"];
+export const samplerValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Sampler"]> = ["euler", "euler_ancestral", "euler_cfg_pp", "heun", "dpm_2", "dpm_2_ancestral", "lms", "dpmpp_2s_ancestral", "dpmpp_sde", "dpmpp_2m", "dpmpp_2m_sde", "dpmpp_3m_sde", "ddim", "uni_pc", "uni_pc_bh2", "lcm", "res_multistep"];
+export const schedulerValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Scheduler"]> = ["normal", "karras", "exponential", "sgm_uniform", "simple", "ddim_uniform", "beta", "linear_quadratic", "kl_optimal"];
+export const subscriptionTierValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SubscriptionTier"]> = ["free", "basic", "pro", "enterprise"];
+export const supportedLocaleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SupportedLocale"]> = ["en", "ru", "sr"];
+export const userRoleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["UserRole"]> = ["system", "superadmin", "admin", "user"];
+export const videoResolutionValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["VideoResolution"]> = ["480p", "720p", "1080p"];
+export const workUnitValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["WorkUnit"]> = ["bytes", "files", "items"];

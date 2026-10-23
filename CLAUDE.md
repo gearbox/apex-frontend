@@ -308,7 +308,7 @@ When the backend API changes:
 curl http://localhost:8000/docs/openapi.json > src/lib/api/schema.json
 
 # 2. Regenerate TypeScript types
-npx openapi-typescript src/lib/api/schema.json -o src/lib/api/types.ts
+pnpm gen:api                 # also emits generated enum-value arrays
 
 # 3. Verify — any breaking changes will surface as TS errors
 pnpm check
@@ -639,3 +639,30 @@ are retained across batch retries. Native decode support is required; unsupporte
 open the existing feedback dialog with their asset attached. There is no server extraction fallback.
 See `docs/contracts/video-frame-extraction-fe-contract.md` for the canonical backend contract
 and its real-device staging acceptance record; Android standalone PWA remains the open pre-launch gate.
+
+## Video parameters (discovery-driven)
+
+Create uses `videoLimits` over live discovery, the resolved mode, and source metadata.
+Video aspect ratio, audio, prompt expansion and bounded seed have separate draft fields;
+anchored modes omit the ratio and unsupported/null parameters are omitted. See the canonical
+[Wan video contract](https://github.com/gearbox/apex/blob/master/docs/contracts/wan-video-contract.md).
+
+## Source limits
+
+Picker items and draft submission share `sourceMediaLimitViolation`. Uploads preflight the same
+format/decimal-byte checks before transfer. Source snapshots retain `MediaOriginal`; unavailable
+sources take precedence over limits and missing metadata defers to the backend. Discovery owns
+all limits: [contract](https://github.com/gearbox/apex/blob/master/docs/contracts/wan-video-contract.md).
+
+## R2V prompt tokens
+
+Reference chips insert exact `Image N` tokens at the remembered cursor. Generic-row removal
+renumbers subsequent exact tokens without deleting the removed reference's prose; missing or
+orphaned references show a warning. There is no reorder or Library R2V entry. See the
+[contract](https://github.com/gearbox/apex/blob/master/docs/contracts/wan-video-contract.md).
+
+## In-flight jobs
+
+`isInFlight` classifies pending, queued and running jobs. They offer no Delete action.
+Every failed optimistic deletion restores the row; `job_in_progress` displays the backend
+message as a warning. See the [contract](https://github.com/gearbox/apex/blob/master/docs/contracts/wan-video-contract.md).
