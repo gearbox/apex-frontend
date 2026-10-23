@@ -1,6 +1,10 @@
 <script lang="ts">
   import { renumberAfterRemoval } from '$lib/utils/r2vTokens';
-  import { fileLimitViolation, acceptedSourceContentTypes } from '$lib/utils/sourceLimits';
+  import {
+    fileLimitViolation,
+    acceptedSourceContentTypes,
+    sourceMediaLimitViolation,
+  } from '$lib/utils/sourceLimits';
   import { generationStore, type SourceMediaDraft } from '$lib/stores/generation';
   import { addToast } from '$lib/stores/toasts';
   import { ImagePlus, GalleryHorizontalEnd, AlertTriangle } from '@lucide/svelte';
@@ -321,7 +325,10 @@
 
   function genericSourceDetail(source: SourceMediaDraft, position: number): string {
     if (!source.available) return 'Unavailable — replace to preserve this position';
-    return `${source.mediaType ?? 'unknown'}${position === 0 ? ' · Primary' : ''}`;
+    return (
+      sourceMediaLimitViolation(source, modelInfo, effectiveMode, sourceMedia) ??
+      `${source.mediaType ?? 'unknown'}${position === 0 ? ' · Primary' : ''}`
+    );
   }
 </script>
 
@@ -364,7 +371,9 @@
         <SourceMediaRow
           source={occupant}
           detail={occupant.available
-            ? (occupant.mediaType ?? 'unknown')
+            ? (sourceMediaLimitViolation(occupant, modelInfo, effectiveMode, sourceMedia) ??
+              occupant.mediaType ??
+              'unknown')
             : m.create_source_role_unavailable()}
           removeLabel={m.create_source_remove_role({ role: roleLabel(role).toLowerCase() })}
           replaceLabel={m.create_source_replace()}

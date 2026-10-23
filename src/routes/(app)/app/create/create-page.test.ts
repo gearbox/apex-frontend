@@ -1,3 +1,4 @@
+import { makeWanModelInfo } from '../../../../mocks/fixtures/wan';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { get } from 'svelte/store';
@@ -799,4 +800,38 @@ describe('/app/create page — positional role source resolution (Phase 4, Aisha
     await waitFor(() => expect(screen.getByText('Est. ◈ 10 tokens')).toBeTruthy());
     for (const btn of generateButtons()) expect(btn.disabled).toBe(false);
   });
+});
+
+it('shows the shared source-limit reason for an incompatible retained video', () => {
+  providersData = {
+    providers: [
+      {
+        provider: 'alibaba',
+        name: 'Alibaba Wan',
+        available: true,
+        provisioning_mode: 'always_on',
+        models: [makeWanModelInfo()],
+      },
+    ],
+    user_context: null,
+  };
+  generationStore.prefill({
+    model: 'wan3.0-video',
+    mode: 'v2v',
+    prompt: 'Extend this video',
+    sourceMedia: [
+      {
+        assetRef: 'upload:webm',
+        mediaType: 'video',
+        role: null,
+        available: true,
+        previewUrl: null,
+        label: null,
+        media: { url: '', content_type: 'video/webm', size_bytes: 1, duration_ms: 5000 },
+      },
+    ],
+  });
+  render(Page);
+  expect(screen.getByText('Use MOV, MP4.')).toBeTruthy();
+  expect(generateButtons().every((button) => button.disabled)).toBe(true);
 });
