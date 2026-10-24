@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { isInFlight, IN_FLIGHT_JOB_STATUSES } from '$lib/utils/jobStatus';
+  import { ApiRequestError } from '$lib/api/errors';
+  import { addToast } from '$lib/stores/toasts';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { createQuery, createMutation, useQueryClient } from '@tanstack/svelte-query';
@@ -12,11 +15,7 @@
   import { openFeedbackDialog } from '$lib/stores/feedbackDialog.svelte';
   import * as m from '$paraglide/messages';
 
-  type JobStatus = components['schemas']['JobStatus'];
-
   let appTitle = $derived($appDisplayName);
-
-  const TERMINAL = new Set<JobStatus>(['completed', 'failed', 'cancelled', 'moderated']);
 
   const queryClient = useQueryClient();
   const jobId = $derived($page.params.id ?? '');
@@ -27,7 +26,7 @@
       state: { data: components['schemas']['UnifiedJobResponse'] | null | undefined };
     }) => {
       const data = q.state.data;
-      if (!data || TERMINAL.has(data.status)) return false;
+      if (!data || !IN_FLIGHT_JOB_STATUSES.some((status) => status === data.status)) return false;
       return 3000;
     },
   }));
@@ -41,6 +40,12 @@
     if (!window.confirm('Delete this job? This cannot be undone.')) return;
     deleteMutation.mutate(jobId, {
       onSuccess: () => goto('/app/jobs'),
+      onError: (err) =>
+        addToast({
+          type:
+            err instanceof ApiRequestError && err.error === 'job_in_progress' ? 'warning' : 'error',
+          message: err.message,
+        }),
     });
   }
 
@@ -135,13 +140,17 @@
             Try again
           </a>
         {/if}
-        <button
-          onclick={handleDelete}
-          disabled={deleteMutation.isPending}
-          class="rounded-lg border border-danger/30 px-3 py-1.5 text-sm text-danger transition-colors hover:bg-danger/10 disabled:opacity-50"
-        >
-          {deleteMutation.isPending ? 'Deleting…' : 'Delete'}
-        </button>
+        {#if isInFlight(job.status)}
+          <p class="text-xs text-text-muted">{m.jobs_in_flight_delete_note()}</p>
+        {:else}
+          <button
+            onclick={handleDelete}
+            disabled={deleteMutation.isPending}
+            class="rounded-lg border border-danger/30 px-3 py-1.5 text-sm text-danger transition-colors hover:bg-danger/10 disabled:opacity-50"
+          >
+            {deleteMutation.isPending ? 'Deleting…' : 'Delete'}
+          </button>
+        {/if}
       </div>
     </div>
 

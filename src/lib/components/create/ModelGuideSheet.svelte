@@ -3,6 +3,7 @@
   import { X } from '@lucide/svelte';
   import * as m from '$paraglide/messages';
   import { formatNumber } from '$lib/utils/format';
+  import { formatPricingRule } from '$lib/utils/pricing';
   import { createSupportedModes } from '$lib/utils/generationModes';
   import { generationModeLabel } from '$lib/content/generationModeLabels';
   import { getEditAspectRatios, getT2iAspectRatios } from '$lib/utils/modelCapabilities';
@@ -224,16 +225,22 @@
                 <dd
                   class="min-w-0 whitespace-normal wrap-anywhere font-medium leading-relaxed text-text"
                 >
-                  {cost.tokenCost === null || cost.inputTokenCost === null
-                    ? pricingPending
-                      ? m.model_guide_cost_loading()
-                      : m.model_guide_cost_unknown()
-                    : cost.inputTokenCost > 0
-                      ? m.model_guide_cost_with_input_per_output({
-                          baseTokens: formatNumber(cost.tokenCost),
-                          inputTokens: formatNumber(cost.inputTokenCost),
-                        })
-                      : m.model_guide_cost_per_output({ tokens: formatNumber(cost.tokenCost) })}
+                  {#if cost.resolutionRows?.length}
+                    {#each cost.resolutionRows as row (row.resolution)}
+                      <p>{formatPricingRule(row.rule)}</p>
+                    {/each}
+                  {:else}
+                    {cost.tokenCost === null || cost.inputTokenCost === null
+                      ? pricingPending
+                        ? m.model_guide_cost_loading()
+                        : m.model_guide_cost_unknown()
+                      : cost.inputTokenCost > 0
+                        ? m.model_guide_cost_with_input_per_output({
+                            baseTokens: formatNumber(cost.tokenCost),
+                            inputTokens: formatNumber(cost.inputTokenCost),
+                          })
+                        : m.model_guide_cost_per_output({ tokens: formatNumber(cost.tokenCost) })}
+                  {/if}
                 </dd>
               </div>
             {/each}

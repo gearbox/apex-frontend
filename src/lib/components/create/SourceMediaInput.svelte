@@ -1,4 +1,10 @@
 <script lang="ts">
+  import { renumberAfterRemoval } from '$lib/utils/r2vTokens';
+  import {
+    fileLimitViolation,
+    acceptedSourceContentTypes,
+    sourceMediaLimitViolation,
+  } from '$lib/utils/sourceLimits';
   import { generationStore, type SourceMediaDraft } from '$lib/stores/generation';
   import { addToast } from '$lib/stores/toasts';
   import { ImagePlus, GalleryHorizontalEnd, AlertTriangle } from '@lucide/svelte';
@@ -32,10 +38,17 @@
   type MediaKind = components['schemas']['MediaKind'];
   type ModelInfo = components['schemas']['ModelInfo'];
 
-  let { modelInfo }: { modelInfo: ModelInfo | null } = $props();
+  let {
+    modelInfo,
+    effectiveMode = '',
+    oninserttoken,
+  }: {
+    modelInfo: ModelInfo | null;
+    effectiveMode?: string;
+    oninserttoken?: (token: string) => void;
+  } = $props();
 
   const queryClient = useQueryClient();
-  const MAX_SIZE_BYTES = 20 * 1024 * 1024;
   let dragOver = $state(false);
   let uploading = $state(false);
   let pickerOpen = $state(false);
@@ -110,8 +123,10 @@
         : replacementMediaKinds(modelInfo, resolverSources, replacementIndex),
   );
   const acceptedFileTypes = $derived(
-    activeMediaKinds.flatMap((type) =>
-      type === 'image' ? ACCEPTED_IMAGE_TYPES : type === 'video' ? ACCEPTED_VIDEO_TYPES : [],
+    activeMediaKinds.flatMap(
+      (type) =>
+        acceptedSourceContentTypes(modelInfo, type) ??
+        (type === 'image' ? ACCEPTED_IMAGE_TYPES : type === 'video' ? ACCEPTED_VIDEO_TYPES : []),
     ),
   );
 
@@ -209,15 +224,12 @@
 
   function validateFile(file: File): string | null {
     const mediaType = mediaTypeForFile(file);
-    if (
-      !mediaType ||
-      !activeMediaKinds.includes(mediaType) ||
-      !acceptedFileTypes.includes(file.type)
-    ) {
-      return 'This model does not accept that file type.';
+    if (!mediaType || !activeMediaKinds.includes(mediaType)) {
+      return m.create_source_media_type_unsupported();
     }
-    if (file.size > MAX_SIZE_BYTES) return 'File must be under 20 MB';
-    return null;
+    const violation = fileLimitViolation(file, modelInfo, mediaType);
+    if (violation) return violation;
+    return acceptedFileTypes.includes(file.type) ? null : m.create_source_media_type_unsupported();
   }
 
   async function uploadFile(file: File) {
@@ -235,6 +247,7 @@
       const result = await uploadMedia(file);
       commitSelection({
         assetRef: `upload:${result.id}`,
+        media: result.media.original,
         mediaType: result.media.media_type,
         previewUrl: mediaFallbackSrc(result.media, 512),
         label: file.name,
@@ -264,6 +277,7 @@
     commitSelection(
       {
         assetRef: selection.assetRef,
+        media: selection.media,
         mediaType: selection.mediaType,
         previewUrl: selection.previewUrl,
         label: selection.assetRef.startsWith('output:') ? 'From generated' : 'From uploads',
@@ -272,6 +286,14 @@
       },
       selection.prompt,
     );
+  }
+
+  function removeGeneric(index: number) {
+    if (effectiveMode === 'r2v') {
+      const result = renumberAfterRemoval($generationStore.prompt, index + 1);
+      generationStore.setPrompt(result.prompt);
+    }
+    generationStore.removeSourceMedia(index);
   }
 
   function openPicker(index: number | null = null) {
@@ -298,7 +320,10 @@
 
   function genericSourceDetail(source: SourceMediaDraft, position: number): string {
     if (!source.available) return 'Unavailable — replace to preserve this position';
-    return `${source.mediaType ?? 'unknown'}${position === 0 ? ' · Primary' : ''}`;
+    return (
+      sourceMediaLimitViolation(source, modelInfo, effectiveMode, sourceMedia) ??
+      `${source.mediaType ?? 'unknown'}${position === 0 ? ' · Primary' : ''}`
+    );
   }
 </script>
 
@@ -341,7 +366,9 @@
         <SourceMediaRow
           source={occupant}
           detail={occupant.available
-            ? (occupant.mediaType ?? 'unknown')
+            ? (sourceMediaLimitViolation(occupant, modelInfo, effectiveMode, sourceMedia) ??
+              occupant.mediaType ??
+              'unknown')
             : m.create_source_role_unavailable()}
           removeLabel={m.create_source_remove_role({ role: roleLabel(role).toLowerCase() })}
           replaceLabel={m.create_source_replace()}
@@ -390,6 +417,8 @@
       {#each genericEntries as entry, position (entry.source.assetRef)}
         <SourceMediaRow
           source={entry.source}
+          token={effectiveMode === 'r2v' ? `Image ${entry.index + 1}` : undefined}
+          {oninserttoken}
           position={position + 1}
           detail={genericSourceDetail(entry.source, position)}
           removeLabel={entry.source.available &&
@@ -398,7 +427,7 @@
             ? m.create_source_remove_image()
             : m.create_source_remove_media()}
           replaceLabel={m.create_source_replace()}
-          onremove={() => generationStore.removeSourceMedia(entry.index)}
+          onremove={() => removeGeneric(entry.index)}
           onreplace={entry.source.available ? undefined : () => openPicker(entry.index)}
         />
       {/each}
@@ -450,7 +479,7 @@
         <span class="text-xs font-medium text-text-muted"
           >{uploading ? 'Uploading…' : 'Drop image here or browse'}</span
         >
-        <span class="text-[11px] text-text-dim">PNG, JPEG, WebP · Max 20 MB</span>
+        <span class="text-[11px] text-text-dim">{acceptedFileTypes.join(', ')}</span>
       </button>
       <button
         type="button"
@@ -514,6 +543,11 @@
   <MediaPickerModal
     open={pickerOpen}
     mediaTypes={activeMediaKinds}
+    {modelInfo}
+    mode={effectiveMode}
+    replacementIndex={pendingRole !== null
+      ? sourceIndexForRole(sourceMedia, pendingRole)
+      : replacementIndex}
     onclose={() => {
       pickerOpen = false;
       replacementIndex = null;

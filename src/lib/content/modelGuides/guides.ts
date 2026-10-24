@@ -6,6 +6,31 @@ type ModelType = components['schemas']['ModelType'];
 
 /** Optional presentation content; provider discovery owns model availability. */
 export const modelGuides: Partial<Record<ModelType, ModelGuide>> = {
+  'wan3.0-video': {
+    modelKey: 'wan3.0-video',
+    tagline: () => m.model_guide_wan_tagline(),
+    goodAt: [() => m.model_guide_wan_good()],
+    chooseWhen: [() => m.model_guide_wan_choose()],
+    restrictions: [() => m.model_guide_wan_restrictions()],
+    billingRules: [() => m.model_guide_wan_billing()],
+    promptTips: [
+      () => m.model_guide_wan_tokens(),
+      () => m.model_guide_wan_directing(),
+      () => m.model_guide_wan_time(),
+    ],
+    examples: [
+      {
+        prompt: 'A fox runs through snow at dawn, slow tracking shot, warm sunlight',
+        mode: 't2v',
+        aspectRatio: '16:9',
+      },
+      {
+        prompt: 'Image 1 and Image 2 sit at a café table and talk, gentle camera push in',
+        mode: 'r2v',
+        aspectRatio: '16:9',
+      },
+    ],
+  },
   'grok-imagine-image': {
     modelKey: 'grok-imagine-image',
     tagline: () => m.model_guide_grok_imagine_image_tagline(),

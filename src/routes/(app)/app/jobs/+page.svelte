@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { isInFlight } from '$lib/utils/jobStatus';
+  import { ApiRequestError } from '$lib/api/errors';
+  import { addToast } from '$lib/stores/toasts';
   import { createQuery, createMutation, useQueryClient } from '@tanstack/svelte-query';
   import * as m from '$paraglide/messages';
   import { Inbox, RefreshCw } from '@lucide/svelte';
@@ -12,8 +15,6 @@
   import Spinner from '$lib/components/ui/Spinner.svelte';
 
   type UnifiedJobResponse = components['schemas']['UnifiedJobResponse'];
-
-  const NON_TERMINAL: components['schemas']['JobStatus'][] = ['pending', 'queued', 'running'];
 
   const queryClient = useQueryClient();
 
@@ -34,7 +35,7 @@
   let appTitle = $derived($appDisplayName);
 
   // ── Query — auto-refresh while any non-terminal job exists
-  const hasActiveJobs = $derived(accumulatedItems.some((j) => NON_TERMINAL.includes(j.status)));
+  const hasActiveJobs = $derived(accumulatedItems.some((j) => isInFlight(j.status)));
 
   const query = createQuery(() => ({
     ...jobsListQueryOptions(filters),
@@ -61,8 +62,23 @@
 
   function handleDelete(jobId: string) {
     // Optimistic removal
+    const index = accumulatedItems.findIndex((item) => item.id === jobId);
+    const removed = accumulatedItems[index];
     accumulatedItems = accumulatedItems.filter((j) => j.id !== jobId);
-    deleteMutation.mutate(jobId);
+    deleteMutation.mutate(jobId, {
+      onError: (err) => {
+        if (removed && !accumulatedItems.some((item) => item.id === jobId)) {
+          const restored = [...accumulatedItems];
+          restored.splice(Math.max(0, Math.min(index, restored.length)), 0, removed);
+          accumulatedItems = restored;
+        }
+        addToast({
+          type:
+            err instanceof ApiRequestError && err.error === 'job_in_progress' ? 'warning' : 'error',
+          message: err.message,
+        });
+      },
+    });
   }
 
   function handleFilterChange(newFilters: JobListFilters) {

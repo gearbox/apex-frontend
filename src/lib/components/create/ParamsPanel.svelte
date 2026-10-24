@@ -41,7 +41,7 @@
 </script>
 
 {#if isVideo}
-  <VideoParams {modelInfo} />
+  <VideoParams {modelInfo} {mode} />
 {:else}
   <div class="flex flex-col gap-3">
     {#if showAspectRatio}

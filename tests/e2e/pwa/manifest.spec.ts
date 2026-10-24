@@ -15,7 +15,9 @@ test.describe('production PWA shell @mobile-chrome', () => {
     page,
     context,
   }) => {
-    await page.goto('/');
+    // Use a stable public route: '/' redirects through the auth guard, which
+    // can interrupt the worker-control reload below.
+    await page.goto('/login');
 
     const manifest = await page.evaluate(async () => {
       const response = await fetch('/manifest.webmanifest');

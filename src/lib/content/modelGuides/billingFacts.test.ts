@@ -1,3 +1,4 @@
+import { makeWanModelInfo } from '../../../mocks/fixtures/wan';
 import { describe, expect, it } from 'vitest';
 import type { components } from '$lib/api/types';
 import { makeModelInfo, generationModes } from '../../../mocks/factories/providers';
@@ -8,6 +9,8 @@ type PricingRuleResponse = components['schemas']['PricingRuleResponse'];
 
 function rule(overrides: Partial<PricingRuleResponse> = {}): PricingRuleResponse {
   return {
+    per_second_token_cost: 0,
+    video_resolution: null,
     id: '00000000-0000-0000-0000-000000000001',
     provider: 'grok',
     generation_type: 't2i',
@@ -102,4 +105,34 @@ describe('deriveModelBillingFacts', () => {
 
     expect(facts.costs).toEqual([{ mode: 't2i', tokenCost: null, inputTokenCost: null }]);
   });
+});
+
+it('shows per-second resolution prices for Wan instead of zero base costs', () => {
+  const highResolutionRule = rule({
+    provider: 'alibaba',
+    model: 'wan3.0-video',
+    generation_type: 'r2v',
+    token_cost: 0,
+    per_second_token_cost: 8,
+    video_resolution: '1080p',
+  });
+  const lowResolutionRule = rule({
+    provider: 'alibaba',
+    model: 'wan3.0-video',
+    generation_type: 'r2v',
+    token_cost: 1,
+    per_second_token_cost: 4,
+    video_resolution: '480p',
+  });
+  const facts = deriveModelBillingFacts({
+    modelInfo: makeWanModelInfo(),
+    provider: 'alibaba',
+    provisioningMode: 'always_on',
+    nowMs: Date.parse('2026-02-15T00:00:00Z'),
+    pricing: [highResolutionRule, lowResolutionRule],
+  });
+  expect(facts.costs.find((cost) => cost.mode === 'r2v')?.resolutionRows).toEqual([
+    { resolution: '480p', rule: lowResolutionRule },
+    { resolution: '1080p', rule: highResolutionRule },
+  ]);
 });

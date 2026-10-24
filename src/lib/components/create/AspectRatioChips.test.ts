@@ -1,16 +1,19 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen } from '@testing-library/svelte';
+import { fireEvent, render, screen } from '@testing-library/svelte';
 import { get } from 'svelte/store';
 import { generationStore } from '$lib/stores/generation';
 import {
   makeGrokImageModelInfo,
   makeAishaImageModelInfo,
 } from '../../../mocks/factories/providers';
+import { makeWanModelInfo } from '../../../mocks/fixtures/wan';
 import AspectRatioChips from './AspectRatioChips.svelte';
 
 vi.mock('$paraglide/messages', () => ({
   create_aspect_auto: () => 'Auto (match source)',
   create_aspect_no_reshape: () => 'This model does not support aspect reshape (match source)',
+  library_meta_aspect_ratio: () => 'Aspect ratio',
+  video_aspect_auto: () => 'Auto',
 }));
 
 vi.mock('$paraglide/runtime', () => ({
@@ -79,5 +82,22 @@ describe('AspectRatioChips — i2i mode, confirmed capability list', () => {
     expect(screen.getAllByRole('button')).toHaveLength(8);
     expect(screen.getByText('Auto (match source)')).not.toBeNull();
     expect(screen.queryByText(/does not support/)).toBeNull();
+  });
+});
+
+describe('AspectRatioChips — video variant', () => {
+  it('shares the accessible chips and binds Auto/model ratios to videoAspectRatio', async () => {
+    render(AspectRatioChips, { modelInfo: makeWanModelInfo(), mode: 't2v', variant: 'video' });
+
+    const auto = screen.getByRole('button', { name: 'Auto' });
+    const ratio = screen.getByRole('button', { name: '16:9' });
+    expect(auto.getAttribute('aria-pressed')).toBe('true');
+    expect(ratio.getAttribute('aria-pressed')).toBe('false');
+    expect(ratio.className).toContain('focus-visible:outline-2');
+
+    await fireEvent.click(ratio);
+
+    expect(get(generationStore).videoAspectRatio).toBe('16:9');
+    expect(ratio.getAttribute('aria-pressed')).toBe('true');
   });
 });

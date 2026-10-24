@@ -9,6 +9,7 @@ import {
 } from './generation';
 
 const upload: SourceMediaDraft = {
+  media: null,
   assetRef: 'upload:11111111-1111-1111-1111-111111111111',
   mediaType: 'image',
   previewUrl: '/upload.png',
@@ -17,6 +18,7 @@ const upload: SourceMediaDraft = {
   role: null,
 };
 const output: SourceMediaDraft = {
+  media: null,
   assetRef: 'output:22222222-2222-2222-2222-222222222222',
   mediaType: 'image',
   previewUrl: '/output.png',

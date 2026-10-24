@@ -12,7 +12,11 @@
   } from '$lib/stores/generation';
   import { activeJobStore } from '$lib/stores/jobs';
   import { addToast } from '$lib/stores/toasts';
-  import { estimatePricingRuleCost, findPricingRule } from '$lib/utils/pricing';
+  import {
+    estimatePricingRuleCost,
+    findPricingRule,
+    billedSecondsForRequest,
+  } from '$lib/utils/pricing';
   import { createJobPoller } from '$lib/services/jobPoller';
   import { appDisplayName } from '$lib/stores/product';
   import { isAgeVerified, isAuthenticated, setUser } from '$lib/stores/auth';
@@ -62,7 +66,13 @@
   import { deriveModelBillingFacts } from '$lib/content/modelGuides/billingFacts';
   import type { ModelGuideExample } from '$lib/content/modelGuides/types';
   import ModelSummaryCard from '$lib/components/create/ModelSummaryCard.svelte';
-  import { isGenerationMode } from '$lib/utils/generationModes';
+  import {
+    videoLimits,
+    normalizeVideoParams,
+    videoParameterViolation,
+  } from '$lib/utils/videoParams';
+  import { r2vPromptViolation } from '$lib/utils/r2vTokens';
+  import { isGenerationMode, isVideoMode } from '$lib/utils/generationModes';
   import { libraryGroupQueryOptions } from '$lib/queries/library';
   import { resolveGenerationMode } from '$lib/utils/generationModeResolver';
   import { isSourceSectionVisible, toResolverSources } from '$lib/utils/sourceMediaAffordance';
@@ -258,6 +268,28 @@
   // Mirror the backend quote: a matching rule is priced against the exact
   // normalized request state that buildGeneratePayload will submit. No quote
   // is computed unless the mode is unambiguously resolved.
+  const limits = $derived(
+    videoLimits(currentModelInfo, effectiveMode, $generationStore.sourceMedia),
+  );
+  const normalizedVideo = $derived(
+    limits
+      ? normalizeVideoParams(
+          limits,
+          $generationStore.videoDuration,
+          $generationStore.videoResolution,
+        )
+      : null,
+  );
+  const billedSeconds = $derived(
+    billedSecondsForRequest(effectiveState, currentModelInfo, effectiveMode),
+  );
+  const parameterViolation = $derived(videoParameterViolation(effectiveState, currentModelInfo));
+  let promptInput = $state<{ insertAtCursor: (text: string) => Promise<void> }>();
+  const r2vViolation = $derived(
+    effectiveMode === 'r2v'
+      ? r2vPromptViolation($generationStore.prompt, $generationStore.sourceMedia.length)
+      : null,
+  );
   const currentPricingRule = $derived(
     pricingQuery.data && currentModelInfo && modeResolution.status === 'resolved'
       ? findPricingRule(
@@ -265,6 +297,7 @@
           currentModelInfo.provider,
           $generationStore.model,
           modeResolution.mode,
+          isVideoMode(effectiveMode) ? (normalizedVideo?.resolution ?? null) : null,
           pricingNowMs,
         )
       : null,
@@ -278,6 +311,7 @@
       ? estimatePricingRuleCost(currentPricingRule, {
           outputCount: currentOutputCount,
           inputImageCount: currentSourceMediaCount,
+          billedSeconds,
         })
       : null,
   );
@@ -292,13 +326,19 @@
       model: modelKey,
       mode: example.mode,
       prompt: example.prompt,
-      aspectRatio: example.aspectRatio,
+      ...(isVideoMode(example.mode)
+        ? { videoAspectRatio: example.aspectRatio }
+        : { aspectRatio: example.aspectRatio }),
     });
   }
 
   const sourceValidation = $derived(validateSourceMedia(effectiveState, currentModelInfo));
   const canSubmit = $derived(
-    generateEnabled && modeResolution.status === 'resolved' && sourceValidation.valid,
+    generateEnabled &&
+      modeResolution.status === 'resolved' &&
+      sourceValidation.valid &&
+      parameterViolation === null &&
+      r2vViolation === null,
   );
 
   // ── Age gate state
@@ -359,6 +399,10 @@
         type: 'warning',
         message: m.error_idempotency_conflict(),
       });
+    } else if (apiErr.error === 'price_not_found') {
+      addToast({ type: 'warning', message: m.video_not_priced() });
+    } else if (apiErr.error === 'provider_rate_limited') {
+      addToast({ type: 'warning', message: apiErr.message });
     } else if (apiErr.error === 'service_unavailable') {
       addToast({ type: 'warning', message: m.error_service_unavailable() });
     } else if (apiErr.error === 'moderation') {
@@ -439,6 +483,14 @@
 
     const state = effectiveState;
 
+    if (r2vViolation) {
+      addToast({ type: 'warning', message: r2vViolation });
+      return;
+    }
+    if (parameterViolation) {
+      addToast({ type: 'warning', message: parameterViolation });
+      return;
+    }
     if (!sourceValidation.valid) {
       addToast({
         type: 'error',
@@ -532,10 +584,18 @@
     />
 
     {#if showSourceMediaInput}
-      <SourceMediaInput modelInfo={currentModelInfo ?? null} />
+      <SourceMediaInput
+        modelInfo={currentModelInfo ?? null}
+        {effectiveMode}
+        oninserttoken={(token) => promptInput?.insertAtCursor(token)}
+      />
     {/if}
 
-    <PromptInput />
+    <PromptInput
+      bind:this={promptInput}
+      maxLength={currentModelInfo?.max_prompt_length}
+      warning={r2vViolation}
+    />
     {#if isGenerationParameterSupported(currentModelInfo, 'negative_prompt')}
       <NegativePromptInput />
     {/if}

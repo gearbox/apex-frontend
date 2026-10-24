@@ -12,7 +12,7 @@ function source(
   mediaType: string,
   role: MediaSlot | null = null,
 ): SourceMediaDraft {
-  return { assetRef, mediaType, previewUrl: null, label: null, available: true, role };
+  return { media: null, assetRef, mediaType, previewUrl: null, label: null, available: true, role };
 }
 
 describe('planRoleSelection — Aisha Video contract', () => {

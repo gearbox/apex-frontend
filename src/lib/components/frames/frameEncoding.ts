@@ -1,4 +1,4 @@
-export const MAX_FRAME_UPLOAD_BYTES = 20 * 1024 * 1024;
+import { MAX_UPLOAD_BYTES } from '$lib/utils/constants';
 
 export class FrameEncodingError extends Error {
   constructor(
@@ -24,7 +24,7 @@ export async function encodeFrame(canvas: HTMLCanvasElement): Promise<Blob> {
         );
       }
     });
-    if (blob?.type === type && blob.size <= MAX_FRAME_UPLOAD_BYTES) return blob;
+    if (blob?.type === type && blob.size <= MAX_UPLOAD_BYTES) return blob;
   }
   throw new FrameEncodingError('frame-too-large');
 }

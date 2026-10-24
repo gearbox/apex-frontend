@@ -183,6 +183,9 @@ export const adminHandlers = [
         generation_type: body.generation_type as string,
         model: (body.model as string | null) ?? null,
         token_cost: body.token_cost as number,
+        input_token_cost: (body.input_token_cost as number) ?? 0,
+        per_second_token_cost: (body.per_second_token_cost as number) ?? 0,
+        video_resolution: (body.video_resolution as string | null) ?? null,
         notes: (body.notes as string | null) ?? null,
       }),
       { status: 201 },
@@ -196,6 +199,8 @@ export const adminHandlers = [
       makePricingRule({
         id: params.ruleId as string,
         token_cost: (body.token_cost as number) ?? 10,
+        input_token_cost: (body.input_token_cost as number) ?? 0,
+        per_second_token_cost: (body.per_second_token_cost as number) ?? 0,
         is_active: (body.is_active as boolean) ?? true,
       }),
     );

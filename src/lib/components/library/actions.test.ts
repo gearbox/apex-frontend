@@ -114,7 +114,12 @@ describe('Re-Generate source-media replay', () => {
     await action?.();
     const sources = get(generationStore).sourceMedia;
     expect(sources).toHaveLength(2);
-    expect(sources[1]).toMatchObject({ assetRef: SOURCE_B, available: false, previewUrl: null });
+    expect(sources[1]).toMatchObject({
+      media: null,
+      assetRef: SOURCE_B,
+      available: false,
+      previewUrl: null,
+    });
   });
 
   it('prefills source actions with the canonical asset ref', async () => {

@@ -1,3 +1,4 @@
+import { makeGrokVideoModelInfo } from '../../../src/mocks/factories/providers';
 import { Buffer } from 'node:buffer';
 import type { Locator, Page } from '@playwright/test';
 import { test, expect } from '../fixtures/auth.fixture';
@@ -231,7 +232,7 @@ const mockProvidersResponse = {
           supports_negative_prompt: true,
           aspect_ratios: ['1:1', '16:9', '3:4'],
           image: null,
-          video: null,
+          video: makeGrokVideoModelInfo().video,
         },
       ],
     },
@@ -745,7 +746,13 @@ const mockProvidersWithAishaVideo = {
           aspect_ratios: ['1:1', '16:9'],
           requires_age_verification: false,
           image: null,
-          video: { max_duration: 10, resolutions: ['480p', '720p'] },
+          video: {
+            bills_input_video_seconds: false,
+            min_duration: 1,
+            supported_parameters: [],
+            max_duration: 10,
+            resolutions: ['480p', '720p'],
+          },
         },
       ],
     },
