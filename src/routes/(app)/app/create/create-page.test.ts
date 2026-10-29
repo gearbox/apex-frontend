@@ -836,7 +836,7 @@ it('shows the shared source-limit reason for an incompatible retained video', ()
   expect(generateButtons().every((button) => button.disabled)).toBe(true);
 });
 
-it('blocks an R2V prompt containing a removed-image marker until the user fixes it', async () => {
+it('keeps a removed-image marker blocking Generate after the last R2V source falls back to T2V', async () => {
   providersData = {
     providers: [
       {
@@ -849,10 +849,26 @@ it('blocks an R2V prompt containing a removed-image marker until the user fixes 
     ],
     user_context: null,
   };
+  pricingData = [
+    pricingRule({
+      id: '00000000-0000-0000-0000-000000000011',
+      provider: 'alibaba',
+      model: 'wan3.0-video',
+      generation_type: 'r2v',
+      token_cost: 10,
+    }),
+    pricingRule({
+      id: '00000000-0000-0000-0000-000000000012',
+      provider: 'alibaba',
+      model: 'wan3.0-video',
+      generation_type: 't2v',
+      token_cost: 20,
+    }),
+  ];
   generationStore.prefill({
     model: 'wan3.0-video',
     mode: 'r2v',
-    prompt: '[removed image] waves at Image 1',
+    prompt: 'Image 1 waves at sunset',
     sourceMedia: [
       {
         assetRef: 'upload:one',
@@ -868,11 +884,20 @@ it('blocks an R2V prompt containing a removed-image marker until the user fixes 
 
   render(Page);
   const prompt = screen.getByRole('textbox') as HTMLTextAreaElement;
-  expect(prompt.value).toBe('[removed image] waves at Image 1');
+  expect(prompt.value).toBe('Image 1 waves at sunset');
+  expect(screen.getByText('Est. ◈ 10 tokens')).not.toBeNull();
+  expect(generateButtons().every((button) => !button.disabled)).toBe(true);
+
+  await fireEvent.click(screen.getByRole('button', { name: 'Remove source media' }));
+
+  await waitFor(() => expect(prompt.value).toBe('[removed image] waves at sunset'));
+  // The price switches from the R2V rule to T2V, proving the resolver left
+  // R2V after its last source was removed.
+  expect(screen.getByText('Est. ◈ 20 tokens')).not.toBeNull();
   expect(screen.getByRole('alert').textContent).toContain('removed image');
   expect(generateButtons().every((button) => button.disabled)).toBe(true);
 
-  await fireEvent.input(prompt, { target: { value: 'A landscape waves at Image 1' } });
+  await fireEvent.input(prompt, { target: { value: 'A landscape waves at sunset' } });
 
   await waitFor(() => expect(generateButtons().every((button) => !button.disabled)).toBe(true));
   expect(screen.queryByRole('alert')).toBeNull();

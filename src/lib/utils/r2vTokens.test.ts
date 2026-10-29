@@ -3,7 +3,8 @@ import {
   REMOVED_IMAGE_MARKER,
   renumberAfterRemoval,
   outOfRangeImageTokens,
-  r2vPromptViolation,
+  outOfRangeR2vPromptViolation,
+  removedReferenceViolation,
   insertPromptToken,
 } from './r2vTokens';
 describe('R2V tokens', () => {
@@ -35,20 +36,22 @@ describe('R2V tokens', () => {
       'Image 3',
     ]));
   it('reports the removed-image marker', () =>
-    expect(r2vPromptViolation(`before ${REMOVED_IMAGE_MARKER} after`, 3)).toContain(
+    expect(removedReferenceViolation(`before ${REMOVED_IMAGE_MARKER} after`)).toContain(
       'removed image',
     ));
+  it('accepts prompts without a removed-image marker in any generation mode', () =>
+    expect(removedReferenceViolation('A landscape at sunset')).toBeNull());
   it.each([
     ['Image 1', 0],
     ['Image 3', 2],
   ])('blocks out-of-range prompt references: %s with %i sources', (prompt, count) =>
-    expect(r2vPromptViolation(prompt, count)).not.toBeNull(),
+    expect(outOfRangeR2vPromptViolation(prompt, count)).not.toBeNull(),
   );
   it.each([
     ['Image 1 meets Image 2', 2],
     ['A landscape', 0],
   ])('accepts valid prompts without missing references: %s', (prompt, count) =>
-    expect(r2vPromptViolation(prompt, count)).toBeNull(),
+    expect(outOfRangeR2vPromptViolation(prompt, count)).toBeNull(),
   );
   it.each([
     [0, 'Image 2 hello world'],

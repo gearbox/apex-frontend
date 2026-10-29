@@ -71,7 +71,7 @@
     normalizeVideoParams,
     videoParameterViolation,
   } from '$lib/utils/videoParams';
-  import { r2vPromptViolation } from '$lib/utils/r2vTokens';
+  import { outOfRangeR2vPromptViolation, removedReferenceViolation } from '$lib/utils/r2vTokens';
   import { isGenerationMode, isVideoMode } from '$lib/utils/generationModes';
   import { libraryGroupQueryOptions } from '$lib/queries/library';
   import { resolveGenerationMode } from '$lib/utils/generationModeResolver';
@@ -285,10 +285,11 @@
   );
   const parameterViolation = $derived(videoParameterViolation(effectiveState, currentModelInfo));
   let promptInput = $state<{ insertAtCursor: (text: string) => Promise<void> }>();
-  const r2vViolation = $derived(
-    effectiveMode === 'r2v'
-      ? r2vPromptViolation($generationStore.prompt, $generationStore.sourceMedia.length)
-      : null,
+  const promptViolation = $derived(
+    removedReferenceViolation($generationStore.prompt) ??
+      (effectiveMode === 'r2v'
+        ? outOfRangeR2vPromptViolation($generationStore.prompt, $generationStore.sourceMedia.length)
+        : null),
   );
   const currentPricingRule = $derived(
     pricingQuery.data && currentModelInfo && modeResolution.status === 'resolved'
@@ -338,7 +339,7 @@
       modeResolution.status === 'resolved' &&
       sourceValidation.valid &&
       parameterViolation === null &&
-      r2vViolation === null,
+      promptViolation === null,
   );
 
   // ── Age gate state
@@ -483,8 +484,8 @@
 
     const state = effectiveState;
 
-    if (r2vViolation) {
-      addToast({ type: 'warning', message: r2vViolation });
+    if (promptViolation) {
+      addToast({ type: 'warning', message: promptViolation });
       return;
     }
     if (parameterViolation) {
@@ -594,7 +595,7 @@
     <PromptInput
       bind:this={promptInput}
       maxLength={currentModelInfo?.max_prompt_length}
-      warning={r2vViolation}
+      warning={promptViolation}
     />
     {#if isGenerationParameterSupported(currentModelInfo, 'negative_prompt')}
       <NegativePromptInput />

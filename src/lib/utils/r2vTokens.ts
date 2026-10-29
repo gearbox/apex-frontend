@@ -20,8 +20,11 @@ export function outOfRangeImageTokens(prompt: string, count: number): string[] {
   ];
 }
 
-export function r2vPromptViolation(prompt: string, count: number): string | null {
-  if (prompt.includes(REMOVED_IMAGE_MARKER)) return m.r2v_removed_reference();
+export function removedReferenceViolation(prompt: string): string | null {
+  return prompt.includes(REMOVED_IMAGE_MARKER) ? m.r2v_removed_reference() : null;
+}
+
+export function outOfRangeR2vPromptViolation(prompt: string, count: number): string | null {
   if (outOfRangeImageTokens(prompt, count).length > 0) return m.r2v_missing_tokens();
   return null;
 }
