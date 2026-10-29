@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/svelte';
+import { cleanup, fireEvent, render, screen } from '@testing-library/svelte';
+import { makeWanModelInfo } from '../../../mocks/fixtures/wan';
 import {
   makeAishaImageModelInfo,
   makeModelInfo,
@@ -8,6 +9,7 @@ import {
 import type { components } from '$lib/api/types';
 import type { ModelBillingFacts } from '$lib/content/modelGuides/billingFacts';
 import type { ModelGuide } from '$lib/content/modelGuides/types';
+import { deriveModelBillingFacts } from '$lib/content/modelGuides/billingFacts';
 import ModelGuideSheet from './ModelGuideSheet.svelte';
 
 vi.mock('$paraglide/messages', () => ({
@@ -47,6 +49,7 @@ vi.mock('$paraglide/messages', () => ({
   }) => `◈ ${baseTokens} + ◈ ${inputTokens} per input image, per output`,
   model_guide_cost_unknown: () => 'Cost unavailable',
   model_guide_cost_loading: () => 'Loading price…',
+  model_guide_cost_not_priced: () => 'Not priced yet',
   model_guide_billed_by_session: () =>
     'GPU-session uptime is billed separately from generation prices.',
   model_guide_use_this_prompt: () => 'Use this prompt',
@@ -81,11 +84,44 @@ const guide: ModelGuide = {
 };
 
 const billingFacts = {
-  costs: [{ mode: 't2i' as const, tokenCost: 0, inputTokenCost: 0 }],
+  costs: [{ kind: 'flat' as const, mode: 't2i' as const, tokenCost: 0, inputTokenCost: 0 }],
   billedBySession: false,
 };
 
 type ModelInfo = components['schemas']['ModelInfo'];
+type PricingRuleResponse = components['schemas']['PricingRuleResponse'];
+
+function wanRule(
+  id: string,
+  resolution: PricingRuleResponse['video_resolution'],
+  tokenCost: number,
+  perSecondTokenCost = 0,
+): PricingRuleResponse {
+  return {
+    id,
+    provider: 'alibaba',
+    generation_type: 't2v',
+    model: 'wan3.0-video',
+    token_cost: tokenCost,
+    input_token_cost: 0,
+    per_second_token_cost: perSecondTokenCost,
+    video_resolution: resolution,
+    is_active: true,
+    effective_from: '2026-01-01T00:00:00Z',
+    effective_until: null,
+    notes: null,
+  };
+}
+
+function wanBillingFacts(pricing: PricingRuleResponse[]): ModelBillingFacts {
+  return deriveModelBillingFacts({
+    modelInfo: makeWanModelInfo({ generation_modes: generationModes(['t2v']) }),
+    provider: 'alibaba',
+    provisioningMode: 'always_on',
+    pricing,
+    nowMs: Date.parse('2026-02-15T00:00:00Z'),
+  });
+}
 
 function renderSheet(
   overrides: Partial<{
@@ -117,26 +153,12 @@ describe('ModelGuideSheet', () => {
       billingFacts: {
         costs: [
           {
+            kind: 'video',
             mode: 'r2v',
-            tokenCost: 1,
-            inputTokenCost: 0,
-            resolutionRows: [
+            groups: [
               {
-                resolution: '720p',
-                rule: {
-                  id: 'rule-1',
-                  provider: 'alibaba',
-                  generation_type: 'r2v',
-                  model: 'wan3.0-video',
-                  token_cost: 1,
-                  input_token_cost: 0,
-                  per_second_token_cost: 3,
-                  video_resolution: '720p',
-                  is_active: true,
-                  effective_from: '2026-01-01T00:00:00Z',
-                  effective_until: null,
-                  notes: null,
-                },
+                resolutions: ['720p'],
+                rule: wanRule('rule-1', '720p', 1, 3),
               },
             ],
           },
@@ -145,7 +167,68 @@ describe('ModelGuideSheet', () => {
       },
     });
 
-    expect(screen.getByText('1 ◈ + 3 ◈/s · 720p')).not.toBeNull();
+    expect(screen.getByText('720p: 1 ◈ + 3 ◈/s')).not.toBeNull();
+  });
+
+  it.each([
+    {
+      name: 'all-flat catalog',
+      pricing: [
+        wanRule('flat-480', '480p', 20),
+        wanRule('flat-720', '720p', 40),
+        wanRule('flat-1080', '1080p', 80),
+      ],
+      expected: ['480p: 20 ◈', '720p: 40 ◈', '1080p: 80 ◈'],
+    },
+    {
+      name: 'mixed flat and per-second catalog',
+      pricing: [
+        wanRule('flat-480', '480p', 20),
+        wanRule('second-720', '720p', 0, 3),
+        wanRule('second-1080', '1080p', 0, 6),
+      ],
+      expected: ['480p: 20 ◈', '720p: 3 ◈/s', '1080p: 6 ◈/s'],
+    },
+  ])('renders every advertised resolution from the $name', ({ pricing, expected }) => {
+    renderSheet({
+      modelInfo: makeWanModelInfo(),
+      billingFacts: wanBillingFacts(pricing),
+    });
+
+    for (const line of expected) expect(screen.getByText(line)).not.toBeNull();
+  });
+
+  it('renders a shared any-resolution rule as one line with every requested resolution', () => {
+    renderSheet({
+      modelInfo: makeWanModelInfo(),
+      billingFacts: wanBillingFacts([wanRule('any-resolution', null, 0, 3)]),
+    });
+
+    expect(screen.getByText('480p · 720p · 1080p: 3 ◈/s')).not.toBeNull();
+  });
+
+  it('shows an unpriced advertised resolution beside priced groups', () => {
+    renderSheet({
+      modelInfo: makeWanModelInfo(),
+      billingFacts: wanBillingFacts([
+        wanRule('priced-480', '480p', 20),
+        wanRule('priced-720', '720p', 40),
+      ]),
+    });
+
+    expect(screen.getByText('1080p: Not priced yet')).not.toBeNull();
+    expect(screen.queryByText('Cost unavailable')).toBeNull();
+  });
+
+  it('shows loading or unknown when none of the advertised video resolutions is priced', () => {
+    const facts = wanBillingFacts([]);
+    renderSheet({ modelInfo: makeWanModelInfo(), billingFacts: facts, pricingPending: true });
+    expect(screen.getByText('Loading price…')).not.toBeNull();
+    expect(screen.queryByText('480p · 720p · 1080p: Not priced yet')).toBeNull();
+
+    cleanup();
+    renderSheet({ modelInfo: makeWanModelInfo(), billingFacts: facts, pricingPending: false });
+    expect(screen.getByText('Cost unavailable')).not.toBeNull();
   });
 
   it('renders every guide section and pricing per output', () => {
@@ -168,7 +251,7 @@ describe('ModelGuideSheet', () => {
     renderSheet({
       guide: null,
       billingFacts: {
-        costs: [{ mode: 't2i', tokenCost: null, inputTokenCost: null }],
+        costs: [{ kind: 'flat', mode: 't2i', tokenCost: null, inputTokenCost: null }],
         billedBySession: true,
       },
     });
@@ -182,7 +265,7 @@ describe('ModelGuideSheet', () => {
   it('shows a loading price only while pricing is pending', () => {
     renderSheet({
       billingFacts: {
-        costs: [{ mode: 't2i', tokenCost: null, inputTokenCost: null }],
+        costs: [{ kind: 'flat', mode: 't2i', tokenCost: null, inputTokenCost: null }],
         billedBySession: false,
       },
       pricingPending: true,
@@ -307,7 +390,7 @@ describe('ModelGuideSheet', () => {
     renderSheet({
       modelInfo: makeAishaImageModelInfo({ generation_modes: generationModes(['i2i']) }),
       billingFacts: {
-        costs: [{ mode: 'i2i', tokenCost: 7, inputTokenCost: 2 }],
+        costs: [{ kind: 'flat', mode: 'i2i', tokenCost: 7, inputTokenCost: 2 }],
         billedBySession: false,
       },
     });

@@ -70,7 +70,7 @@ const guide: ModelGuide = {
 const baseProps = {
   guide,
   billingFacts: {
-    costs: [{ mode: 't2i' as const, tokenCost: 0, inputTokenCost: 0 }],
+    costs: [{ kind: 'flat' as const, mode: 't2i' as const, tokenCost: 0, inputTokenCost: 0 }],
     billedBySession: false,
   },
   pricingPending: false,

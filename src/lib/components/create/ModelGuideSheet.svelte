@@ -3,7 +3,7 @@
   import { X } from '@lucide/svelte';
   import * as m from '$paraglide/messages';
   import { formatNumber } from '$lib/utils/format';
-  import { formatPricingRule } from '$lib/utils/pricing';
+  import { formatPricingParts } from '$lib/utils/pricing';
   import { createSupportedModes } from '$lib/utils/generationModes';
   import { generationModeLabel } from '$lib/content/generationModeLabels';
   import { getEditAspectRatios, getT2iAspectRatios } from '$lib/utils/modelCapabilities';
@@ -225,10 +225,19 @@
                 <dd
                   class="min-w-0 whitespace-normal wrap-anywhere font-medium leading-relaxed text-text"
                 >
-                  {#if cost.resolutionRows?.length}
-                    {#each cost.resolutionRows as row (row.resolution)}
-                      <p>{formatPricingRule(row.rule)}</p>
-                    {/each}
+                  {#if cost.kind === 'video'}
+                    {#if cost.groups.some((group) => group.rule !== null)}
+                      {#each cost.groups as group (group.rule?.id ?? 'unpriced')}
+                        <p>
+                          {group.resolutions.join(' · ')}:
+                          {group.rule
+                            ? formatPricingParts(group.rule)
+                            : m.model_guide_cost_not_priced()}
+                        </p>
+                      {/each}
+                    {:else}
+                      {pricingPending ? m.model_guide_cost_loading() : m.model_guide_cost_unknown()}
+                    {/if}
                   {:else}
                     {cost.tokenCost === null || cost.inputTokenCost === null
                       ? pricingPending

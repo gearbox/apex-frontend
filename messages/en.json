@@ -571,6 +571,7 @@
   "model_guide_cost_with_input_per_output": "◈ {baseTokens} + ◈ {inputTokens} per input image, per output",
   "model_guide_cost_unknown": "Cost unavailable",
   "model_guide_cost_loading": "Loading price…",
+  "model_guide_cost_not_priced": "Not priced yet",
   "model_guide_billed_by_session": "GPU-session uptime is billed separately from generation prices.",
   "model_guide_session_billing_hint": "GPU session billed separately",
   "model_guide_use_this_prompt": "Use this prompt",

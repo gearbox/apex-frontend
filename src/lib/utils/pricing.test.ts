@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { components } from '$lib/api/types';
-import { estimatePricingRuleCost, findPricingRule, formatPricingRule, lookupCost } from './pricing';
+import {
+  estimatePricingRuleCost,
+  findPricingRule,
+  formatPricingParts,
+  formatPricingRule,
+  lookupCost,
+} from './pricing';
 
 type PricingRuleResponse = components['schemas']['PricingRuleResponse'];
 
@@ -51,6 +57,19 @@ describe('formatPricingRule', () => {
     expect(formatPricingRule(rule({ token_cost: 0, per_second_token_cost: 3 }))).toBe(
       '3 ◈/s · Any resolution',
     );
+  });
+
+  it('formats price components without adding a resolution label', () => {
+    expect(
+      formatPricingParts(
+        rule({
+          token_cost: 1,
+          input_token_cost: 2,
+          per_second_token_cost: 3,
+          video_resolution: '720p',
+        }),
+      ),
+    ).toBe('1 ◈ + 2 ◈/source + 3 ◈/s');
   });
 });
 

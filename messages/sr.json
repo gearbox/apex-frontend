@@ -571,6 +571,7 @@
   "model_guide_cost_with_input_per_output": "◈ {baseTokens} + ◈ {inputTokens} po ulaznoj slici, po rezultatu",
   "model_guide_cost_unknown": "Cena nije dostupna",
   "model_guide_cost_loading": "Učitavanje cene…",
+  "model_guide_cost_not_priced": "Cena još nije određena",
   "model_guide_billed_by_session": "Vreme rada GPU sesije naplaćuje se odvojeno od cena generisanja.",
   "model_guide_session_billing_hint": "GPU sesija se naplaćuje odvojeno",
   "model_guide_use_this_prompt": "Upotrebite ovaj prompt",

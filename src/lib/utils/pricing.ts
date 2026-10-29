@@ -13,7 +13,7 @@ type PricingRuleDisplay = Pick<
 >;
 
 /** Formats every non-zero component of a pricing rule in a stable order. */
-export function formatPricingRule(rule: PricingRuleDisplay): string {
+export function formatPricingParts(rule: PricingRuleDisplay): string {
   const parts: string[] = [];
   if (rule.token_cost > 0) {
     parts.push(m.pricing_part_flat({ tokens: formatNumber(rule.token_cost) }));
@@ -27,9 +27,14 @@ export function formatPricingRule(rule: PricingRuleDisplay): string {
   if (parts.length === 0)
     parts.push(m.pricing_part_flat({ tokens: formatNumber(rule.token_cost) }));
 
+  return parts.map((part, index) => (index > 0 ? `+ ${part}` : part)).join(' ');
+}
+
+export function formatPricingRule(rule: PricingRuleDisplay): string {
+  const parts = formatPricingParts(rule);
   const resolution =
     rule.video_resolution ?? (rule.per_second_token_cost > 0 ? m.pricing_any_resolution() : null);
-  return `${parts.map((part, index) => (index > 0 ? `+ ${part}` : part)).join(' ')}${resolution ? ` · ${resolution}` : ''}`;
+  return `${parts}${resolution ? ` · ${resolution}` : ''}`;
 }
 
 /** Mirrors the backend's active-window predicate for cached pricing data. */
