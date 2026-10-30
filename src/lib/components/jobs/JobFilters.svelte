@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { generationTypeValues } from '$lib/api/types';
+  import { isVideoMode } from '$lib/utils/generationModes';
   import type { JobListFilters } from '$lib/queries/jobs';
   import type { components } from '$lib/api/types';
 
@@ -22,7 +24,7 @@
   const typeOptions: { label: string; value: GenerationType[] | null }[] = [
     { label: 'All types', value: null },
     { label: 'Images', value: ['t2i', 'i2i'] },
-    { label: 'Video', value: ['t2v', 'i2v', 'v2v'] },
+    { label: 'Video', value: generationTypeValues.filter(isVideoMode) },
   ];
 
   function isTypeActive(optValue: GenerationType[] | null): boolean {

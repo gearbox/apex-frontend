@@ -11,10 +11,12 @@ import type { GenerationState, SourceMediaDraft } from '$lib/stores/generation';
 import {
   makeAishaVideoModelInfo,
   makeGrokImageModelInfo,
+  makeGrokVideoModelInfo,
   generationModes,
 } from '../../mocks/factories/providers';
 
 const upload: SourceMediaDraft = {
+  media: null,
   assetRef: 'upload:11111111-1111-1111-1111-111111111111',
   mediaType: 'image',
   previewUrl: '/upload.png',
@@ -23,6 +25,7 @@ const upload: SourceMediaDraft = {
   role: null,
 };
 const output: SourceMediaDraft = {
+  media: null,
   assetRef: 'output:22222222-2222-2222-2222-222222222222',
   mediaType: 'image',
   previewUrl: '/output.png',
@@ -31,6 +34,7 @@ const output: SourceMediaDraft = {
   role: null,
 };
 const video: SourceMediaDraft = {
+  media: null,
   assetRef: 'upload:33333333-3333-3333-3333-333333333333',
   mediaType: 'video',
   previewUrl: '/video.png',
@@ -50,6 +54,10 @@ const baseState: GenerationState = {
   imageCount: 3,
   videoDuration: 5,
   videoResolution: '720p',
+  videoAspectRatio: null,
+  audio: null,
+  promptExtend: null,
+  videoSeed: null,
   sizingMode: 'tier',
   imageTier: 'high',
   customWidth: null,
@@ -69,6 +77,7 @@ const baseState: GenerationState = {
 function model(overrides: Parameters<typeof makeGrokImageModelInfo>[0] = {}) {
   return makeGrokImageModelInfo({
     max_images: 4,
+    video: makeGrokVideoModelInfo().video,
     unsupported_parameters: [],
     generation_modes: generationModes(['t2i', 'i2i', 'v2v'], {
       i2i: { min: 1, max: 3, media_types: ['image'], roles: null },
@@ -381,7 +390,7 @@ describe('general payload normalization regressions', () => {
     ).toMatchObject({ aspect_ratio: '16:9' });
     expect(
       buildGeneratePayload({ ...baseState, mode: 't2v', editAspectRatio: '16:9' }, model()),
-    ).toMatchObject({ aspect_ratio: '1:1' });
+    ).not.toHaveProperty('aspect_ratio');
   });
 });
 

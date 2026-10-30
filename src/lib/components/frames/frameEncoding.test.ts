@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { encodeFrame, MAX_FRAME_UPLOAD_BYTES, frameFilename } from './frameEncoding';
+import { MAX_UPLOAD_BYTES } from '$lib/utils/constants';
+import { encodeFrame, frameFilename } from './frameEncoding';
 function canvas(results: { type: string; size: number }[]) {
   const toBlob = vi.fn((callback: BlobCallback) => {
     const result = results.shift()!;
@@ -10,14 +11,14 @@ function canvas(results: { type: string; size: number }[]) {
 describe('full frame encoding', () => {
   it('prefers PNG within the inclusive budget', async () => {
     expect(
-      await encodeFrame(canvas([{ type: 'image/png', size: MAX_FRAME_UPLOAD_BYTES }])),
+      await encodeFrame(canvas([{ type: 'image/png', size: MAX_UPLOAD_BYTES }])),
     ).toMatchObject({ type: 'image/png' });
   });
   it('falls back to WebP when PNG is too large', async () => {
     expect(
       await encodeFrame(
         canvas([
-          { type: 'image/png', size: MAX_FRAME_UPLOAD_BYTES + 1 },
+          { type: 'image/png', size: MAX_UPLOAD_BYTES + 1 },
           { type: 'image/webp', size: 10 },
         ]),
       ),
@@ -27,7 +28,7 @@ describe('full frame encoding', () => {
     expect(
       await encodeFrame(
         canvas([
-          { type: 'image/png', size: MAX_FRAME_UPLOAD_BYTES + 1 },
+          { type: 'image/png', size: MAX_UPLOAD_BYTES + 1 },
           { type: 'image/png', size: 10 },
           { type: 'image/jpeg', size: 10 },
         ]),
@@ -40,7 +41,7 @@ describe('full frame encoding', () => {
         canvas(
           ['image/png', 'image/webp', 'image/jpeg'].map((type) => ({
             type,
-            size: MAX_FRAME_UPLOAD_BYTES + 1,
+            size: MAX_UPLOAD_BYTES + 1,
           })),
         ),
       ),

@@ -41,6 +41,38 @@ beforeEach(() => {
 });
 
 describe('PricingRuleModal', () => {
+  it('defaults flat cost to 1 for image modes and 0 for video modes', async () => {
+    render(PricingRuleModal, {
+      props: { queryClient: fakeQueryClient, onclose: vi.fn() },
+    });
+
+    const flatCost = screen.getByLabelText('Flat cost per job') as HTMLInputElement;
+    expect(flatCost.value).toBe('1');
+
+    await fireEvent.change(screen.getByLabelText('Generation Type'), {
+      target: { value: 'r2v' },
+    });
+
+    expect(flatCost.value).toBe('0');
+  });
+
+  it('preserves an edited flat cost when switching generation modes', async () => {
+    render(PricingRuleModal, {
+      props: { queryClient: fakeQueryClient, onclose: vi.fn() },
+    });
+
+    const flatCost = screen.getByLabelText('Flat cost per job') as HTMLInputElement;
+    await fireEvent.change(screen.getByLabelText('Generation Type'), {
+      target: { value: 'r2v' },
+    });
+    await fireEvent.input(flatCost, { target: { value: '5' } });
+    await fireEvent.change(screen.getByLabelText('Generation Type'), {
+      target: { value: 'i2i' },
+    });
+
+    expect(flatCost.value).toBe('5');
+  });
+
   it('populates provider options from mocked models, deduplicated and sorted', () => {
     render(PricingRuleModal, {
       props: { queryClient: fakeQueryClient, onclose: vi.fn() },

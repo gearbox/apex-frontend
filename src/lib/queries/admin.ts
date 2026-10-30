@@ -184,7 +184,8 @@ export function createPricingRuleMutationOptions(queryClient: QueryClient) {
   return {
     mutationFn: (body: CreatePricingRuleRequest) => createPricingRule(body),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: adminKeys.pricing() });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'pricing'] });
+      queryClient.invalidateQueries({ queryKey: billingKeys.pricing() });
     },
   };
 }
@@ -194,7 +195,8 @@ export function patchPricingRuleMutationOptions(queryClient: QueryClient) {
     mutationFn: ({ ruleId, body }: { ruleId: string; body: PatchPricingRuleRequest }) =>
       patchPricingRule(ruleId, body),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: adminKeys.pricing() });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'pricing'] });
+      queryClient.invalidateQueries({ queryKey: billingKeys.pricing() });
     },
   };
 }
@@ -203,7 +205,8 @@ export function deletePricingRuleMutationOptions(queryClient: QueryClient) {
   return {
     mutationFn: (ruleId: string) => deletePricingRule(ruleId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: adminKeys.pricing() });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'pricing'] });
+      queryClient.invalidateQueries({ queryKey: billingKeys.pricing() });
     },
   };
 }

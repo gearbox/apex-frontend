@@ -18,6 +18,7 @@ type MediaSlot = components['schemas']['MediaSlot'];
  * has to infer whether an ID came from an upload or a prior output.
  */
 export interface SourceMediaDraft {
+  media: components['schemas']['MediaOriginal'] | null;
   assetRef: string;
   mediaType: MediaKind | string | null;
   previewUrl: string | null;
@@ -45,11 +46,15 @@ export interface GenerationState {
   sourceMedia: SourceMediaDraft[];
 
   // Parameters
-  aspectRatio: AspectRatio; // t2i / video default aspect
+  aspectRatio: AspectRatio; // t2i aspect
   editAspectRatio: AspectRatio | null; // i2i aspect; null = Auto (match source)
   imageCount: number;
   videoDuration: number;
-  videoResolution: '480p' | '720p';
+  videoResolution: components['schemas']['VideoResolution'];
+  videoAspectRatio: AspectRatio | null;
+  audio: boolean | null;
+  promptExtend: boolean | null;
+  videoSeed: number | null;
 
   // Workflow image sizing (image_resolution XOR width+height)
   sizingMode: 'tier' | 'custom';
@@ -87,6 +92,10 @@ function createGenerationStore() {
     imageCount: 1,
     videoDuration: 5,
     videoResolution: '720p',
+    videoAspectRatio: null,
+    audio: null,
+    promptExtend: null,
+    videoSeed: null,
     sizingMode: 'tier',
     imageTier: null,
     customWidth: null,
@@ -115,6 +124,9 @@ function createGenerationStore() {
         activeJobId: null,
         jobStatus: null,
         completedJob: null,
+        audio: null,
+        promptExtend: null,
+        videoSeed: null,
         sizingMode: 'tier',
         imageTier: null,
         customWidth: null,
@@ -126,6 +138,7 @@ function createGenerationStore() {
         scheduler: null,
         denoise: null,
         editAspectRatio: null,
+        videoAspectRatio: null,
       }));
     },
 
@@ -137,6 +150,7 @@ function createGenerationStore() {
         jobStatus: null,
         completedJob: null,
         editAspectRatio: null,
+        videoAspectRatio: null,
       }));
     },
 
@@ -212,11 +226,24 @@ function createGenerationStore() {
     },
 
     setVideoDuration(videoDuration: number) {
-      update((s) => ({ ...s, videoDuration: Math.max(1, Math.min(15, videoDuration)) }));
+      update((s) => ({ ...s, videoDuration }));
     },
 
-    setVideoResolution(videoResolution: '480p' | '720p') {
+    setVideoResolution(videoResolution: components['schemas']['VideoResolution']) {
       update((s) => ({ ...s, videoResolution }));
+    },
+
+    setVideoAspectRatio(videoAspectRatio: AspectRatio | null) {
+      update((s) => ({ ...s, videoAspectRatio }));
+    },
+    setAudio(audio: boolean | null) {
+      update((s) => ({ ...s, audio }));
+    },
+    setPromptExtend(promptExtend: boolean | null) {
+      update((s) => ({ ...s, promptExtend }));
+    },
+    setVideoSeed(videoSeed: number | null) {
+      update((s) => ({ ...s, videoSeed }));
     },
 
     setSizingMode(sizingMode: 'tier' | 'custom') {
@@ -321,6 +348,10 @@ function createGenerationStore() {
         jobStatus: null,
         completedJob: null,
         progress: null,
+        videoAspectRatio: params.videoAspectRatio ?? null,
+        audio: params.audio ?? null,
+        promptExtend: params.promptExtend ?? null,
+        videoSeed: params.videoSeed ?? null,
         // Reset i2i aspect to Auto unless explicitly provided in params
         editAspectRatio: params.editAspectRatio !== undefined ? params.editAspectRatio : null,
       }));
@@ -374,6 +405,10 @@ export function generationDraftFingerprint(state: GenerationState): string {
     imageCount: state.imageCount,
     videoDuration: state.videoDuration,
     videoResolution: state.videoResolution,
+    videoAspectRatio: state.videoAspectRatio,
+    audio: state.audio,
+    promptExtend: state.promptExtend,
+    videoSeed: state.videoSeed,
     sizingMode: state.sizingMode,
     imageTier: state.imageTier,
     customWidth: state.customWidth,

@@ -15,6 +15,7 @@ import {
   resolveModelForMode,
   resolveModelForRole,
   soleAdvertisedRole,
+  isVideoMode,
 } from '$lib/utils/generationModes';
 import {
   getEditAspectRatios,
@@ -132,6 +133,7 @@ export function sourceMediaDraft(
 ): SourceMediaDraft {
   return {
     assetRef,
+    media: media.original,
     mediaType: media.media_type,
     previewUrl: mediaFallbackSrc(media, 512),
     label,
@@ -284,8 +286,17 @@ function aspectRatioPrefill(
   mode: GenerationMode,
   model: ModelType,
   providers: ProvidersResponse | null | undefined,
-): Pick<GenerationState, 'aspectRatio'> | Pick<GenerationState, 'editAspectRatio'> | undefined {
+):
+  | Pick<GenerationState, 'aspectRatio'>
+  | Pick<GenerationState, 'editAspectRatio'>
+  | Pick<GenerationState, 'videoAspectRatio'>
+  | undefined {
   if (!aspectRatio) return undefined;
+  if (isVideoMode(mode)) {
+    return (KNOWN_ASPECT_RATIOS as readonly string[]).includes(aspectRatio)
+      ? { videoAspectRatio: aspectRatio as AspectRatio }
+      : undefined;
+  }
   if (mode === 'i2i') {
     return (getEditAspectRatios(findModelInfo(providers, model)) as readonly string[]).includes(
       aspectRatio,
@@ -319,6 +330,7 @@ export function replayGenerationPrefill(
     .sort((a, b) => a.position - b.position)
     .map<SourceMediaDraft>((item) => ({
       assetRef: item.asset_ref,
+      media: item.media?.original ?? null,
       mediaType: item.media?.media_type ?? null,
       previewUrl: item.media ? mediaFallbackSrc(item.media, 512) : null,
       label: sourceMediaLabel(item.asset_ref),

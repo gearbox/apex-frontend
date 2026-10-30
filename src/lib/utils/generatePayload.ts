@@ -1,7 +1,9 @@
 import type { components } from '$lib/api/types';
 import type { GenerationState, SourceMediaDraft } from '$lib/stores/generation';
 import { isGenerationParameterSupported, sourceMediaPolicy } from '$lib/utils/modelCapabilities';
-import { normalizeVideoParams } from '$lib/utils/videoParams';
+import { isVideoMode } from '$lib/utils/generationModes';
+import { sourceMediaLimitViolation } from '$lib/utils/sourceLimits';
+import { normalizeVideoParams, videoLimits, videoParameterViolation } from '$lib/utils/videoParams';
 import { isMediaSlot, mediaKindForSlot, roleLabel, type MediaSlot } from '$lib/utils/mediaSlots';
 import * as m from '$paraglide/messages';
 
@@ -129,6 +131,10 @@ export function validateSourceMedia(
       message: `This generation type needs at least ${policy.min} source item${policy.min === 1 ? '' : 's'}.`,
     };
   }
+  for (const source of state.sourceMedia) {
+    const violation = sourceMediaLimitViolation(source, modelInfo, state.mode, state.sourceMedia);
+    if (violation) return { valid: false, message: violation };
+  }
   return { valid: true, message: null };
 }
 
@@ -218,7 +224,7 @@ export function buildGeneratePayload(
   state: GenerationState,
   modelInfo: ModelInfo | null,
 ): UnifiedGenerationRequest {
-  const videoParams = normalizeVideoParams(modelInfo, state.videoDuration, state.videoResolution);
+  const video = isVideoMode(state.mode);
   const sourceMedia = sourceMediaForRequest(state, modelInfo);
 
   const payload: UnifiedGenerationRequest = {
@@ -226,10 +232,9 @@ export function buildGeneratePayload(
     generation_type: state.mode as UnifiedGenerationRequest['generation_type'],
     model: state.model,
     n: outputCountForRequest(state, modelInfo),
-    duration: videoParams.duration,
-    resolution: videoParams.resolution,
+    duration: state.videoDuration,
     ...(sourceMedia !== undefined ? { source_media: sourceMedia } : {}),
-    ...(isGenerationParameterSupported(modelInfo, 'aspect_ratio')
+    ...(!video && isGenerationParameterSupported(modelInfo, 'aspect_ratio')
       ? state.mode === 'i2i'
         ? state.editAspectRatio !== null
           ? { aspect_ratio: state.editAspectRatio }
@@ -241,6 +246,27 @@ export function buildGeneratePayload(
       ? { negative_prompt: state.negativePrompt.trim() }
       : {}),
   };
+
+  if (video) {
+    const violation = videoParameterViolation(state, modelInfo);
+    if (violation) throw new Error(violation);
+    const limits = videoLimits(modelInfo, state.mode, state.sourceMedia)!;
+    const normalized = normalizeVideoParams(limits, state.videoDuration, state.videoResolution);
+    payload.duration = normalized.duration;
+    payload.resolution = normalized.resolution;
+    if (
+      !limits.anchoredModes.has(state.mode) &&
+      state.videoAspectRatio !== null &&
+      modelInfo?.aspect_ratios.includes(state.videoAspectRatio)
+    ) {
+      payload.aspect_ratio = state.videoAspectRatio;
+    }
+    if (limits.supported.has('audio') && state.audio !== null) payload.audio = state.audio;
+    if (limits.supported.has('prompt_extend') && state.promptExtend !== null)
+      payload.prompt_extend = state.promptExtend;
+    if (modelInfo?.seed_range && state.videoSeed !== null) payload.seed = state.videoSeed;
+    return payload;
+  }
 
   if (
     isGenerationParameterSupported(modelInfo, 'image_resolution') &&

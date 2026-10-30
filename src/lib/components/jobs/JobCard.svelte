@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { isInFlight } from '$lib/utils/jobStatus';
   import { goto } from '$app/navigation';
   import { MoreHorizontal } from '@lucide/svelte';
   import { timeAgo } from '$lib/utils/format';
@@ -93,7 +94,7 @@
         >
           View details
         </button>
-        {#if onDelete}
+        {#if onDelete && !isInFlight(job.status)}
           <button
             onclick={(e) => {
               e.preventDefault();

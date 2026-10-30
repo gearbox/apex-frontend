@@ -308,7 +308,7 @@ When the backend API changes:
 curl http://localhost:8000/docs/openapi.json > src/lib/api/schema.json
 
 # 2. Regenerate TypeScript types
-npx openapi-typescript src/lib/api/schema.json -o src/lib/api/types.ts
+pnpm gen:api                 # also emits generated enum-value arrays
 
 # 3. Verify — any breaking changes will surface as TS errors
 pnpm check
@@ -639,3 +639,33 @@ are retained across batch retries. Native decode support is required; unsupporte
 open the existing feedback dialog with their asset attached. There is no server extraction fallback.
 See `docs/contracts/video-frame-extraction-fe-contract.md` for the canonical backend contract
 and its real-device staging acceptance record; Android standalone PWA remains the open pre-launch gate.
+
+## Video parameters (discovery-driven)
+
+Create uses `videoLimits` over live discovery, the resolved mode, and source metadata.
+Video aspect ratio, audio, prompt expansion and bounded seed have separate draft fields;
+anchored modes omit the ratio and unsupported/null parameters are omitted. See the canonical
+[Wan video contract](https://github.com/gearbox/apex/blob/master/docs/contracts/wan-video-contract.md).
+
+## Source limits
+
+Picker items and draft submission share `sourceMediaLimitViolation`. New uploads also preflight the
+shared 20 MiB `MAX_UPLOAD_BYTES` app cap, which mirrors the backend `MAX_UPLOAD_SIZE_MB` setting;
+keep them in sync until the backend publishes the limit. The effective file limit is the lower of
+the app cap and the model's advertised cap. Source snapshots retain `MediaOriginal`; unavailable
+sources take precedence over limits and missing metadata defers to the backend. Discovery owns
+model limits: [contract](https://github.com/gearbox/apex/blob/master/docs/contracts/wan-video-contract.md).
+
+## R2V prompt tokens
+
+Reference chips insert exact `Image N` tokens at the remembered cursor. Generic-row removal
+replaces references to that row with `[removed image]` and renumbers subsequent exact tokens.
+Removed markers and out-of-range references block Generate until the prompt is fixed. There is no
+reorder or Library R2V entry. See the
+[contract](https://github.com/gearbox/apex/blob/master/docs/contracts/wan-video-contract.md).
+
+## In-flight jobs
+
+`isInFlight` classifies pending, queued and running jobs. They offer no Delete action.
+Every failed optimistic deletion restores the row; `job_in_progress` displays the backend
+message as a warning. See the [contract](https://github.com/gearbox/apex/blob/master/docs/contracts/wan-video-contract.md).

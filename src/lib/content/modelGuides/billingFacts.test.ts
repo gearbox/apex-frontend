@@ -1,3 +1,4 @@
+import { makeWanModelInfo } from '../../../mocks/fixtures/wan';
 import { describe, expect, it } from 'vitest';
 import type { components } from '$lib/api/types';
 import { makeModelInfo, generationModes } from '../../../mocks/factories/providers';
@@ -8,6 +9,8 @@ type PricingRuleResponse = components['schemas']['PricingRuleResponse'];
 
 function rule(overrides: Partial<PricingRuleResponse> = {}): PricingRuleResponse {
   return {
+    per_second_token_cost: 0,
+    video_resolution: null,
     id: '00000000-0000-0000-0000-000000000001',
     provider: 'grok',
     generation_type: 't2i',
@@ -52,10 +55,10 @@ describe('deriveModelBillingFacts', () => {
     });
 
     expect(facts.costs).toEqual([
-      { mode: 't2v', tokenCost: 6, inputTokenCost: 0 },
-      { mode: 'not-a-mode', tokenCost: null, inputTokenCost: null },
-      { mode: 'i2i', tokenCost: null, inputTokenCost: null },
-      { mode: 't2i', tokenCost: 4, inputTokenCost: 1 },
+      { kind: 'flat', mode: 't2v', tokenCost: 6, inputTokenCost: 0 },
+      { kind: 'flat', mode: 'not-a-mode', tokenCost: null, inputTokenCost: null },
+      { kind: 'flat', mode: 'i2i', tokenCost: null, inputTokenCost: null },
+      { kind: 'flat', mode: 't2i', tokenCost: 4, inputTokenCost: 1 },
     ]);
     expect(facts.billedBySession).toBe(false);
   });
@@ -71,8 +74,8 @@ describe('deriveModelBillingFacts', () => {
     });
 
     expect(facts.costs).toEqual([
-      { mode: 't2i', tokenCost: 0, inputTokenCost: 0 },
-      { mode: 'i2i', tokenCost: null, inputTokenCost: null },
+      { kind: 'flat', mode: 't2i', tokenCost: 0, inputTokenCost: 0 },
+      { kind: 'flat', mode: 'i2i', tokenCost: null, inputTokenCost: null },
     ]);
     expect(facts.billedBySession).toBe(true);
   });
@@ -100,6 +103,140 @@ describe('deriveModelBillingFacts', () => {
       nowMs: Date.parse('2026-02-15T00:00:00Z'),
     });
 
-    expect(facts.costs).toEqual([{ mode: 't2i', tokenCost: null, inputTokenCost: null }]);
+    expect(facts.costs).toEqual([
+      { kind: 'flat', mode: 't2i', tokenCost: null, inputTokenCost: null },
+    ]);
+  });
+});
+
+const wanRule = (
+  id: string,
+  resolution: PricingRuleResponse['video_resolution'],
+  tokenCost: number,
+  perSecondTokenCost = 0,
+) =>
+  rule({
+    id,
+    provider: 'alibaba',
+    model: 'wan3.0-video',
+    generation_type: 't2v',
+    token_cost: tokenCost,
+    per_second_token_cost: perSecondTokenCost,
+    video_resolution: resolution,
+  });
+
+function wanVideoPricing(pricing: PricingRuleResponse[]) {
+  const facts = deriveModelBillingFacts({
+    modelInfo: makeWanModelInfo({ generation_modes: generationModes(['t2v']) }),
+    provider: 'alibaba',
+    provisioningMode: 'always_on',
+    nowMs: Date.parse('2026-02-15T00:00:00Z'),
+    pricing,
+  });
+  return facts.costs[0];
+}
+
+describe('Wan video resolution pricing groups', () => {
+  it('keeps all flat-only per-resolution rules in generated resolution order', () => {
+    const rules = [
+      wanRule('flat-480', '480p', 20),
+      wanRule('flat-720', '720p', 40),
+      wanRule('flat-1080', '1080p', 80),
+    ];
+
+    expect(wanVideoPricing(rules)).toEqual({
+      kind: 'video',
+      mode: 't2v',
+      groups: [
+        { resolutions: ['480p'], rule: rules[0] },
+        { resolutions: ['720p'], rule: rules[1] },
+        { resolutions: ['1080p'], rule: rules[2] },
+      ],
+    });
+  });
+
+  it('keeps flat and per-second resolutions together in a mixed catalog', () => {
+    const rules = [
+      wanRule('flat-480', '480p', 20),
+      wanRule('second-720', '720p', 0, 3),
+      wanRule('second-1080', '1080p', 0, 6),
+    ];
+
+    expect(wanVideoPricing(rules)).toMatchObject({
+      kind: 'video',
+      groups: [
+        { resolutions: ['480p'], rule: rules[0] },
+        { resolutions: ['720p'], rule: rules[1] },
+        { resolutions: ['1080p'], rule: rules[2] },
+      ],
+    });
+  });
+
+  it('groups resolutions that resolve to the same any-resolution rule', () => {
+    const anyResolution = wanRule('any-resolution', null, 0, 3);
+
+    expect(wanVideoPricing([anyResolution])).toEqual({
+      kind: 'video',
+      mode: 't2v',
+      groups: [{ resolutions: ['480p', '720p', '1080p'], rule: anyResolution }],
+    });
+  });
+
+  it('groups shared rules by id and keeps a more specific rule separate', () => {
+    const sharedRule = wanRule('shared', null, 2, 3);
+    const specificRule = wanRule('specific-1080', '1080p', 4, 6);
+
+    expect(wanVideoPricing([sharedRule, specificRule])).toEqual({
+      kind: 'video',
+      mode: 't2v',
+      groups: [
+        { resolutions: ['480p', '720p'], rule: sharedRule },
+        { resolutions: ['1080p'], rule: specificRule },
+      ],
+    });
+  });
+
+  it('puts advertised resolutions without prices in one final group', () => {
+    const rules = [wanRule('priced-480', '480p', 20), wanRule('priced-720', '720p', 40)];
+
+    expect(wanVideoPricing(rules)).toMatchObject({
+      kind: 'video',
+      groups: [
+        { resolutions: ['480p'], rule: rules[0] },
+        { resolutions: ['720p'], rule: rules[1] },
+        { resolutions: ['1080p'], rule: null },
+      ],
+    });
+  });
+
+  it('retains every resolution as unpriced when the catalog has no matching rules', () => {
+    expect(wanVideoPricing([])).toEqual({
+      kind: 'video',
+      mode: 't2v',
+      groups: [{ resolutions: ['480p', '720p', '1080p'], rule: null }],
+    });
+  });
+
+  it('keeps image-mode flat pricing unchanged', () => {
+    const imageModel = makeModelInfo({
+      generation_modes: generationModes(['t2i']),
+      model_key: 'grok-imagine-image',
+    });
+    const imageRule = rule({
+      provider: 'grok',
+      generation_type: 't2i',
+      model: 'grok-imagine-image',
+      token_cost: 4,
+      input_token_cost: 1,
+    });
+    const facts = deriveModelBillingFacts({
+      modelInfo: imageModel,
+      provider: 'grok',
+      provisioningMode: 'always_on',
+      pricing: [imageRule],
+      nowMs: Date.parse('2026-02-15T00:00:00Z'),
+    });
+
+    expect(facts.costs).toEqual([{ kind: 'flat', mode: 't2i', tokenCost: 4, inputTokenCost: 1 }]);
   });
 });

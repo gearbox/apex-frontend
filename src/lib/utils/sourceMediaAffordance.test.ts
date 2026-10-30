@@ -36,6 +36,7 @@ function video(assetRef: string, role: MediaSlot | null = null): ResolverSource 
 
 function sourceDraft(source: ResolverSource, label: string | null = null): SourceMediaDraft {
   return {
+    media: null,
     assetRef: source.assetRef,
     mediaType: source.mediaType,
     previewUrl: null,
@@ -53,6 +54,7 @@ describe('isSourceSectionVisible', () => {
   it('2. shows for a t2i-only model with a retained draft', () => {
     const draft = [
       {
+        media: null,
         assetRef: 'upload:1',
         mediaType: 'image',
         previewUrl: null,

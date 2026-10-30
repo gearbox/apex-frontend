@@ -10,6 +10,7 @@ export function generationModeLabel(mode: GenerationMode): string {
     i2v: () => m.model_guide_mode_i2v(),
     v2v: () => m.model_guide_mode_v2v(),
     flf2v: () => m.model_guide_mode_flf2v(),
+    r2v: () => m.model_guide_mode_r2v(),
   };
   return labels[mode]?.() ?? mode;
 }

@@ -26,6 +26,7 @@
     i2v: Film,
     v2v: Clapperboard,
     flf2v: GalleryHorizontal,
+    r2v: GalleryHorizontal,
   };
 
   const Icon = $derived(iconMap[generationType] ?? Cpu);

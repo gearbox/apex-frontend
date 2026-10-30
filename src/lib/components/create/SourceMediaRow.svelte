@@ -10,8 +10,12 @@
     onremove,
     onreplace,
     position = null,
+    token,
+    oninserttoken,
   }: {
     source: SourceMediaDraft;
+    token?: string;
+    oninserttoken?: (token: string) => void;
     detail: string;
     removeLabel: string;
     replaceLabel: string;
@@ -26,7 +30,14 @@
     ? 'border-border bg-surface'
     : 'border-warning/60 bg-warning/10'}"
 >
-  {#if position !== null}
+  {#if token}
+    <button
+      type="button"
+      onpointerdown={(event) => event.preventDefault()}
+      onclick={() => oninserttoken?.(token)}
+      class="shrink-0 rounded-full bg-accent/15 px-2 py-1 text-xs text-accent">{token}</button
+    >
+  {:else if position !== null}
     <span
       class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent/15 text-xs font-semibold text-accent"
     >
