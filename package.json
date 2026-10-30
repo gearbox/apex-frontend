@@ -73,7 +73,7 @@
     "tailwindcss": "^4.3.3",
     "tsx": "4.23.15",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.65.0",
+    "typescript-eslint": "^8.71.1",
     "vite": "^7.3.5",
     "vitest": "^4.1.10",
     "workbox-core": "^7.4.1",
