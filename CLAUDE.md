@@ -44,6 +44,8 @@ src/
 │   │   ├── legalRequired.ts       # Final-response 428 legal re-acceptance detector
 │   │   ├── types.ts               # Generated from backend OpenAPI schema
 │   │   └── schema.json            # Exported OpenAPI schema (source of truth)
+│   ├── product/                  # Runtime product profiles and build identity
+│   ├── navigation/               # Shared navigation destination registry
 │   ├── stores/
 │   │   ├── auth.ts                # Auth state: user, tokens, isAuthenticated
 │   │   ├── feedbackDialog.svelte.ts # Shared in-product feedback dialog state
@@ -142,15 +144,19 @@ src/
 │   │   ├── privacy/+page.svelte      # Public current/exact-version Privacy page
 │   │   └── consent/+page.svelte      # Public sensitive-data consent page (versioned "Read" links only; not in nav)
 │   └── (app)/
-│       ├── +layout.svelte            # AppShell + auth guard
-│       └── app/
-│           ├── create/+page.svelte
-│           ├── gallery/+page.svelte
-│           ├── billing/+page.svelte
-│           ├── billing/buy/+page.svelte
-│           ├── jobs/+page.svelte
-│           ├── jobs/[id]/+page.svelte
-│           └── profile/+page.svelte
+│       ├── +layout.svelte            # Session lifecycle and overlays
+│       └── (shell)/
+│           ├── +layout.svelte        # AppShell
+│           └── app/
+│               ├── admin/+page.svelte
+│               ├── billing/+page.svelte
+│               ├── billing/buy/+page.svelte
+│               ├── create/+page.svelte
+│               ├── jobs/+page.svelte
+│               ├── jobs/[id]/+page.svelte
+│               ├── library/+page.svelte
+│               ├── profile/+page.svelte
+│               └── sessions/+page.svelte
 ├── static/
 │   ├── favicon.svg
 │   ├── google-g.svg                 # Local Google sign-in mark

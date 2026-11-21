@@ -6,6 +6,10 @@ export const ROUTES = {
   billingTopUp: '/app/billing?tab=buy',
   create: '/app/create',
   library: '/app/library',
+  sessions: '/app/sessions',
+  jobs: '/app/jobs',
+  profile: '/app/profile',
+  admin: '/app/admin',
   terms: '/terms',
   privacy: '/privacy',
   /** Reached only through versioned "Read" links; intentionally absent from navigation. */

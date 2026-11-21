@@ -5,42 +5,16 @@ import { SvelteKitPWA } from '@vite-pwa/sveltekit';
 import { defineConfig } from 'vite';
 import { APP_VERSION, BUILD_SHA } from './build-meta.js';
 import { appVersionManifestPlugin } from './build-version-manifest.js';
+import { resolveBuildProduct } from './product-manifests.js';
 import { paraglideConfig } from './paraglide.config.js';
 
-const productId = process.env.VITE_PRODUCT_ID || 'vex';
-
-const productManifests: Record<
-  string,
-  {
-    name: string;
-    short_name: string;
-    description: string;
-    theme_color: string;
-    background_color: string;
-  }
-> = {
-  vex: {
-    name: 'Vex.pics',
-    short_name: 'Vex.pics',
-    description: 'AI-powered image and video generation',
-    theme_color: '#110f0b',
-    background_color: '#110f0b',
-  },
-  synthara: {
-    name: 'Synthara',
-    short_name: 'Synthara',
-    description: 'AI-powered image and video generation for professionals',
-    theme_color: '#0f1117',
-    background_color: '#0f1117',
-  },
-};
-
-const manifest = productManifests[productId] ?? productManifests.vex;
+const { id: productId, manifest } = resolveBuildProduct(process.env.VITE_PRODUCT_ID);
 
 export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(APP_VERSION),
     __BUILD_SHA__: JSON.stringify(BUILD_SHA),
+    __PRODUCT_ID__: JSON.stringify(productId),
     __PRODUCT_NAME__: JSON.stringify(manifest.name),
   },
   build: {

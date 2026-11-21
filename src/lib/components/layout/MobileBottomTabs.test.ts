@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/svelte';
 import { get } from 'svelte/store';
+import { productInfo } from '$lib/stores/product';
 import { closeMobileNavSheet, mobileNavSheet } from '$lib/stores/ui';
 
 const state = vi.hoisted(() => ({ pageUrl: new URL('http://localhost/app/create') }));
@@ -17,7 +18,10 @@ vi.mock('$app/stores', () => ({
 import MobileBottomTabs from './MobileBottomTabs.svelte';
 
 describe('MobileBottomTabs', () => {
-  afterEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    productInfo.set(null);
+  });
 
   beforeEach(() => {
     state.pageUrl = new URL('http://localhost/app/create');
@@ -48,6 +52,26 @@ describe('MobileBottomTabs', () => {
     await fireEvent.click(projects);
     expect(get(mobileNavSheet)).toBe('projects');
     expect(projects.getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('preserves tabs and links for synthara', () => {
+    productInfo.set({
+      product: 'synthara',
+      display_name: 'Synthara',
+      age_gate: 'none',
+      allowed_auth_methods: ['email_password'],
+      content_rating: 'sfw',
+      payment_providers: ['stripe'],
+    });
+    const { container } = render(MobileBottomTabs);
+    expect(
+      Array.from(container.querySelectorAll('.btm-tab-label')).map((node) =>
+        node.textContent?.trim(),
+      ),
+    ).toEqual(['Create', 'Sessions', 'Library', 'More']);
+    expect(
+      Array.from(container.querySelectorAll('a')).map((node) => node.getAttribute('href')),
+    ).toEqual(['/app/create', '/app/sessions', '/app/library']);
   });
 
   it('keeps Library primary while marking its Folder half as project-scoped', () => {

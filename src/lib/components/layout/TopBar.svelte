@@ -2,20 +2,15 @@
   import { page } from '$app/stores';
   import { currentUser } from '$lib/stores/auth';
   import { appDisplayName } from '$lib/stores/product';
-  import * as m from '$paraglide/messages';
+  import { NAV_DESTINATIONS } from '$lib/navigation/destinations';
+  import { productProfile } from '$lib/product/profile';
   import BalancePill from './BalancePill.svelte';
 
-  const pageTitleFns: Record<string, () => string> = {
-    '/app/create': () => m.topbar_create(),
-    '/app/library': () => m.topbar_library(),
-    '/app/jobs': () => m.topbar_jobs(),
-    '/app/billing': () => m.topbar_billing(),
-    '/app/profile': () => m.topbar_profile(),
-    '/app/sessions': () => m.nav_sessions(),
-    '/app/admin': () => m.nav_admin_panel(),
-  };
-
-  let pageTitle = $derived((pageTitleFns[$page.url.pathname] ?? (() => ''))());
+  let pageTitle = $derived(
+    Object.values(NAV_DESTINATIONS)
+      .find((item) => item.href === $page.url.pathname)
+      ?.pageTitle() ?? '',
+  );
   let logoText = $derived($appDisplayName);
   let initials = $derived(
     $currentUser?.display_name
@@ -26,7 +21,7 @@
 
 <header class="topbar chrome-no-select">
   <div class="topbar-left">
-    <a href="/app/create" class="topbar-logo">{logoText}</a>
+    <a href={$productProfile.homeRoute} class="topbar-logo">{logoText}</a>
     {#if pageTitle}
       <span class="topbar-title">{pageTitle}</span>
     {/if}
@@ -34,7 +29,7 @@
 
   <div class="topbar-right">
     <BalancePill />
-    <a href="/app/profile" class="topbar-avatar" aria-label="Profile">
+    <a href={NAV_DESTINATIONS.profile.href} class="topbar-avatar" aria-label="Profile">
       {initials}
     </a>
   </div>

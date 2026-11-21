@@ -4,15 +4,16 @@
   import { QueryClientProvider } from '@tanstack/svelte-query';
   import { getQueryClient } from '$lib/queries/queryClient';
   import { pwaInfo } from 'virtual:pwa-info';
-  import { initTheme, setTheme } from '$lib/stores/theme';
+  import { initTheme, applyDefaultTheme } from '$lib/stores/theme';
+  import { BUILD_PRODUCT_ID } from '$lib/product/build';
+  import { resolveProductProfile } from '$lib/product/profile';
   import { appDisplayName, productInfo } from '$lib/stores/product';
   import { initNetworkListener } from '$lib/stores/network';
   import { initPwaInstallListener } from '$lib/stores/pwaInstall';
   import NetworkToastWatcher from '$lib/components/ui/NetworkToastWatcher.svelte';
   import ViewportDebug from '$lib/components/debug/ViewportDebug.svelte';
   import { locale } from '$lib/stores/locale';
-  import { API_BASE_URL, STORAGE_KEYS } from '$lib/utils/constants';
-  import { isBrowser } from '$lib/utils/env';
+  import { API_BASE_URL } from '$lib/utils/constants';
   import { getInstallPlatform, isStandalone } from '$lib/utils/platform';
   import { resolveAppViewportHeight } from '$lib/utils/appViewport';
   import { registerPwaServiceWorker } from '$lib/services/pwaRegistration';
@@ -79,22 +80,17 @@
       try {
         const headers: Record<string, string> = {};
         if (import.meta.env.DEV) {
-          headers['X-Product-Id'] = import.meta.env.VITE_PRODUCT_ID || 'vex';
+          headers['X-Product-Id'] = BUILD_PRODUCT_ID;
         }
         const res = await fetch(`${API_BASE_URL}/v1/auth/product-info`, { headers });
         if (res.ok) {
           const info = await res.json();
           productInfo.set(info);
 
-          // Apply product-based default theme if user has no stored preference yet
-          const hasStoredPrefs =
-            isBrowser() && localStorage.getItem(STORAGE_KEYS.THEME_PREFS) !== null;
-          if (!hasStoredPrefs && info.product === 'synthara') {
-            setTheme('frost');
-          }
+          applyDefaultTheme(resolveProductProfile(info.product).defaultTheme);
         }
       } catch {
-        // Non-critical: app works without product info (defaults to vex branding)
+        // Non-critical: app works without product info (uses build-default branding)
       }
     })();
 

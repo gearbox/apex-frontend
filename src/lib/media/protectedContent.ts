@@ -1,3 +1,4 @@
+import { BUILD_PRODUCT_ID } from '$lib/product/build';
 import { API_BASE_URL } from '$lib/utils/constants';
 
 export type ProtectedContentSource = 'output' | 'upload';
@@ -76,7 +77,7 @@ interface ProbeProtectedContentOptions {
 function contentHeaders(extra: Record<string, string> = {}): Record<string, string> {
   const headers = { ...extra };
   // Local dev serves every product from one API host; production resolves it from the origin.
-  if (import.meta.env.DEV) headers['X-Product-Id'] = import.meta.env.VITE_PRODUCT_ID || 'vex';
+  if (import.meta.env.DEV) headers['X-Product-Id'] = BUILD_PRODUCT_ID;
   return headers;
 }
 

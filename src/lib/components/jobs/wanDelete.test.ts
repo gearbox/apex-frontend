@@ -9,7 +9,7 @@ import { makeUnifiedJobResponse } from '../../../mocks/factories/job';
 import { jobStatusValues } from '$lib/api/types';
 import { clearToasts, toasts } from '$lib/stores/toasts';
 import QueryHarness from '../../../tests/QueryHarness.svelte';
-import JobsPage from '../../../routes/(app)/app/jobs/+page.svelte';
+import JobsPage from '../../../routes/(app)/(shell)/app/jobs/+page.svelte';
 import JobCard from './JobCard.svelte';
 vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
 const base = 'http://localhost:8000';

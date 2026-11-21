@@ -41,6 +41,20 @@ export default ts.config(
     },
   },
   {
+    files: ['src/**/*.ts', 'src/**/*.svelte'],
+    ignores: ['src/lib/product/**', 'src/**/*.test.ts', 'src/mocks/**'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'BinaryExpression[operator=/^[!=]==?$/] > Literal[value=/^(vex|synthara)$/]',
+          message:
+            'Do not branch on a product id. Add a field to ProductProfile (src/lib/product/profiles.ts) instead.',
+        },
+      ],
+    },
+  },
+  {
     rules: {
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
       'svelte/require-each-key': 'error',

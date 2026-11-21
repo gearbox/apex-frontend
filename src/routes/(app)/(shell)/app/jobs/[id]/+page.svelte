@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { ROUTES } from '$lib/utils/routes';
   import { isInFlight, IN_FLIGHT_JOB_STATUSES } from '$lib/utils/jobStatus';
   import { ApiRequestError } from '$lib/api/errors';
   import { addToast } from '$lib/stores/toasts';
@@ -134,7 +135,7 @@
         </button>
         {#if canRetry}
           <a
-            href="/app/create?prompt={encodeURIComponent(job.prompt)}"
+            href="{ROUTES.create}?prompt={encodeURIComponent(job.prompt)}"
             class="rounded-lg border border-border bg-surface px-3 py-1.5 text-sm text-text transition-colors hover:bg-surface-hover"
           >
             Try again

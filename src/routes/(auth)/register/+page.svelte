@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { get } from 'svelte/store';
+  import { productProfile } from '$lib/product/profile';
   import { goto } from '$app/navigation';
   import { register, AuthError, AuthOperationCancelledError } from '$lib/api/auth';
   import { toAcceptedDocuments } from '$lib/api/legal';
@@ -37,7 +39,7 @@
       );
       // Fire-and-forget locale sync — never blocks register flow
       void updateUserLocale($locale);
-      goto('/app/create', { replaceState: true });
+      goto(get(productProfile).homeRoute, { replaceState: true });
     } catch (err) {
       if (err instanceof AuthOperationCancelledError) {
         // A newer login/register attempt owns the auth boundary. It is not user-visible failure.

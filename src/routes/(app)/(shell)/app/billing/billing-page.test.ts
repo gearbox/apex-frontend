@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import type { components } from '$lib/api/types';
-import { makeWanModelInfo } from '../../../../mocks/fixtures/wan';
+import { makeWanModelInfo } from '../../../../../mocks/fixtures/wan';
 
 type TransactionResponse = components['schemas']['TransactionResponse'];
 type PricingRuleResponse = components['schemas']['PricingRuleResponse'];
