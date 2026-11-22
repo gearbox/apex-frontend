@@ -1,12 +1,13 @@
 <script lang="ts">
   import { onMount, type Snippet } from 'svelte';
+  import { get } from 'svelte/store';
   import { afterNavigate } from '$app/navigation';
   import { QueryClientProvider } from '@tanstack/svelte-query';
   import { getQueryClient } from '$lib/queries/queryClient';
   import { pwaInfo } from 'virtual:pwa-info';
   import { initTheme, applyDefaultTheme } from '$lib/stores/theme';
   import { BUILD_PRODUCT_ID } from '$lib/product/build';
-  import { resolveProductProfile } from '$lib/product/profile';
+  import { productProfile } from '$lib/product/profile';
   import { appDisplayName, productInfo } from '$lib/stores/product';
   import { initNetworkListener } from '$lib/stores/network';
   import { initPwaInstallListener } from '$lib/stores/pwaInstall';
@@ -65,7 +66,7 @@
     cleanups.push(() => window.visualViewport?.removeEventListener('resize', updateAppHeight));
     cleanups.push(() => window.removeEventListener('resize', updateAppHeight));
 
-    cleanups.push(initTheme());
+    cleanups.push(initTheme(get(productProfile).defaultTheme));
     cleanups.push(initNetworkListener());
     cleanups.push(initPwaInstallListener());
     cleanups.push(initGenerationDraftGuard());
@@ -87,7 +88,7 @@
           const info = await res.json();
           productInfo.set(info);
 
-          applyDefaultTheme(resolveProductProfile(info.product).defaultTheme);
+          applyDefaultTheme(get(productProfile).defaultTheme);
         }
       } catch {
         // Non-critical: app works without product info (uses build-default branding)

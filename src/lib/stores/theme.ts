@@ -85,8 +85,10 @@ export function setMode(mode: ThemeMode): void {
  * Initialize the theme system. Call once in the root layout.
  * Sets up the system preference listener and applies CSS vars to the body.
  */
-export function initTheme(): () => void {
+export function initTheme(defaultTheme: ThemeName): () => void {
   if (!isBrowser()) return () => {};
+
+  applyDefaultTheme(defaultTheme);
 
   const mql = window.matchMedia('(prefers-color-scheme: dark)');
   const onMediaChange = (e: MediaQueryListEvent) => systemPrefersDark.set(e.matches);

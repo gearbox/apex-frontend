@@ -1,3 +1,5 @@
+import { loadEnv } from 'vite';
+
 /** Build-time product identity: PWA manifest data and the default product for dev headers. */
 export const PRODUCT_MANIFESTS = {
   vex: {
@@ -29,4 +31,12 @@ export function resolveBuildProduct(raw) {
   }
   const knownId = /** @type {keyof typeof PRODUCT_MANIFESTS} */ (id);
   return { id: knownId, manifest: PRODUCT_MANIFESTS[knownId] };
+}
+
+/** Resolve using Vite env precedence, including mode-specific files.
+ * @param {string} mode
+ * @param {string} [envDir]
+ */
+export function resolveBuildProductForMode(mode, envDir = process.cwd()) {
+  return resolveBuildProduct(loadEnv(mode, envDir, 'VITE_').VITE_PRODUCT_ID);
 }

@@ -51,6 +51,11 @@ export default ts.config(
           message:
             'Do not branch on a product id. Add a field to ProductProfile (src/lib/product/profiles.ts) instead.',
         },
+        {
+          selector: 'SwitchCase > Literal.test[value=/^(vex|synthara)$/]',
+          message:
+            'Do not branch on a product id. Add a field to ProductProfile (src/lib/product/profiles.ts) instead.',
+        },
       ],
     },
   },

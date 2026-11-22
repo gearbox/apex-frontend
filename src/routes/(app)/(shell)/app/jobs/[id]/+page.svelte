@@ -40,7 +40,7 @@
   function handleDelete() {
     if (!window.confirm('Delete this job? This cannot be undone.')) return;
     deleteMutation.mutate(jobId, {
-      onSuccess: () => goto('/app/jobs'),
+      onSuccess: () => goto(ROUTES.jobs),
       onError: (err) =>
         addToast({
           type:
@@ -75,7 +75,7 @@
 <div class="mx-auto max-w-4xl space-y-5 p-4 md:p-6">
   <!-- Back button -->
   <button
-    onclick={() => goto('/app/jobs')}
+    onclick={() => goto(ROUTES.jobs)}
     class="flex items-center gap-1 text-sm text-text-muted transition-colors hover:text-text"
   >
     <ChevronLeft size={16} />
@@ -97,7 +97,7 @@
       <p class="text-sm font-medium text-text">Job not found</p>
       <p class="mt-1 text-xs text-text-muted">This job may have been deleted.</p>
       <button
-        onclick={() => goto('/app/jobs')}
+        onclick={() => goto(ROUTES.jobs)}
         class="mt-4 rounded-lg bg-surface px-4 py-2 text-sm text-text hover:bg-surface-hover"
       >
         Back to Jobs

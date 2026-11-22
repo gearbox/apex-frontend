@@ -3,10 +3,10 @@ import { paraglideVitePlugin } from '@inlang/paraglide-js';
 import { defineConfig } from 'vitest/config';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { APP_VERSION, BUILD_SHA } from './build-meta.js';
-import { resolveBuildProduct } from './product-manifests.js';
+import { resolveBuildProductForMode } from './product-manifests.js';
 import { paraglideConfig } from './paraglide.config.js';
 
-const { id: productId, manifest } = resolveBuildProduct(process.env.VITE_PRODUCT_ID);
+const { id: productId, manifest } = resolveBuildProductForMode('test');
 
 export default defineConfig({
   plugins: [paraglideVitePlugin(paraglideConfig), sveltekit()],
