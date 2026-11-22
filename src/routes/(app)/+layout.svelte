@@ -5,6 +5,8 @@
   import { createQuery, useQueryClient } from '@tanstack/svelte-query';
   import { currentAuthStatus, currentUser } from '$lib/stores/auth';
   import { initAuth } from '$lib/api/auth';
+  import { probeStudio } from '$lib/product/capabilities';
+  import { get } from 'svelte/store';
   import { EventStreamService } from '$lib/services/eventStream';
   import * as contentCookieService from '$lib/services/contentCookie';
   import * as m from '$paraglide/messages';
@@ -41,6 +43,7 @@
   onMount(async () => {
     stopPendingPaymentStorageListener = startPendingPaymentsStorageListener();
     await initAuth();
+    if (get(currentAuthStatus) === 'authenticated') void probeStudio();
     checking = false;
   });
 

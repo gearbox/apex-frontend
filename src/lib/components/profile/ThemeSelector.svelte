@@ -1,20 +1,15 @@
 <script lang="ts">
   import { themePrefs, setTheme } from '$lib/stores/theme';
-  import { themes, type ThemeName } from '$lib/themes';
-
-  const themeOpts: { id: ThemeName; label: string; desc: string }[] = [
-    { id: 'slate', label: 'Slate', desc: 'Warm earth, amber' },
-    { id: 'frost', label: 'Frost', desc: 'Cool blue, indigo' },
-  ];
+  import { themes } from '$lib/themes';
 </script>
 
 <div class="section">
   <p class="label">Theme</p>
   <div class="theme-grid">
-    {#each themeOpts as t (t.id)}
-      {@const active = $themePrefs.theme === t.id}
-      {@const def = themes[t.id]}
-      <button onclick={() => setTheme(t.id)} class="theme-card" class:active>
+    {#each Object.values(themes) as t (t.name)}
+      {@const active = $themePrefs.theme === t.name}
+      {@const def = t}
+      <button onclick={() => setTheme(t.name)} class="theme-card" class:active>
         <div class="swatches">
           <span class="swatch" style="background: {def.light.bg}"></span>
           <span class="swatch" style="background: {def.light.accent}"></span>
@@ -22,7 +17,7 @@
           <span class="swatch" style="background: {def.dark.accent}"></span>
         </div>
         <p class="theme-name" class:active>{t.label}</p>
-        <p class="theme-desc">{t.desc}</p>
+        <p class="theme-desc">{t.description}</p>
       </button>
     {/each}
   </div>

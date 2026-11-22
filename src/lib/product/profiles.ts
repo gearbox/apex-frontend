@@ -39,7 +39,7 @@ export const PRODUCT_PROFILES = {
   synthara: {
     id: 'synthara',
     homeRoute: ROUTES.create,
-    defaultTheme: 'frost',
+    defaultTheme: 'nocturne',
     navigation: GENERATOR_NAVIGATION,
   },
 } as const satisfies Record<ProductId, ProductProfile>;

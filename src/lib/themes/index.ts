@@ -1,5 +1,5 @@
 /* ─── Types ─── */
-export type ThemeName = 'slate' | 'frost';
+export type ThemeName = 'slate' | 'frost' | 'nocturne';
 export type ThemeMode = 'light' | 'dark' | 'system';
 
 export interface ThemeColors {
@@ -22,6 +22,8 @@ export interface ThemeColors {
 interface ThemeDefinition {
   name: ThemeName;
   label: string;
+  description: string;
+  fonts: { display: string };
   light: ThemeColors;
   dark: ThemeColors;
 }
@@ -32,9 +34,14 @@ export interface ThemePrefs {
 }
 
 /* ─── Theme Definitions ─── */
+const DM_SANS = "'DM Sans', ui-sans-serif, system-ui, sans-serif";
+const SYNE = "'Syne', 'DM Sans', ui-sans-serif, system-ui, sans-serif";
+
 const slate: ThemeDefinition = {
   name: 'slate',
   label: 'Slate',
+  description: 'Warm earth, amber',
+  fonts: { display: DM_SANS },
   light: {
     bg: '#faf8f5',
     surface: '#ffffff',
@@ -72,6 +79,8 @@ const slate: ThemeDefinition = {
 const frost: ThemeDefinition = {
   name: 'frost',
   label: 'Frost',
+  description: 'Cool blue, indigo',
+  fonts: { display: DM_SANS },
   light: {
     bg: '#f5f7fa',
     surface: '#ffffff',
@@ -106,8 +115,51 @@ const frost: ThemeDefinition = {
   },
 };
 
+const nocturne: ThemeDefinition = {
+  name: 'nocturne',
+  label: 'Nocturne',
+  description: 'Night studio, ember',
+  fonts: { display: SYNE },
+  dark: {
+    bg: '#0F1117',
+    surface: '#161922',
+    surfaceHover: '#1D212C',
+    border: '#2A2F3C',
+    borderActive: '#3A4050',
+    text: '#ECE7DD',
+    textMuted: '#A9A49A',
+    textDim: '#8A8F9C',
+    accent: '#FF7A45',
+    accentDim: '#E0602C',
+    accentGlow: 'rgba(255, 122, 69, 0.12)',
+    success: '#5FD3A0',
+    warning: '#F5B94A',
+    danger: '#FF6B6B',
+  },
+  light: {
+    bg: '#F7F4EE',
+    surface: '#FFFFFF',
+    surfaceHover: '#EFEAE1',
+    border: '#DDD5C8',
+    borderActive: '#BFB4A3',
+    text: '#1A1C22',
+    textMuted: '#4F535E',
+    textDim: '#666B78',
+    accent: '#B8461A',
+    accentDim: '#963812',
+    accentGlow: 'rgba(184, 70, 26, 0.10)',
+    success: '#047857',
+    warning: '#A2530A',
+    danger: '#C81E1E',
+  },
+};
+
+export function applyThemeFonts(el: HTMLElement, fonts: { display: string }): void {
+  el.style.setProperty('--apex-font-display', fonts.display);
+}
+
 /* ─── Registry ─── */
-export const themes: Record<ThemeName, ThemeDefinition> = { slate, frost };
+export const themes: Record<ThemeName, ThemeDefinition> = { slate, frost, nocturne };
 
 export const DEFAULT_PREFS: ThemePrefs = { theme: 'slate', mode: 'dark' };
 

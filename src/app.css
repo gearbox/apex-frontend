@@ -5,6 +5,7 @@
    No fallback values here — Tailwind 4 would bake them in at build time, breaking
    dynamic theming. Defaults live on :root below instead. */
 @theme {
+  --font-display: var(--apex-font-display);
   --font-sans: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 
@@ -28,6 +29,7 @@
 /* Slate dark (= DEFAULT_PREFS) so colours are valid before JS hydrates.
    applyThemeColors() overrides these on <body> via inline style once mounted. */
 :root {
+  --apex-font-display: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
   --safe-area-bottom: env(safe-area-inset-bottom, 0px);
   --safe-area-left: env(safe-area-inset-left, 0px);
   --safe-area-right: env(safe-area-inset-right, 0px);

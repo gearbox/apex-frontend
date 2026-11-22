@@ -3,6 +3,7 @@ import {
   themes,
   DEFAULT_PREFS,
   applyThemeColors,
+  applyThemeFonts,
   resolveVariant,
   type ThemeName,
   type ThemeMode,
@@ -94,6 +95,9 @@ export function initTheme(defaultTheme: ThemeName): () => void {
   const onMediaChange = (e: MediaQueryListEvent) => systemPrefersDark.set(e.matches);
   mql.addEventListener('change', onMediaChange);
 
+  const unsubFonts = themePrefs.subscribe((prefs) =>
+    applyThemeFonts(document.documentElement, themes[prefs.theme].fonts),
+  );
   const unsubColors = currentColors.subscribe((colors: ThemeColors) => {
     applyThemeColors(document.documentElement, colors);
   });
@@ -101,5 +105,6 @@ export function initTheme(defaultTheme: ThemeName): () => void {
   return () => {
     mql.removeEventListener('change', onMediaChange);
     unsubColors();
+    unsubFonts();
   };
 }
