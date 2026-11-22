@@ -1,5 +1,6 @@
 <script lang="ts">
   import { X } from '@lucide/svelte';
+  import { fieldIssues, issueMessage, type StudioValidationIssue } from '$lib/studio/formErrors';
   import * as m from '$paraglide/messages';
 
   interface Props {
@@ -10,6 +11,8 @@
     maxLength: number;
     placeholder?: string;
     hint?: string;
+    field?: string;
+    issues?: StudioValidationIssue[];
   }
 
   let {
@@ -20,10 +23,14 @@
     maxLength,
     placeholder = '',
     hint = '',
+    field = '',
+    issues = [],
   }: Props = $props();
 
   let inputValue = $state('');
   let feedback = $state('');
+  let tagIssues = $derived(field ? fieldIssues(issues, field) : []);
+  let describedBy = $derived(id + '-count ' + id + '-feedback' + (hint ? ' ' + id + '-hint' : ''));
 
   function addTag() {
     const value = inputValue.normalize('NFC').trim();
@@ -68,7 +75,7 @@
 
 <div class="space-y-2">
   <label for={id} class="block text-sm font-medium text-text">{label}</label>
-  {#if hint}<p class="-mt-1 text-xs text-text-dim">{hint}</p>{/if}
+  {#if hint}<p id={id + '-hint'} class="-mt-1 text-xs text-text-dim">{hint}</p>{/if}
   {#if values.length > 0}
     <ul class="flex flex-wrap gap-2" aria-label={label}>
       {#each values as tag, index (`${tag}-${index}`)}
@@ -90,9 +97,8 @@
     <input
       {id}
       bind:value={inputValue}
-      maxlength={maxLength}
       placeholder={placeholder || m.studio_tag_placeholder()}
-      aria-describedby={`${id}-hint ${id}-feedback`}
+      aria-describedby={describedBy}
       class="min-w-0 flex-1 rounded-xl border border-border bg-bg px-3 py-2.5 text-sm text-text outline-none placeholder:text-text-dim focus:border-accent"
       onkeydown={onKeydown}
       onblur={addTag}
@@ -104,7 +110,14 @@
       disabled={values.length >= maxItems}>{m.studio_tag_add()}</button
     >
   </div>
-  {#if hint}<p class="text-xs text-text-dim">{hint}</p>{/if}
-  <p id={`${id}-hint`} class="text-xs text-text-dim">{values.length} / {maxItems}</p>
-  <p id={`${id}-feedback`} class="min-h-4 text-xs text-danger" role="status">{feedback}</p>
+  <p id={id + '-count'} class="text-xs text-text-dim">{values.length} / {maxItems}</p>
+  <p id={id + '-feedback'} class="min-h-4 text-xs text-danger" role="status">{feedback}</p>
+  {#each tagIssues as issue, index (issue.path + '-' + index)}
+    <p class="text-xs text-danger" role="alert">
+      {m.studio_issue_tag_index({
+        index: String(Number(issue.path.match(/\[(\d+)\]/u)?.[1] ?? index) + 1),
+        message: issueMessage(issue),
+      })}
+    </p>
+  {/each}
 </div>

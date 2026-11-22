@@ -17,6 +17,14 @@ describe('deriveMemoryTitle', () => {
     expect(deriveMemoryTitle(composedBody)).toBe(`${'🙂'.repeat(119)}é`);
     expect(deriveMemoryTitle('\n \t\n')).toBe('');
   });
+
+  it('measures word boundaries in code points when astral characters are present', () => {
+    const earlySpace = '🌊'.repeat(40) + ' ' + 'x'.repeat(100);
+    expect(Array.from(deriveMemoryTitle(earlySpace))).toHaveLength(120);
+
+    const lateSpace = '🌊'.repeat(70) + ' ' + 'x'.repeat(80);
+    expect(deriveMemoryTitle(lateSpace)).toBe('🌊'.repeat(70));
+  });
 });
 
 describe('todayLocalIsoDate', () => {

@@ -46,4 +46,27 @@ describe('TagListInput', () => {
     await fireEvent.click(screen.getByRole('button', { name: 'Remove one' }));
     expect(screen.queryByText('one')).toBeNull();
   });
+
+  it('renders one hint, describes the hint and status text, and accepts 60 emoji code points', async () => {
+    render(TagListInput, {
+      props: {
+        id: 'style-tags',
+        label: 'Style tags',
+        values: [],
+        maxItems: 3,
+        maxLength: 60,
+        hint: 'Exported to Style.',
+      },
+    });
+    const input = screen.getByLabelText('Style tags');
+    expect(screen.getAllByText('Exported to Style.')).toHaveLength(1);
+    expect(input.getAttribute('aria-describedby')).toBe(
+      'style-tags-count style-tags-feedback style-tags-hint',
+    );
+
+    const sixtyEmoji = '🌊'.repeat(60);
+    await fireEvent.input(input, { target: { value: sixtyEmoji } });
+    await fireEvent.keyDown(input, { key: 'Enter' });
+    expect(screen.getByText(sixtyEmoji)).toBeTruthy();
+  });
 });

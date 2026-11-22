@@ -3,22 +3,12 @@
   import { ArrowUpRight, Plus, UsersRound } from '@lucide/svelte';
   import { artistsQueryOptions } from '$lib/queries/studio';
   import { ROUTES } from '$lib/utils/routes';
+  import { artistMonogram, MAX_ARTISTS } from '$lib/studio/artists';
   import Spinner from '$lib/components/ui/Spinner.svelte';
   import * as m from '$paraglide/messages';
 
   const artistsQuery = createQuery(artistsQueryOptions);
   let artists = $derived(artistsQuery.data?.items ?? []);
-
-  function monogram(name: string): string {
-    const initials = name
-      .trim()
-      .split(/\s+/u)
-      .slice(0, 2)
-      .map((word) => Array.from(word)[0] ?? '')
-      .join('')
-      .toLocaleUpperCase();
-    return Array.from(initials).slice(0, 2).join('');
-  }
 </script>
 
 <svelte:head>
@@ -77,7 +67,7 @@
         </h1>
         <p class="mt-2 text-sm text-text-muted">{m.artists_index_description()}</p>
       </div>
-      {#if artists.length < 50}
+      {#if artists.length < MAX_ARTISTS}
         <a
           href={`${ROUTES.artists}/new`}
           class="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-bg transition hover:brightness-110"
@@ -96,7 +86,7 @@
           <div class="flex items-center gap-4">
             <span
               class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-accent-glow font-display text-xl font-bold text-accent"
-              aria-hidden="true">{monogram(artist.name)}</span
+              aria-hidden="true">{artistMonogram(artist.name)}</span
             >
             <div class="min-w-0 flex-1">
               <h2 class="truncate font-display text-xl font-semibold text-text">{artist.name}</h2>
@@ -124,7 +114,7 @@
         </a>
       {/each}
 
-      {#if artists.length < 50}
+      {#if artists.length < MAX_ARTISTS}
         <a
           href={`${ROUTES.artists}/new`}
           class="flex min-h-32 items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-transparent p-5 text-sm font-semibold text-text-muted transition hover:border-accent hover:bg-accent-glow hover:text-accent"
@@ -133,7 +123,7 @@
         </a>
       {/if}
     </div>
-    {#if artists.length >= 50}
+    {#if artists.length >= MAX_ARTISTS}
       <p class="mt-5 text-center text-sm text-text-muted">{m.artists_limit_hint()}</p>
     {/if}
   {/if}

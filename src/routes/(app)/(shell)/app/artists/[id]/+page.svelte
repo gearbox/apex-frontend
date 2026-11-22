@@ -4,7 +4,7 @@
   import { goto } from '$app/navigation';
   import { createInfiniteQuery, createMutation, useQueryClient } from '@tanstack/svelte-query';
   import type { InfiniteData } from '@tanstack/svelte-query';
-  import { Archive, MoreHorizontal, Pencil, RotateCcw, Trash2 } from '@lucide/svelte';
+  import { Archive, Pencil, RotateCcw, Trash2 } from '@lucide/svelte';
   import {
     createMemoryMutationOptions,
     deleteMemoryMutationOptions,
@@ -16,6 +16,7 @@
   import MemoryForm from '$lib/components/studio/MemoryForm.svelte';
   import ConfirmDeleteModal from '$lib/components/shared/ConfirmDeleteModal.svelte';
   import ContextMenu from '$lib/components/shared/ContextMenu.svelte';
+  import Sheet from '$lib/components/shared/Sheet.svelte';
   import InfiniteScrollSentinel from '$lib/components/shared/InfiniteScrollSentinel.svelte';
   import Spinner from '$lib/components/ui/Spinner.svelte';
   import { addToast } from '$lib/stores/toasts';
@@ -38,7 +39,6 @@
   let composerVersion = $state(0);
   let editMemory = $state<Memory | null>(null);
   let deleteMemory = $state<Memory | null>(null);
-  let openMobileMenuId = $state<string | null>(null);
   let expandedMemoryIds = $state<string[]>([]);
   let actionError = $state('');
 
@@ -50,7 +50,8 @@
   const updateMemory = createMutation(() => updateMemoryMutationOptions(queryClient));
   const deleteMemoryMutation = createMutation(() => deleteMemoryMutationOptions(queryClient));
   let memories = $derived(memoriesQuery.data?.pages.flatMap((result) => result.items) ?? []);
-  let operationIssues = $derived(validationIssues(createMemory.error ?? updateMemory.error));
+  let createIssues = $derived(validationIssues(createMemory.error));
+  let updateIssues = $derived(validationIssues(updateMemory.error));
 
   onMount(() => {
     if ($page.url.searchParams.get('compose') === '1') {
@@ -86,6 +87,22 @@
     return patch;
   }
 
+  function closeComposer() {
+    composerOpen = false;
+    composerAutofocus = false;
+    createMemory.reset();
+  }
+
+  function openEditMemory(memory: Memory) {
+    updateMemory.reset();
+    editMemory = memory;
+  }
+
+  function closeEditMemory() {
+    editMemory = null;
+    updateMemory.reset();
+  }
+
   async function saveNewMemory(payload: MemoryFormPayload) {
     actionError = '';
     try {
@@ -102,6 +119,7 @@
       });
       composerVersion += 1;
       composerAutofocus = false;
+      createMemory.reset();
       if (!$isDesktop) composerOpen = false;
       addToast({ type: 'success', message: m.studio_memory_saved() });
     } catch (error) {
@@ -117,20 +135,23 @@
     const current = cachedMemory(editMemory.id) ?? editMemory;
     const patch = patchFromForm(current, payload);
     if (Object.keys(patch).length === 0) {
-      editMemory = null;
+      closeEditMemory();
       return;
     }
     try {
       await updateMemory.mutateAsync({ id: current.id, artistId, patch });
-      editMemory = null;
+      closeEditMemory();
       addToast({ type: 'success', message: m.studio_memory_saved() });
-    } catch {
-      actionError = m.studio_memory_save_error();
+    } catch (error) {
+      if (validationIssues(error).length === 0) {
+        actionError = m.studio_memory_save_error();
+      }
     }
   }
 
   async function changeMemoryStatus(memory: Memory, next: MemoryStatus) {
     actionError = '';
+    updateMemory.reset();
     try {
       await updateMemory.mutateAsync({ id: memory.id, artistId, patch: { status: next } });
     } catch (error) {
@@ -165,9 +186,7 @@
       {
         label: m.common_edit(),
         icon: Pencil,
-        onclick: () => {
-          editMemory = memory;
-        },
+        onclick: () => openEditMemory(memory),
       },
       memory.status === 'active'
         ? {
@@ -208,7 +227,7 @@
           mode="create"
           autofocus={composerAutofocus}
           pending={createMemory.isPending}
-          issues={operationIssues}
+          issues={createIssues}
           onsubmit={saveNewMemory}
         />
       {/key}
@@ -264,16 +283,6 @@
         {actionError}
       </p>
     {/if}
-    {#if operationIssues.length > 0}
-      <ul
-        class="rounded-xl border border-danger/40 bg-danger/10 px-4 py-3 text-xs text-danger"
-        role="alert"
-      >
-        {#each operationIssues as issue, index (`${issue.path}-${index}`)}<li>
-            {issue.path || 'form'}: {issue.code.replaceAll('_', ' ')}
-          </li>{/each}
-      </ul>
-    {/if}
 
     {#if memoriesQuery.isPending}
       <div class="flex min-h-48 items-center justify-center" role="status">
@@ -305,10 +314,14 @@
     {:else}
       <div class="space-y-3">
         {#each memories as memory (memory.id)}
-          <ContextMenu items={menuItems(memory)}>
-            <article class="rounded-2xl border border-border bg-surface p-4 md:p-5">
+          <ContextMenu
+            items={menuItems(memory)}
+            triggerLabel={m.studio_memory_menu({ title: memory.title })}
+            triggerClass="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-lg text-text-muted hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-accent"
+          >
+            <article class="relative rounded-2xl border border-border bg-surface p-4 md:p-5">
               <div class="flex items-start gap-3">
-                <div class="min-w-0 flex-1">
+                <div class="min-w-0 flex-1 pr-10">
                   <div class="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1">
                     <time
                       class="font-mono text-xs text-text-dim"
@@ -324,59 +337,6 @@
                       >{/if}
                   </div>
                   <h2 class="font-display text-lg font-semibold text-text">{memory.title}</h2>
-                </div>
-                <div class="relative shrink-0 md:hidden">
-                  <button
-                    type="button"
-                    class="flex h-9 w-9 items-center justify-center rounded-lg text-text-muted hover:bg-surface-hover"
-                    aria-label={m.studio_memory_menu({ title: memory.title })}
-                    aria-haspopup="menu"
-                    aria-expanded={openMobileMenuId === memory.id}
-                    onclick={() =>
-                      (openMobileMenuId = openMobileMenuId === memory.id ? null : memory.id)}
-                  >
-                    <MoreHorizontal size={19} aria-hidden="true" />
-                  </button>
-                  {#if openMobileMenuId === memory.id}
-                    <div
-                      class="absolute right-0 top-10 z-20 min-w-36 rounded-xl border border-border bg-surface p-1 shadow-xl"
-                      role="menu"
-                    >
-                      <button
-                        type="button"
-                        role="menuitem"
-                        class="w-full rounded-lg px-3 py-2 text-left text-sm text-text hover:bg-surface-hover"
-                        onclick={() => {
-                          editMemory = memory;
-                          openMobileMenuId = null;
-                        }}>{m.common_edit()}</button
-                      >
-                      <button
-                        type="button"
-                        role="menuitem"
-                        class="w-full rounded-lg px-3 py-2 text-left text-sm text-text hover:bg-surface-hover"
-                        onclick={() => {
-                          openMobileMenuId = null;
-                          void changeMemoryStatus(
-                            memory,
-                            memory.status === 'active' ? 'archived' : 'active',
-                          );
-                        }}
-                        >{memory.status === 'active'
-                          ? m.studio_archive()
-                          : m.studio_restore()}</button
-                      >
-                      <button
-                        type="button"
-                        role="menuitem"
-                        class="w-full rounded-lg px-3 py-2 text-left text-sm text-danger hover:bg-surface-hover"
-                        onclick={() => {
-                          deleteMemory = memory;
-                          openMobileMenuId = null;
-                        }}>{m.common_delete()}</button
-                      >
-                    </div>
-                  {/if}
                 </div>
               </div>
               <p
@@ -410,6 +370,7 @@
               {/if}
               <div
                 class="mt-4 flex items-center gap-1.5"
+                role="img"
                 aria-label={m.studio_importance_level({ level: String(memory.salience) })}
               >
                 {#each [1, 2, 3, 4, 5] as dot (dot)}<span
@@ -459,63 +420,43 @@
 </button>
 
 {#if composerOpen && !$isDesktop}
-  <div
-    class="fixed inset-0 z-[180] flex items-end bg-black/50 md:hidden"
-    role="presentation"
-    onclick={(event) => {
-      if (event.target === event.currentTarget) composerOpen = false;
-    }}
+  <Sheet
+    ariaLabel={m.studio_quick_capture()}
+    initialFocusSelector="#mobile-memory-body"
+    onclose={closeComposer}
   >
-    <div
-      class="max-h-[88dvh] w-full overflow-y-auto rounded-t-3xl border border-border bg-bg p-4 pb-[calc(24px+env(safe-area-inset-bottom))] shadow-2xl"
-      role="dialog"
-      tabindex="-1"
-      aria-modal="true"
-      aria-label={m.studio_quick_capture()}
-    >
-      <div class="mx-auto mb-4 h-1 w-10 rounded-full bg-border" aria-hidden="true"></div>
-      {#key `mobile-${composerVersion}`}
-        <MemoryForm
-          idPrefix="mobile-memory"
-          mode="create"
-          autofocus={composerAutofocus}
-          pending={createMemory.isPending}
-          issues={operationIssues}
-          onsubmit={saveNewMemory}
-          oncancel={() => (composerOpen = false)}
-        />
-      {/key}
-    </div>
-  </div>
+    <div class="mx-auto mb-4 h-1 w-10 rounded-full bg-border" aria-hidden="true"></div>
+    {#key `mobile-${composerVersion}`}
+      <MemoryForm
+        idPrefix="mobile-memory"
+        mode="create"
+        pending={createMemory.isPending}
+        issues={createIssues}
+        onsubmit={saveNewMemory}
+        oncancel={closeComposer}
+      />
+    {/key}
+  </Sheet>
 {/if}
 
 {#if editMemory}
-  <div
-    class="fixed inset-0 z-[180] flex items-end justify-center bg-black/50 p-0 md:items-center md:p-4"
-    role="presentation"
-    onclick={(event) => {
-      if (event.target === event.currentTarget) editMemory = null;
-    }}
+  <Sheet
+    labelledby="memory-edit-title"
+    initialFocusSelector={`#edit-memory-${editMemory.id}-body`}
+    panelClass="md:max-w-2xl"
+    onclose={closeEditMemory}
   >
-    <div
-      class="max-h-[90dvh] w-full overflow-y-auto rounded-t-3xl border border-border bg-bg p-4 pb-[calc(24px+env(safe-area-inset-bottom))] md:max-w-2xl md:rounded-2xl md:p-6"
-      role="dialog"
-      tabindex="-1"
-      aria-modal="true"
-      aria-labelledby="memory-edit-title"
-    >
-      <h2 id="memory-edit-title" class="sr-only">{m.studio_edit_memory()}</h2>
-      <MemoryForm
-        idPrefix={`edit-memory-${editMemory.id}`}
-        mode="edit"
-        initial={editMemory}
-        pending={updateMemory.isPending}
-        issues={validationIssues(updateMemory.error)}
-        onsubmit={saveEditedMemory}
-        oncancel={() => (editMemory = null)}
-      />
-    </div>
-  </div>
+    <h2 id="memory-edit-title" class="sr-only">{m.studio_edit_memory()}</h2>
+    <MemoryForm
+      idPrefix={`edit-memory-${editMemory.id}`}
+      mode="edit"
+      initial={editMemory}
+      pending={updateMemory.isPending}
+      issues={updateIssues}
+      onsubmit={saveEditedMemory}
+      oncancel={closeEditMemory}
+    />
+  </Sheet>
 {/if}
 
 {#if deleteMemory}

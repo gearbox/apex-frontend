@@ -5,6 +5,7 @@
   import { ROUTES } from '$lib/utils/routes';
   import { ArrowLeft } from '@lucide/svelte';
   import Spinner from '$lib/components/ui/Spinner.svelte';
+  import { artistMonogram } from '$lib/studio/artists';
   import * as m from '$paraglide/messages';
   import type { Snippet } from 'svelte';
 
@@ -14,17 +15,6 @@
   const artistsQuery = createQuery(artistsQueryOptions);
   let artist = $derived(artistQuery.data);
   let isProfile = $derived($page.url.pathname.endsWith('/profile'));
-
-  function monogram(name: string): string {
-    const initials = name
-      .trim()
-      .split(/\s+/u)
-      .slice(0, 2)
-      .map((part) => Array.from(part)[0] ?? '')
-      .join('')
-      .toLocaleUpperCase();
-    return Array.from(initials).slice(0, 2).join('');
-  }
 </script>
 
 {#if artistQuery.isPending}
@@ -32,7 +22,7 @@
     <Spinner size="2xl" label={m.common_loading()} />
   </div>
 {:else if artistQuery.isError || !artist}
-  <main
+  <section
     class="mx-auto flex min-h-[60vh] max-w-lg flex-col items-center justify-center px-5 text-center"
   >
     <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-surface text-accent">
@@ -47,7 +37,7 @@
       class="mt-5 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-bg"
       >{m.artists_back_to_all()}</a
     >
-  </main>
+  </section>
 {:else}
   <div class="mx-auto w-full max-w-7xl px-4 py-4 pb-28 md:px-8 md:py-8 md:pb-10">
     <div class="grid gap-6 lg:grid-cols-[230px_minmax(0,1fr)] xl:grid-cols-[250px_minmax(0,1fr)]">
@@ -78,7 +68,7 @@
                 >
                   <span
                     class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-bg font-display text-xs font-bold text-accent"
-                    aria-hidden="true">{monogram(item.name)}</span
+                    aria-hidden="true">{artistMonogram(item.name)}</span
                   >
                   <span class="truncate">{item.name}</span>
                 </a>
@@ -88,12 +78,12 @@
         </div>
       </aside>
 
-      <main class="min-w-0">
+      <div class="min-w-0">
         <header class="mb-5 rounded-2xl border border-border bg-surface p-4 md:p-6">
           <div class="flex items-start gap-4">
             <span
               class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-accent-glow font-display text-xl font-bold text-accent md:h-16 md:w-16 md:text-2xl"
-              aria-hidden="true">{monogram(artist.name)}</span
+              aria-hidden="true">{artistMonogram(artist.name)}</span
             >
             <div class="min-w-0 flex-1">
               <p class="text-xs font-semibold uppercase tracking-[0.16em] text-accent">
@@ -117,33 +107,30 @@
               {/if}
             </div>
           </div>
-          <div
+          <nav
             class="mt-5 flex gap-1 border-t border-border pt-3"
-            role="tablist"
             aria-label={m.artists_tabs_label()}
           >
             <a
               href={`${ROUTES.artists}/${artist.id}`}
-              role="tab"
               aria-current={!isProfile ? 'page' : undefined}
-              aria-selected={!isProfile}
               class="rounded-lg px-4 py-2 text-sm font-semibold transition {isProfile
                 ? 'text-text-muted hover:bg-surface-hover'
                 : 'bg-accent-glow text-accent'}">{m.artists_tab_diary()}</a
             >
             <a
               href={`${ROUTES.artists}/${artist.id}/profile`}
-              role="tab"
               aria-current={isProfile ? 'page' : undefined}
-              aria-selected={isProfile}
               class="rounded-lg px-4 py-2 text-sm font-semibold transition {isProfile
                 ? 'bg-accent-glow text-accent'
                 : 'text-text-muted hover:bg-surface-hover'}">{m.artists_tab_profile()}</a
             >
-          </div>
+          </nav>
         </header>
-        {@render children()}
-      </main>
+        {#key artist.id}
+          {@render children()}
+        {/key}
+      </div>
     </div>
   </div>
 {/if}

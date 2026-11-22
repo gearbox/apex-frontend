@@ -6,7 +6,7 @@
     formatLocalIsoDate,
     todayLocalIsoDate,
   } from '$lib/studio/memoryDraft';
-  import { issueLabel, type StudioValidationIssue } from '$lib/studio/formErrors';
+  import { fieldIssues, issueMessage, type StudioValidationIssue } from '$lib/studio/formErrors';
   import { locale } from '$lib/stores/locale';
   import * as m from '$paraglide/messages';
 
@@ -61,6 +61,18 @@
   let salience = $state(untrack(() => initial?.salience ?? 3));
   let moreOpen = $state(false);
   let bodyEl: HTMLTextAreaElement | undefined = $state();
+  let bodyIssues = $derived(fieldIssues(issues, 'body'));
+  let titleIssues = $derived(fieldIssues(issues, 'title'));
+  let dateIssues = $derived(fieldIssues(issues, 'occurred_on'));
+  let salienceIssues = $derived(fieldIssues(issues, 'salience'));
+  let otherIssues = $derived(
+    issues.filter(
+      (issue) =>
+        !['body', 'title', 'occurred_on', 'salience', 'themes', 'imagery'].some(
+          (field) => issue.path === field || issue.path.startsWith(field + '['),
+        ),
+    ),
+  );
 
   $effect(() => {
     if (autofocus) bodyEl?.focus();
@@ -112,15 +124,6 @@
     {/if}
   </div>
 
-  {#if issues.length > 0}
-    <ul
-      class="space-y-1 rounded-xl border border-danger/40 bg-danger/10 p-3 text-xs text-danger"
-      role="alert"
-    >
-      {#each issues as issue, index (`${issue.path}-${index}`)}<li>{issueLabel(issue)}</li>{/each}
-    </ul>
-  {/if}
-
   <label class="block space-y-2" for={`${idPrefix}-body`}>
     <span class="text-sm font-medium text-text">{m.studio_memory_body_label()}</span>
     <textarea
@@ -133,6 +136,10 @@
       placeholder={m.studio_memory_body_placeholder()}
       class="w-full resize-y rounded-2xl border border-border bg-bg px-4 py-3 text-sm leading-6 text-text outline-none placeholder:text-text-dim focus:border-accent"
       oninput={updateBody}></textarea>
+    {#each bodyIssues as issue, index (`${issue.path}-${index}`)}<span
+        class="block text-xs text-danger"
+        role="alert">{issueMessage(issue)}</span
+      >{/each}
   </label>
 
   <div class="flex flex-wrap items-center gap-2">
@@ -163,6 +170,12 @@
       </button>
     {/if}
   </div>
+  {#each dateIssues as issue, index (`${issue.path}-${index}`)}<p
+      class="text-xs text-danger"
+      role="alert"
+    >
+      {issueMessage(issue)}
+    </p>{/each}
 
   <details bind:open={moreOpen} class="rounded-xl border border-border bg-surface/50 px-3 py-2">
     <summary class="cursor-pointer py-1 text-sm font-medium text-text"
@@ -182,9 +195,17 @@
             titleEdited = true;
           }}
         />
+        {#each titleIssues as issue, index (`${issue.path}-${index}`)}<p
+            class="text-xs text-danger"
+            role="alert"
+          >
+            {issueMessage(issue)}
+          </p>{/each}
       </label>
       <TagListInput
         id={`${idPrefix}-themes`}
+        field="themes"
+        {issues}
         label={m.studio_memory_themes()}
         bind:values={themes}
         maxItems={12}
@@ -192,6 +213,8 @@
       />
       <TagListInput
         id={`${idPrefix}-imagery`}
+        field="imagery"
+        {issues}
         label={m.studio_memory_imagery()}
         bind:values={imagery}
         maxItems={20}
@@ -214,7 +237,19 @@
             >
           {/each}
         </div>
+        {#each salienceIssues as issue, index (`${issue.path}-${index}`)}<p
+            class="text-xs text-danger"
+            role="alert"
+          >
+            {issueMessage(issue)}
+          </p>{/each}
       </fieldset>
+      {#each otherIssues as issue, index (`${issue.path}-${index}`)}<p
+          class="text-xs text-danger"
+          role="alert"
+        >
+          {issueMessage(issue)}
+        </p>{/each}
     </div>
   </details>
 

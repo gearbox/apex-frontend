@@ -1,12 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import { QueryClient } from '@tanstack/svelte-query';
+import { get } from 'svelte/store';
 import { http, HttpResponse } from 'msw';
 import { server } from '../../../../../../../mocks/server';
 import { MOCK_BASE_URL as BASE } from '../../../../../../../mocks/config';
 import { makeArtist } from '../../../../../../../mocks/factories/studio';
 import { clearAuth, setAuth } from '$lib/stores/auth';
 import { makeUserProfile } from '../../../../../../../mocks/factories/user';
+import { clearToasts, toasts } from '$lib/stores/toasts';
 import QueryHarness from '../../../../../../../tests/QueryHarness.svelte';
 import type { Component } from 'svelte';
 
@@ -66,6 +68,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   clearAuth();
+  clearToasts();
 });
 
 describe('artist profile page', () => {
@@ -84,6 +87,15 @@ describe('artist profile page', () => {
     await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => expect(patchBody).toEqual({ persona: null }));
+    expect(get(toasts).at(-1)?.message).toBe('Profile saved.');
+  });
+
+  it('explains when Save is pressed with no profile changes', async () => {
+    renderPage();
+    await screen.findByRole('heading', { name: 'Artist details' });
+    await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(get(toasts).at(-1)?.message).toBe('There are no changes to save.'));
   });
 
   it('flags tempo-looking style tags and explains the export field', async () => {

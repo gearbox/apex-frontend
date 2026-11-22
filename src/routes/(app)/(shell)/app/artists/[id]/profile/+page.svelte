@@ -12,7 +12,13 @@
   import ConfirmDeleteModal from '$lib/components/shared/ConfirmDeleteModal.svelte';
   import Spinner from '$lib/components/ui/Spinner.svelte';
   import { addToast } from '$lib/stores/toasts';
-  import { fieldIssues, issueLabel, studioError, validationIssues } from '$lib/studio/formErrors';
+  import {
+    fieldIssues,
+    issueField,
+    issueMessage,
+    studioError,
+    validationIssues,
+  } from '$lib/studio/formErrors';
   import { ROUTES } from '$lib/utils/routes';
   import type { components } from '$lib/api/types';
   import * as m from '$paraglide/messages';
@@ -55,6 +61,21 @@
   let nameIssues = $derived(fieldIssues(issues, 'name'));
   let personaIssues = $derived(fieldIssues(issues, 'persona'));
   let voiceIssues = $derived(fieldIssues(issues, 'voice_notes'));
+  let languageIssues = $derived(fieldIssues(issues, 'default_language'));
+  let otherIssues = $derived(
+    issues.filter(
+      (issue) =>
+        ![
+          'name',
+          'persona',
+          'voice_notes',
+          'default_language',
+          'style_tags',
+          'global_avoid',
+          'aesthetic_references',
+        ].includes(issueField(issue)),
+    ),
+  );
   let tempoTags = $derived(
     styleTags.filter((tag) => {
       const match = tag.match(/^\s*(\d{2,3})\s*bpm\s*$/i);
@@ -86,10 +107,13 @@
     if (JSON.stringify(server.aesthetic_references) !== JSON.stringify(aestheticReferences)) {
       patch.aesthetic_references = aestheticReferences;
     }
-    if (!Object.keys(patch).length) return;
+    if (!Object.keys(patch).length) {
+      addToast({ type: 'info', message: m.artists_profile_no_changes() });
+      return;
+    }
     try {
       await updateMutation.mutateAsync({ id: artistId, patch });
-      addToast({ type: 'success', message: m.common_save() });
+      addToast({ type: 'success', message: m.artists_profile_saved() });
     } catch (error) {
       const apiError = studioError(error);
       formMessage =
@@ -162,7 +186,7 @@
             class="mt-1 text-xs text-danger"
             role="alert"
           >
-            {issueLabel(issue)}
+            {issueMessage(issue)}
           </p>{/each}
       </div>
 
@@ -181,7 +205,7 @@
             class="mt-1 text-xs text-danger"
             role="alert"
           >
-            {issueLabel(issue)}
+            {issueMessage(issue)}
           </p>{/each}
       </div>
 
@@ -200,7 +224,7 @@
             class="mt-1 text-xs text-danger"
             role="alert"
           >
-            {issueLabel(issue)}
+            {issueMessage(issue)}
           </p>{/each}
       </div>
 
@@ -215,17 +239,16 @@
           placeholder={m.artists_language_custom_placeholder()}
           class="w-full rounded-xl border border-border bg-bg px-4 py-3 text-sm text-text outline-none focus:border-accent"
         />
-        {#each fieldIssues(issues, 'default_language') as issue, index (`${issue.path}-${index}`)}<p
-            class="mt-1 text-xs text-danger"
-            role="alert"
-          >
-            {issueLabel(issue)}
-          </p>{/each}
+        {#each languageIssues as issue, index (issue.path + '-' + index)}
+          <p class="mt-1 text-xs text-danger" role="alert">{issueMessage(issue)}</p>
+        {/each}
       </div>
 
       <div class="grid gap-6 lg:grid-cols-2">
         <TagListInput
           id="profile-style-tags"
+          field="style_tags"
+          {issues}
           label={m.artists_style_tags()}
           bind:values={styleTags}
           maxItems={40}
@@ -234,6 +257,8 @@
         />
         <TagListInput
           id="profile-global-avoid"
+          field="global_avoid"
+          {issues}
           label={m.artists_global_avoid()}
           bind:values={globalAvoid}
           maxItems={40}
@@ -242,6 +267,8 @@
         />
         <TagListInput
           id="profile-aesthetic-references"
+          field="aesthetic_references"
+          {issues}
           label={m.artists_aesthetic_references()}
           bind:values={aestheticReferences}
           maxItems={20}
@@ -257,9 +284,9 @@
           {m.artists_reserved_tempo_tag({ tags: tempoTags.join(', ') })}
         </p>
       {/if}
-      {#each issues.filter((issue) => !['name', 'persona', 'voice_notes', 'default_language'].includes(issue.path.split('[')[0])) as issue, index (`${issue.path}-${index}`)}
+      {#each otherIssues as issue, index (issue.path + '-' + index)}
         <p class="text-xs text-danger" role="alert">
-          {issue.path || 'form'}: {issue.code.replaceAll('_', ' ')}
+          {issueMessage(issue)}
         </p>
       {/each}
       {#if formMessage}<p

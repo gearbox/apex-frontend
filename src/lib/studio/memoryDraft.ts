@@ -10,10 +10,9 @@ export function deriveMemoryTitle(body: string): string {
   const points = Array.from(collapsed);
   if (points.length <= 120) return collapsed;
 
-  const first120 = points.slice(0, 120).join('');
-  const cutAt = first120.lastIndexOf(' ');
-  if (cutAt >= 60) return first120.slice(0, cutAt).trimEnd();
-  return first120;
+  const prefix = points.slice(0, 120);
+  const cutAt = prefix.lastIndexOf(' ');
+  return (cutAt >= 60 ? prefix.slice(0, cutAt) : prefix).join('').trimEnd();
 }
 
 /** Returns a YYYY-MM-DD date in the user's local time zone. */

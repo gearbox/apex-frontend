@@ -4,7 +4,8 @@
   import { ArrowLeft, Check } from '@lucide/svelte';
   import { createArtistMutationOptions, artistsQueryOptions } from '$lib/queries/studio';
   import { ARTIST_KINDS, ARTIST_KIND_COPY, type ArtistKind } from '$lib/studio/artistKinds';
-  import { fieldIssues, issueLabel, studioError, validationIssues } from '$lib/studio/formErrors';
+  import { MAX_ARTISTS } from '$lib/studio/artists';
+  import { fieldIssues, issueMessage, studioError, validationIssues } from '$lib/studio/formErrors';
   import { ROUTES } from '$lib/utils/routes';
   import Spinner from '$lib/components/ui/Spinner.svelte';
   import * as m from '$paraglide/messages';
@@ -21,11 +22,12 @@
   let hasArtistLimitError = $state(false);
 
   let artistLimitReached = $derived(
-    hasArtistLimitError || (artistsQuery.data?.items.length ?? 0) >= 50,
+    hasArtistLimitError || (artistsQuery.data?.items.length ?? 0) >= MAX_ARTISTS,
   );
   let issues = $derived(validationIssues(createArtistMutation.error));
   let nameIssues = $derived(fieldIssues(issues, 'name'));
   let personaIssues = $derived(fieldIssues(issues, 'persona'));
+  let languageIssues = $derived(fieldIssues(issues, 'default_language'));
 
   function selectKind(kind: ArtistKind) {
     if (persona.trim() === '' || (selectedKind !== null && persona === previousTemplate)) {
@@ -168,7 +170,7 @@
           {:else if nameIssues.length > 0}
             <ul id="artist-name-error" class="mt-1.5 space-y-1 text-xs text-danger" role="alert">
               {#each nameIssues as issue, index (`${issue.path}-${index}`)}<li>
-                  {issueLabel(issue)}
+                  {issueMessage(issue)}
                 </li>{/each}
             </ul>
           {/if}
@@ -192,7 +194,7 @@
           {#if personaIssues.length > 0}
             <ul id="artist-persona-error" class="mt-1.5 space-y-1 text-xs text-danger" role="alert">
               {#each personaIssues as issue, index (`${issue.path}-${index}`)}<li>
-                  {issueLabel(issue)}
+                  {issueMessage(issue)}
                 </li>{/each}
             </ul>
           {/if}
@@ -214,6 +216,9 @@
             <option value="sr">{m.profile_language_sr()}</option>
             <option value="other">{m.artists_language_other()}</option>
           </select>
+          {#each languageIssues as issue, index (issue.path + '-' + index)}
+            <p class="mt-1.5 text-xs text-danger" role="alert">{issueMessage(issue)}</p>
+          {/each}
           {#if language === 'other'}
             <input
               class="mt-3 w-full rounded-xl border border-border bg-bg px-4 py-3 text-sm text-text outline-none placeholder:text-text-dim focus:border-accent"
@@ -233,9 +238,6 @@
             {formError}
           </p>
         {/if}
-        {#each issues.filter((issue) => issue.path !== 'name' && issue.path !== 'persona') as issue, index (`${issue.path}-${index}`)}
-          <p class="text-xs text-danger" role="alert">{issueLabel(issue)}</p>
-        {/each}
 
         <button
           type="submit"

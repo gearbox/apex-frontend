@@ -75,7 +75,7 @@ test.describe('Artists accessibility', () => {
     );
 
     await page.goto('/app/artists/artist-a11y');
-    await expect(page.getByRole('tab', { name: 'Diary' })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('link', { name: 'Diary' })).toHaveAttribute('aria-current', 'page');
     await expect(page.getByRole('tab', { name: 'Active' })).toHaveAttribute(
       'aria-selected',
       'true',
@@ -88,10 +88,11 @@ test.describe('Artists accessibility', () => {
     );
 
     await page.goto('/app/artists/artist-a11y/profile');
-    await expect(page.getByRole('tab', { name: 'Profile' })).toHaveAttribute(
-      'aria-selected',
-      'true',
-    );
+    await expect(
+      page.getByRole('navigation', { name: 'Artist sections' }).getByRole('link', {
+        name: 'Profile',
+      }),
+    ).toHaveAttribute('aria-current', 'page');
     await expectNoSeriousAxeViolations(page);
   });
 });

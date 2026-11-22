@@ -116,8 +116,10 @@ describe('new artist page', () => {
       screen.getByRole('button', { name: 'Create and write the first memory' }),
     );
 
-    expect(await screen.findByText('name: too long after normalization')).toBeTruthy();
-    expect(screen.getByText('persona: empty after normalization')).toBeTruthy();
+    const nameIssue = await screen.findByText('This value is longer than allowed.');
+    const personaIssue = screen.getByText('Enter a value.');
+    expect(nameIssue.closest('#artist-name-error')).toBeTruthy();
+    expect(personaIssue.closest('#artist-persona-error')).toBeTruthy();
 
     cleanup();
     const conflictClient = renderPage();
