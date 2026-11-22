@@ -9,7 +9,7 @@
   import { ROUTES } from '$lib/utils/routes';
   import { ChevronLeft, ChevronRight, Scale, MessageSquareWarning } from '@lucide/svelte';
   import { openFeedbackDialog } from '$lib/stores/feedbackDialog.svelte';
-  import { productProfile } from '$lib/product/profile';
+  import { navigation } from '$lib/navigation/resolved';
   import { NAV_DESTINATIONS, NavDestinationId } from '$lib/navigation/destinations';
 
   const legalItems = [
@@ -34,7 +34,7 @@
 
   <!-- Main nav -->
   <nav class="sidebar-nav">
-    {#each $productProfile.navigation.desktopMain.map((id) => NAV_DESTINATIONS[id]) as item (item.id)}
+    {#each $navigation.desktopMain.map((id) => NAV_DESTINATIONS[id]) as item (item.id)}
       {@const Icon = item.icon}
       {@const isActive = item.isActive($page.url)}
       <a

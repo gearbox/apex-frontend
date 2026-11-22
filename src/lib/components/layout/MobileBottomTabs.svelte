@@ -9,7 +9,7 @@
   import { getActiveLibraryProjectId, isLibraryUrl } from '$lib/utils/projectNavigation';
   import * as m from '$paraglide/messages';
   import { Folder, Images, MoreVertical } from '@lucide/svelte';
-  import { productProfile } from '$lib/product/profile';
+  import { navigation } from '$lib/navigation/resolved';
   import { NAV_DESTINATIONS } from '$lib/navigation/destinations';
   import { ROUTES } from '$lib/utils/routes';
 
@@ -18,7 +18,7 @@
 </script>
 
 <nav class="btm-tabs chrome-no-select">
-  {#each $productProfile.navigation.mobileTabs as slot (slot.kind === 'destination' ? `destination:${slot.id}` : slot.kind)}
+  {#each $navigation.mobileTabs as slot (slot.kind === 'destination' ? `destination:${slot.id}` : slot.kind)}
     {#if slot.kind === 'destination'}
       {@const item = NAV_DESTINATIONS[slot.id]}
       {@const Icon = item.icon}

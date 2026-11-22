@@ -1,6 +1,10 @@
 {
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "nav_create": "Создать",
+  "nav_artists": "Артисты",
+  "artists_title": "Артисты",
+  "artists_coming_soon": "Раздел артистов скоро появится.",
+  "studio_unreachable": "Не удалось проверить, доступна ли Studio.",
   "nav_billing": "Платежи и токены",
   "nav_jobs": "История задач",
   "nav_profile": "Профиль и настройки",

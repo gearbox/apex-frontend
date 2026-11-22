@@ -57,4 +57,20 @@ describe('initTheme', () => {
     expect(localStorage.getItem(STORAGE_KEYS.THEME_PREFS)).toBeNull();
     cleanup();
   });
+
+  it('sets and updates the display font CSS variable from the selected theme', async () => {
+    localStorage.removeItem(STORAGE_KEYS.THEME_PREFS);
+    themePrefs.set(DEFAULT_PREFS);
+    const { initTheme, setTheme } = await import('./theme');
+    const cleanup = initTheme('nocturne');
+
+    expect(document.documentElement.style.getPropertyValue('--apex-font-display')).toBe(
+      "'Syne', 'DM Sans', ui-sans-serif, system-ui, sans-serif",
+    );
+    setTheme('frost');
+    expect(document.documentElement.style.getPropertyValue('--apex-font-display')).toBe(
+      "'DM Sans', ui-sans-serif, system-ui, sans-serif",
+    );
+    cleanup();
+  });
 });

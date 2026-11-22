@@ -88,8 +88,6 @@ function isNonRetryableSubmission(request: Request): boolean {
   try {
     const pathname = new URL(request.url).pathname;
     return (
-      pathname === '/v1/studio/artists' ||
-      /^\/v1\/studio\/artists\/[^/]+\/memories$/.test(pathname) ||
       pathname === '/v1/feedback' ||
       pathname === '/v1/feedback/' ||
       pathname === '/v1/auth/resend-verification'

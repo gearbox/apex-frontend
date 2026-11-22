@@ -2,7 +2,7 @@ import { get, writable, type Readable } from 'svelte/store';
 import apiClient from '$lib/api/client';
 
 export type Capability = 'studio';
-export type CapabilityState = 'unknown' | 'available' | 'unavailable';
+export type CapabilityState = 'unknown' | 'available' | 'unavailable' | 'unreachable';
 const studio = writable<CapabilityState>('unknown');
 export const studioCapability: Readable<CapabilityState> = { subscribe: studio.subscribe };
 type Probe = () => Promise<{ status: number }>;
@@ -35,11 +35,28 @@ export function probeStudio(probe: Probe = defaultProbe, retryDelayMs = 30_000):
       console.warn('studio.capability.probe_failed', { status });
       if (attempt === 0) await new Promise<void>((resolve) => setTimeout(resolve, retryDelayMs));
     }
+    studio.set('unreachable');
   })().finally(() => {
     pending = undefined;
   });
   return pending;
 }
+
+/** Retry an exhausted probe after an explicit user action. */
+export function retryStudioProbe(
+  probe: Probe = defaultProbe,
+  retryDelayMs = 30_000,
+): Promise<void> {
+  if (get(studio) !== 'unreachable') return Promise.resolve();
+  attempted = false;
+  studio.set('unknown');
+  return probeStudio(probe, retryDelayMs);
+}
+
 export function isCapabilityAvailable(state: CapabilityState): boolean {
   return state === 'available';
+}
+
+export function setStudioCapabilityForTest(state: CapabilityState): void {
+  studio.set(state);
 }

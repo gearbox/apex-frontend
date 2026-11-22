@@ -1,9 +1,11 @@
-import { Activity, Coins, Images, Plus, Server, Shield, User } from '@lucide/svelte';
+import { Activity, Coins, Images, MicVocal, Plus, Server, Shield, User } from '@lucide/svelte';
 import * as m from '$paraglide/messages';
 import { ROUTES } from '$lib/utils/routes';
+import type { Capability } from '$lib/product/capabilities';
 
 export const NavDestinationId = {
   Create: 'create',
+  Artists: 'artists',
   Library: 'library',
   Sessions: 'sessions',
   Jobs: 'jobs',
@@ -13,13 +15,14 @@ export const NavDestinationId = {
 } as const;
 export type NavDestinationId = (typeof NavDestinationId)[keyof typeof NavDestinationId];
 type NavIcon = typeof Plus;
-interface NavDestination {
+export interface NavDestination {
   readonly id: NavDestinationId;
   readonly href: string;
   readonly label: () => string;
   readonly sheetLabel: () => string;
   readonly pageTitle: () => string;
   readonly icon: NavIcon;
+  readonly requires?: Capability;
   readonly isActive: (url: URL) => boolean;
 }
 const byPrefix = (href: string) => (url: URL) => url.pathname.startsWith(href);
@@ -32,6 +35,16 @@ export const NAV_DESTINATIONS = {
     pageTitle: () => m.topbar_create(),
     icon: Plus,
     isActive: byPrefix(ROUTES.create),
+  },
+  artists: {
+    id: 'artists',
+    href: ROUTES.artists,
+    label: () => m.nav_artists(),
+    sheetLabel: () => m.nav_artists(),
+    pageTitle: () => m.artists_title(),
+    icon: MicVocal,
+    requires: 'studio',
+    isActive: byPrefix(ROUTES.artists),
   },
   library: {
     id: 'library',

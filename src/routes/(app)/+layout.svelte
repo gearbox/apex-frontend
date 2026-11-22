@@ -6,7 +6,8 @@
   import { currentAuthStatus, currentUser } from '$lib/stores/auth';
   import { initAuth } from '$lib/api/auth';
   import { probeStudio } from '$lib/product/capabilities';
-  import { get } from 'svelte/store';
+  import { navigationRequires } from '$lib/navigation/resolved';
+  import { productProfile } from '$lib/product/profile';
   import { EventStreamService } from '$lib/services/eventStream';
   import * as contentCookieService from '$lib/services/contentCookie';
   import * as m from '$paraglide/messages';
@@ -43,11 +44,21 @@
   onMount(async () => {
     stopPendingPaymentStorageListener = startPendingPaymentsStorageListener();
     await initAuth();
-    if (get(currentAuthStatus) === 'authenticated') void probeStudio();
     checking = false;
   });
 
   // SSE lifecycle — connect when authenticated, disconnect when not
+  $effect(() => {
+    if (checking) return;
+
+    if (
+      $currentAuthStatus === 'authenticated' &&
+      navigationRequires($productProfile.navigation, 'studio')
+    ) {
+      void probeStudio();
+    }
+  });
+
   $effect(() => {
     if (checking) return;
 

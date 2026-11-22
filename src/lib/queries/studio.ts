@@ -85,6 +85,7 @@ export function deleteArtistMutationOptions(qc: QueryClient) {
     },
     onSuccess: (_: void, id: string) => {
       qc.removeQueries({ queryKey: studioKeys.artist(id) });
+      qc.removeQueries({ queryKey: [...studioKeys.artist(id), 'memories'] });
       void qc.invalidateQueries({ queryKey: studioKeys.artists() });
     },
   };

@@ -5,7 +5,7 @@
   import { hasLegalDocuments } from '$lib/stores/legal';
   import * as m from '$paraglide/messages';
   import { ChevronRight, MessageSquareWarning } from '@lucide/svelte';
-  import { productProfile } from '$lib/product/profile';
+  import { navigation } from '$lib/navigation/resolved';
   import { NAV_DESTINATIONS } from '$lib/navigation/destinations';
   import AppVersionBadge from '$lib/components/shared/AppVersionBadge.svelte';
   import MobileNavSheet from './MobileNavSheet.svelte';
@@ -52,7 +52,7 @@
 {#if $moreSheetOpen}
   <MobileNavSheet id="mobile-more-sheet" label={m.nav_more()} onclose={closeMoreSheet}>
     <nav>
-      {#each $productProfile.navigation.moreSheet as id (id)}
+      {#each $navigation.moreSheet as id (id)}
         {@const item = NAV_DESTINATIONS[id]}
         {@const Icon = item.icon}
         <a href={item.href} onclick={closeMoreSheet} class="sheet-item">

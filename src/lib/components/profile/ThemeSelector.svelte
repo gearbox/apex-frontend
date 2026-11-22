@@ -8,13 +8,12 @@
   <div class="theme-grid">
     {#each Object.values(themes) as t (t.name)}
       {@const active = $themePrefs.theme === t.name}
-      {@const def = t}
       <button onclick={() => setTheme(t.name)} class="theme-card" class:active>
         <div class="swatches">
-          <span class="swatch" style="background: {def.light.bg}"></span>
-          <span class="swatch" style="background: {def.light.accent}"></span>
-          <span class="swatch" style="background: {def.dark.bg}"></span>
-          <span class="swatch" style="background: {def.dark.accent}"></span>
+          <span class="swatch" style="background: {t.light.bg}"></span>
+          <span class="swatch" style="background: {t.light.accent}"></span>
+          <span class="swatch" style="background: {t.dark.bg}"></span>
+          <span class="swatch" style="background: {t.dark.accent}"></span>
         </div>
         <p class="theme-name" class:active>{t.label}</p>
         <p class="theme-desc">{t.description}</p>
