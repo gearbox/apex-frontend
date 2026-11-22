@@ -1,6 +1,10 @@
 {
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "nav_create": "Kreiraj",
+  "nav_artists": "Umetnici",
+  "artists_title": "Umetnici",
+  "artists_coming_soon": "Umetnici uskoro stižu.",
+  "studio_unreachable": "Nije moguće proveriti da li je Studio dostupan.",
   "nav_billing": "Naplata i tokeni",
   "nav_jobs": "Istorija poslova",
   "nav_profile": "Profil i podešavanja",

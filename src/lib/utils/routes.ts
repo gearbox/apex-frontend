@@ -5,6 +5,7 @@ export const ROUTES = {
   /** Top-up / checkout entry point linked from credit CTAs. */
   billingTopUp: '/app/billing?tab=buy',
   create: '/app/create',
+  artists: '/app/artists',
   library: '/app/library',
   sessions: '/app/sessions',
   jobs: '/app/jobs',

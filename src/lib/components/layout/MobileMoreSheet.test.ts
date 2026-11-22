@@ -3,6 +3,8 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/svelte';
 import { tick } from 'svelte';
 import { closeMobileNavSheet, openMoreSheet } from '$lib/stores/ui';
 import MobileMoreSheet from './MobileMoreSheet.svelte';
+import { productInfo } from '$lib/stores/product';
+import { setStudioCapability } from '$lib/product/testing/capabilityFixture';
 
 function dispatchPointer(
   target: HTMLElement,
@@ -27,6 +29,8 @@ function dispatchPointer(
 describe('MobileMoreSheet', () => {
   afterEach(() => {
     closeMobileNavSheet();
+    productInfo.set(null);
+    setStudioCapability('unknown');
     cleanup();
   });
 
@@ -65,6 +69,63 @@ describe('MobileMoreSheet', () => {
     expect(screen.getByRole('link', { name: 'Profile & Settings' }).getAttribute('href')).toBe(
       '/app/profile',
     );
+  });
+
+  it('includes Synthara Artists in More only when Studio is available', async () => {
+    productInfo.set({
+      product: 'synthara',
+      display_name: 'Synthara',
+      age_gate: 'none',
+      allowed_auth_methods: ['email_password'],
+      content_rating: 'sfw',
+      payment_providers: ['stripe'],
+    });
+    setStudioCapability('available');
+    openMoreSheet();
+    const { unmount } = render(MobileMoreSheet);
+    await tick();
+    expect(
+      Array.from(document.querySelectorAll('.sheet-item-label'))
+        .slice(0, 4)
+        .map((node) => node.textContent?.trim()),
+    ).toEqual(['Sessions', 'Billing & Tokens', 'Job History', 'Profile & Settings']);
+    expect(screen.queryByRole('link', { name: 'Artists' })).toBeNull();
+    unmount();
+
+    for (const state of ['unknown', 'unavailable'] as const) {
+      closeMobileNavSheet();
+      setStudioCapability(state);
+      openMoreSheet();
+      render(MobileMoreSheet);
+      await tick();
+      expect(screen.queryByRole('link', { name: 'Artists' })).toBeNull();
+      cleanup();
+    }
+  });
+
+  it('keeps Vex More entries unchanged when Studio is available', async () => {
+    productInfo.set({
+      product: 'vex',
+      display_name: 'Vex',
+      age_gate: 'none',
+      allowed_auth_methods: ['email_password'],
+      content_rating: 'sfw',
+      payment_providers: ['stripe'],
+    });
+    for (const state of ['unknown', 'unavailable', 'available'] as const) {
+      setStudioCapability(state);
+      openMoreSheet();
+      render(MobileMoreSheet);
+      await tick();
+      expect(
+        Array.from(document.querySelectorAll('.sheet-item-label'))
+          .slice(0, 3)
+          .map((node) => node.textContent?.trim()),
+      ).toEqual(['Billing & Tokens', 'Job History', 'Profile & Settings']);
+      expect(screen.queryByRole('link', { name: 'Artists' })).toBeNull();
+      cleanup();
+      closeMobileNavSheet();
+    }
   });
 
   it('closes when its backdrop is clicked', async () => {

@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/svelte';
 import { get } from 'svelte/store';
 import { productInfo } from '$lib/stores/product';
 import { closeMobileNavSheet, mobileNavSheet } from '$lib/stores/ui';
+import { setStudioCapability } from '$lib/product/testing/capabilityFixture';
 
 const state = vi.hoisted(() => ({ pageUrl: new URL('http://localhost/app/create') }));
 
@@ -21,6 +22,7 @@ describe('MobileBottomTabs', () => {
   afterEach(() => {
     cleanup();
     productInfo.set(null);
+    setStudioCapability('unknown');
   });
 
   beforeEach(() => {
@@ -55,6 +57,7 @@ describe('MobileBottomTabs', () => {
   });
 
   it('preserves tabs and links for synthara', () => {
+    setStudioCapability('available');
     productInfo.set({
       product: 'synthara',
       display_name: 'Synthara',
@@ -68,10 +71,63 @@ describe('MobileBottomTabs', () => {
       Array.from(container.querySelectorAll('.btm-tab-label')).map((node) =>
         node.textContent?.trim(),
       ),
-    ).toEqual(['Create', 'Sessions', 'Library', 'More']);
+    ).toEqual(['Create', 'Artists', 'Library', 'More']);
     expect(
       Array.from(container.querySelectorAll('a')).map((node) => node.getAttribute('href')),
-    ).toEqual(['/app/create', '/app/sessions', '/app/library']);
+    ).toEqual(['/app/create', '/app/artists', '/app/library']);
+  });
+
+  it('shows Synthara Artists only when Studio is available', () => {
+    productInfo.set({
+      product: 'synthara',
+      display_name: 'Synthara',
+      age_gate: 'none',
+      allowed_auth_methods: ['email_password'],
+      content_rating: 'sfw',
+      payment_providers: ['stripe'],
+    });
+    setStudioCapability('available');
+    const { container, unmount } = render(MobileBottomTabs);
+    expect(
+      Array.from(container.querySelectorAll('.btm-tab-label')).map((node) =>
+        node.textContent?.trim(),
+      ),
+    ).toEqual(['Create', 'Artists', 'Library', 'More']);
+    unmount();
+
+    for (const state of ['unknown', 'unavailable'] as const) {
+      setStudioCapability(state);
+      const hidden = render(MobileBottomTabs);
+      expect(
+        Array.from(hidden.container.querySelectorAll('.btm-tab-label')).map((node) =>
+          node.textContent?.trim(),
+        ),
+      ).toEqual(['Create', 'Library', 'More']);
+      expect(screen.queryByRole('link', { name: 'Artists' })).toBeNull();
+      hidden.unmount();
+    }
+  });
+
+  it('keeps Vex tabs unchanged when Studio is available', () => {
+    productInfo.set({
+      product: 'vex',
+      display_name: 'Vex',
+      age_gate: 'none',
+      allowed_auth_methods: ['email_password'],
+      content_rating: 'sfw',
+      payment_providers: ['stripe'],
+    });
+    for (const state of ['unknown', 'unavailable', 'available'] as const) {
+      setStudioCapability(state);
+      const { container, unmount } = render(MobileBottomTabs);
+      expect(
+        Array.from(container.querySelectorAll('.btm-tab-label')).map((node) =>
+          node.textContent?.trim(),
+        ),
+      ).toEqual(['Create', 'Sessions', 'Library', 'More']);
+      expect(screen.queryByRole('link', { name: 'Artists' })).toBeNull();
+      unmount();
+    }
   });
 
   it('keeps Library primary while marking its Folder half as project-scoped', () => {

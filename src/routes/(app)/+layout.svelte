@@ -5,6 +5,9 @@
   import { createQuery, useQueryClient } from '@tanstack/svelte-query';
   import { currentAuthStatus, currentUser } from '$lib/stores/auth';
   import { initAuth } from '$lib/api/auth';
+  import { probeStudio } from '$lib/product/capabilities';
+  import { navigationRequires } from '$lib/navigation/resolved';
+  import { productProfile } from '$lib/product/profile';
   import { EventStreamService } from '$lib/services/eventStream';
   import * as contentCookieService from '$lib/services/contentCookie';
   import * as m from '$paraglide/messages';
@@ -45,6 +48,17 @@
   });
 
   // SSE lifecycle — connect when authenticated, disconnect when not
+  $effect(() => {
+    if (checking) return;
+
+    if (
+      $currentAuthStatus === 'authenticated' &&
+      navigationRequires($productProfile.navigation, 'studio')
+    ) {
+      void probeStudio();
+    }
+  });
+
   $effect(() => {
     if (checking) return;
 

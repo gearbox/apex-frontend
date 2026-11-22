@@ -3,7 +3,7 @@ import { ROUTES } from '$lib/utils/routes';
 import { NavDestinationId as D, type NavDestinationId } from '$lib/navigation/destinations';
 import type { ProductId } from './ids';
 
-type MobileTabSlot =
+export type MobileTabSlot =
   | { readonly kind: 'destination'; readonly id: NavDestinationId }
   | { readonly kind: 'library' }
   | { readonly kind: 'more' };
@@ -19,7 +19,7 @@ export interface ProductProfile {
   readonly navigation: ProductNavigation;
 }
 /** Generator-first navigation shared by both products. */
-const GENERATOR_NAVIGATION: ProductNavigation = {
+const VEX_NAVIGATION: ProductNavigation = {
   desktopMain: [D.Create, D.Library, D.Sessions, D.Jobs, D.Billing],
   mobileTabs: [
     { kind: 'destination', id: D.Create },
@@ -34,12 +34,21 @@ export const PRODUCT_PROFILES = {
     id: 'vex',
     homeRoute: ROUTES.create,
     defaultTheme: 'slate',
-    navigation: GENERATOR_NAVIGATION,
+    navigation: VEX_NAVIGATION,
   },
   synthara: {
     id: 'synthara',
     homeRoute: ROUTES.create,
-    defaultTheme: 'frost',
-    navigation: GENERATOR_NAVIGATION,
+    defaultTheme: 'nocturne',
+    navigation: {
+      desktopMain: [D.Artists, D.Create, D.Library, D.Sessions, D.Jobs, D.Billing],
+      mobileTabs: [
+        { kind: 'destination', id: D.Create },
+        { kind: 'destination', id: D.Artists },
+        { kind: 'library' },
+        { kind: 'more' },
+      ],
+      moreSheet: [D.Sessions, D.Billing, D.Jobs, D.Profile],
+    },
   },
 } as const satisfies Record<ProductId, ProductProfile>;

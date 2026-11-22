@@ -1444,6 +1444,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/internal/gpu-sessions/{session_id}/github-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** GithubToken */
+        post: operations["V1InternalGpuSessionsSessionIdGithubTokenGithubToken"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/internal/gpu-sessions/{session_id}/operations/{operation_id}/events": {
         parameters: {
             query?: never;
@@ -1777,6 +1794,309 @@ export interface paths {
         patch: operations["V1LibraryTagsTagIdPatchTag"];
         trace?: never;
     };
+    "/v1/studio/artists": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListArtists */
+        get: operations["V1StudioArtistsListArtists"];
+        put?: never;
+        /** CreateArtist */
+        post: operations["V1StudioArtistsCreateArtist"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/studio/artists/{artist_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetArtist */
+        get: operations["V1StudioArtistsArtistIdGetArtist"];
+        put?: never;
+        post?: never;
+        /** DeleteArtist */
+        delete: operations["V1StudioArtistsArtistIdDeleteArtist"];
+        options?: never;
+        head?: never;
+        /** PatchArtist */
+        patch: operations["V1StudioArtistsArtistIdPatchArtist"];
+        trace?: never;
+    };
+    "/v1/studio/artists/{artist_id}/memories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListMemories */
+        get: operations["V1StudioArtistsArtistIdMemoriesListMemories"];
+        put?: never;
+        /** CreateMemory */
+        post: operations["V1StudioArtistsArtistIdMemoriesCreateMemory"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/studio/memories/{memory_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetMemory */
+        get: operations["V1StudioMemoriesMemoryIdGetMemory"];
+        put?: never;
+        post?: never;
+        /** DeleteMemory */
+        delete: operations["V1StudioMemoriesMemoryIdDeleteMemory"];
+        options?: never;
+        head?: never;
+        /** PatchMemory */
+        patch: operations["V1StudioMemoriesMemoryIdPatchMemory"];
+        trace?: never;
+    };
+    "/v1/studio/projects/{project_id}/tracks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListTracks */
+        get: operations["V1StudioProjectsProjectIdTracksListTracks"];
+        put?: never;
+        /** CreateTrack */
+        post: operations["V1StudioProjectsProjectIdTracksCreateTrack"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/studio/projects/{project_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetProject */
+        get: operations["V1StudioProjectsProjectIdGetProject"];
+        /** PutProject */
+        put: operations["V1StudioProjectsProjectIdPutProject"];
+        post?: never;
+        /** DeleteProject */
+        delete: operations["V1StudioProjectsProjectIdDeleteProject"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/studio/projects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListProjects */
+        get: operations["V1StudioProjectsListProjects"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/studio/projects/{project_id}/tracks/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** ReorderTracks */
+        put: operations["V1StudioProjectsProjectIdTracksOrderReorderTracks"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/studio/runs/{run_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** CancelRun */
+        post: operations["V1StudioRunsRunIdCancelCancelRun"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/studio/runs/{run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetRun */
+        get: operations["V1StudioRunsRunIdGetRun"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/studio/tracks/{track_id}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListRuns */
+        get: operations["V1StudioTracksTrackIdRunsListRuns"];
+        put?: never;
+        /** SubmitRun */
+        post: operations["V1StudioTracksTrackIdRunsSubmitRun"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/studio/tracks/{track_id}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListVersions */
+        get: operations["V1StudioTracksTrackIdVersionsListVersions"];
+        put?: never;
+        /** CreateVersion */
+        post: operations["V1StudioTracksTrackIdVersionsCreateVersion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/studio/tracks/{track_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetTrack */
+        get: operations["V1StudioTracksTrackIdGetTrack"];
+        put?: never;
+        post?: never;
+        /** DeleteTrack */
+        delete: operations["V1StudioTracksTrackIdDeleteTrack"];
+        options?: never;
+        head?: never;
+        /** PatchTrack */
+        patch: operations["V1StudioTracksTrackIdPatchTrack"];
+        trace?: never;
+    };
+    "/v1/studio/versions/{version_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetVersion */
+        get: operations["V1StudioVersionsVersionIdGetVersion"];
+        put?: never;
+        post?: never;
+        /** DeleteVersion */
+        delete: operations["V1StudioVersionsVersionIdDeleteVersion"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/studio/tracks/{track_id}/exports/suno": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ExportSuno */
+        get: operations["V1StudioTracksTrackIdExportsSunoExportSuno"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/studio/tracks/{track_id}/imports/suno": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** ImportSuno */
+        post: operations["V1StudioTracksTrackIdImportsSunoImportSuno"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/studio/tracks/{track_id}/current": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** PutCurrent */
+        put: operations["V1StudioTracksTrackIdCurrentPutCurrent"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/content/feedback/{report_id}": {
         parameters: {
             query?: never;
@@ -2060,6 +2380,42 @@ export interface components {
             /** Format: date-time */
             updated_at: string;
         };
+        /** ArtistCreate */
+        ArtistCreate: {
+            name: string;
+            persona?: string | null;
+            voice_notes?: string | null;
+            default_language?: string | null;
+            aesthetic_references?: string[];
+            style_tags?: string[];
+            global_avoid?: string[];
+        };
+        /** ArtistOut */
+        ArtistOut: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            persona: string | null;
+            voice_notes: string | null;
+            default_language: string | null;
+            aesthetic_references: string[];
+            style_tags: string[];
+            global_avoid: string[];
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        /** ArtistPatch */
+        ArtistPatch: {
+            name?: string;
+            persona?: string | null;
+            voice_notes?: string | null;
+            default_language?: string | null;
+            aesthetic_references?: string[];
+            style_tags?: string[];
+            global_avoid?: string[];
+        };
         /**
          * AspectRatio
          * @description Supported aspect ratios.
@@ -2198,6 +2554,11 @@ export interface components {
         CurrencySuppressPatchRequest: {
             is_suppressed: boolean;
         };
+        /** CurrentPut */
+        CurrentPut: {
+            plan_version_id?: string;
+            lyrics_version_id?: string | null;
+        };
         /** CursorPage[AdminOrgResponse] */
         "CursorPage_src.api.schemas.admin.AdminOrgResponse_": {
             items: components["schemas"]["AdminOrgResponse"][];
@@ -2268,6 +2629,41 @@ export interface components {
             has_more: boolean;
             next_cursor?: string | null;
         };
+        /** CursorPage[ArtistOut] */
+        "CursorPage_src.api.schemas.studio.ArtistOut_": {
+            items: components["schemas"]["ArtistOut"][];
+            limit: number;
+            has_more: boolean;
+            next_cursor?: string | null;
+        };
+        /** CursorPage[MemoryOut] */
+        "CursorPage_src.api.schemas.studio.MemoryOut_": {
+            items: components["schemas"]["MemoryOut"][];
+            limit: number;
+            has_more: boolean;
+            next_cursor?: string | null;
+        };
+        /** CursorPage[ProjectProfileOut] */
+        "CursorPage_src.api.schemas.studio.ProjectProfileOut_": {
+            items: components["schemas"]["ProjectProfileOut"][];
+            limit: number;
+            has_more: boolean;
+            next_cursor?: string | null;
+        };
+        /** CursorPage[VersionSummary] */
+        "CursorPage_src.api.schemas.studio.VersionSummary_": {
+            items: components["schemas"]["VersionSummary"][];
+            limit: number;
+            has_more: boolean;
+            next_cursor?: string | null;
+        };
+        /** CursorPage[RunOut] */
+        "CursorPage_src.api.schemas.studio_runs.RunOut_": {
+            items: components["schemas"]["RunOut"][];
+            limit: number;
+            has_more: boolean;
+            next_cursor?: string | null;
+        };
         /** DeleteAccountResponse */
         DeleteAccountResponse: {
             message: string;
@@ -2332,6 +2728,17 @@ export interface components {
             detail?: {
                 [key: string]: unknown;
             } | null;
+        };
+        /** ExportFieldOut */
+        ExportFieldOut: {
+            length: number;
+            limit: number | null;
+            within_limit: boolean;
+        };
+        /** ExportWarningOut */
+        ExportWarningOut: {
+            code: string;
+            section_id?: string | null;
         };
         /** FeedbackAdminPatch */
         FeedbackAdminPatch: {
@@ -2501,6 +2908,11 @@ export interface components {
             width: number;
             height: number;
             url: string;
+        };
+        /** ImportWarningOut */
+        ImportWarningOut: {
+            code: string;
+            line: number | null;
         };
         /** InputImageConstraintsInfo */
         InputImageConstraintsInfo: {
@@ -2818,6 +3230,12 @@ export interface components {
             id: string;
             name: string;
         };
+        /** LineTarget */
+        LineTarget: {
+            /** Format: uuid */
+            section_id: string;
+            line: number;
+        };
         /** LineageEdge */
         LineageEdge: {
             relation: components["schemas"]["LineageRelation"];
@@ -2852,6 +3270,71 @@ export interface components {
         LoginRequest: {
             email: string;
             password: string;
+        };
+        /** LyricLine */
+        LyricLine: {
+            text: string;
+            /** @default [] */
+            delivery: (string | unknown)[];
+        };
+        /** LyricsDocument */
+        LyricsDocument: {
+            language: string;
+            line_syllables?: components["schemas"]["SyllableRange"] | null;
+            /** @default [] */
+            sections: (components["schemas"]["LyricsSection"] | unknown)[];
+        };
+        /** LyricsRunRequest */
+        LyricsRunRequest: {
+            brief?: string | null;
+            plan_version_id?: string | null;
+            language?: string | null;
+            line_syllables?: components["schemas"]["SyllableRange"] | null;
+            /** @default [] */
+            avoid_words: (string | unknown)[];
+            /** @default [] */
+            memory_ids: (string | unknown)[];
+            /** @default true */
+            auto_fill: boolean;
+            /** @constant */
+            kind: "lyrics";
+        };
+        /** LyricsSection */
+        LyricsSection: {
+            /** Format: uuid */
+            section_id: string;
+            lines: (components["schemas"]["LyricLine"] | unknown)[];
+        };
+        /** LyricsVersionCreate */
+        LyricsVersionCreate: {
+            content: components["schemas"]["LyricsDocument"];
+            /** Format: uuid */
+            based_on_plan_version_id: string;
+            parent_version_id?: string | null;
+            /** @default true */
+            make_current: boolean;
+            /** @constant */
+            kind: "lyrics";
+        };
+        /** LyricsVersionDetail */
+        LyricsVersionDetail: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            track_id: string;
+            version_number: number;
+            parent_version_id: string | null;
+            /** Format: uuid */
+            based_on_plan_version_id: string;
+            origin: components["schemas"]["StudioDocumentOrigin"];
+            schema_version: number;
+            content_hash: string;
+            /** Format: date-time */
+            created_at: string;
+            is_current: boolean;
+            content: components["schemas"]["LyricsDocument"];
+            /** @constant */
+            kind: "lyrics";
         };
         /**
          * MediaKind
@@ -2890,6 +3373,45 @@ export interface components {
             role: string;
             /** Format: date-time */
             joined_at: string;
+        };
+        /** MemoryCreate */
+        MemoryCreate: {
+            title: string;
+            body: string;
+            occurred_on?: string | null;
+            themes?: string[];
+            imagery?: string[];
+            /** @default 3 */
+            salience: number;
+        };
+        /** MemoryOut */
+        MemoryOut: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            artist_id: string;
+            title: string;
+            body: string;
+            occurred_on: string | null;
+            themes: string[];
+            imagery: string[];
+            salience: number;
+            status: components["schemas"]["StudioMemoryStatus"];
+            origin: components["schemas"]["StudioMemoryOrigin"];
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        /** MemoryPatch */
+        MemoryPatch: {
+            title?: string;
+            body?: string;
+            occurred_on?: string | null;
+            themes?: string[];
+            imagery?: string[];
+            salience?: number;
+            status?: components["schemas"]["StudioMemoryStatus"];
         };
         /** MessageResponse */
         MessageResponse: {
@@ -3155,6 +3677,72 @@ export interface components {
             created_at: string;
             completed_at: string | null;
         };
+        /** PlanDocument */
+        PlanDocument: {
+            title: string;
+            idea?: string | null;
+            tempo_bpm?: number | null;
+            /** @default false */
+            instrumental: boolean;
+            global_style?: components["schemas"]["StyleSpec"];
+            /** @default [] */
+            references: (string | unknown)[];
+            /** @default [] */
+            sections: (components["schemas"]["PlanSection"] | unknown)[];
+        };
+        /** PlanRunRequest */
+        PlanRunRequest: {
+            brief: string;
+            language?: string | null;
+            /** @default [] */
+            memory_ids: (string | unknown)[];
+            /** @default true */
+            auto_fill: boolean;
+            /** @constant */
+            kind: "plan";
+        };
+        /** PlanSection */
+        PlanSection: {
+            /** Format: uuid */
+            id: string;
+            kind: components["schemas"]["StudioSectionKind"];
+            label?: string | null;
+            duration_seconds?: number | null;
+            style?: components["schemas"]["StyleSpec"];
+            /** @default [] */
+            delivery: (string | unknown)[];
+            /** @default false */
+            instrumental: boolean;
+            notes?: string | null;
+        };
+        /** PlanVersionCreate */
+        PlanVersionCreate: {
+            content: components["schemas"]["PlanDocument"];
+            parent_version_id?: string | null;
+            /** @default true */
+            make_current: boolean;
+            incompatible_lyrics?: components["schemas"]["StudioIncompatibleLyricsPolicy"];
+            /** @constant */
+            kind: "plan";
+        };
+        /** PlanVersionDetail */
+        PlanVersionDetail: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            track_id: string;
+            version_number: number;
+            parent_version_id: string | null;
+            origin: components["schemas"]["StudioDocumentOrigin"];
+            schema_version: number;
+            content_hash: string;
+            /** Format: date-time */
+            created_at: string;
+            is_current: boolean;
+            content: components["schemas"]["PlanDocument"];
+            /** @constant */
+            kind: "plan";
+        };
         /** PricingRuleResponse */
         PricingRuleResponse: {
             /** Format: uuid */
@@ -3180,6 +3768,26 @@ export interface components {
             allowed_auth_methods: string[];
             content_rating: string;
             payment_providers: string[];
+        };
+        /** ProjectProfileOut */
+        ProjectProfileOut: {
+            /** Format: uuid */
+            library_project_id: string;
+            name: string;
+            release_kind: components["schemas"]["StudioReleaseKind"];
+            artist_id: string | null;
+            concept: string | null;
+            track_count: number;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        /** ProjectProfilePut */
+        ProjectProfilePut: {
+            release_kind: components["schemas"]["StudioReleaseKind"];
+            artist_id?: string | null;
+            concept?: string | null;
         };
         /**
          * Provider
@@ -3277,6 +3885,66 @@ export interface components {
          * @enum {string}
          */
         Resolution: "draft" | "standard" | "high" | "ultra";
+        /** ReviseLyricsRunRequest */
+        ReviseLyricsRunRequest: {
+            instruction: string;
+            targets: components["schemas"]["ReviseTargets"];
+            lyrics_version_id?: string | null;
+            line_syllables?: components["schemas"]["SyllableRange"] | null;
+            /** @default [] */
+            avoid_words: (string | unknown)[];
+            /** @default [] */
+            memory_ids: (string | unknown)[];
+            /** @default true */
+            auto_fill: boolean;
+            /** @constant */
+            kind: "revise_lyrics";
+        };
+        /** ReviseTargets */
+        ReviseTargets: {
+            /** @default [] */
+            sections: (string | unknown)[];
+            /** @default [] */
+            lines: (components["schemas"]["LineTarget"] | unknown)[];
+        };
+        /** RoundTripOut */
+        RoundTripOut: {
+            style: boolean;
+            exclude: boolean;
+            lyrics: boolean;
+        };
+        /** RunOut */
+        RunOut: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            track_id: string;
+            kind: components["schemas"]["StudioRunKind"];
+            status: components["schemas"]["StudioRunStatus"];
+            stage: components["schemas"]["StudioRunStage"] | null;
+            revision: number;
+            price_tokens: number;
+            model_key: string;
+            result_plan_version_id: string | null;
+            result_lyrics_version_id: string | null;
+            warnings: components["schemas"]["RunWarningOut"][];
+            memory_ids_used: string[];
+            error_code: string | null;
+            error_detail: {
+                [key: string]: unknown;
+            } | null;
+            llm_calls: number;
+            /** Format: date-time */
+            created_at: string;
+            started_at: string | null;
+            finished_at: string | null;
+        };
+        /** RunWarningOut */
+        RunWarningOut: {
+            code: string;
+            path?: string | null;
+            count?: number | null;
+        };
         /**
          * RuntimeState
          * @description Per-user runtime state of an on-demand model deployment.
@@ -3360,11 +4028,136 @@ export interface components {
             payment_id: string;
         };
         /**
+         * StudioDocumentKind
+         * @description The two independently versioned documents of a track.
+         * @enum {string}
+         */
+        StudioDocumentKind: "plan" | "lyrics";
+        /**
+         * StudioDocumentOrigin
+         * @description Who produced a document version.
+         * @enum {string}
+         */
+        StudioDocumentOrigin: "user" | "llm" | "import";
+        /**
+         * StudioExportTarget
+         * @description Third-party tool a track can be rendered for.
+         * @enum {string}
+         */
+        StudioExportTarget: "suno";
+        /**
+         * StudioIncompatibleLyricsPolicy
+         * @description What a plan create does when the track's current lyrics no longer fit the new plan.
+         * @default reject
+         * @enum {string}
+         */
+        StudioIncompatibleLyricsPolicy: "reject" | "detach";
+        /**
+         * StudioMemoryOrigin
+         * @description Who wrote an artist memory. ``chat`` is declared now so the CHECK needs no later migration.
+         * @enum {string}
+         */
+        StudioMemoryOrigin: "user" | "chat";
+        /**
+         * StudioMemoryStatus
+         * @description Whether an artist memory is offered to planner runs (``archived`` is kept but never used).
+         * @default active
+         * @enum {string}
+         */
+        StudioMemoryStatus: "active" | "archived";
+        /**
+         * StudioReleaseKind
+         * @description What a studio project releases.
+         * @enum {string}
+         */
+        StudioReleaseKind: "single" | "ep" | "album";
+        /**
+         * StudioRunKind
+         * @description What a planner run produces. Declared in full so the CHECK needs no later migration.
+         * @enum {string}
+         */
+        StudioRunKind: "plan" | "lyrics" | "revise_lyrics";
+        /**
+         * StudioRunStage
+         * @description Where a ``running`` run is. Informational; ``status`` is authoritative.
+         * @enum {string}
+         */
+        StudioRunStage: "context" | "drafting" | "validating" | "revising" | "saving";
+        /**
+         * StudioRunStatus
+         * @description Lifecycle of a planner run: ``queued → running → succeeded | failed``; ``queued → cancelled``.
+         * @enum {string}
+         */
+        StudioRunStatus: "queued" | "running" | "succeeded" | "failed" | "cancelled";
+        /**
+         * StudioSectionKind
+         * @description Structural role of a plan section.
+         * @enum {string}
+         */
+        StudioSectionKind: "intro" | "verse" | "pre_chorus" | "chorus" | "post_chorus" | "hook" | "bridge" | "build" | "drop" | "breakdown" | "instrumental" | "interlude" | "outro";
+        /**
+         * StyleSpec
+         * @default {
+         *       "tags": [],
+         *       "avoid": []
+         *     }
+         */
+        StyleSpec: {
+            /** @default [] */
+            tags: (string | unknown)[];
+            /** @default [] */
+            avoid: (string | unknown)[];
+        };
+        /**
          * SubscriptionTier
          * @description User subscription tiers.
          * @enum {string}
          */
         SubscriptionTier: "free" | "basic" | "pro" | "enterprise";
+        /** SunoExportOut */
+        SunoExportOut: {
+            target: components["schemas"]["StudioExportTarget"];
+            renderer_version: string;
+            /** Format: uuid */
+            plan_version_id: string;
+            lyrics_version_id: string | null;
+            title: string;
+            style: string;
+            exclude: string;
+            lyrics: string;
+            instrumental: boolean;
+            fields: {
+                [key: string]: components["schemas"]["ExportFieldOut"];
+            };
+            warnings: components["schemas"]["ExportWarningOut"][];
+        };
+        /** SunoImportOut */
+        SunoImportOut: {
+            dry_run: boolean;
+            plan: components["schemas"]["PlanDocument"];
+            lyrics: components["schemas"]["LyricsDocument"] | null;
+            plan_unchanged: boolean;
+            lyrics_unchanged: boolean;
+            warnings: components["schemas"]["ImportWarningOut"][];
+            round_trip: components["schemas"]["RoundTripOut"];
+            plan_version: components["schemas"]["VersionSummary"] | null;
+            lyrics_version: components["schemas"]["VersionSummary"] | null;
+            created: boolean;
+        };
+        /** SunoImportRequest */
+        SunoImportRequest: {
+            title?: string | null;
+            /** @default  */
+            style: string;
+            /** @default  */
+            exclude: string;
+            /** @default  */
+            lyrics: string;
+            instrumental?: boolean | null;
+            language?: string | null;
+            /** @default false */
+            dry_run: boolean;
+        };
         /**
          * SupportedLocale
          * @description Supported UI/email locales.
@@ -3373,6 +4166,11 @@ export interface components {
          * @enum {string}
          */
         SupportedLocale: "en" | "ru" | "sr";
+        /** SyllableRange */
+        SyllableRange: {
+            min: number;
+            max: number;
+        };
         /** SyncResult */
         SyncResult: {
             provider: components["schemas"]["PaymentProvider"];
@@ -3430,6 +4228,50 @@ export interface components {
         TopUpTierResponse: {
             threshold_usd: number;
             discount_pct: number;
+        };
+        /** TrackCreate */
+        TrackCreate: {
+            title: string;
+        };
+        /** TrackDetail */
+        TrackDetail: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            library_project_id: string;
+            position: number;
+            title: string;
+            current_plan_version_id: string | null;
+            current_lyrics_version_id: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+            current_plan: components["schemas"]["PlanVersionDetail"] | null;
+            current_lyrics: components["schemas"]["LyricsVersionDetail"] | null;
+        };
+        /** TrackOrderPut */
+        TrackOrderPut: {
+            track_ids: string[];
+        };
+        /** TrackOut */
+        TrackOut: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            library_project_id: string;
+            position: number;
+            title: string;
+            current_plan_version_id: string | null;
+            current_lyrics_version_id: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        /** TrackPatch */
+        TrackPatch: {
+            title?: string;
         };
         /** TransactionResponse */
         TransactionResponse: {
@@ -3571,6 +4413,27 @@ export interface components {
         /** VerifyEmailRequest */
         VerifyEmailRequest: {
             token: string;
+        };
+        /** VersionCreateOut */
+        VersionCreateOut: {
+            version: components["schemas"]["PlanVersionDetail"] | components["schemas"]["LyricsVersionDetail"];
+            /** @default false */
+            lyrics_detached: boolean;
+        };
+        /** VersionSummary */
+        VersionSummary: {
+            /** Format: uuid */
+            id: string;
+            kind: components["schemas"]["StudioDocumentKind"];
+            version_number: number;
+            parent_version_id: string | null;
+            based_on_plan_version_id: string | null;
+            origin: components["schemas"]["StudioDocumentOrigin"];
+            schema_version: number;
+            content_hash: string;
+            /** Format: date-time */
+            created_at: string;
+            is_current: boolean;
         };
         /** VideoConstraints */
         VideoConstraints: {
@@ -6871,6 +7734,43 @@ export interface operations {
             };
         };
     };
+    V1InternalGpuSessionsSessionIdGithubTokenGithubToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
     V1InternalGpuSessionsSessionIdOperationsOperationIdEventsOperationEvent: {
         parameters: {
             query?: never;
@@ -7762,6 +8662,15 @@ export interface operations {
                     };
                 };
             };
+            /** @description project_in_use: another feature still depends on the project (e.g. studio tracks); detail.blockers lists {"code", "count"} per blocker. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
         };
     };
     V1LibraryProjectsProjectIdPatchProject: {
@@ -8073,6 +8982,2094 @@ export interface operations {
             };
             /** @description A tag with this name already exists for the caller (case-insensitive). */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioArtistsListArtists: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CursorPage_src.api.schemas.studio.ArtistOut_"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+            /** @description Not found (or studio disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description artist_name_conflict, artist_limit_reached or artist_in_use. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid (style tags). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioArtistsCreateArtist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArtistCreate"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtistOut"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+            /** @description Not found (or studio disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description artist_name_conflict, artist_limit_reached or artist_in_use. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid (style tags). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioArtistsArtistIdGetArtist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                artist_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtistOut"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+            /** @description Not found (or studio disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description artist_name_conflict, artist_limit_reached or artist_in_use. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid (style tags). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioArtistsArtistIdDeleteArtist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                artist_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, nothing follows */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+            /** @description Not found (or studio disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description artist_name_conflict, artist_limit_reached or artist_in_use. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid (style tags). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioArtistsArtistIdPatchArtist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                artist_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArtistPatch"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtistOut"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+            /** @description Not found (or studio disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description artist_name_conflict, artist_limit_reached or artist_in_use. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid (style tags). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioArtistsArtistIdMemoriesListMemories: {
+        parameters: {
+            query?: {
+                /** @description Whether an artist memory is offered to planner runs (``archived`` is kept but never used). */
+                status?: components["schemas"]["StudioMemoryStatus"];
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: never;
+            path: {
+                artist_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CursorPage_src.api.schemas.studio.MemoryOut_"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+            /** @description artist_not_found, memory_not_found (or studio disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description memory_limit_reached (200 active memories per artist). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid (the memory's fields). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioArtistsArtistIdMemoriesCreateMemory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                artist_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MemoryCreate"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemoryOut"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+            /** @description artist_not_found, memory_not_found (or studio disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description memory_limit_reached (200 active memories per artist). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid (the memory's fields). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioMemoriesMemoryIdGetMemory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                memory_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemoryOut"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+            /** @description artist_not_found, memory_not_found (or studio disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description memory_limit_reached (200 active memories per artist). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid (the memory's fields). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioMemoriesMemoryIdDeleteMemory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                memory_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, nothing follows */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+            /** @description artist_not_found, memory_not_found (or studio disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description memory_limit_reached (200 active memories per artist). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid (the memory's fields). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioMemoriesMemoryIdPatchMemory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                memory_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MemoryPatch"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemoryOut"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+            /** @description artist_not_found, memory_not_found (or studio disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description memory_limit_reached (200 active memories per artist). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid (the memory's fields). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioProjectsProjectIdTracksListTracks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrackOut"][];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+            /** @description Not found (or studio disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description project_has_tracks or track_limit_reached. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid or track_order_mismatch. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioProjectsProjectIdTracksCreateTrack: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TrackCreate"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrackOut"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+            /** @description Not found (or studio disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description project_has_tracks or track_limit_reached. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid or track_order_mismatch. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioProjectsProjectIdGetProject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectProfileOut"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+            /** @description Not found (or studio disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description project_has_tracks or track_limit_reached. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid or track_order_mismatch. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioProjectsProjectIdPutProject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectProfilePut"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectProfileOut"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+            /** @description Not found (or studio disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description project_has_tracks or track_limit_reached. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid or track_order_mismatch. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioProjectsProjectIdDeleteProject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, nothing follows */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+            /** @description Not found (or studio disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description project_has_tracks or track_limit_reached. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid or track_order_mismatch. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioProjectsListProjects: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CursorPage_src.api.schemas.studio.ProjectProfileOut_"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+            /** @description Not found (or studio disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description project_has_tracks or track_limit_reached. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid or track_order_mismatch. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioProjectsProjectIdTracksOrderReorderTracks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TrackOrderPut"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrackOut"][];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+            /** @description Not found (or studio disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description project_has_tracks or track_limit_reached. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid or track_order_mismatch. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioRunsRunIdCancelCancelRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunOut"];
+                };
+            };
+            /** @description idempotency_key_required (missing or invalid). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Insufficient token balance. */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found (or studio runs disabled): the track or run, plan_version_not_found or lyrics_version_not_found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description run_in_progress, run_limit_reached, run_not_cancellable, idempotency_conflict, plan_required (lyrics) or lyrics_required (revise_lyrics). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid (the body, or an input that cannot be used: no vocal section, no language, lyrics that are not valid today, a target that does not fit, or a pinned memory in memory_ids that is unknown, archived, repeated, over the budget, or the project has no artist). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description run_rate_limited. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioRunsRunIdGetRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunOut"];
+                };
+            };
+            /** @description idempotency_key_required (missing or invalid). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Insufficient token balance. */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found (or studio runs disabled): the track or run, plan_version_not_found or lyrics_version_not_found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description run_in_progress, run_limit_reached, run_not_cancellable, idempotency_conflict, plan_required (lyrics) or lyrics_required (revise_lyrics). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid (the body, or an input that cannot be used: no vocal section, no language, lyrics that are not valid today, a target that does not fit, or a pinned memory in memory_ids that is unknown, archived, repeated, over the budget, or the project has no artist). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description run_rate_limited. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioTracksTrackIdRunsListRuns: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: never;
+            path: {
+                track_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CursorPage_src.api.schemas.studio_runs.RunOut_"];
+                };
+            };
+            /** @description idempotency_key_required (missing or invalid). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Insufficient token balance. */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found (or studio runs disabled): the track or run, plan_version_not_found or lyrics_version_not_found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description run_in_progress, run_limit_reached, run_not_cancellable, idempotency_conflict, plan_required (lyrics) or lyrics_required (revise_lyrics). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid (the body, or an input that cannot be used: no vocal section, no language, lyrics that are not valid today, a target that does not fit, or a pinned memory in memory_ids that is unknown, archived, repeated, over the budget, or the project has no artist). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description run_rate_limited. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioTracksTrackIdRunsSubmitRun: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required (1-128 characters). The same key with the same body returns the same run (200); the same key with a different body is 409. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                track_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanRunRequest"] | components["schemas"]["LyricsRunRequest"] | components["schemas"]["ReviseLyricsRunRequest"];
+            };
+        };
+        responses: {
+            /** @description Request accepted, processing continues off-line */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunOut"];
+                };
+            };
+            /** @description idempotency_key_required (missing or invalid). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Insufficient token balance. */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not found (or studio runs disabled): the track or run, plan_version_not_found or lyrics_version_not_found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description run_in_progress, run_limit_reached, run_not_cancellable, idempotency_conflict, plan_required (lyrics) or lyrics_required (revise_lyrics). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid (the body, or an input that cannot be used: no vocal section, no language, lyrics that are not valid today, a target that does not fit, or a pinned memory in memory_ids that is unknown, archived, repeated, over the budget, or the project has no artist). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description run_rate_limited. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioTracksTrackIdVersionsListVersions: {
+        parameters: {
+            query?: {
+                kind?: components["schemas"]["StudioDocumentKind"] | null;
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: never;
+            path: {
+                track_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CursorPage_src.api.schemas.studio.VersionSummary_"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+            /** @description Not found (or studio disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description version_unchanged, plan_required, lyrics_incompatible_with_plan, version_limit_reached, version_is_current, version_has_children, version_is_lyrics_base or version_in_use_by_run. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid or import_invalid — every issue is listed in detail.issues (import_invalid also maps them to pasted lines in detail.source_lines). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioTracksTrackIdVersionsCreateVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                track_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanVersionCreate"] | components["schemas"]["LyricsVersionCreate"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VersionCreateOut"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+            /** @description Not found (or studio disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description version_unchanged, plan_required, lyrics_incompatible_with_plan, version_limit_reached, version_is_current, version_has_children, version_is_lyrics_base or version_in_use_by_run. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid or import_invalid — every issue is listed in detail.issues (import_invalid also maps them to pasted lines in detail.source_lines). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioTracksTrackIdGetTrack: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                track_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrackDetail"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+            /** @description Not found (or studio disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description version_unchanged, plan_required, lyrics_incompatible_with_plan, version_limit_reached, version_is_current, version_has_children, version_is_lyrics_base or version_in_use_by_run. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid or import_invalid — every issue is listed in detail.issues (import_invalid also maps them to pasted lines in detail.source_lines). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioTracksTrackIdDeleteTrack: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                track_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, nothing follows */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+            /** @description Not found (or studio disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description version_unchanged, plan_required, lyrics_incompatible_with_plan, version_limit_reached, version_is_current, version_has_children, version_is_lyrics_base or version_in_use_by_run. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid or import_invalid — every issue is listed in detail.issues (import_invalid also maps them to pasted lines in detail.source_lines). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioTracksTrackIdPatchTrack: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                track_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TrackPatch"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrackOut"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+            /** @description Not found (or studio disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description version_unchanged, plan_required, lyrics_incompatible_with_plan, version_limit_reached, version_is_current, version_has_children, version_is_lyrics_base or version_in_use_by_run. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid or import_invalid — every issue is listed in detail.issues (import_invalid also maps them to pasted lines in detail.source_lines). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioVersionsVersionIdGetVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanVersionDetail"] | components["schemas"]["LyricsVersionDetail"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+            /** @description Not found (or studio disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description version_unchanged, plan_required, lyrics_incompatible_with_plan, version_limit_reached, version_is_current, version_has_children, version_is_lyrics_base or version_in_use_by_run. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid or import_invalid — every issue is listed in detail.issues (import_invalid also maps them to pasted lines in detail.source_lines). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioVersionsVersionIdDeleteVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, nothing follows */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+            /** @description Not found (or studio disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description version_unchanged, plan_required, lyrics_incompatible_with_plan, version_limit_reached, version_is_current, version_has_children, version_is_lyrics_base or version_in_use_by_run. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid or import_invalid — every issue is listed in detail.issues (import_invalid also maps them to pasted lines in detail.source_lines). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioTracksTrackIdExportsSunoExportSuno: {
+        parameters: {
+            query?: {
+                plan_version_id?: string | null;
+                lyrics_version_id?: string | null;
+            };
+            header?: never;
+            path: {
+                track_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SunoExportOut"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+            /** @description Not found (or studio disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description version_unchanged, plan_required, lyrics_incompatible_with_plan, version_limit_reached, version_is_current, version_has_children, version_is_lyrics_base or version_in_use_by_run. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid or import_invalid — every issue is listed in detail.issues (import_invalid also maps them to pasted lines in detail.source_lines). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioTracksTrackIdImportsSunoImportSuno: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                track_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SunoImportRequest"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SunoImportOut"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+            /** @description Not found (or studio disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description version_unchanged, plan_required, lyrics_incompatible_with_plan, version_limit_reached, version_is_current, version_has_children, version_is_lyrics_base or version_in_use_by_run. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid or import_invalid — every issue is listed in detail.issues (import_invalid also maps them to pasted lines in detail.source_lines). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioTracksTrackIdCurrentPutCurrent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                track_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CurrentPut"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrackOut"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+            /** @description Not found (or studio disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description version_unchanged, plan_required, lyrics_incompatible_with_plan, version_limit_reached, version_is_current, version_has_children, version_is_lyrics_base or version_in_use_by_run. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid or import_invalid — every issue is listed in detail.issues (import_invalid also maps them to pasted lines in detail.source_lines). */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -8501,6 +11498,17 @@ export const resolutionValues: ReadonlyArray<FlattenedDeepRequired<components>["
 export const runtimeStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["RuntimeState"]> = ["none", "provisioning", "active", "suspended", "removing", "paused", "stale", "stopping"];
 export const samplerValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Sampler"]> = ["euler", "euler_ancestral", "euler_cfg_pp", "heun", "dpm_2", "dpm_2_ancestral", "lms", "dpmpp_2s_ancestral", "dpmpp_sde", "dpmpp_2m", "dpmpp_2m_sde", "dpmpp_3m_sde", "ddim", "uni_pc", "uni_pc_bh2", "lcm", "res_multistep"];
 export const schedulerValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Scheduler"]> = ["normal", "karras", "exponential", "sgm_uniform", "simple", "ddim_uniform", "beta", "linear_quadratic", "kl_optimal"];
+export const studioDocumentKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["StudioDocumentKind"]> = ["plan", "lyrics"];
+export const studioDocumentOriginValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["StudioDocumentOrigin"]> = ["user", "llm", "import"];
+export const studioExportTargetValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["StudioExportTarget"]> = ["suno"];
+export const studioIncompatibleLyricsPolicyValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["StudioIncompatibleLyricsPolicy"]> = ["reject", "detach"];
+export const studioMemoryOriginValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["StudioMemoryOrigin"]> = ["user", "chat"];
+export const studioMemoryStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["StudioMemoryStatus"]> = ["active", "archived"];
+export const studioReleaseKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["StudioReleaseKind"]> = ["single", "ep", "album"];
+export const studioRunKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["StudioRunKind"]> = ["plan", "lyrics", "revise_lyrics"];
+export const studioRunStageValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["StudioRunStage"]> = ["context", "drafting", "validating", "revising", "saving"];
+export const studioRunStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["StudioRunStatus"]> = ["queued", "running", "succeeded", "failed", "cancelled"];
+export const studioSectionKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["StudioSectionKind"]> = ["intro", "verse", "pre_chorus", "chorus", "post_chorus", "hook", "bridge", "build", "drop", "breakdown", "instrumental", "interlude", "outro"];
 export const subscriptionTierValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SubscriptionTier"]> = ["free", "basic", "pro", "enterprise"];
 export const supportedLocaleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SupportedLocale"]> = ["en", "ru", "sr"];
 export const userRoleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["UserRole"]> = ["system", "superadmin", "admin", "user"];

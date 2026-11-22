@@ -1,6 +1,10 @@
 {
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "nav_create": "Create",
+  "nav_artists": "Artists",
+  "artists_title": "Artists",
+  "artists_coming_soon": "Artists are coming soon.",
+  "studio_unreachable": "Couldn't check whether Studio is available.",
   "nav_billing": "Billing & Tokens",
   "nav_jobs": "Job History",
   "nav_profile": "Profile & Settings",
