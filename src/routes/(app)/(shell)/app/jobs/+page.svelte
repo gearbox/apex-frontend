@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { ROUTES } from '$lib/utils/routes';
   import { isInFlight } from '$lib/utils/jobStatus';
   import { ApiRequestError } from '$lib/api/errors';
   import { addToast } from '$lib/stores/toasts';
@@ -143,7 +144,7 @@
       <p class="text-sm font-medium text-text">{m.jobs_empty()}</p>
       <p class="mt-1 text-xs text-text-muted">{m.jobs_empty_subtitle()}</p>
       <a
-        href="/app/create"
+        href={ROUTES.create}
         class="mt-4 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-bg transition-opacity hover:opacity-90"
       >
         {m.jobs_empty_cta()}

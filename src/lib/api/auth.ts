@@ -1,3 +1,4 @@
+import { BUILD_PRODUCT_ID } from '$lib/product/build';
 import { API_BASE_URL } from '$lib/utils/constants';
 import {
   setAuth,
@@ -102,7 +103,7 @@ function mapRefreshErrorToReason(code: string): AuthFailureReason {
 async function fetchJson<T>(path: string, init: RequestInit): Promise<T> {
   const devHeaders: Record<string, string> = {};
   if (import.meta.env.DEV) {
-    devHeaders['X-Product-Id'] = import.meta.env.VITE_PRODUCT_ID || 'vex';
+    devHeaders['X-Product-Id'] = BUILD_PRODUCT_ID;
   }
   const res = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
@@ -334,7 +335,7 @@ export async function remintContentCookie(): Promise<ContentCookieRemintResult> 
     promise: (async (): Promise<ContentCookieRemintResult> => {
       const devHeaders: Record<string, string> = {};
       if (import.meta.env.DEV) {
-        devHeaders['X-Product-Id'] = import.meta.env.VITE_PRODUCT_ID || 'vex';
+        devHeaders['X-Product-Id'] = BUILD_PRODUCT_ID;
       }
 
       try {

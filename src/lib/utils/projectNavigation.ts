@@ -1,4 +1,6 @@
-const LIBRARY_PATH = '/app/library';
+import { ROUTES } from '$lib/utils/routes';
+
+const LIBRARY_PATH = ROUTES.library;
 
 interface ProjectNavigationTarget {
   href: string;

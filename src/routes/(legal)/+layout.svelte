@@ -1,10 +1,11 @@
 <script lang="ts">
+  import { get } from 'svelte/store';
+  import { productProfile } from '$lib/product/profile';
   import type { Snippet } from 'svelte';
   import { onMount } from 'svelte';
   import { ChevronLeft } from '@lucide/svelte';
   import LanguageSelector from '$lib/components/shared/LanguageSelector.svelte';
   import { hasStoredSession } from '$lib/stores/auth';
-  import { ROUTES } from '$lib/utils/routes';
   import * as m from '$paraglide/messages';
 
   let { children }: { children: Snippet } = $props();
@@ -13,7 +14,7 @@
   // Public pages never refresh: rotating the shared refresh token from a second tab is treated as
   // token theft by the backend. The (app) layout authenticates if the user follows the back link.
   onMount(() => {
-    if (hasStoredSession()) backHref = ROUTES.create;
+    if (hasStoredSession()) backHref = get(productProfile).homeRoute;
   });
 </script>
 

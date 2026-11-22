@@ -6,6 +6,8 @@ import {
 } from './protectedContent';
 import { clearAuth, setAuth, type UserProfile } from '$lib/stores/auth';
 
+import { BUILD_PRODUCT_ID } from '$lib/product/build';
+
 const ORIGIN = 'http://localhost:8000';
 
 describe('parseProtectedContentUrl', () => {
@@ -116,7 +118,7 @@ describe('fetchProtectedContent', () => {
     expect(headers.has('authorization')).toBe(false);
     expect(JSON.stringify(init)).not.toContain('access-token-that-must-not-leak');
     if (import.meta.env.DEV) {
-      expect(headers.get('x-product-id')).toBe(import.meta.env.VITE_PRODUCT_ID || 'vex');
+      expect(headers.get('x-product-id')).toBe(BUILD_PRODUCT_ID);
     } else {
       expect(headers.has('x-product-id')).toBe(false);
     }

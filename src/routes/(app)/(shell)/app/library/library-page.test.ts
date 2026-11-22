@@ -9,7 +9,7 @@ import {
   makeLibraryAssetDetail,
   makeLibraryGroupDetail,
   makeLibraryOutputItem,
-} from '../../../../mocks/factories/library';
+} from '../../../../../mocks/factories/library';
 
 type LibraryAssetItem = components['schemas']['LibraryAssetItem'];
 type LibraryAssetDetail = components['schemas']['LibraryAssetDetail'];

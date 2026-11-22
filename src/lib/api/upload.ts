@@ -1,3 +1,4 @@
+import { BUILD_PRODUCT_ID } from '$lib/product/build';
 import { API_BASE_URL } from '$lib/utils/constants';
 import { withAuthOperation } from '$lib/api/authedFetch';
 import { parseApiError, ApiRequestError } from '$lib/api/errors';
@@ -37,7 +38,7 @@ async function doUpload(
   const headers: Record<string, string> = {};
   if (token) headers['Authorization'] = `Bearer ${token}`;
   if (import.meta.env.DEV) {
-    headers['X-Product-Id'] = import.meta.env.VITE_PRODUCT_ID || 'vex';
+    headers['X-Product-Id'] = BUILD_PRODUCT_ID;
   }
 
   return fetch(`${API_BASE_URL}/v1/storage/upload`, {

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { get } from 'svelte/store';
+  import { productProfile } from '$lib/product/profile';
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import {
@@ -14,7 +16,6 @@
   import { appDisplayName } from '$lib/stores/product';
   import { locale } from '$lib/stores/locale';
   import { updateUserLocale } from '$lib/api/user';
-  import { ROUTES } from '$lib/utils/routes';
   import { safeReturnPath } from '$lib/utils/returnPath';
   import type { OAuthErrorCode } from '$lib/api/oauth';
   import * as m from '$paraglide/messages';
@@ -42,7 +43,9 @@
         void updateUserLocale($locale);
         clearCapturedOAuthFragment();
         oauthReturnTarget.clear();
-        await goto(safeReturnPath(fragment.returnTo) ?? ROUTES.create, { replaceState: true });
+        await goto(safeReturnPath(fragment.returnTo) ?? get(productProfile).homeRoute, {
+          replaceState: true,
+        });
       } catch (error) {
         if (
           error instanceof AuthOperationCancelledError ||

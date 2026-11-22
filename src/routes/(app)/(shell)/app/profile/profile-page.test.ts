@@ -2,10 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClient } from '@tanstack/svelte-query';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { http, HttpResponse } from 'msw';
-import { server } from '../../../../mocks/server';
-import { MOCK_BASE_URL as BASE } from '../../../../mocks/config';
-import { makeUserProfile } from '../../../../mocks/factories/user';
-import { rateLimitResponse } from '../../../../mocks/rateLimitResponse';
+import { server } from '../../../../../mocks/server';
+import { MOCK_BASE_URL as BASE } from '../../../../../mocks/config';
+import { makeUserProfile } from '../../../../../mocks/factories/user';
+import { rateLimitResponse } from '../../../../../mocks/rateLimitResponse';
 import type { UserProfile } from '$lib/stores/auth';
 
 vi.hoisted(() => {

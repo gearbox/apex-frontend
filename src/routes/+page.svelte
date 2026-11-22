@@ -1,9 +1,11 @@
 <script lang="ts">
+  import { get } from 'svelte/store';
+  import { productProfile } from '$lib/product/profile';
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
 
   onMount(() => {
-    goto('/app/create', { replaceState: true });
+    goto(get(productProfile).homeRoute, { replaceState: true });
   });
 </script>
 

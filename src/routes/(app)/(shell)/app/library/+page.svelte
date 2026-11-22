@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { ROUTES } from '$lib/utils/routes';
   import { onDestroy, untrack } from 'svelte';
   import { SvelteURLSearchParams } from 'svelte/reactivity';
   import { page } from '$app/stores';
@@ -588,7 +589,7 @@
           {m.library_reset_filters()}
         </button>
       {:else}
-        <a href="/app/create" class="mt-2 text-sm font-medium text-accent hover:underline">
+        <a href={ROUTES.create} class="mt-2 text-sm font-medium text-accent hover:underline">
           {m.library_start_creating()}
         </a>
       {/if}

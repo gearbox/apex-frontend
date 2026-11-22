@@ -3,16 +3,18 @@ import { paraglideVitePlugin } from '@inlang/paraglide-js';
 import { defineConfig } from 'vitest/config';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { APP_VERSION, BUILD_SHA } from './build-meta.js';
+import { resolveBuildProductForMode } from './product-manifests.js';
 import { paraglideConfig } from './paraglide.config.js';
+
+const { id: productId, manifest } = resolveBuildProductForMode('test');
 
 export default defineConfig({
   plugins: [paraglideVitePlugin(paraglideConfig), sveltekit()],
   define: {
     __APP_VERSION__: JSON.stringify(APP_VERSION),
     __BUILD_SHA__: JSON.stringify(BUILD_SHA),
-    __PRODUCT_NAME__: JSON.stringify(
-      process.env.VITE_PRODUCT_ID === 'synthara' ? 'Synthara' : 'Vex.pics',
-    ),
+    __PRODUCT_ID__: JSON.stringify(productId),
+    __PRODUCT_NAME__: JSON.stringify(manifest.name),
   },
   resolve: {
     alias: {

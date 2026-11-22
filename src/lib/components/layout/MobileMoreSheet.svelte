@@ -4,14 +4,9 @@
   import { isAdmin } from '$lib/stores/auth';
   import { hasLegalDocuments } from '$lib/stores/legal';
   import * as m from '$paraglide/messages';
-  import {
-    Coins,
-    Activity,
-    User,
-    Shield,
-    ChevronRight,
-    MessageSquareWarning,
-  } from '@lucide/svelte';
+  import { ChevronRight, MessageSquareWarning } from '@lucide/svelte';
+  import { productProfile } from '$lib/product/profile';
+  import { NAV_DESTINATIONS } from '$lib/navigation/destinations';
   import AppVersionBadge from '$lib/components/shared/AppVersionBadge.svelte';
   import MobileNavSheet from './MobileNavSheet.svelte';
   import { viewportDebug } from '$lib/stores/debug.svelte';
@@ -57,21 +52,15 @@
 {#if $moreSheetOpen}
   <MobileNavSheet id="mobile-more-sheet" label={m.nav_more()} onclose={closeMoreSheet}>
     <nav>
-      <a href="/app/billing" onclick={closeMoreSheet} class="sheet-item">
-        <span class="sheet-item-icon"><Coins size={20} strokeWidth={1.75} /></span>
-        <span class="sheet-item-label">{m.nav_billing()}</span>
-        <span class="sheet-item-chevron"><ChevronRight size={16} /></span>
-      </a>
-      <a href="/app/jobs" onclick={closeMoreSheet} class="sheet-item">
-        <span class="sheet-item-icon"><Activity size={20} strokeWidth={1.75} /></span>
-        <span class="sheet-item-label">{m.nav_jobs()}</span>
-        <span class="sheet-item-chevron"><ChevronRight size={16} /></span>
-      </a>
-      <a href="/app/profile" onclick={closeMoreSheet} class="sheet-item">
-        <span class="sheet-item-icon"><User size={20} strokeWidth={1.75} /></span>
-        <span class="sheet-item-label">{m.nav_profile()}</span>
-        <span class="sheet-item-chevron"><ChevronRight size={16} /></span>
-      </a>
+      {#each $productProfile.navigation.moreSheet as id (id)}
+        {@const item = NAV_DESTINATIONS[id]}
+        {@const Icon = item.icon}
+        <a href={item.href} onclick={closeMoreSheet} class="sheet-item">
+          <span class="sheet-item-icon"><Icon size={20} strokeWidth={1.75} /></span>
+          <span class="sheet-item-label">{item.sheetLabel()}</span>
+          <span class="sheet-item-chevron"><ChevronRight size={16} /></span>
+        </a>
+      {/each}
       <button type="button" onclick={() => void openFeedback()} class="sheet-item">
         <span class="sheet-item-icon"><MessageSquareWarning size={20} strokeWidth={1.75} /></span>
         <span class="sheet-item-label">{m.feedback_title()}</span>
@@ -93,11 +82,12 @@
 
       {#if $isAdmin}
         <div class="sheet-admin-divider"></div>
-        <a href="/app/admin" onclick={closeMoreSheet} class="sheet-item">
+        {@const AdminIcon = NAV_DESTINATIONS.admin.icon}
+        <a href={NAV_DESTINATIONS.admin.href} onclick={closeMoreSheet} class="sheet-item">
           <span class="sheet-item-icon">
-            <Shield size={20} strokeWidth={1.75} />
+            <AdminIcon size={20} strokeWidth={1.75} />
           </span>
-          <span class="sheet-item-label">{m.nav_admin_panel()}</span>
+          <span class="sheet-item-label">{NAV_DESTINATIONS.admin.sheetLabel()}</span>
           <span class="sheet-item-chevron"><ChevronRight size={16} /></span>
         </a>
       {/if}

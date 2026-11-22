@@ -8,79 +8,77 @@
   } from '$lib/stores/ui';
   import { getActiveLibraryProjectId, isLibraryUrl } from '$lib/utils/projectNavigation';
   import * as m from '$paraglide/messages';
-  import { Folder, Plus, Images, MoreVertical, Server } from '@lucide/svelte';
+  import { Folder, Images, MoreVertical } from '@lucide/svelte';
+  import { productProfile } from '$lib/product/profile';
+  import { NAV_DESTINATIONS } from '$lib/navigation/destinations';
+  import { ROUTES } from '$lib/utils/routes';
 
-  const isCreateActive = $derived($page.url.pathname.startsWith('/app/create'));
-  const isSessionsActive = $derived($page.url.pathname.startsWith('/app/sessions'));
   const isLibraryActive = $derived(isLibraryUrl($page.url));
   const activeLibraryProjectId = $derived(getActiveLibraryProjectId($page.url));
 </script>
 
 <nav class="btm-tabs chrome-no-select">
-  <a
-    href="/app/create"
-    class="btm-tab"
-    class:active={isCreateActive}
-    aria-current={isCreateActive ? 'page' : undefined}
-  >
-    <span class="btm-tab-icon">
-      <Plus size={22} strokeWidth={isCreateActive ? 2.25 : 1.75} />
-    </span>
-    <span class="btm-tab-label">{m.nav_create()}</span>
-  </a>
-
-  <a
-    href="/app/sessions"
-    class="btm-tab"
-    class:active={isSessionsActive}
-    aria-current={isSessionsActive ? 'page' : undefined}
-  >
-    <span class="btm-tab-icon">
-      <Server size={22} strokeWidth={isSessionsActive ? 2.25 : 1.75} />
-    </span>
-    <span class="btm-tab-label">{m.nav_sessions()}</span>
-  </a>
-
-  <div class="btm-library-slot" class:active={isLibraryActive} data-testid="mobile-library-slot">
-    <a
-      href="/app/library"
-      class="btm-library-action btm-library-action-library"
-      aria-label={m.library_title()}
-      aria-current={isLibraryActive ? 'page' : undefined}
-    >
-      <Images size={22} strokeWidth={isLibraryActive ? 2.25 : 1.75} />
-    </a>
-    <button
-      type="button"
-      onclick={openProjectsSheet}
-      class="btm-library-action btm-library-action-projects"
-      class:project-active={activeLibraryProjectId !== null}
-      aria-label={m.library_projects()}
-      aria-expanded={$projectsSheetOpen}
-      aria-controls="mobile-projects-sheet"
-      data-testid="mobile-library-projects-action"
-    >
-      <Folder
-        size={20}
-        strokeWidth={activeLibraryProjectId !== null || $projectsSheetOpen ? 2.25 : 1.75}
-      />
-    </button>
-    <span class="btm-tab-label btm-library-label" aria-hidden="true">{m.library_title()}</span>
-  </div>
-
-  <button
-    type="button"
-    onclick={openMoreSheet}
-    class="btm-tab"
-    class:active={$moreSheetOpen}
-    aria-expanded={$moreSheetOpen}
-    aria-controls="mobile-more-sheet"
-  >
-    <span class="btm-tab-icon">
-      <MoreVertical size={22} strokeWidth={1.75} />
-    </span>
-    <span class="btm-tab-label">{m.nav_more()}</span>
-  </button>
+  {#each $productProfile.navigation.mobileTabs as slot (slot.kind === 'destination' ? `destination:${slot.id}` : slot.kind)}
+    {#if slot.kind === 'destination'}
+      {@const item = NAV_DESTINATIONS[slot.id]}
+      {@const Icon = item.icon}
+      {@const isActive = item.isActive($page.url)}
+      <a
+        href={item.href}
+        class="btm-tab"
+        class:active={isActive}
+        aria-current={isActive ? 'page' : undefined}
+      >
+        <span class="btm-tab-icon"><Icon size={22} strokeWidth={isActive ? 2.25 : 1.75} /></span>
+        <span class="btm-tab-label">{item.label()}</span>
+      </a>
+    {:else if slot.kind === 'library'}
+      <div
+        class="btm-library-slot"
+        class:active={isLibraryActive}
+        data-testid="mobile-library-slot"
+      >
+        <a
+          href={ROUTES.library}
+          class="btm-library-action btm-library-action-library"
+          aria-label={m.library_title()}
+          aria-current={isLibraryActive ? 'page' : undefined}
+        >
+          <Images size={22} strokeWidth={isLibraryActive ? 2.25 : 1.75} />
+        </a>
+        <button
+          type="button"
+          onclick={openProjectsSheet}
+          class="btm-library-action btm-library-action-projects"
+          class:project-active={activeLibraryProjectId !== null}
+          aria-label={m.library_projects()}
+          aria-expanded={$projectsSheetOpen}
+          aria-controls="mobile-projects-sheet"
+          data-testid="mobile-library-projects-action"
+        >
+          <Folder
+            size={20}
+            strokeWidth={activeLibraryProjectId !== null || $projectsSheetOpen ? 2.25 : 1.75}
+          />
+        </button>
+        <span class="btm-tab-label btm-library-label" aria-hidden="true">{m.library_title()}</span>
+      </div>
+    {:else}
+      <button
+        type="button"
+        onclick={openMoreSheet}
+        class="btm-tab"
+        class:active={$moreSheetOpen}
+        aria-expanded={$moreSheetOpen}
+        aria-controls="mobile-more-sheet"
+      >
+        <span class="btm-tab-icon">
+          <MoreVertical size={22} strokeWidth={1.75} />
+        </span>
+        <span class="btm-tab-label">{m.nav_more()}</span>
+      </button>
+    {/if}
+  {/each}
 </nav>
 
 <style>

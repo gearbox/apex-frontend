@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { get } from 'svelte/store';
+  import { productProfile } from '$lib/product/profile';
   import { goto } from '$app/navigation';
   import { currentUser, isAdmin, isSuperAdmin } from '$lib/stores/auth';
   import { appDisplayName } from '$lib/stores/product';
@@ -22,7 +24,7 @@
   // Redirect non-admin users immediately
   $effect(() => {
     if ($currentUser && !$isAdmin) {
-      goto('/app/create', { replaceState: true });
+      goto(get(productProfile).homeRoute, { replaceState: true });
     }
   });
 </script>

@@ -1,4 +1,4 @@
-import { makeWanModelInfo } from '../../../../mocks/fixtures/wan';
+import { makeWanModelInfo } from '../../../../../mocks/fixtures/wan';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { get } from 'svelte/store';
@@ -8,7 +8,7 @@ import { setEventStreamStatus } from '$lib/stores/eventStream';
 import {
   makeAishaVideoModelInfo,
   makeGrokVideoModelInfo,
-} from '../../../../mocks/factories/providers';
+} from '../../../../../mocks/factories/providers';
 
 type ProvidersResponse = components['schemas']['ProvidersResponse'];
 type PricingRuleResponse = components['schemas']['PricingRuleResponse'];

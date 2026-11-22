@@ -8,7 +8,6 @@
   import { EventStreamService } from '$lib/services/eventStream';
   import * as contentCookieService from '$lib/services/contentCookie';
   import * as m from '$paraglide/messages';
-  import AppShell from '$lib/components/layout/AppShell.svelte';
   import SessionCreditBanner from '$lib/components/layout/SessionCreditBanner.svelte';
   import ToastContainer from '$lib/components/ui/ToastContainer.svelte';
   import SystemBanner from '$lib/components/ui/SystemBanner.svelte';
@@ -144,9 +143,7 @@
   <div class="app-viewport">
     <SystemBanner />
     <OfflineBanner />
-    <AppShell>
-      {@render children()}
-    </AppShell>
+    {@render children()}
   </div>
   <SessionCreditBanner />
   <ToastContainer />

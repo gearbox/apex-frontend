@@ -51,6 +51,11 @@ describe('MobileMoreSheet', () => {
     await tick();
 
     expect(screen.queryByRole('link', { name: 'Sessions' })).toBeNull();
+    expect(
+      Array.from(document.querySelectorAll('.sheet-item-label'))
+        .slice(0, 3)
+        .map((node) => node.textContent?.trim()),
+    ).toEqual(['Billing & Tokens', 'Job History', 'Profile & Settings']);
     expect(screen.getByRole('link', { name: 'Billing & Tokens' }).getAttribute('href')).toBe(
       '/app/billing',
     );

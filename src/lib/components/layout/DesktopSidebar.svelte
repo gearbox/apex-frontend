@@ -7,44 +7,11 @@
   import ProjectNav from '$lib/components/library/ProjectNav.svelte';
   import * as m from '$paraglide/messages';
   import { ROUTES } from '$lib/utils/routes';
-  import {
-    Plus,
-    Image,
-    Images,
-    Activity,
-    Coins,
-    User,
-    Shield,
-    Server,
-    ChevronLeft,
-    ChevronRight,
-    Scale,
-    MessageSquareWarning,
-  } from '@lucide/svelte';
+  import { ChevronLeft, ChevronRight, Scale, MessageSquareWarning } from '@lucide/svelte';
   import { openFeedbackDialog } from '$lib/stores/feedbackDialog.svelte';
+  import { productProfile } from '$lib/product/profile';
+  import { NAV_DESTINATIONS, NavDestinationId } from '$lib/navigation/destinations';
 
-  const iconMap: Record<string, typeof Plus> = {
-    plus: Plus,
-    image: Image,
-    images: Images,
-    activity: Activity,
-    coins: Coins,
-    user: User,
-    shield: Shield,
-    server: Server,
-    scale: Scale,
-  };
-
-  const mainItems = [
-    { label: () => m.topbar_create(), href: '/app/create', icon: 'plus' },
-    { label: () => m.topbar_library(), href: ROUTES.library, icon: 'images' },
-    { label: () => m.nav_sessions(), href: '/app/sessions', icon: 'server' },
-    { label: () => m.topbar_jobs(), href: '/app/jobs', icon: 'activity' },
-    { label: () => m.topbar_billing(), href: '/app/billing', icon: 'coins' },
-  ];
-
-  const adminItem = { label: () => m.nav_admin(), href: '/app/admin', icon: 'shield' };
-  const profileItem = { label: () => m.topbar_profile(), href: '/app/profile', icon: 'user' };
   const legalItems = [
     { label: () => m.legal_document_terms(), href: ROUTES.terms },
     { label: () => m.legal_document_privacy(), href: ROUTES.privacy },
@@ -67,9 +34,9 @@
 
   <!-- Main nav -->
   <nav class="sidebar-nav">
-    {#each mainItems as item (item.href)}
-      {@const Icon = iconMap[item.icon]}
-      {@const isActive = $page.url.pathname.startsWith(item.href)}
+    {#each $productProfile.navigation.desktopMain.map((id) => NAV_DESTINATIONS[id]) as item (item.id)}
+      {@const Icon = item.icon}
+      {@const isActive = item.isActive($page.url)}
       <a
         href={item.href}
         class="nav-item"
@@ -84,15 +51,16 @@
           <span class="nav-label">{item.label()}</span>
         {/if}
       </a>
-      {#if item.href === ROUTES.library && !$sidebarCollapsed}
+      {#if item.id === NavDestinationId.Library && !$sidebarCollapsed}
         <ProjectNav surface="desktop" />
       {/if}
     {/each}
 
     {#if $isAdmin}
       <div class="admin-divider"></div>
-      {@const AdminIcon = iconMap[adminItem.icon]}
-      {@const adminActive = $page.url.pathname.startsWith(adminItem.href)}
+      {@const adminItem = NAV_DESTINATIONS.admin}
+      {@const AdminIcon = adminItem.icon}
+      {@const adminActive = adminItem.isActive($page.url)}
       <a
         href={adminItem.href}
         class="nav-item"
@@ -113,8 +81,9 @@
   <!-- Bottom section: profile + collapse -->
   <div class="sidebar-bottom">
     {#if true}
-      {@const ProfileIcon = iconMap[profileItem.icon]}
-      {@const profileActive = $page.url.pathname.startsWith(profileItem.href)}
+      {@const profileItem = NAV_DESTINATIONS.profile}
+      {@const ProfileIcon = profileItem.icon}
+      {@const profileActive = profileItem.isActive($page.url)}
       <a
         href={profileItem.href}
         class="nav-item"

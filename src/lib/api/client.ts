@@ -1,3 +1,4 @@
+import { BUILD_PRODUCT_ID } from '$lib/product/build';
 import createClient, { type Middleware } from 'openapi-fetch';
 import { API_BASE_URL } from '$lib/utils/constants';
 import { beginAuthRequest, retryUnauthorized, type AuthRequestContext } from '$lib/api/authedFetch';
@@ -122,7 +123,7 @@ function waitForRetryDelay(delay: number, signal: AbortSignal): Promise<void> {
 const authMiddleware: Middleware = {
   async onRequest({ request }) {
     if (import.meta.env.DEV) {
-      request.headers.set('X-Product-Id', import.meta.env.VITE_PRODUCT_ID || 'vex');
+      request.headers.set('X-Product-Id', BUILD_PRODUCT_ID);
     }
     // An explicit caller-provided header must never become the retry template's credential.
     request.headers.delete('Authorization');

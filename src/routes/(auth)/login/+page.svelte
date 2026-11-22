@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { get } from 'svelte/store';
+  import { productProfile } from '$lib/product/profile';
   import { afterNavigate, goto, replaceState } from '$app/navigation';
   import { page } from '$app/stores';
   import { login, AuthError, AuthOperationCancelledError } from '$lib/api/auth';
@@ -8,7 +10,6 @@
   import { rateLimitFor } from '$lib/stores/rateLimit';
   import { locale } from '$lib/stores/locale';
   import { updateUserLocale } from '$lib/api/user';
-  import { ROUTES } from '$lib/utils/routes';
   import { safeReturnPath } from '$lib/utils/returnPath';
   import { withoutSearchParam } from '$lib/utils/urlSearch';
   import * as m from '$paraglide/messages';
@@ -51,7 +52,8 @@
       await login(email, password);
       // Fire-and-forget locale sync — never blocks login flow
       void updateUserLocale($locale);
-      const redirect = safeReturnPath($page.url.searchParams.get('redirect')) ?? ROUTES.create;
+      const redirect =
+        safeReturnPath($page.url.searchParams.get('redirect')) ?? get(productProfile).homeRoute;
       goto(redirect, { replaceState: true });
     } catch (err) {
       if (err instanceof AuthOperationCancelledError) {

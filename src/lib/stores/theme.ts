@@ -54,6 +54,17 @@ const currentColors = derived([themePrefs, systemPrefersDark], ([$prefs, $system
 });
 
 /* ─── Actions ─── */
+export function applyDefaultTheme(name: ThemeName): void {
+  if (isBrowser()) {
+    try {
+      if (localStorage.getItem(STORAGE_KEYS.THEME_PREFS) !== null) return;
+    } catch {
+      // Storage may be unavailable; the default is still safe to apply in memory.
+    }
+  }
+  themePrefs.update((p) => ({ ...p, theme: name }));
+}
+
 export function setTheme(name: ThemeName): void {
   themePrefs.update((p) => {
     const next = { ...p, theme: name };
@@ -74,8 +85,10 @@ export function setMode(mode: ThemeMode): void {
  * Initialize the theme system. Call once in the root layout.
  * Sets up the system preference listener and applies CSS vars to the body.
  */
-export function initTheme(): () => void {
+export function initTheme(defaultTheme: ThemeName): () => void {
   if (!isBrowser()) return () => {};
+
+  applyDefaultTheme(defaultTheme);
 
   const mql = window.matchMedia('(prefers-color-scheme: dark)');
   const onMediaChange = (e: MediaQueryListEvent) => systemPrefersDark.set(e.matches);
