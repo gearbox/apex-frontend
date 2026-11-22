@@ -1,18 +1,33 @@
-/** Propose a title from the first nonblank line, counting Unicode code points after NFC. */
+/** Proposes a one-line diary title from the first non-blank body line. */
 export function deriveMemoryTitle(body: string): string {
-  const line = body
+  const firstLine = body
     .normalize('NFC')
     .split(/\r?\n/)
-    .find((part) => part.trim());
-  if (!line) return '';
-  const points = Array.from(line.trim().replace(/\s+/gu, ' '));
-  if (points.length <= 120) return points.join('');
-  const prefix = points.slice(0, 120);
-  const boundary = prefix.lastIndexOf(' ');
-  return prefix.slice(0, boundary >= 60 ? boundary : 120).join('');
+    .find((line) => line.trim().length > 0);
+  if (!firstLine) return '';
+
+  const collapsed = firstLine.trim().replace(/\s+/gu, ' ');
+  const points = Array.from(collapsed);
+  if (points.length <= 120) return collapsed;
+
+  const first120 = points.slice(0, 120).join('');
+  const cutAt = first120.lastIndexOf(' ');
+  if (cutAt >= 60) return first120.slice(0, cutAt).trimEnd();
+  return first120;
 }
 
-/** Format the user's local calendar date. */
-export function todayLocalIsoDate(now = new Date()): string {
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+/** Returns a YYYY-MM-DD date in the user's local time zone. */
+export function todayLocalIsoDate(now: Date = new Date()): string {
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/** Formats a date-only string as a local date without UTC date shifting. */
+export function formatLocalIsoDate(value: string, locale: string): string {
+  const [year, month, day] = value.split('-').map(Number);
+  return new Intl.DateTimeFormat(locale, { dateStyle: 'medium' }).format(
+    new Date(year, month - 1, day),
+  );
 }

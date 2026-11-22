@@ -57,11 +57,15 @@ test.describe('Artists capability gate', () => {
 
       await expect(page).toHaveURL(/\/app\/create$/);
       await expect(page.getByRole('link', { name: 'Artists' })).toHaveCount(0);
+
+      await page.goto('/app/artists/artist-disabled');
+      await expect(page).toHaveURL(/\/app\/create$/);
+      await expect(page.getByRole('link', { name: 'Artists' })).toHaveCount(0);
     },
   );
 
   test(
-    'studio 200 shows the placeholder and Artists navigation',
+    'studio 200 renders the empty Artists state and navigation',
     { tag: '@cross-browser' },
     async ({ authenticatedPage: page }, testInfo) => {
       test.skip(testInfo.project.name === 'mobile-safari', 'Covered on desktop and mobile Chrome.');
@@ -71,8 +75,9 @@ test.describe('Artists capability gate', () => {
 
       await page.goto('/app/artists');
 
-      await expect(page.getByRole('heading', { name: 'Artists', exact: true })).toBeVisible();
-      await expect(page.getByText('Artists are coming soon.')).toBeVisible();
+      await expect(page.getByRole('heading', { name: "Who's your first artist?" })).toBeVisible();
+      await expect(page.getByRole('link', { name: 'Create an artist' })).toBeVisible();
+      await expect(page.getByText('Artists are coming soon.')).toHaveCount(0);
       await expect(page.getByRole('link', { name: 'Artists' })).toBeVisible();
     },
   );
@@ -109,7 +114,7 @@ test.describe('Artists capability gate', () => {
       await expect(page.getByText("Couldn't check whether Studio is available.")).toBeVisible();
       probeStatus = 200;
       await page.getByRole('button', { name: 'Try again' }).click();
-      await expect(page.getByText('Artists are coming soon.')).toBeVisible();
+      await expect(page.getByRole('heading', { name: "Who's your first artist?" })).toBeVisible();
       await expect.poll(() => probeRequests).toBeGreaterThanOrEqual(3);
     },
   );
