@@ -92,6 +92,13 @@ function mockBrowserObservers(desktop = false) {
       disconnect() {}
     },
   );
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      disconnect() {}
+    },
+  );
 }
 
 beforeEach(() => {
@@ -271,6 +278,151 @@ describe('artist diary page', () => {
     expect(alerts.filter((alert) => !dialog.contains(alert))).toHaveLength(0);
   });
 
+  it('limit error shows inside the mobile sheet and keeps the draft', async () => {
+    mockBrowserObservers(false);
+    server.use(
+      http.post(`${BASE}/v1/studio/artists/artist-one/memories`, () =>
+        HttpResponse.json(
+          {
+            error: 'memory_limit_reached',
+            message: 'Memory cap',
+            status_code: 409,
+          },
+          { status: 409 },
+        ),
+      ),
+    );
+    renderPage();
+
+    await fireEvent.click(screen.getByRole('button', { name: '+ Memory' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Quick capture' });
+    const body = within(dialog).getByRole('textbox', {
+      name: 'What happened?',
+    }) as HTMLTextAreaElement;
+    await fireEvent.input(body, { target: { value: 'Keep this draft after the limit error.' } });
+    await fireEvent.click(within(dialog).getByRole('button', { name: 'Save memory' }));
+
+    expect((await within(dialog).findByRole('alert')).textContent).toContain(
+      'This artist has 200 active memories.',
+    );
+    expect(body.value).toBe('Keep this draft after the limit error.');
+    expect(screen.getAllByRole('alert').filter((alert) => !dialog.contains(alert))).toHaveLength(0);
+  });
+
+  it('server error shows inside the desktop quick capture', async () => {
+    mockBrowserObservers(true);
+    server.use(
+      http.post(`${BASE}/v1/studio/artists/artist-one/memories`, () =>
+        HttpResponse.json(
+          { error: 'server_error', message: 'Failed', status_code: 500 },
+          { status: 500 },
+        ),
+      ),
+    );
+    renderPage();
+
+    const composer = screen.getByRole('region', { name: 'Quick capture' });
+    await fireEvent.input(within(composer).getByRole('textbox', { name: 'What happened?' }), {
+      target: { value: 'A memory that cannot be saved yet.' },
+    });
+    await fireEvent.click(within(composer).getByRole('button', { name: 'Save memory' }));
+
+    expect((await within(composer).findByRole('alert')).textContent).toContain(
+      'We could not save this memory.',
+    );
+    expect(screen.getAllByRole('alert').filter((alert) => !composer.contains(alert))).toHaveLength(
+      0,
+    );
+  });
+
+  it('edit save failure shows inside the edit dialog', async () => {
+    server.use(
+      http.get(BASE + '/v1/studio/artists/artist-one/memories', () =>
+        HttpResponse.json({ items: [seedMemory], limit: 30, has_more: false, next_cursor: null }),
+      ),
+      http.patch(BASE + '/v1/studio/memories/memory-one', () =>
+        HttpResponse.json(
+          { error: 'server_error', message: 'Failed', status_code: 500 },
+          { status: 500 },
+        ),
+      ),
+    );
+    renderPage();
+    await screen.findByRole('heading', { name: 'The first show' });
+    await fireEvent.click(menuFor('The first show'));
+    await fireEvent.click(screen.getByRole('menuitem', { name: 'Edit' }));
+    const dialog = await screen.findByRole('dialog');
+    await fireEvent.click(within(dialog).getByText('More'));
+    await fireEvent.input(within(dialog).getByLabelText('Title'), {
+      target: { value: 'A changed title' },
+    });
+    await fireEvent.click(within(dialog).getByRole('button', { name: 'Save memory' }));
+
+    expect((await within(dialog).findByRole('alert')).textContent).toContain(
+      'We could not save this memory.',
+    );
+    expect(screen.getAllByRole('alert').filter((alert) => !dialog.contains(alert))).toHaveLength(0);
+  });
+
+  it('a validation failure shows field messages only', async () => {
+    mockBrowserObservers(true);
+    server.use(
+      http.post(`${BASE}/v1/studio/artists/artist-one/memories`, () =>
+        HttpResponse.json(
+          {
+            error: 'document_invalid',
+            message: 'Invalid memory',
+            status_code: 422,
+            detail: { issues: [{ path: 'title', code: 'too_long_after_normalization' }] },
+          },
+          { status: 422 },
+        ),
+      ),
+    );
+    renderPage();
+
+    const composer = screen.getByRole('region', { name: 'Quick capture' });
+    await fireEvent.input(within(composer).getByRole('textbox', { name: 'What happened?' }), {
+      target: { value: 'This memory needs a title.' },
+    });
+    await fireEvent.click(within(composer).getByRole('button', { name: 'Save memory' }));
+
+    expect(await within(composer).findByText('This value is longer than allowed.')).toBeTruthy();
+    expect(screen.queryByText('We could not save this memory. Please try again.')).toBeNull();
+    expect(within(composer).getAllByRole('alert')).toHaveLength(1);
+  });
+
+  it('focus moves to the next memory after archiving', async () => {
+    const memories = [
+      makeMemory({ id: 'memory-first', artist_id: 'artist-one', title: 'First' }),
+      makeMemory({ id: 'memory-second', artist_id: 'artist-one', title: 'Second' }),
+      makeMemory({ id: 'memory-third', artist_id: 'artist-one', title: 'Third' }),
+    ];
+    let archivedId = '';
+    server.use(
+      http.get(`${BASE}/v1/studio/artists/artist-one/memories`, ({ request }) => {
+        const requestedStatus = new URL(request.url).searchParams.get('status') ?? 'active';
+        const items = memories.filter((memory) => {
+          if (memory.id === archivedId) return requestedStatus === 'archived';
+          return requestedStatus === memory.status;
+        });
+        return HttpResponse.json({ items, limit: 30, has_more: false, next_cursor: null });
+      }),
+      http.patch(`${BASE}/v1/studio/memories/memory-second`, async ({ request }) => {
+        const patch = (await request.json()) as { status?: string };
+        if (patch.status === 'archived') archivedId = 'memory-second';
+        return HttpResponse.json({ ...memories[1], ...patch });
+      }),
+    );
+    renderPage();
+    await screen.findByRole('heading', { name: 'Second' });
+    await fireEvent.click(menuFor('Second'));
+    await fireEvent.click(screen.getByRole('menuitem', { name: 'Archive' }));
+
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Second' })).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(menuFor('Third')));
+  });
+
   it('closes the edit dialog on Escape and returns focus to its actions button', async () => {
     server.use(
       http.get(BASE + '/v1/studio/artists/artist-one/memories', () =>
@@ -348,6 +500,7 @@ describe('artist diary page', () => {
         );
       }),
     );
+    mockBrowserObservers(true);
     switchArtist('artist-one');
     renderLayoutPage(client);
     await screen.findByRole('heading', { name: 'Artist One' });

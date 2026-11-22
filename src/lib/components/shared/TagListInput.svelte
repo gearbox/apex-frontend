@@ -30,7 +30,14 @@
   let inputValue = $state('');
   let feedback = $state('');
   let tagIssues = $derived(field ? fieldIssues(issues, field) : []);
-  let describedBy = $derived(id + '-count ' + id + '-feedback' + (hint ? ' ' + id + '-hint' : ''));
+  let describedBy = $derived(
+    [
+      id + '-count',
+      id + '-feedback',
+      ...(hint ? [id + '-hint'] : []),
+      ...tagIssues.map((_, index) => id + '-issue-' + index),
+    ].join(' '),
+  );
 
   function addTag() {
     const value = inputValue.normalize('NFC').trim();
@@ -99,6 +106,7 @@
       bind:value={inputValue}
       placeholder={placeholder || m.studio_tag_placeholder()}
       aria-describedby={describedBy}
+      aria-invalid={tagIssues.length > 0 ? 'true' : undefined}
       class="min-w-0 flex-1 rounded-xl border border-border bg-bg px-3 py-2.5 text-sm text-text outline-none placeholder:text-text-dim focus:border-accent"
       onkeydown={onKeydown}
       onblur={addTag}
@@ -113,7 +121,7 @@
   <p id={id + '-count'} class="text-xs text-text-dim">{values.length} / {maxItems}</p>
   <p id={id + '-feedback'} class="min-h-4 text-xs text-danger" role="status">{feedback}</p>
   {#each tagIssues as issue, index (issue.path + '-' + index)}
-    <p class="text-xs text-danger" role="alert">
+    <p id={id + '-issue-' + index} class="text-xs text-danger" role="alert">
       {m.studio_issue_tag_index({
         index: String(Number(issue.path.match(/\[(\d+)\]/u)?.[1] ?? index) + 1),
         message: issueMessage(issue),

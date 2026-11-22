@@ -10,6 +10,15 @@ export function studioError(error: unknown): ApiRequestError | undefined {
   return error instanceof ApiRequestError ? error : undefined;
 }
 
+export function memorySaveError(error: unknown): string {
+  const apiError = studioError(error);
+  if (apiError?.status_code === 409 && apiError.error === 'memory_limit_reached') {
+    return m.studio_memory_limit_reached();
+  }
+  if (apiError?.status_code === 422 && apiError.error === 'document_invalid') return '';
+  return m.studio_memory_save_error();
+}
+
 export function validationIssues(error: unknown): StudioValidationIssue[] {
   const detail = studioError(error)?.detail;
   if (!detail || typeof detail !== 'object' || !('issues' in detail)) return [];

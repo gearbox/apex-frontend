@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { issueField, issueMessage } from './formErrors';
+import { issueField, issueMessage, memorySaveError } from './formErrors';
+import { ApiRequestError } from '$lib/api/errors';
 
 describe('studio validation issues', () => {
   it.each([
@@ -18,5 +19,36 @@ describe('studio validation issues', () => {
       "This value isn't valid.",
     );
     expect(issueField({ path: 'themes[2]', code: 'too_long_after_normalization' })).toBe('themes');
+  });
+});
+
+describe('memorySaveError', () => {
+  it('maps limit, validation, server and network failures', () => {
+    expect(
+      memorySaveError(
+        new ApiRequestError({
+          error: 'memory_limit_reached',
+          message: 'At limit',
+          status_code: 409,
+        }),
+      ),
+    ).toBe('This artist has 200 active memories. Archive one before adding another.');
+    expect(
+      memorySaveError(
+        new ApiRequestError({
+          error: 'document_invalid',
+          message: 'Invalid document',
+          status_code: 422,
+        }),
+      ),
+    ).toBe('');
+    expect(
+      memorySaveError(
+        new ApiRequestError({ error: 'server_error', message: 'Failed', status_code: 500 }),
+      ),
+    ).toBe('We could not save this memory. Please try again.');
+    expect(memorySaveError(new TypeError('Network unavailable'))).toBe(
+      'We could not save this memory. Please try again.',
+    );
   });
 });

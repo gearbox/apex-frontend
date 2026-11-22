@@ -281,7 +281,7 @@ describe('AssetCard', () => {
     expect(screen.getByRole('menuitem', { name: /download/i })).toBeTruthy();
   });
 
-  it('opens the overflow menu via ContextMenu.openAt instead of a synthetic contextmenu dispatch', async () => {
+  it('AssetCard usage without a trigger argument still renders and opens its overflow menu', async () => {
     const { container, getByLabelText } = renderCard({ available_actions: ['download'] });
 
     await fireEvent.click(getByLabelText('More actions'));

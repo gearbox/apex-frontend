@@ -1,10 +1,11 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
+  import { SvelteSet } from 'svelte/reactivity';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { createInfiniteQuery, createMutation, useQueryClient } from '@tanstack/svelte-query';
   import type { InfiniteData } from '@tanstack/svelte-query';
-  import { Archive, Pencil, RotateCcw, Trash2 } from '@lucide/svelte';
+  import { Archive, MoreHorizontal, Pencil, RotateCcw, Trash2 } from '@lucide/svelte';
   import {
     createMemoryMutationOptions,
     deleteMemoryMutationOptions,
@@ -18,11 +19,12 @@
   import ContextMenu from '$lib/components/shared/ContextMenu.svelte';
   import Sheet from '$lib/components/shared/Sheet.svelte';
   import InfiniteScrollSentinel from '$lib/components/shared/InfiniteScrollSentinel.svelte';
+  import { clampOverflow } from '$lib/actions/clampOverflow';
   import Spinner from '$lib/components/ui/Spinner.svelte';
   import { addToast } from '$lib/stores/toasts';
   import { isDesktop } from '$lib/utils/breakpoints';
   import { formatLocalIsoDate } from '$lib/studio/memoryDraft';
-  import { studioError, validationIssues } from '$lib/studio/formErrors';
+  import { memorySaveError, studioError, validationIssues } from '$lib/studio/formErrors';
   import { locale } from '$lib/stores/locale';
   import type { components } from '$lib/api/types';
   import * as m from '$paraglide/messages';
@@ -37,9 +39,12 @@
   let composerOpen = $state(false);
   let composerAutofocus = $state(false);
   let composerVersion = $state(0);
+  let createError = $state('');
+  let editError = $state('');
   let editMemory = $state<Memory | null>(null);
   let deleteMemory = $state<Memory | null>(null);
   let expandedMemoryIds = $state<string[]>([]);
+  const overflowingMemoryIds = new SvelteSet<string>();
   let actionError = $state('');
 
   const memoriesQuery = createInfiniteQuery(() => ({
@@ -90,21 +95,24 @@
   function closeComposer() {
     composerOpen = false;
     composerAutofocus = false;
+    createError = '';
     createMemory.reset();
   }
 
   function openEditMemory(memory: Memory) {
     updateMemory.reset();
+    editError = '';
     editMemory = memory;
   }
 
   function closeEditMemory() {
     editMemory = null;
+    editError = '';
     updateMemory.reset();
   }
 
   async function saveNewMemory(payload: MemoryFormPayload) {
-    actionError = '';
+    createError = '';
     try {
       await createMemory.mutateAsync({
         artistId,
@@ -119,19 +127,18 @@
       });
       composerVersion += 1;
       composerAutofocus = false;
+      createError = '';
       createMemory.reset();
       if (!$isDesktop) composerOpen = false;
       addToast({ type: 'success', message: m.studio_memory_saved() });
     } catch (error) {
-      actionError =
-        studioError(error)?.error === 'memory_limit_reached'
-          ? m.studio_memory_limit_reached()
-          : m.studio_memory_save_error();
+      createError = memorySaveError(error);
     }
   }
 
   async function saveEditedMemory(payload: MemoryFormPayload) {
     if (!editMemory) return;
+    editError = '';
     const current = cachedMemory(editMemory.id) ?? editMemory;
     const patch = patchFromForm(current, payload);
     if (Object.keys(patch).length === 0) {
@@ -143,17 +150,37 @@
       closeEditMemory();
       addToast({ type: 'success', message: m.studio_memory_saved() });
     } catch (error) {
-      if (validationIssues(error).length === 0) {
-        actionError = m.studio_memory_save_error();
-      }
+      editError = memorySaveError(error);
     }
   }
 
+  function neighboringMemoryId(memoryId: string): string | null {
+    const index = memories.findIndex((memory) => memory.id === memoryId);
+    if (index < 0) return null;
+    return memories[index + 1]?.id ?? memories[index - 1]?.id ?? null;
+  }
+
+  async function focusAfterListAction(memoryId: string | null) {
+    await tick();
+    if (memoryId) {
+      const target = Array.from(
+        document.querySelectorAll<HTMLButtonElement>('[data-memory-actions]'),
+      ).find((button) => button.dataset.memoryActions === memoryId);
+      if (target) {
+        target.focus();
+        return;
+      }
+    }
+    document.querySelector<HTMLButtonElement>('[role="tab"][aria-selected="true"]')?.focus();
+  }
+
   async function changeMemoryStatus(memory: Memory, next: MemoryStatus) {
+    const focusMemoryId = neighboringMemoryId(memory.id);
     actionError = '';
     updateMemory.reset();
     try {
       await updateMemory.mutateAsync({ id: memory.id, artistId, patch: { status: next } });
+      await focusAfterListAction(focusMemoryId);
     } catch (error) {
       actionError =
         studioError(error)?.error === 'memory_limit_reached'
@@ -165,9 +192,11 @@
 
   async function confirmDeleteMemory() {
     if (!deleteMemory) return;
+    const focusMemoryId = neighboringMemoryId(deleteMemory.id);
     try {
       await deleteMemoryMutation.mutateAsync({ id: deleteMemory.id, artistId });
       deleteMemory = null;
+      await focusAfterListAction(focusMemoryId);
       addToast({ type: 'success', message: m.studio_memory_deleted() });
     } catch {
       actionError = m.studio_memory_delete_error();
@@ -179,6 +208,11 @@
     expandedMemoryIds = expandedMemoryIds.includes(memoryId)
       ? expandedMemoryIds.filter((id) => id !== memoryId)
       : [...expandedMemoryIds, memoryId];
+  }
+
+  function setBodyOverflow(memoryId: string, overflowing: boolean) {
+    if (overflowing) overflowingMemoryIds.add(memoryId);
+    else overflowingMemoryIds.delete(memoryId);
   }
 
   function menuItems(memory: Memory) {
@@ -220,6 +254,7 @@
     <section
       class="hidden rounded-2xl border border-border bg-surface p-4 md:block md:p-5"
       aria-label={m.studio_quick_capture()}
+      aria-hidden={!$isDesktop}
     >
       {#key `desktop-${composerVersion}`}
         <MemoryForm
@@ -228,6 +263,7 @@
           autofocus={composerAutofocus}
           pending={createMemory.isPending}
           issues={createIssues}
+          error={createError}
           onsubmit={saveNewMemory}
         />
       {/key}
@@ -314,73 +350,83 @@
     {:else}
       <div class="space-y-3">
         {#each memories as memory (memory.id)}
-          <ContextMenu
-            items={menuItems(memory)}
-            triggerLabel={m.studio_memory_menu({ title: memory.title })}
-            triggerClass="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-lg text-text-muted hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-accent"
-          >
-            <article class="relative rounded-2xl border border-border bg-surface p-4 md:p-5">
-              <div class="flex items-start gap-3">
-                <div class="min-w-0 flex-1 pr-10">
-                  <div class="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <time
-                      class="font-mono text-xs text-text-dim"
-                      datetime={memory.occurred_on ?? undefined}
-                    >
-                      {memory.occurred_on
-                        ? formatLocalIsoDate(memory.occurred_on, $locale)
-                        : m.studio_date_undated()}
-                    </time>
-                    {#if memory.origin === 'chat'}<span
-                        class="rounded-full border border-accent/50 px-2 py-0.5 text-[10px] font-semibold text-accent"
-                        >{m.studio_from_interview()}</span
-                      >{/if}
-                  </div>
-                  <h2 class="font-display text-lg font-semibold text-text">{memory.title}</h2>
-                </div>
-              </div>
-              <p
-                class="mt-3 whitespace-pre-wrap text-sm leading-6 text-text-muted {expandedMemoryIds.includes(
-                  memory.id,
-                )
-                  ? ''
-                  : 'line-clamp-3'}"
-              >
-                {memory.body}
-              </p>
-              {#if memory.body.split('\n').length > 3 || memory.body.length > 260}
+          <ContextMenu items={menuItems(memory)}>
+            {#snippet children(menu)}
+              <article class="relative rounded-2xl border border-border bg-surface p-4 md:p-5">
                 <button
                   type="button"
-                  class="mt-2 text-xs font-semibold text-accent"
-                  aria-expanded={expandedMemoryIds.includes(memory.id)}
-                  onclick={() => toggleExpanded(memory.id)}
-                  >{expandedMemoryIds.includes(memory.id)
-                    ? m.studio_show_less()
-                    : m.studio_show_more()}</button
+                  data-memory-actions={memory.id}
+                  class="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-lg text-text-muted hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-accent"
+                  aria-label={m.studio_memory_menu({ title: memory.title })}
+                  aria-haspopup="menu"
+                  aria-expanded={menu.expanded}
+                  onclick={menu.toggle}
                 >
-              {/if}
-              {#if memory.themes.length > 0}
-                <ul class="mt-3 flex flex-wrap gap-1.5" aria-label={m.studio_memory_themes()}>
-                  {#each memory.themes as theme, index (`${theme}-${index}`)}<li
-                      class="rounded-full bg-accent-glow px-2.5 py-1 text-xs text-accent"
-                    >
-                      {theme}
-                    </li>{/each}
-                </ul>
-              {/if}
-              <div
-                class="mt-4 flex items-center gap-1.5"
-                role="img"
-                aria-label={m.studio_importance_level({ level: String(memory.salience) })}
-              >
-                {#each [1, 2, 3, 4, 5] as dot (dot)}<span
-                    class="h-1.5 w-1.5 rounded-full {dot <= memory.salience
-                      ? 'bg-accent'
-                      : 'bg-border'}"
-                    aria-hidden="true"
-                  ></span>{/each}
-              </div>
-            </article>
+                  <MoreHorizontal size={19} aria-hidden="true" />
+                </button>
+                <div class="flex items-start gap-3">
+                  <div class="min-w-0 flex-1 pr-10">
+                    <div class="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <time
+                        class="font-mono text-xs text-text-dim"
+                        datetime={memory.occurred_on ?? undefined}
+                      >
+                        {memory.occurred_on
+                          ? formatLocalIsoDate(memory.occurred_on, $locale)
+                          : m.studio_date_undated()}
+                      </time>
+                      {#if memory.origin === 'chat'}<span
+                          class="rounded-full border border-accent/50 px-2 py-0.5 text-[10px] font-semibold text-accent"
+                          >{m.studio_from_interview()}</span
+                        >{/if}
+                    </div>
+                    <h2 class="font-display text-lg font-semibold text-text">{memory.title}</h2>
+                  </div>
+                </div>
+                <p
+                  class="mt-3 whitespace-pre-wrap text-sm leading-6 text-text-muted {expandedMemoryIds.includes(
+                    memory.id,
+                  )
+                    ? ''
+                    : 'line-clamp-3'}"
+                  use:clampOverflow={(overflowing) => setBodyOverflow(memory.id, overflowing)}
+                >
+                  {memory.body}
+                </p>
+                {#if overflowingMemoryIds.has(memory.id) || expandedMemoryIds.includes(memory.id)}
+                  <button
+                    type="button"
+                    class="mt-2 text-xs font-semibold text-accent"
+                    aria-expanded={expandedMemoryIds.includes(memory.id)}
+                    onclick={() => toggleExpanded(memory.id)}
+                    >{expandedMemoryIds.includes(memory.id)
+                      ? m.studio_show_less()
+                      : m.studio_show_more()}</button
+                  >
+                {/if}
+                {#if memory.themes.length > 0}
+                  <ul class="mt-3 flex flex-wrap gap-1.5" aria-label={m.studio_memory_themes()}>
+                    {#each memory.themes as theme, index (`${theme}-${index}`)}<li
+                        class="rounded-full bg-accent-glow px-2.5 py-1 text-xs text-accent"
+                      >
+                        {theme}
+                      </li>{/each}
+                  </ul>
+                {/if}
+                <div
+                  class="mt-4 flex items-center gap-1.5"
+                  role="img"
+                  aria-label={m.studio_importance_level({ level: String(memory.salience) })}
+                >
+                  {#each [1, 2, 3, 4, 5] as dot (dot)}<span
+                      class="h-1.5 w-1.5 rounded-full {dot <= memory.salience
+                        ? 'bg-accent'
+                        : 'bg-border'}"
+                      aria-hidden="true"
+                    ></span>{/each}
+                </div>
+              </article>
+            {/snippet}
           </ContextMenu>
         {/each}
       </div>
@@ -412,6 +458,7 @@
   type="button"
   class="fixed bottom-[calc(76px+env(safe-area-inset-bottom))] right-4 z-40 inline-flex items-center gap-2 rounded-full bg-accent px-5 py-3 text-sm font-semibold text-bg shadow-lg md:hidden"
   onclick={() => {
+    createError = '';
     composerOpen = true;
     composerAutofocus = true;
   }}
@@ -432,6 +479,7 @@
         mode="create"
         pending={createMemory.isPending}
         issues={createIssues}
+        error={createError}
         onsubmit={saveNewMemory}
         oncancel={closeComposer}
       />
@@ -453,6 +501,7 @@
       initial={editMemory}
       pending={updateMemory.isPending}
       issues={updateIssues}
+      error={editError}
       onsubmit={saveEditedMemory}
       oncancel={closeEditMemory}
     />

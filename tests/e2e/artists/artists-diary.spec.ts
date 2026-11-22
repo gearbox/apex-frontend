@@ -31,7 +31,222 @@ async function keyboardMenuAction(page: Page, title: string, action: 'Archive' |
   await page.keyboard.press('Enter');
 }
 
+async function stubDiary(
+  page: Page,
+  seed: Array<{ title: string; body: string; status?: 'active' | 'archived' }>,
+  saveFailure?: { status: number; error: string; message: string },
+) {
+  interface StubMemory {
+    id: string;
+    artist_id: string;
+    title: string;
+    body: string;
+    occurred_on: string | null;
+    themes: string[];
+    imagery: string[];
+    salience: number;
+    status: 'active' | 'archived';
+    origin: string;
+    created_at: string;
+    updated_at: string;
+  }
+
+  const artist = {
+    id: 'artist-probe',
+    name: 'Probe Artist',
+    persona: null,
+    voice_notes: null,
+    default_language: null,
+    aesthetic_references: [],
+    style_tags: [],
+    global_avoid: [],
+    created_at: '2026-11-22T10:00:00Z',
+    updated_at: '2026-11-22T10:00:00Z',
+  };
+  const memories = new Map<string, StubMemory>(
+    seed.map((item, index): [string, StubMemory] => {
+      const memory = {
+        id: `memory-probe-${index + 1}`,
+        artist_id: artist.id,
+        title: item.title,
+        body: item.body,
+        occurred_on: null,
+        themes: [],
+        imagery: [],
+        salience: 3,
+        status: item.status ?? 'active',
+        origin: 'user',
+        created_at: '2026-11-22T10:00:00Z',
+        updated_at: '2026-11-22T10:00:00Z',
+      };
+      return [memory.id, memory] as const;
+    }),
+  );
+  await page.route('**/v1/auth/product-info', jsonRoute(syntharaProduct));
+  await page.route('**/v1/studio/**', async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    if (request.method() === 'GET' && path === '/v1/studio/artists') {
+      return jsonRoute({ items: [artist], limit: 50, has_more: false, next_cursor: null })(route);
+    }
+    if (request.method() === 'GET' && path === '/v1/studio/artists/artist-probe') {
+      return jsonRoute(artist)(route);
+    }
+    if (request.method() === 'GET' && path === '/v1/studio/artists/artist-probe/memories') {
+      const status = new URL(request.url()).searchParams.get('status') ?? 'active';
+      const items = [...memories.values()].filter((memory) => memory.status === status);
+      return jsonRoute({ items, limit: 30, has_more: false, next_cursor: null })(route);
+    }
+    if (request.method() === 'POST' && path === '/v1/studio/artists/artist-probe/memories') {
+      if (saveFailure) {
+        return jsonRoute(
+          {
+            error: saveFailure.error,
+            message: saveFailure.message,
+            status_code: saveFailure.status,
+          },
+          saveFailure.status,
+        )(route);
+      }
+      const body = request.postDataJSON() as Record<string, unknown>;
+      const memory = {
+        id: 'memory-probe-new',
+        artist_id: artist.id,
+        title: String(body.title ?? ''),
+        body: String(body.body ?? ''),
+        occurred_on: typeof body.occurred_on === 'string' ? body.occurred_on : null,
+        themes: Array.isArray(body.themes)
+          ? body.themes.filter((theme): theme is string => typeof theme === 'string')
+          : [],
+        imagery: Array.isArray(body.imagery)
+          ? body.imagery.filter((item): item is string => typeof item === 'string')
+          : [],
+        salience: typeof body.salience === 'number' ? body.salience : 3,
+        status: 'active' as const,
+        origin: 'user',
+        created_at: '2026-11-22T10:00:00Z',
+        updated_at: '2026-11-22T10:00:00Z',
+      };
+      memories.set(memory.id, memory);
+      return jsonRoute(memory, 201)(route);
+    }
+    const memoryPath = path.match(/^\/v1\/studio\/memories\/([^/]+)$/);
+    if (memoryPath && request.method() === 'PATCH') {
+      const memory = memories.get(memoryPath[1]);
+      if (!memory) return route.fulfill({ status: 404, body: '' });
+      Object.assign(memory, request.postDataJSON() as Record<string, unknown>);
+      return jsonRoute(memory)(route);
+    }
+    if (memoryPath && request.method() === 'DELETE') {
+      memories.delete(memoryPath[1]);
+      return route.fulfill({ status: 204, body: '' });
+    }
+    return route.continue();
+  });
+}
+
 test.describe('Artists diary', () => {
+  test(
+    "each memory's actions button sits on its own card",
+    { tag: '@cross-browser' },
+    async ({ authenticatedPage: page }, testInfo) => {
+      test.skip(testInfo.project.name === 'mobile-safari', 'Covered on desktop and mobile Chrome.');
+      await page.clock.install();
+      await stubDiary(page, [
+        { title: 'First', body: 'First memory.' },
+        { title: 'Second', body: 'Second memory.' },
+        { title: 'Third', body: 'Third memory.' },
+      ]);
+      await page.goto('/app/artists/artist-probe');
+
+      for (const title of ['First', 'Second', 'Third']) {
+        const article = page
+          .getByRole('article')
+          .filter({ has: page.getByRole('heading', { name: title }) });
+        const trigger = page.getByRole('button', { name: `Actions for ${title}` });
+        const cardBox = await article.boundingBox();
+        const triggerBox = await trigger.boundingBox();
+        expect(cardBox).not.toBeNull();
+        expect(triggerBox).not.toBeNull();
+        expect(triggerBox!.x).toBeGreaterThanOrEqual(cardBox!.x);
+        expect(triggerBox!.y).toBeGreaterThanOrEqual(cardBox!.y);
+        expect(triggerBox!.x + triggerBox!.width).toBeLessThanOrEqual(cardBox!.x + cardBox!.width);
+        expect(triggerBox!.y + triggerBox!.height).toBeLessThanOrEqual(
+          cardBox!.y + cardBox!.height,
+        );
+      }
+
+      await page.getByRole('button', { name: 'Actions for Second' }).click();
+      await page.getByRole('menuitem', { name: 'Archive' }).click();
+      await expect(page.getByRole('heading', { name: 'Second' })).toHaveCount(0);
+      await expect(page.getByRole('heading', { name: 'First' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Third' })).toBeVisible();
+      await page.getByRole('tab', { name: 'Archived' }).click();
+      await expect(page.getByRole('heading', { name: 'Second' })).toBeVisible();
+    },
+  );
+
+  test(
+    'clamped bodies offer Show more only when content overflows',
+    { tag: '@cross-browser' },
+    async ({ authenticatedPage: page }, testInfo) => {
+      test.skip(testInfo.project.name === 'mobile-safari', 'Covered on desktop and mobile Chrome.');
+      await page.clock.install();
+      if (testInfo.project.name === 'desktop-chrome') {
+        await page.setViewportSize({ width: 768, height: 900 });
+      }
+      const longBody = '長い記憶が音楽と部屋の空気を満たし、観客は最後まで一緒に歌い続けた。'
+        .repeat(5)
+        .slice(0, 170);
+      expect(longBody).toHaveLength(170);
+      await stubDiary(page, [
+        { title: 'First', body: longBody },
+        { title: 'Short', body: 'Short.' },
+      ]);
+      await page.goto('/app/artists/artist-probe');
+
+      const firstArticle = page
+        .getByRole('article')
+        .filter({ has: page.getByRole('heading', { name: 'First' }) });
+      const showMore = firstArticle.getByRole('button', { name: 'Show more' });
+      await expect(showMore).toBeVisible();
+      await showMore.click();
+      await expect(firstArticle.getByRole('button', { name: 'Show less' })).toBeVisible();
+      await expect(firstArticle).toContainText(longBody);
+
+      const shortArticle = page
+        .getByRole('article')
+        .filter({ has: page.getByRole('heading', { name: 'Short' }) });
+      await expect(shortArticle.getByRole('button', { name: /Show more|Show less/ })).toHaveCount(
+        0,
+      );
+    },
+  );
+
+  test(
+    'limit error stays inside mobile quick capture and keeps its draft at 375 px',
+    { tag: '@mobile' },
+    async ({ authenticatedPage: page }) => {
+      await page.clock.install();
+      await page.setViewportSize({ width: 375, height: 812 });
+      await stubDiary(page, [], {
+        status: 409,
+        error: 'memory_limit_reached',
+        message: 'Memory cap',
+      });
+      await page.goto('/app/artists/artist-probe');
+      await page.getByRole('button', { name: '+ Memory' }).click();
+      const dialog = page.getByRole('dialog', { name: 'Quick capture' });
+      const body = dialog.getByRole('textbox', { name: 'What happened?' });
+      await body.fill('The draft remains available after a limit response.');
+      await dialog.getByRole('button', { name: 'Save memory' }).click();
+
+      await expect(dialog.getByRole('alert')).toContainText('This artist has 200 active memories.');
+      await expect(body).toHaveValue('The draft remains available after a limit response.');
+      await expect(page.getByRole('alert')).toHaveCount(1);
+    },
+  );
+
   test(
     'creates an artist and memory, then archives and restores the memory',
     { tag: '@cross-browser' },

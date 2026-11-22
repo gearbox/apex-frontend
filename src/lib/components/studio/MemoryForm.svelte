@@ -1,12 +1,17 @@
 <script lang="ts">
-  import { untrack } from 'svelte';
+  import { tick, untrack } from 'svelte';
   import TagListInput from '$lib/components/shared/TagListInput.svelte';
   import {
     deriveMemoryTitle,
     formatLocalIsoDate,
     todayLocalIsoDate,
   } from '$lib/studio/memoryDraft';
-  import { fieldIssues, issueMessage, type StudioValidationIssue } from '$lib/studio/formErrors';
+  import {
+    fieldIssues,
+    issueField,
+    issueMessage,
+    type StudioValidationIssue,
+  } from '$lib/studio/formErrors';
   import { locale } from '$lib/stores/locale';
   import * as m from '$paraglide/messages';
 
@@ -35,6 +40,7 @@
     pending?: boolean;
     autofocus?: boolean;
     issues?: StudioValidationIssue[];
+    error?: string;
     onsubmit: (payload: MemoryFormPayload) => void | Promise<void>;
     oncancel?: () => void;
   }
@@ -46,6 +52,7 @@
     pending = false,
     autofocus = false,
     issues = [],
+    error = '',
     onsubmit,
     oncancel,
   }: Props = $props();
@@ -60,6 +67,7 @@
   let imagery = $state<string[]>(untrack(() => [...(initial?.imagery ?? [])]));
   let salience = $state(untrack(() => initial?.salience ?? 3));
   let moreOpen = $state(false);
+  let formEl: HTMLFormElement | undefined = $state();
   let bodyEl: HTMLTextAreaElement | undefined = $state();
   let bodyIssues = $derived(fieldIssues(issues, 'body'));
   let titleIssues = $derived(fieldIssues(issues, 'title'));
@@ -68,14 +76,39 @@
   let otherIssues = $derived(
     issues.filter(
       (issue) =>
-        !['body', 'title', 'occurred_on', 'salience', 'themes', 'imagery'].some(
-          (field) => issue.path === field || issue.path.startsWith(field + '['),
+        !['body', 'title', 'occurred_on', 'salience', 'themes', 'imagery'].includes(
+          issueField(issue),
         ),
     ),
   );
 
+  function issueId(controlId: string, index: number) {
+    return `${controlId}-issue-${index}`;
+  }
+
+  function issueDescription(controlId: string, currentIssues: StudioValidationIssue[]) {
+    return currentIssues.length
+      ? currentIssues.map((_, index) => issueId(controlId, index)).join(' ')
+      : undefined;
+  }
+
   $effect(() => {
     if (autofocus) bodyEl?.focus();
+  });
+
+  $effect(() => {
+    const currentIssues = issues;
+    if (
+      currentIssues.some((issue) =>
+        ['title', 'themes', 'imagery', 'salience'].includes(issueField(issue)),
+      ) ||
+      otherIssues.length > 0
+    ) {
+      moreOpen = true;
+    }
+    if (currentIssues.length > 0) {
+      void tick().then(() => formEl?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus());
+    }
   });
 
   function updateBody(event: Event) {
@@ -108,20 +141,11 @@
   );
 </script>
 
-<form class="space-y-4" onsubmit={submit}>
+<form bind:this={formEl} class="space-y-4" onsubmit={submit}>
   <div class="flex flex-wrap items-center justify-between gap-2">
     <p class="text-sm font-semibold text-text">
       {mode === 'create' ? m.studio_quick_capture() : m.studio_edit_memory()}
     </p>
-    {#if oncancel}
-      <button
-        type="button"
-        class="rounded-lg px-2 py-1 text-sm text-text-muted hover:bg-surface-hover"
-        onclick={oncancel}
-      >
-        {m.common_cancel()}
-      </button>
-    {/if}
   </div>
 
   <label class="block space-y-2" for={`${idPrefix}-body`}>
@@ -134,9 +158,12 @@
       rows="5"
       required
       placeholder={m.studio_memory_body_placeholder()}
+      aria-invalid={bodyIssues.length > 0 ? 'true' : undefined}
+      aria-describedby={issueDescription(`${idPrefix}-body`, bodyIssues)}
       class="w-full resize-y rounded-2xl border border-border bg-bg px-4 py-3 text-sm leading-6 text-text outline-none placeholder:text-text-dim focus:border-accent"
       oninput={updateBody}></textarea>
     {#each bodyIssues as issue, index (`${issue.path}-${index}`)}<span
+        id={issueId(`${idPrefix}-body`, index)}
         class="block text-xs text-danger"
         role="alert">{issueMessage(issue)}</span
       >{/each}
@@ -149,6 +176,8 @@
       type="date"
       bind:value={occurredOn}
       aria-label={dateLabel}
+      aria-invalid={dateIssues.length > 0 ? 'true' : undefined}
+      aria-describedby={issueDescription(`${idPrefix}-date`, dateIssues)}
       class="rounded-full border border-border bg-surface px-3 py-1.5 text-sm text-text"
     />
     <span class="text-xs text-text-muted">{dateLabel}</span>
@@ -171,6 +200,7 @@
     {/if}
   </div>
   {#each dateIssues as issue, index (`${issue.path}-${index}`)}<p
+      id={issueId(`${idPrefix}-date`, index)}
       class="text-xs text-danger"
       role="alert"
     >
@@ -189,6 +219,8 @@
           value={title}
           maxlength="120"
           required
+          aria-invalid={titleIssues.length > 0 ? 'true' : undefined}
+          aria-describedby={issueDescription(`${idPrefix}-title`, titleIssues)}
           class="w-full rounded-xl border border-border bg-bg px-3 py-2.5 text-sm text-text outline-none focus:border-accent"
           oninput={(event) => {
             title = (event.currentTarget as HTMLInputElement).value;
@@ -196,6 +228,7 @@
           }}
         />
         {#each titleIssues as issue, index (`${issue.path}-${index}`)}<p
+            id={issueId(`${idPrefix}-title`, index)}
             class="text-xs text-danger"
             role="alert"
           >
@@ -222,7 +255,15 @@
       />
       <fieldset>
         <legend class="mb-2 text-sm font-medium text-text">{m.studio_memory_importance()}</legend>
-        <div class="flex gap-2" role="radiogroup" aria-label={m.studio_memory_importance()}>
+        <div
+          id={`${idPrefix}-salience`}
+          class="flex gap-2"
+          role="radiogroup"
+          aria-label={m.studio_memory_importance()}
+          aria-invalid={salienceIssues.length > 0 ? 'true' : undefined}
+          aria-describedby={issueDescription(`${idPrefix}-salience`, salienceIssues)}
+          tabindex={salienceIssues.length > 0 ? -1 : undefined}
+        >
           {#each [1, 2, 3, 4, 5] as level (level)}
             <button
               type="button"
@@ -238,6 +279,7 @@
           {/each}
         </div>
         {#each salienceIssues as issue, index (`${issue.path}-${index}`)}<p
+            id={issueId(`${idPrefix}-salience`, index)}
             class="text-xs text-danger"
             role="alert"
           >
@@ -245,6 +287,7 @@
           </p>{/each}
       </fieldset>
       {#each otherIssues as issue, index (`${issue.path}-${index}`)}<p
+          id={`${idPrefix}-other-issue-${index}`}
           class="text-xs text-danger"
           role="alert"
         >
@@ -253,7 +296,20 @@
     </div>
   </details>
 
-  <div class="flex justify-end">
+  {#if error}
+    <p class="text-sm text-danger" role="alert">{error}</p>
+  {/if}
+
+  <div class="flex justify-end gap-2">
+    {#if oncancel}
+      <button
+        type="button"
+        class="rounded-xl px-4 py-2.5 text-sm text-text-muted hover:bg-surface-hover"
+        onclick={oncancel}
+      >
+        {m.common_cancel()}
+      </button>
+    {/if}
     <button
       type="submit"
       class="rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-bg shadow-sm disabled:cursor-not-allowed disabled:opacity-50"

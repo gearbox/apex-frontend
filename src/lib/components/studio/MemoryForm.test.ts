@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/svelte';
+import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import MemoryForm from './MemoryForm.svelte';
 
 describe('MemoryForm', () => {
@@ -13,7 +13,7 @@ describe('MemoryForm', () => {
       target: { value: 'First evening in Belgrade\nRain on the windows' },
     });
     await fireEvent.click(screen.getByText('More'));
-    const title = screen.getByLabelText('Title');
+    const title = document.getElementById('create-test-title') as HTMLInputElement;
     expect((title as HTMLInputElement).value).toBe('First evening in Belgrade');
 
     await fireEvent.input(title, { target: { value: 'A changed title' } });
@@ -80,5 +80,60 @@ describe('MemoryForm', () => {
       imagery: [],
       salience: 3,
     });
+  });
+
+  it('opens More and shows a title issue', async () => {
+    render(MemoryForm, {
+      props: {
+        mode: 'create',
+        idPrefix: 'title-issue',
+        issues: [{ path: 'title', code: 'too_long_after_normalization' }],
+        onsubmit: vi.fn(),
+      },
+    });
+
+    const details = screen.getByText('More').closest('details');
+    const title = document.getElementById('title-issue-title') as HTMLInputElement;
+    expect(details?.open).toBe(true);
+    expect(screen.getByText('This value is longer than allowed.')).toBeTruthy();
+    expect(title.getAttribute('aria-invalid')).toBe('true');
+    expect(title.getAttribute('aria-describedby')).toBe('title-issue-title-issue-0');
+    await waitFor(() => expect(document.activeElement).toBe(title));
+  });
+
+  it('opens More for a tag issue and names the tag', async () => {
+    render(MemoryForm, {
+      props: {
+        mode: 'create',
+        idPrefix: 'tag-issue',
+        issues: [{ path: 'themes[1]', code: 'duplicate_tag' }],
+        onsubmit: vi.fn(),
+      },
+    });
+
+    const details = screen.getByText('More').closest('details');
+    const themes = screen.getByLabelText('Themes');
+    expect(details?.open).toBe(true);
+    expect(screen.getByText('Tag 2: This tag is already listed.')).toBeTruthy();
+    expect(themes.getAttribute('aria-invalid')).toBe('true');
+    expect(themes.getAttribute('aria-describedby')).toContain('tag-issue-themes-issue-0');
+    await waitFor(() => expect(document.activeElement).toBe(themes));
+  });
+
+  it('does not open More for a body-only issue', async () => {
+    render(MemoryForm, {
+      props: {
+        mode: 'create',
+        idPrefix: 'body-issue',
+        issues: [{ path: 'body', code: 'too_long_after_normalization' }],
+        onsubmit: vi.fn(),
+      },
+    });
+
+    const details = screen.getByText('More').closest('details');
+    const body = document.getElementById('body-issue-body') as HTMLTextAreaElement;
+    expect(details?.open).toBe(false);
+    expect(body.getAttribute('aria-invalid')).toBe('true');
+    await waitFor(() => expect(document.activeElement).toBe(body));
   });
 });

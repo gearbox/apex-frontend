@@ -1,9 +1,14 @@
 <script lang="ts">
   import { tick } from 'svelte';
-  import { MoreHorizontal } from '@lucide/svelte';
   import { isDesktop } from '$lib/utils/breakpoints';
   import type { LucideIcon } from '@lucide/svelte';
   import type { Snippet } from 'svelte';
+
+  export interface ContextMenuTrigger {
+    readonly expanded: boolean;
+    /** Opens below the clicked element, or closes when this element opened it. Focus returns here on close. */
+    toggle(event: MouseEvent): void;
+  }
 
   interface ContextMenuItem {
     label: string;
@@ -19,12 +24,10 @@
 
   interface Props {
     items: ContextMenuItem[];
-    children: Snippet;
-    triggerLabel?: string;
-    triggerClass?: string;
+    children: Snippet<[ContextMenuTrigger]>;
   }
 
-  let { items, children, triggerLabel, triggerClass = '' }: Props = $props();
+  let { items, children }: Props = $props();
 
   let menuVisible = $state(false);
   let menuX = $state(0);
@@ -32,6 +35,7 @@
 
   let menuEl: HTMLDivElement | undefined = $state();
   let opener: HTMLElement | undefined = $state();
+  let trigger = $derived({ expanded: menuVisible, toggle: toggleFromTrigger });
 
   function focusFirstItem() {
     menuEl?.querySelector<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')?.focus();
@@ -65,6 +69,16 @@
     menuVisible = false;
     if (returnFocus) opener?.focus();
     opener = undefined;
+  }
+
+  function toggleFromTrigger(event: MouseEvent) {
+    const triggerElement = event.currentTarget as HTMLElement;
+    if (menuVisible && opener === triggerElement) {
+      close();
+      return;
+    }
+    const rect = triggerElement.getBoundingClientRect();
+    openAt(rect.right - 160, rect.bottom, triggerElement);
   }
 
   function handleItemClick(item: ContextMenuItem) {
@@ -109,27 +123,7 @@
 <svelte:document onclick={handleDocumentClick} onkeydown={handleDocumentKeydown} />
 
 <div oncontextmenu={handleContextMenu} role="presentation">
-  {@render children()}
-  {#if triggerLabel}
-    <button
-      type="button"
-      class={triggerClass}
-      aria-label={triggerLabel}
-      aria-haspopup="menu"
-      aria-expanded={menuVisible}
-      onclick={(event) => {
-        const trigger = event.currentTarget as HTMLElement;
-        if (menuVisible && opener === trigger) {
-          close();
-          return;
-        }
-        const rect = trigger.getBoundingClientRect();
-        openAt(rect.right - 160, rect.bottom, trigger);
-      }}
-    >
-      <MoreHorizontal size={19} aria-hidden="true" />
-    </button>
-  {/if}
+  {@render children(trigger)}
 </div>
 
 {#if menuVisible}
