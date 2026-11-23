@@ -13,12 +13,15 @@
   import Spinner from '$lib/components/ui/Spinner.svelte';
   import { addToast } from '$lib/stores/toasts';
   import {
+    artistDeleteError,
+    artistSaveError,
     fieldIssues,
     issueField,
     issueMessage,
     studioError,
     validationIssues,
   } from '$lib/studio/formErrors';
+  import { codePointLength } from '$lib/studio/text';
   import { ROUTES } from '$lib/utils/routes';
   import type { components } from '$lib/api/types';
   import * as m from '$paraglide/messages';
@@ -26,6 +29,9 @@
   type Artist = components['schemas']['ArtistOut'];
   type ArtistPatch = components['schemas']['ArtistPatch'];
 
+  const MAX_NAME_LENGTH = 100;
+  const MAX_PERSONA_LENGTH = 4000;
+  const MAX_VOICE_NOTES_LENGTH = 2000;
   const queryClient = useQueryClient();
   let artistId = $derived($page.params.id ?? '');
   const artistQuery = createQuery(() => ({ ...artistQueryOptions(artistId), enabled: !!artistId }));
@@ -82,6 +88,25 @@
       return match ? Number(match[1]) >= 40 && Number(match[1]) <= 240 : false;
     }),
   );
+  let nameLength = $derived(codePointLength(name));
+  let personaLength = $derived(codePointLength(persona));
+  let voiceNotesLength = $derived(codePointLength(voiceNotes));
+  let nameConflict = $derived(studioError(updateMutation.error)?.error === 'artist_name_conflict');
+  let formTooLong = $derived(
+    nameLength > MAX_NAME_LENGTH ||
+      personaLength > MAX_PERSONA_LENGTH ||
+      voiceNotesLength > MAX_VOICE_NOTES_LENGTH,
+  );
+
+  function fieldDescription(
+    controlId: string,
+    currentIssues: { path: string; code: string }[],
+    extraIds: string[] = [],
+  ) {
+    return [...currentIssues.map((_, index) => controlId + '-issue-' + index), ...extraIds].join(
+      ' ',
+    );
+  }
 
   function currentArtist(): Artist | undefined {
     return queryClient.getQueryData<Artist>(studioKeys.artist(artistId)) ?? artistQuery.data;
@@ -90,7 +115,7 @@
   async function save(event: SubmitEvent) {
     event.preventDefault();
     const server = currentArtist();
-    if (!server || updateMutation.isPending) return;
+    if (!server || updateMutation.isPending || formTooLong) return;
     formMessage = '';
     const patch: ArtistPatch = {};
     if (server.name !== name.trim()) patch.name = name.trim();
@@ -115,13 +140,7 @@
       await updateMutation.mutateAsync({ id: artistId, patch });
       addToast({ type: 'success', message: m.artists_profile_saved() });
     } catch (error) {
-      const apiError = studioError(error);
-      formMessage =
-        apiError?.error === 'artist_name_conflict'
-          ? m.artists_name_conflict()
-          : apiError?.error === 'artist_limit_reached'
-            ? m.artists_limit_reached()
-            : m.artists_profile_save_error();
+      formMessage = artistSaveError(error);
     }
   }
 
@@ -131,13 +150,7 @@
       await deleteMutation.mutateAsync(artistId);
       await goto(ROUTES.artists);
     } catch (error) {
-      const apiError = studioError(error);
-      if (apiError?.error === 'artist_in_use') {
-        const detail = apiError.detail as { project_count?: number } | null;
-        deleteMessage = m.artists_in_use({ count: String(detail?.project_count ?? 0) });
-      } else {
-        deleteMessage = m.artists_delete_error();
-      }
+      deleteMessage = artistDeleteError(error);
       showDelete = false;
     }
   }
@@ -147,14 +160,10 @@
   <title>{m.artists_tab_profile()} — {m.artists_title()}</title>
 </svelte:head>
 
-{#if artistQuery.isPending}
+{#if artistQuery.isPending || !artistQuery.data}
   <div class="flex min-h-72 items-center justify-center" role="status">
     <Spinner size="xl" label={m.common_loading()} />
   </div>
-{:else if artistQuery.isError || !artistQuery.data}
-  <p class="rounded-xl border border-danger/30 bg-danger/10 p-4 text-sm text-danger" role="alert">
-    {m.artists_not_found_description()}
-  </p>
 {:else}
   <div class="space-y-6">
     <form class="space-y-6 rounded-2xl border border-border bg-surface p-5 md:p-7" onsubmit={save}>
@@ -170,19 +179,29 @@
         <input
           id="profile-name"
           bind:value={name}
-          maxlength="100"
           required
-          aria-invalid={nameIssues.length > 0 ||
-            studioError(updateMutation.error)?.error === 'artist_name_conflict'}
+          aria-invalid={nameIssues.length > 0 || nameConflict || nameLength > MAX_NAME_LENGTH}
+          aria-describedby={fieldDescription('profile-name', nameIssues, [
+            ...(nameConflict ? ['profile-name-conflict'] : []),
+            'profile-name-count',
+          ])}
           class="w-full rounded-xl border border-border bg-bg px-4 py-3 text-sm text-text outline-none focus:border-accent"
         />
-        {#if studioError(updateMutation.error)?.error === 'artist_name_conflict'}<p
+        <p
+          id="profile-name-count"
+          class="mt-1 text-xs {nameLength > MAX_NAME_LENGTH ? 'text-danger' : 'text-text-dim'}"
+        >
+          {nameLength} / {MAX_NAME_LENGTH}
+        </p>
+        {#if nameConflict}<p
+            id="profile-name-conflict"
             class="mt-1 text-xs text-danger"
             role="alert"
           >
             {m.artists_name_conflict()}
           </p>{/if}
         {#each nameIssues as issue, index (`${issue.path}-${index}`)}<p
+            id={'profile-name-issue-' + index}
             class="mt-1 text-xs text-danger"
             role="alert"
           >
@@ -197,11 +216,23 @@
         <textarea
           id="profile-persona"
           bind:value={persona}
-          maxlength="4000"
           rows="4"
+          aria-invalid={personaIssues.length > 0 || personaLength > MAX_PERSONA_LENGTH}
+          aria-describedby={fieldDescription('profile-persona', personaIssues, [
+            'profile-persona-count',
+          ])}
           class="w-full resize-y rounded-xl border border-border bg-bg px-4 py-3 text-sm leading-6 text-text outline-none focus:border-accent"
         ></textarea>
+        <p
+          id="profile-persona-count"
+          class="mt-1 text-xs {personaLength > MAX_PERSONA_LENGTH
+            ? 'text-danger'
+            : 'text-text-dim'}"
+        >
+          {personaLength} / {MAX_PERSONA_LENGTH}
+        </p>
         {#each personaIssues as issue, index (`${issue.path}-${index}`)}<p
+            id={'profile-persona-issue-' + index}
             class="mt-1 text-xs text-danger"
             role="alert"
           >
@@ -216,11 +247,21 @@
         <textarea
           id="profile-voice"
           bind:value={voiceNotes}
-          maxlength="2000"
           rows="3"
+          aria-invalid={voiceIssues.length > 0 || voiceNotesLength > MAX_VOICE_NOTES_LENGTH}
+          aria-describedby={fieldDescription('profile-voice', voiceIssues, ['profile-voice-count'])}
           class="w-full resize-y rounded-xl border border-border bg-bg px-4 py-3 text-sm leading-6 text-text outline-none focus:border-accent"
         ></textarea>
+        <p
+          id="profile-voice-count"
+          class="mt-1 text-xs {voiceNotesLength > MAX_VOICE_NOTES_LENGTH
+            ? 'text-danger'
+            : 'text-text-dim'}"
+        >
+          {voiceNotesLength} / {MAX_VOICE_NOTES_LENGTH}
+        </p>
         {#each voiceIssues as issue, index (`${issue.path}-${index}`)}<p
+            id={'profile-voice-issue-' + index}
             class="mt-1 text-xs text-danger"
             role="alert"
           >
@@ -299,7 +340,7 @@
       <div class="flex justify-end border-t border-border pt-5">
         <button
           type="submit"
-          disabled={updateMutation.isPending}
+          disabled={updateMutation.isPending || formTooLong}
           class="rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-bg disabled:opacity-50"
           >{updateMutation.isPending ? m.studio_saving() : m.common_save()}</button
         >

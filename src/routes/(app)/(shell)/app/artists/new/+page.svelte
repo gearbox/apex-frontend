@@ -5,12 +5,21 @@
   import { createArtistMutationOptions, artistsQueryOptions } from '$lib/queries/studio';
   import { ARTIST_KINDS, ARTIST_KIND_COPY, type ArtistKind } from '$lib/studio/artistKinds';
   import { MAX_ARTISTS } from '$lib/studio/artists';
-  import { fieldIssues, issueMessage, studioError, validationIssues } from '$lib/studio/formErrors';
+  import {
+    artistCreateError,
+    fieldIssues,
+    issueMessage,
+    studioError,
+    validationIssues,
+  } from '$lib/studio/formErrors';
+  import { codePointLength } from '$lib/studio/text';
   import { ROUTES } from '$lib/utils/routes';
   import Spinner from '$lib/components/ui/Spinner.svelte';
   import * as m from '$paraglide/messages';
 
   const queryClient = useQueryClient();
+  const MAX_NAME_LENGTH = 100;
+  const MAX_PERSONA_LENGTH = 4000;
   const artistsQuery = createQuery(artistsQueryOptions);
   const createArtistMutation = createMutation(() => createArtistMutationOptions(queryClient));
   let selectedKind = $state<ArtistKind | null>(null);
@@ -28,6 +37,21 @@
   let nameIssues = $derived(fieldIssues(issues, 'name'));
   let personaIssues = $derived(fieldIssues(issues, 'persona'));
   let languageIssues = $derived(fieldIssues(issues, 'default_language'));
+  let nameLength = $derived(codePointLength(name));
+  let personaLength = $derived(codePointLength(persona));
+  let nameConflict = $derived(
+    studioError(createArtistMutation.error)?.error === 'artist_name_conflict',
+  );
+  let formTooLong = $derived(nameLength > MAX_NAME_LENGTH || personaLength > MAX_PERSONA_LENGTH);
+
+  function fieldDescription(
+    fieldId: string,
+    currentIssues: { path: string; code: string }[],
+    extraIds: string[] = [],
+  ) {
+    const ids = [...(currentIssues.length ? [fieldId + '-error'] : []), ...extraIds];
+    return ids.length ? ids.join(' ') : undefined;
+  }
 
   function selectKind(kind: ArtistKind) {
     if (persona.trim() === '' || (selectedKind !== null && persona === previousTemplate)) {
@@ -60,7 +84,7 @@
 
   async function submit(event: SubmitEvent) {
     event.preventDefault();
-    if (artistLimitReached || createArtistMutation.isPending || !name.trim()) return;
+    if (artistLimitReached || createArtistMutation.isPending || !name.trim() || formTooLong) return;
     const defaultLanguage = language === 'other' ? otherLanguage.trim() : language;
     try {
       const artist = await createArtistMutation.mutateAsync({
@@ -70,17 +94,11 @@
       });
       await goto(`${ROUTES.artists}/${artist.id}?compose=1`);
     } catch (error) {
-      if (studioError(error)?.error === 'artist_limit_reached') hasArtistLimitError = true;
+      if (artistCreateError(error) === m.artists_limit_reached()) hasArtistLimitError = true;
     }
   }
 
-  let formError = $derived.by(() => {
-    const error = studioError(createArtistMutation.error);
-    if (!error) return '';
-    if (error.error === 'artist_limit_reached') return m.artists_limit_reached();
-    if (error.error === 'artist_name_conflict' || error.error === 'document_invalid') return '';
-    return m.artists_create_error();
-  });
+  let formError = $derived(artistCreateError(createArtistMutation.error));
 </script>
 
 <svelte:head>
@@ -152,18 +170,25 @@
           <input
             id="artist-name"
             bind:value={name}
-            maxlength="100"
             required
             autocomplete="off"
             placeholder={selectedKind
               ? ARTIST_KIND_COPY[selectedKind].namePlaceholder()
               : m.artists_name_placeholder()}
-            aria-invalid={nameIssues.length > 0 ||
-              studioError(createArtistMutation.error)?.error === 'artist_name_conflict'}
-            aria-describedby="artist-name-error"
+            aria-invalid={nameIssues.length > 0 || nameConflict || nameLength > MAX_NAME_LENGTH}
+            aria-describedby={fieldDescription('artist-name', nameIssues, [
+              ...(nameConflict ? ['artist-name-error'] : []),
+              'artist-name-count',
+            ])}
             class="w-full rounded-xl border border-border bg-bg px-4 py-3 text-sm text-text outline-none placeholder:text-text-dim focus:border-accent"
           />
-          {#if studioError(createArtistMutation.error)?.error === 'artist_name_conflict'}
+          <p
+            id="artist-name-count"
+            class="mt-1.5 text-xs {nameLength > MAX_NAME_LENGTH ? 'text-danger' : 'text-text-dim'}"
+          >
+            {nameLength} / {MAX_NAME_LENGTH}
+          </p>
+          {#if nameConflict}
             <p id="artist-name-error" class="mt-1.5 text-xs text-danger" role="alert">
               {m.artists_name_conflict()}
             </p>
@@ -183,14 +208,24 @@
           <textarea
             id="artist-persona"
             bind:value={persona}
-            maxlength="4000"
             rows="5"
-            aria-describedby="artist-persona-error"
+            aria-invalid={personaIssues.length > 0 || personaLength > MAX_PERSONA_LENGTH}
+            aria-describedby={fieldDescription('artist-persona', personaIssues, [
+              'artist-persona-count',
+            ])}
             placeholder={selectedKind
               ? ARTIST_KIND_COPY[selectedKind].template()
               : m.artists_persona_placeholder()}
             class="w-full resize-y rounded-xl border border-border bg-bg px-4 py-3 text-sm leading-6 text-text outline-none placeholder:text-text-dim focus:border-accent"
           ></textarea>
+          <p
+            id="artist-persona-count"
+            class="mt-1.5 text-xs {personaLength > MAX_PERSONA_LENGTH
+              ? 'text-danger'
+              : 'text-text-dim'}"
+          >
+            {personaLength} / {MAX_PERSONA_LENGTH}
+          </p>
           {#if personaIssues.length > 0}
             <ul id="artist-persona-error" class="mt-1.5 space-y-1 text-xs text-danger" role="alert">
               {#each personaIssues as issue, index (`${issue.path}-${index}`)}<li>
@@ -241,7 +276,7 @@
 
         <button
           type="submit"
-          disabled={createArtistMutation.isPending || artistLimitReached}
+          disabled={createArtistMutation.isPending || artistLimitReached || formTooLong}
           class="w-full rounded-xl bg-accent px-5 py-3.5 text-sm font-semibold text-bg shadow-sm transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {createArtistMutation.isPending ? m.studio_saving() : m.artists_create_and_write()}

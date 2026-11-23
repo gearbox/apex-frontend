@@ -164,6 +164,7 @@ test.describe('Artists diary', () => {
           .getByRole('article')
           .filter({ has: page.getByRole('heading', { name: title }) });
         const trigger = page.getByRole('button', { name: `Actions for ${title}` });
+        await expect(article).toBeVisible();
         const cardBox = await article.boundingBox();
         const triggerBox = await trigger.boundingBox();
         expect(cardBox).not.toBeNull();
@@ -460,6 +461,8 @@ test.describe('Artists diary', () => {
   }, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop-chrome', 'The artist switcher is desktop-only.');
     await page.clock.install();
+    const session = await page.context().newCDPSession(page);
+    await session.send('Emulation.setCPUThrottlingRate', { rate: 4 });
     await page.route('**/v1/auth/product-info', jsonRoute(syntharaProduct));
 
     const artists = new Map<string, Record<string, unknown>>();
@@ -547,16 +550,22 @@ test.describe('Artists diary', () => {
     await page.getByLabel('Name').fill('Artist One');
     await page.getByRole('button', { name: 'Create and write the first memory' }).click();
     await expect(page).toHaveURL(/\/app\/artists\/artist-switch-1/);
+    await expect(page.getByRole('heading', { level: 1, name: 'Artist One' })).toBeVisible();
 
     await page.goto('/app/artists/new');
     await page.getByLabel('Name').fill('Artist Two');
     await page.getByRole('button', { name: 'Create and write the first memory' }).click();
     await expect(page).toHaveURL(/\/app\/artists\/artist-switch-2/);
+    await expect(page.getByRole('heading', { level: 1, name: 'Artist Two' })).toBeVisible();
     const switcher = page.getByRole('navigation', { name: 'Your artists' });
     await switcher.getByRole('link', { name: 'Artist One' }).click();
+    await expect(page).toHaveURL(/\/app\/artists\/artist-switch-1$/);
+    await expect(page.getByRole('heading', { level: 1, name: 'Artist One' })).toBeVisible();
     const firstComposer = page.getByRole('textbox', { name: 'What happened?' });
     await firstComposer.fill('Draft that belongs only to artist one.');
     await switcher.getByRole('link', { name: 'Artist Two' }).click();
+    await expect(page).toHaveURL(/\/app\/artists\/artist-switch-2$/);
+    await expect(page.getByRole('heading', { level: 1, name: 'Artist Two' })).toBeVisible();
 
     const secondComposer = page.getByRole('textbox', { name: 'What happened?' });
     await expect(secondComposer).toHaveValue('');

@@ -1,6 +1,27 @@
 import { describe, expect, it } from 'vitest';
-import { issueField, issueMessage, memorySaveError } from './formErrors';
+import {
+  artistCreateError,
+  artistDeleteError,
+  artistSaveError,
+  isHandledGlobally,
+  issueField,
+  issueMessage,
+  memoryDeleteError,
+  memorySaveError,
+  memoryStatusError,
+} from './formErrors';
 import { ApiRequestError } from '$lib/api/errors';
+
+function apiError(error: string, status_code: number, detail?: unknown) {
+  return new ApiRequestError({
+    error,
+    message: error,
+    status_code,
+    detail,
+  });
+}
+
+const legalReacceptanceError = apiError('legal_acceptance_required', 428);
 
 describe('studio validation issues', () => {
   it.each([
@@ -22,33 +43,109 @@ describe('studio validation issues', () => {
   });
 });
 
+describe('isHandledGlobally', () => {
+  it('recognizes legal re-acceptance errors', () => {
+    expect(isHandledGlobally(legalReacceptanceError)).toBe(true);
+    expect(isHandledGlobally(apiError('server_error', 500))).toBe(false);
+    expect(isHandledGlobally(new TypeError('Network unavailable'))).toBe(false);
+  });
+});
+
 describe('memorySaveError', () => {
-  it('maps limit, validation, server and network failures', () => {
-    expect(
-      memorySaveError(
-        new ApiRequestError({
-          error: 'memory_limit_reached',
-          message: 'At limit',
-          status_code: 409,
-        }),
-      ),
-    ).toBe('This artist has 200 active memories. Archive one before adding another.');
-    expect(
-      memorySaveError(
-        new ApiRequestError({
-          error: 'document_invalid',
-          message: 'Invalid document',
-          status_code: 422,
-        }),
-      ),
-    ).toBe('');
-    expect(
-      memorySaveError(
-        new ApiRequestError({ error: 'server_error', message: 'Failed', status_code: 500 }),
-      ),
-    ).toBe('We could not save this memory. Please try again.');
-    expect(memorySaveError(new TypeError('Network unavailable'))).toBe(
-      'We could not save this memory. Please try again.',
-    );
+  it.each([
+    [null, ''],
+    [undefined, ''],
+    [legalReacceptanceError, ''],
+    [
+      apiError('memory_limit_reached', 409),
+      'This artist has 200 active memories. Archive one before adding another.',
+    ],
+    [apiError('document_invalid', 422), ''],
+    [apiError('server_error', 500), 'We could not save this memory. Please try again.'],
+    [new TypeError('Network unavailable'), 'We could not save this memory. Please try again.'],
+  ])('maps %s', (error, expected) => {
+    expect(memorySaveError(error)).toBe(expected);
+  });
+});
+
+describe('artistCreateError', () => {
+  it.each([
+    [null, ''],
+    [undefined, ''],
+    [new TypeError('Network unavailable'), 'We could not create this artist. Please try again.'],
+    [legalReacceptanceError, ''],
+    [
+      apiError('artist_limit_reached', 409),
+      'You can have up to 50 artists. Delete an artist before creating another.',
+    ],
+    [apiError('artist_name_conflict', 409), ''],
+    [apiError('document_invalid', 422), ''],
+    [apiError('server_error', 500), 'We could not create this artist. Please try again.'],
+  ])('maps %s', (error, expected) => {
+    expect(artistCreateError(error)).toBe(expected);
+  });
+});
+
+describe('artistSaveError', () => {
+  it.each([
+    [null, ''],
+    [undefined, ''],
+    [new TypeError('Network unavailable'), 'We could not save the artist profile.'],
+    [legalReacceptanceError, ''],
+    [apiError('artist_name_conflict', 409), ''],
+    [apiError('document_invalid', 422), ''],
+    [
+      apiError('artist_limit_reached', 409),
+      'You can have up to 50 artists. Delete an artist before creating another.',
+    ],
+    [apiError('server_error', 500), 'We could not save the artist profile.'],
+  ])('maps %s', (error, expected) => {
+    expect(artistSaveError(error)).toBe(expected);
+  });
+});
+
+describe('artistDeleteError', () => {
+  it.each([
+    [null, ''],
+    [undefined, ''],
+    [new TypeError('Network unavailable'), 'We could not delete this artist.'],
+    [legalReacceptanceError, ''],
+    [
+      apiError('artist_in_use', 409, { project_count: 3 }),
+      'This artist is used by 3 project(s). Remove the artist from them first.',
+    ],
+    [apiError('server_error', 500), 'We could not delete this artist.'],
+  ])('maps %s', (error, expected) => {
+    expect(artistDeleteError(error)).toBe(expected);
+  });
+});
+
+describe('memoryStatusError', () => {
+  it.each([
+    [null, 'archived', ''],
+    [undefined, 'active', ''],
+    [new TypeError('Network unavailable'), 'archived', 'We could not update this memory.'],
+    [legalReacceptanceError, 'active', ''],
+    [
+      apiError('memory_limit_reached', 409),
+      'active',
+      '200 active memories is the limit. Archive one to restore this.',
+    ],
+    [apiError('memory_limit_reached', 409), 'archived', 'We could not update this memory.'],
+    [apiError('server_error', 500), 'archived', 'We could not update this memory.'],
+  ])('maps %s for next status %s', (error, next, expected) => {
+    expect(memoryStatusError(error, next as 'active' | 'archived')).toBe(expected);
+  });
+});
+
+describe('memoryDeleteError', () => {
+  it.each([
+    [null, ''],
+    [undefined, ''],
+    [new TypeError('Network unavailable'), 'We could not delete this memory.'],
+    [legalReacceptanceError, ''],
+    [apiError('server_error', 500), 'We could not delete this memory.'],
+  ])('maps %s', (error, expected) => {
+    expect(memoryDeleteError(error)).toBe(expected);
   });
 });

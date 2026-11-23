@@ -6,6 +6,7 @@
     formatLocalIsoDate,
     todayLocalIsoDate,
   } from '$lib/studio/memoryDraft';
+  import { codePointLength } from '$lib/studio/text';
   import {
     fieldIssues,
     issueField,
@@ -23,6 +24,9 @@
     imagery: string[];
     salience: number;
   }
+
+  const MAX_TITLE_LENGTH = 120;
+  const MAX_BODY_LENGTH = 2000;
 
   interface InitialMemory {
     title: string;
@@ -86,10 +90,13 @@
     return `${controlId}-issue-${index}`;
   }
 
-  function issueDescription(controlId: string, currentIssues: StudioValidationIssue[]) {
-    return currentIssues.length
-      ? currentIssues.map((_, index) => issueId(controlId, index)).join(' ')
-      : undefined;
+  function issueDescription(
+    controlId: string,
+    currentIssues: StudioValidationIssue[],
+    additionalIds: string[] = [],
+  ) {
+    const ids = [...currentIssues.map((_, index) => issueId(controlId, index)), ...additionalIds];
+    return ids.length ? ids.join(' ') : undefined;
   }
 
   $effect(() => {
@@ -129,8 +136,15 @@
     });
   }
 
+  let bodyLength = $derived(codePointLength(body));
+  let titleLength = $derived(codePointLength(title));
   let saveDisabled = $derived(
-    pending || !body.trim() || !title.trim() || !deriveMemoryTitle(body).trim(),
+    pending ||
+      !body.trim() ||
+      !title.trim() ||
+      !deriveMemoryTitle(body).trim() ||
+      bodyLength > MAX_BODY_LENGTH ||
+      titleLength > MAX_TITLE_LENGTH,
   );
   let dateLabel = $derived(
     occurredOn
@@ -148,26 +162,34 @@
     </p>
   </div>
 
-  <label class="block space-y-2" for={`${idPrefix}-body`}>
-    <span class="text-sm font-medium text-text">{m.studio_memory_body_label()}</span>
+  <div class="block space-y-2">
+    <label class="text-sm font-medium text-text" for={`${idPrefix}-body`}
+      >{m.studio_memory_body_label()}</label
+    >
     <textarea
       id={`${idPrefix}-body`}
       bind:this={bodyEl}
       value={body}
-      maxlength="2000"
       rows="5"
       required
       placeholder={m.studio_memory_body_placeholder()}
-      aria-invalid={bodyIssues.length > 0 ? 'true' : undefined}
-      aria-describedby={issueDescription(`${idPrefix}-body`, bodyIssues)}
+      aria-invalid={bodyIssues.length > 0 || bodyLength > MAX_BODY_LENGTH ? 'true' : undefined}
+      aria-describedby={issueDescription(`${idPrefix}-body`, bodyIssues, [
+        `${idPrefix}-body-count`,
+      ])}
       class="w-full resize-y rounded-2xl border border-border bg-bg px-4 py-3 text-sm leading-6 text-text outline-none placeholder:text-text-dim focus:border-accent"
       oninput={updateBody}></textarea>
+    <span
+      id={`${idPrefix}-body-count`}
+      class="block text-xs {bodyLength > MAX_BODY_LENGTH ? 'text-danger' : 'text-text-dim'}"
+      >{bodyLength} / {MAX_BODY_LENGTH}</span
+    >
     {#each bodyIssues as issue, index (`${issue.path}-${index}`)}<span
         id={issueId(`${idPrefix}-body`, index)}
         class="block text-xs text-danger"
         role="alert">{issueMessage(issue)}</span
       >{/each}
-  </label>
+  </div>
 
   <div class="flex flex-wrap items-center gap-2">
     <label class="sr-only" for={`${idPrefix}-date`}>{m.studio_memory_date_label()}</label>
@@ -212,21 +234,31 @@
       >{m.studio_more_options()}</summary
     >
     <div class="mt-3 space-y-4 pb-2">
-      <label class="block space-y-1.5" for={`${idPrefix}-title`}>
-        <span class="text-sm font-medium text-text">{m.studio_memory_title_label()}</span>
+      <div class="block space-y-1.5">
+        <label class="text-sm font-medium text-text" for={`${idPrefix}-title`}
+          >{m.studio_memory_title_label()}</label
+        >
         <input
           id={`${idPrefix}-title`}
           value={title}
-          maxlength="120"
           required
-          aria-invalid={titleIssues.length > 0 ? 'true' : undefined}
-          aria-describedby={issueDescription(`${idPrefix}-title`, titleIssues)}
+          aria-invalid={titleIssues.length > 0 || titleLength > MAX_TITLE_LENGTH
+            ? 'true'
+            : undefined}
+          aria-describedby={issueDescription(`${idPrefix}-title`, titleIssues, [
+            `${idPrefix}-title-count`,
+          ])}
           class="w-full rounded-xl border border-border bg-bg px-3 py-2.5 text-sm text-text outline-none focus:border-accent"
           oninput={(event) => {
             title = (event.currentTarget as HTMLInputElement).value;
             titleEdited = true;
           }}
         />
+        <span
+          id={`${idPrefix}-title-count`}
+          class="block text-xs {titleLength > MAX_TITLE_LENGTH ? 'text-danger' : 'text-text-dim'}"
+          >{titleLength} / {MAX_TITLE_LENGTH}</span
+        >
         {#each titleIssues as issue, index (`${issue.path}-${index}`)}<p
             id={issueId(`${idPrefix}-title`, index)}
             class="text-xs text-danger"
@@ -234,7 +266,7 @@
           >
             {issueMessage(issue)}
           </p>{/each}
-      </label>
+      </div>
       <TagListInput
         id={`${idPrefix}-themes`}
         field="themes"

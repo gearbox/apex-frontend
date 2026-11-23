@@ -10,13 +10,63 @@ export function studioError(error: unknown): ApiRequestError | undefined {
   return error instanceof ApiRequestError ? error : undefined;
 }
 
+/** Errors another surface already explains, such as legal re-acceptance. */
+export function isHandledGlobally(error: unknown): boolean {
+  return studioError(error)?.status_code === 428;
+}
+
 export function memorySaveError(error: unknown): string {
+  if (error == null || isHandledGlobally(error)) return '';
   const apiError = studioError(error);
   if (apiError?.status_code === 409 && apiError.error === 'memory_limit_reached') {
     return m.studio_memory_limit_reached();
   }
   if (apiError?.status_code === 422 && apiError.error === 'document_invalid') return '';
   return m.studio_memory_save_error();
+}
+
+export function artistCreateError(error: unknown): string {
+  if (error == null || isHandledGlobally(error)) return '';
+  const apiError = studioError(error);
+  if (!apiError) return m.artists_create_error();
+  if (apiError.error === 'artist_limit_reached') return m.artists_limit_reached();
+  if (apiError.error === 'artist_name_conflict' || apiError.error === 'document_invalid') return '';
+  return m.artists_create_error();
+}
+
+export function artistSaveError(error: unknown): string {
+  if (error == null || isHandledGlobally(error)) return '';
+  const apiError = studioError(error);
+  if (!apiError) return m.artists_profile_save_error();
+  if (apiError.error === 'artist_name_conflict' || apiError.error === 'document_invalid') return '';
+  if (apiError.error === 'artist_limit_reached') return m.artists_limit_reached();
+  return m.artists_profile_save_error();
+}
+
+export function artistDeleteError(error: unknown): string {
+  if (error == null || isHandledGlobally(error)) return '';
+  const apiError = studioError(error);
+  if (!apiError) return m.artists_delete_error();
+  if (apiError.error === 'artist_in_use') {
+    const detail = apiError.detail as { project_count?: number } | null;
+    return m.artists_in_use({ count: String(detail?.project_count ?? 0) });
+  }
+  return m.artists_delete_error();
+}
+
+export function memoryStatusError(error: unknown, next: 'active' | 'archived'): string {
+  if (error == null || isHandledGlobally(error)) return '';
+  const apiError = studioError(error);
+  if (!apiError) return m.studio_memory_update_error();
+  if (apiError.error === 'memory_limit_reached' && next === 'active') {
+    return m.studio_restore_limit_reached();
+  }
+  return m.studio_memory_update_error();
+}
+
+export function memoryDeleteError(error: unknown): string {
+  if (error == null || isHandledGlobally(error)) return '';
+  return m.studio_memory_delete_error();
 }
 
 export function validationIssues(error: unknown): StudioValidationIssue[] {

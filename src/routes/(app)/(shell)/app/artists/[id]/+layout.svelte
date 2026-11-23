@@ -6,6 +6,7 @@
   import { ArrowLeft } from '@lucide/svelte';
   import Spinner from '$lib/components/ui/Spinner.svelte';
   import { artistMonogram } from '$lib/studio/artists';
+  import { ApiRequestError } from '$lib/api/errors';
   import * as m from '$paraglide/messages';
   import type { Snippet } from 'svelte';
 
@@ -15,13 +16,19 @@
   const artistsQuery = createQuery(artistsQueryOptions);
   let artist = $derived(artistQuery.data);
   let isProfile = $derived($page.url.pathname.endsWith('/profile'));
+  let artistNotFound = $derived(
+    artistQuery.isError &&
+      artistQuery.error instanceof ApiRequestError &&
+      artistQuery.error.status_code === 404 &&
+      artistQuery.error.error === 'artist_not_found',
+  );
 </script>
 
 {#if artistQuery.isPending}
   <div class="flex min-h-96 items-center justify-center" role="status" aria-live="polite">
     <Spinner size="2xl" label={m.common_loading()} />
   </div>
-{:else if artistQuery.isError || !artist}
+{:else if artistNotFound}
   <section
     class="mx-auto flex min-h-[60vh] max-w-lg flex-col items-center justify-center px-5 text-center"
   >
@@ -37,6 +44,23 @@
       class="mt-5 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-bg"
       >{m.artists_back_to_all()}</a
     >
+  </section>
+{:else if artistQuery.isError || !artist}
+  <section
+    class="mx-auto flex min-h-[60vh] max-w-lg flex-col items-center justify-center px-5 text-center"
+    role="alert"
+  >
+    <h1 class="font-display text-2xl font-semibold text-text">
+      {m.artists_load_error_title()}
+    </h1>
+    <p class="mt-2 text-sm text-text-muted">{m.artists_load_error()}</p>
+    <button
+      type="button"
+      class="mt-5 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-bg"
+      onclick={() => void artistQuery.refetch()}
+    >
+      {m.common_retry()}
+    </button>
   </section>
 {:else}
   <div class="mx-auto w-full max-w-7xl px-4 py-4 pb-28 md:px-8 md:py-8 md:pb-10">

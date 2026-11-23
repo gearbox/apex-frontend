@@ -97,7 +97,9 @@ describe('MemoryForm', () => {
     expect(details?.open).toBe(true);
     expect(screen.getByText('This value is longer than allowed.')).toBeTruthy();
     expect(title.getAttribute('aria-invalid')).toBe('true');
-    expect(title.getAttribute('aria-describedby')).toBe('title-issue-title-issue-0');
+    expect(title.getAttribute('aria-describedby')).toBe(
+      'title-issue-title-issue-0 title-issue-title-count',
+    );
     await waitFor(() => expect(document.activeElement).toBe(title));
   });
 
@@ -118,6 +120,27 @@ describe('MemoryForm', () => {
     expect(themes.getAttribute('aria-invalid')).toBe('true');
     expect(themes.getAttribute('aria-describedby')).toContain('tag-issue-themes-issue-0');
     await waitFor(() => expect(document.activeElement).toBe(themes));
+  });
+
+  it('a 120-emoji title is accepted and 121 disables save', async () => {
+    const onsubmit = vi.fn();
+    render(MemoryForm, { props: { mode: 'create', idPrefix: 'emoji-title', onsubmit } });
+    const body = screen.getByLabelText('What happened?');
+    const save = screen.getByRole('button', { name: 'Save memory' });
+
+    await fireEvent.input(body, { target: { value: '🙂'.repeat(120) } });
+    await fireEvent.click(screen.getByText('More'));
+    const title = document.getElementById('emoji-title-title') as HTMLInputElement;
+    expect(title.value).toBe('🙂'.repeat(120));
+    expect(title.getAttribute('aria-describedby')).toContain('emoji-title-title-count');
+    expect(save.hasAttribute('disabled')).toBe(false);
+
+    await fireEvent.click(save);
+    expect(onsubmit).toHaveBeenCalledWith(expect.objectContaining({ title: '🙂'.repeat(120) }));
+
+    await fireEvent.input(title, { target: { value: '🙂'.repeat(121) } });
+    expect(screen.getByText('121 / 120').className).toContain('text-danger');
+    expect(save.hasAttribute('disabled')).toBe(true);
   });
 
   it('does not open More for a body-only issue', async () => {

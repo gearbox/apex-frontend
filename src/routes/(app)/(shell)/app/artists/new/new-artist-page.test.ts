@@ -144,6 +144,36 @@ describe('new artist page', () => {
     conflictClient.clear();
   });
 
+  it('a network failure explains why creation failed and keeps the form available', async () => {
+    server.use(http.post(`${BASE}/v1/studio/artists`, () => HttpResponse.error()));
+    renderPage();
+
+    const name = (await screen.findByLabelText('Name')) as HTMLInputElement;
+    await fireEvent.input(name, { target: { value: 'Mira Vale' } });
+    const submit = screen.getByRole('button', { name: 'Create and write the first memory' });
+    await fireEvent.click(submit);
+
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      'We could not create this artist. Please try again.',
+    );
+    expect(name.value).toBe('Mira Vale');
+    expect(submit.hasAttribute('disabled')).toBe(false);
+  });
+
+  it('accepts a 100-emoji name and disables creation at 101', async () => {
+    renderPage();
+    const name = (await screen.findByLabelText('Name')) as HTMLInputElement;
+    const submit = screen.getByRole('button', { name: 'Create and write the first memory' });
+
+    await fireEvent.input(name, { target: { value: '🙂'.repeat(100) } });
+    expect(submit.hasAttribute('disabled')).toBe(false);
+    expect(screen.getByText('100 / 100')).toBeTruthy();
+
+    await fireEvent.input(name, { target: { value: '🙂'.repeat(101) } });
+    expect(submit.hasAttribute('disabled')).toBe(true);
+    expect(screen.getByText('101 / 100').className).toContain('text-danger');
+  });
+
   it('disables the form when the server reports the 50-artist limit', async () => {
     server.use(
       http.post(`${BASE}/v1/studio/artists`, () =>

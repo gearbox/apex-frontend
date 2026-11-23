@@ -24,7 +24,12 @@
   import { addToast } from '$lib/stores/toasts';
   import { isDesktop } from '$lib/utils/breakpoints';
   import { formatLocalIsoDate } from '$lib/studio/memoryDraft';
-  import { memorySaveError, studioError, validationIssues } from '$lib/studio/formErrors';
+  import {
+    memoryDeleteError,
+    memorySaveError,
+    memoryStatusError,
+    validationIssues,
+  } from '$lib/studio/formErrors';
   import { locale } from '$lib/stores/locale';
   import type { components } from '$lib/api/types';
   import * as m from '$paraglide/messages';
@@ -182,11 +187,8 @@
       await updateMemory.mutateAsync({ id: memory.id, artistId, patch: { status: next } });
       await focusAfterListAction(focusMemoryId);
     } catch (error) {
-      actionError =
-        studioError(error)?.error === 'memory_limit_reached'
-          ? m.studio_restore_limit_reached()
-          : m.studio_memory_update_error();
-      addToast({ type: 'error', message: actionError });
+      actionError = memoryStatusError(error, next);
+      if (actionError) addToast({ type: 'error', message: actionError });
     }
   }
 
@@ -198,8 +200,8 @@
       deleteMemory = null;
       await focusAfterListAction(focusMemoryId);
       addToast({ type: 'success', message: m.studio_memory_deleted() });
-    } catch {
-      actionError = m.studio_memory_delete_error();
+    } catch (error) {
+      actionError = memoryDeleteError(error);
       deleteMemory = null;
     }
   }
