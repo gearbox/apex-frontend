@@ -125,7 +125,7 @@
 
 {#snippet projectRows()}
   {#if projectsQuery.isLoading}
-    <div class="space-y-2 px-2 py-2" aria-label={m.common_loading()}>
+    <div class="space-y-2 px-2 py-2" role="status" aria-label={m.common_loading()}>
       <div class="h-3 animate-pulse rounded bg-surface-hover"></div>
       <div class="h-3 w-3/4 animate-pulse rounded bg-surface-hover"></div>
     </div>

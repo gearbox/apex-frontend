@@ -346,7 +346,7 @@
           onclick={(e) => {
             e.stopPropagation();
             const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-            contextMenu?.openAt(rect.left, rect.bottom);
+            contextMenu?.openAt(rect.left, rect.bottom, e.currentTarget as HTMLElement);
           }}
           class="absolute bottom-7 right-2 hidden h-7 w-7 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-sm transition-colors hover:bg-black/70 md:flex {isVideo &&
           item.duration_ms

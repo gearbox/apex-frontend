@@ -32,51 +32,45 @@
 </script>
 
 {#key $locale}
-  {#if $isDesktop}
-    <!-- Desktop: sidebar + (topbar + content) in a row -->
-    <div class="desktop-shell">
-      <DesktopSidebar />
-      <main class="desktop-main">
-        <TopBar />
-        <div class="desktop-content">
-          {@render children()}
-        </div>
-      </main>
-    </div>
-  {:else}
-    <!-- Mobile: topbar + content + bottom tabs -->
-    <div class="mobile-shell">
+  <div class={$isDesktop ? 'desktop-shell' : 'mobile-shell'}>
+    {#if $isDesktop}<DesktopSidebar />{/if}
+    <main class={$isDesktop ? 'desktop-main' : 'mobile-main'}>
       <TopBar />
       <div
-        class="mobile-content"
+        class={$isDesktop ? 'desktop-content' : 'mobile-content'}
         use:pullToRefresh={{
+          enabled: !$isDesktop,
           threshold: PULL_THRESHOLD,
           onProgress: handlePullProgress,
           onTrigger: handlePullTrigger,
         }}
       >
-        <div
-          class="pull-indicator"
-          class:pull-indicator-armed={pullArmed}
-          style={`transform: translate(-50%, ${pullProgress - 36}px); opacity: ${refreshing ? 1 : Math.min(pullProgress / 24, 1)}`}
-        >
-          {#if refreshing}
-            <LoaderCircle size={18} class="animate-spin" />
-          {:else}
-            <ArrowDown
-              size={18}
-              class="pull-icon"
-              style={`transform: rotate(${pullArmed ? 180 : 0}deg)`}
-            />
-          {/if}
-        </div>
+        {#if !$isDesktop}
+          <div
+            class="pull-indicator"
+            class:pull-indicator-armed={pullArmed}
+            style={`transform: translate(-50%, ${pullProgress - 36}px); opacity: ${refreshing ? 1 : Math.min(pullProgress / 24, 1)}`}
+          >
+            {#if refreshing}
+              <LoaderCircle size={18} class="animate-spin" />
+            {:else}
+              <ArrowDown
+                size={18}
+                class="pull-icon"
+                style={`transform: rotate(${pullArmed ? 180 : 0}deg)`}
+              />
+            {/if}
+          </div>
+        {/if}
         {@render children()}
       </div>
+    </main>
+    {#if !$isDesktop}
       <MobileBottomTabs />
       <MobileProjectsSheet />
       <MobileMoreSheet />
-    </div>
-  {/if}
+    {/if}
+  </div>
 {/key}
 
 <style>
@@ -90,7 +84,8 @@
     transition: background 0.35s;
   }
 
-  .desktop-main {
+  .desktop-main,
+  .mobile-main {
     flex: 1;
     display: flex;
     flex-direction: column;
