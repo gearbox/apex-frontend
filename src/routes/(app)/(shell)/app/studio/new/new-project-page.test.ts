@@ -3,6 +3,9 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/sv
 import { QueryClient } from '@tanstack/svelte-query';
 import { http, HttpResponse } from 'msw';
 import type { Component } from 'svelte';
+import { get } from 'svelte/store';
+import { clearToasts, toasts } from '$lib/stores/toasts';
+import { makeArtist } from '../../../../../../mocks/factories/studio';
 import QueryHarness from '../../../../../../tests/QueryHarness.svelte';
 import { server } from '../../../../../../mocks/server';
 import { MOCK_BASE_URL as BASE } from '../../../../../../mocks/config';
@@ -24,6 +27,7 @@ afterEach(() => {
   cleanup();
   vi.clearAllMocks();
   state.url = new URL('http://localhost/app/studio/new');
+  clearToasts();
 });
 it('retries setup without creating a second library project', async () => {
   let posts = 0;
@@ -56,5 +60,125 @@ it('retries setup without creating a second library project', async () => {
   await waitFor(() => expect(state.goto).toHaveBeenCalledWith('/app/studio/project-1'));
   expect(posts).toBe(1);
   expect(puts).toBe(2);
+  client.clear();
+});
+
+function renderPage() {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  render(QueryHarness, {
+    props: { component: Page as Component<object>, componentProps: {}, client },
+  });
+  return client;
+}
+it('creates the library project before enabling Studio and opens the workspace', async () => {
+  const calls: string[] = [];
+  server.use(
+    http.post(`${BASE}/v1/library/projects`, () => {
+      calls.push('post');
+      return HttpResponse.json({ id: 'p1', name: 'Release' }, { status: 201 });
+    }),
+    http.put(`${BASE}/v1/studio/projects/:id`, () => {
+      calls.push('put');
+      return HttpResponse.json({ library_project_id: 'p1' });
+    }),
+  );
+  const client = renderPage();
+  await fireEvent.input(screen.getByLabelText(/Project name/), { target: { value: 'Release' } });
+  await fireEvent.click(screen.getByRole('button', { name: 'Create project' }));
+  await waitFor(() => expect(state.goto).toHaveBeenCalledWith('/app/studio/p1'));
+  expect(calls).toEqual(['post', 'put']);
+  client.clear();
+});
+it('places a name conflict on the name field', async () => {
+  server.use(
+    http.post(`${BASE}/v1/library/projects`, () =>
+      HttpResponse.json(
+        { error: 'project_name_conflict', message: 'conflict', status_code: 409 },
+        { status: 409 },
+      ),
+    ),
+  );
+  const client = renderPage();
+  await fireEvent.input(screen.getByLabelText(/Project name/), { target: { value: 'Release' } });
+  await fireEvent.click(screen.getByRole('button', { name: 'Create project' }));
+  expect(await screen.findByText('A project with this name already exists.')).toBeTruthy();
+  expect(screen.getByLabelText(/Project name/).getAttribute('aria-invalid')).toBe('true');
+  client.clear();
+});
+it('preselects an existing artist from the URL', async () => {
+  state.url = new URL('http://localhost/app/studio/new?artist=artist-one');
+  server.use(
+    http.get(`${BASE}/v1/studio/artists`, () =>
+      HttpResponse.json({
+        items: [makeArtist({ id: 'artist-one', name: 'Mira' })],
+        limit: 50,
+        has_more: false,
+        next_cursor: null,
+      }),
+    ),
+  );
+  const client = renderPage();
+  await screen.findByRole('option', { name: 'Mira' });
+  await waitFor(() =>
+    expect((screen.getByLabelText('Artists') as HTMLSelectElement).value).toBe('artist-one'),
+  );
+  client.clear();
+});
+it('places a concept validation issue on the concept field', async () => {
+  server.use(
+    http.post(`${BASE}/v1/library/projects`, () =>
+      HttpResponse.json({ id: 'p1', name: 'Release' }, { status: 201 }),
+    ),
+    http.put(`${BASE}/v1/studio/projects/:id`, () =>
+      HttpResponse.json(
+        {
+          error: 'document_invalid',
+          message: 'invalid',
+          status_code: 422,
+          detail: { issues: [{ path: 'concept', code: 'too_long_after_normalization' }] },
+        },
+        { status: 422 },
+      ),
+    ),
+  );
+  const client = renderPage();
+  await fireEvent.input(screen.getByLabelText(/Project name/), { target: { value: 'Release' } });
+  await fireEvent.click(screen.getByRole('button', { name: 'Create project' }));
+  const issue = await screen.findByText('This value is longer than allowed.');
+  const field = screen.getByLabelText(/Concept/);
+  expect(field.getAttribute('aria-invalid')).toBe('true');
+  expect(field.getAttribute('aria-describedby')).toContain(issue.id);
+  client.clear();
+});
+it('leaving during creation shows an Open toast without navigating', async () => {
+  let release!: () => void;
+  let started!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const requested = new Promise<void>((resolve) => {
+    started = resolve;
+  });
+  server.use(
+    http.post(`${BASE}/v1/library/projects`, async () => {
+      started();
+      await gate;
+      return HttpResponse.json({ id: 'p1', name: 'Release' }, { status: 201 });
+    }),
+    http.put(`${BASE}/v1/studio/projects/:id`, () =>
+      HttpResponse.json({ library_project_id: 'p1' }),
+    ),
+  );
+  const client = renderPage();
+  await fireEvent.input(screen.getByLabelText(/Project name/), { target: { value: 'Release' } });
+  await fireEvent.click(screen.getByRole('button', { name: 'Create project' }));
+  await requested;
+  cleanup();
+  release();
+  await waitFor(() => expect(get(toasts).at(-1)?.action?.href).toBe('/app/studio/p1'));
+  expect(get(toasts).at(-1)?.durationMs).toBe(8000);
+  expect(state.goto).not.toHaveBeenCalled();
   client.clear();
 });

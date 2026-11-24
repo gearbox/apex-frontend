@@ -1,5 +1,6 @@
 import { server } from '../mocks/server';
 import { resetStudioMockStore } from '../mocks/handlers/studio';
+import { resetLibraryMockStore } from '../mocks/handlers/library';
 import { afterAll, afterEach, beforeAll, expect } from 'vitest';
 
 const unhandledRequests: string[] = [];
@@ -20,6 +21,7 @@ beforeAll(() =>
 afterEach(() => {
   server.resetHandlers();
   resetStudioMockStore();
+  resetLibraryMockStore();
   // Drain before asserting, so one failing test cannot leak entries into the next.
   const unhandled = unhandledRequests.splice(0);
   expect(unhandled, 'unit tests must mock every request').toEqual([]);

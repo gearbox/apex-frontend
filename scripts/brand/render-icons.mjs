@@ -2,14 +2,15 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { Resvg } from '@resvg/resvg-js';
 import sharp from 'sharp';
+import { PRODUCT_MANIFESTS } from '../../product-manifests.js';
 
 const product = process.argv[process.argv.indexOf('--product') + 1];
-if (!['vex', 'synthara'].includes(product))
-  throw new Error('Use --product vex or --product synthara');
+if (!Object.hasOwn(PRODUCT_MANIFESTS, product))
+  throw new Error(`Use --product with one of: ${Object.keys(PRODUCT_MANIFESTS).join(', ')}`);
 const dir = path.join('brand', product);
 const mark = await fs.readFile(path.join(dir, 'mark.svg'), 'utf8');
 const content = mark.replace(/^\s*<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '');
-const background = product === 'vex' ? '#110f0b' : '#0F1117';
+const background = PRODUCT_MANIFESTS[product].background_color;
 for (const [file, size, scale] of [
   ['apple-touch-icon.png', 180, 0.68],
   ['icon-192.png', 192, 0.68],

@@ -8,6 +8,10 @@ import { server } from '../../../mocks/server';
 import { MOCK_BASE_URL as BASE } from '../../../mocks/config';
 import { makeTrack } from '../../../mocks/factories/studio';
 vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
+vi.mock('$lib/utils/breakpoints', async () => {
+  const { writable } = await import('svelte/store');
+  return { isDesktop: writable(false) };
+});
 vi.mock('$app/stores', () => ({
   page: {
     subscribe: (fn: (value: unknown) => void) => {
@@ -58,5 +62,94 @@ it('rolls back a keyboard reorder on mismatch and keeps focus on the track', asy
   await waitFor(() => expect(reads).toBeGreaterThan(1));
   await waitFor(() => expect(document.activeElement).toBe(first));
   expect(screen.getAllByRole('listitem')[0].textContent).toContain('First');
+  client.clear();
+});
+
+function showColumn() {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  render(QueryHarness<{ projectId: string }>, {
+    props: {
+      component: TrackColumn as Component<{ projectId: string }>,
+      componentProps: { projectId: 'p' },
+      client,
+    },
+  });
+  return client;
+}
+it('creates a track and keeps focus in the input', async () => {
+  server.use(
+    http.get(`${BASE}/v1/studio/projects/p/tracks`, () => HttpResponse.json([])),
+    http.post(`${BASE}/v1/studio/projects/p/tracks`, async ({ request }) => {
+      const body = (await request.json()) as { title: string };
+      return HttpResponse.json(
+        makeTrack({ id: 'created', library_project_id: 'p', title: body.title }),
+        { status: 201 },
+      );
+    }),
+  );
+  const client = showColumn();
+  const input = await screen.findByLabelText('New track');
+  input.focus();
+  await fireEvent.input(input, { target: { value: 'New song' } });
+  await fireEvent.submit(input.closest('form')!);
+  expect(await screen.findByRole('link', { name: /New song/ })).toBeTruthy();
+  expect(document.activeElement).toBe(input);
+  await waitFor(() => expect((input as HTMLInputElement).value).toBe(''));
+  client.clear();
+});
+it('renames a track using its menu', async () => {
+  server.use(
+    http.get(`${BASE}/v1/studio/projects/p/tracks`, () =>
+      HttpResponse.json([makeTrack({ id: 'a', library_project_id: 'p', title: 'First' })]),
+    ),
+    http.patch(`${BASE}/v1/studio/tracks/a`, async ({ request }) => {
+      const body = (await request.json()) as { title: string };
+      return HttpResponse.json(makeTrack({ id: 'a', library_project_id: 'p', title: body.title }));
+    }),
+  );
+  const client = showColumn();
+  await screen.findByRole('link', { name: /First/ });
+  await fireEvent.click(screen.getByRole('button', { name: 'First: Settings' }));
+  await fireEvent.click(await screen.findByRole('menuitem', { name: 'Rename' }));
+  const input = await screen.findByRole('textbox', { name: 'Rename' });
+  await fireEvent.input(input, { target: { value: 'Changed' } });
+  await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  expect(await screen.findByRole('link', { name: /Changed/ })).toBeTruthy();
+  client.clear();
+});
+it('confirms deletion and explains an active run', async () => {
+  server.use(
+    http.get(`${BASE}/v1/studio/projects/p/tracks`, () =>
+      HttpResponse.json([makeTrack({ id: 'a', library_project_id: 'p', title: 'First' })]),
+    ),
+    http.delete(`${BASE}/v1/studio/tracks/a`, () =>
+      HttpResponse.json(
+        { error: 'run_in_progress', message: 'busy', status_code: 409 },
+        { status: 409 },
+      ),
+    ),
+  );
+  const client = showColumn();
+  await screen.findByRole('link', { name: /First/ });
+  await fireEvent.click(screen.getByRole('button', { name: 'First: Settings' }));
+  await fireEvent.click(await screen.findByRole('menuitem', { name: 'Delete' }));
+  expect(
+    await screen.findByText('Delete “First” and all its plan and lyrics versions?'),
+  ).toBeTruthy();
+  await fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+  expect(await screen.findByText('This track has a run in progress.')).toBeTruthy();
+  expect(screen.getByRole('link', { name: /First/ })).toBeTruthy();
+  client.clear();
+});
+it('disables creation at the track limit', async () => {
+  const tracks = Array.from({ length: 64 }, (_, i) =>
+    makeTrack({ id: `t${i}`, library_project_id: 'p', title: `Song ${i}`, position: i }),
+  );
+  server.use(http.get(`${BASE}/v1/studio/projects/p/tracks`, () => HttpResponse.json(tracks)));
+  const client = showColumn();
+  await screen.findByText('A project can have up to 64 tracks.');
+  expect((screen.getByLabelText('New track') as HTMLInputElement).disabled).toBe(true);
   client.clear();
 });

@@ -34,6 +34,14 @@ export function setStudioMockLibraryName(id: string, name: string): void {
   );
 }
 
+export function studioMockTrackCount(projectId: string): number {
+  return tracks.filter((track) => track.library_project_id === projectId).length;
+}
+export function removeStudioMockProject(projectId: string): void {
+  profiles = profiles.filter((profile) => profile.library_project_id !== projectId);
+  libraryNames.delete(projectId);
+}
+
 export function resetStudioMockStore(): void {
   artists = [];
   memories = [];
@@ -91,6 +99,9 @@ export const studioHandlers = [
   http.put(`${BASE}/v1/studio/projects/:project_id`, async ({ params, request }) => {
     const id = String(params.project_id);
     const body = (await request.json()) as components['schemas']['ProjectProfilePut'];
+    if (!libraryNames.has(id)) return apiError(404, 'not_found', 'Library project not found.');
+    if (body.artist_id && !artists.some((artist) => artist.id === body.artist_id))
+      return apiError(404, 'artist_not_found', 'Artist not found.');
     const old = profiles.find((item) => item.library_project_id === id);
     const profile = makeProjectProfile({
       ...old,
@@ -105,20 +116,26 @@ export const studioHandlers = [
     return HttpResponse.json(profile);
   }),
   http.delete(`${BASE}/v1/studio/projects/:project_id`, ({ params }) => {
+    if (!profiles.some((profile) => profile.library_project_id === params.project_id))
+      return apiError(404, 'not_found', 'Project not found.');
     if (tracks.some((item) => item.library_project_id === params.project_id))
       return apiError(409, 'project_has_tracks', 'Project has tracks.');
     profiles = profiles.filter((item) => item.library_project_id !== params.project_id);
     return new HttpResponse(null, { status: 204 });
   }),
-  http.get(`${BASE}/v1/studio/projects/:project_id/tracks`, ({ params }) =>
-    HttpResponse.json(
+  http.get(`${BASE}/v1/studio/projects/:project_id/tracks`, ({ params }) => {
+    if (!profiles.some((profile) => profile.library_project_id === params.project_id))
+      return apiError(404, 'not_found', 'Project not found.');
+    return HttpResponse.json(
       tracks
         .filter((item) => item.library_project_id === params.project_id)
         .sort((a, b) => a.position - b.position),
-    ),
-  ),
+    );
+  }),
   http.post(`${BASE}/v1/studio/projects/:project_id/tracks`, async ({ params, request }) => {
     const id = String(params.project_id);
+    if (!profiles.some((profile) => profile.library_project_id === id))
+      return apiError(404, 'not_found', 'Project not found.');
     const body = (await request.json()) as { title: string };
     const existing = tracks.filter((item) => item.library_project_id === id);
     if (existing.length >= 64) return apiError(409, 'track_limit_reached', 'Track limit reached.');
@@ -137,6 +154,8 @@ export const studioHandlers = [
     return HttpResponse.json(item, { status: 201 });
   }),
   http.put(`${BASE}/v1/studio/projects/:project_id/tracks/order`, async ({ params, request }) => {
+    if (!profiles.some((profile) => profile.library_project_id === params.project_id))
+      return apiError(404, 'not_found', 'Project not found.');
     const body = (await request.json()) as { track_ids: string[] };
     const existing = tracks.filter((item) => item.library_project_id === params.project_id);
     if (
@@ -171,6 +190,7 @@ export const studioHandlers = [
   }),
   http.delete(`${BASE}/v1/studio/tracks/:track_id`, ({ params }) => {
     const item = tracks.find((track) => track.id === params.track_id);
+    if (!item) return apiError(404, 'not_found', 'Track not found.');
     tracks = tracks.filter((track) => track.id !== params.track_id);
     if (item)
       profiles = profiles.map((profile) =>

@@ -11,6 +11,7 @@ import {
   makeLyricsVersion,
 } from '../../../../../../../../mocks/factories/studio';
 import type { Component } from 'svelte';
+import { studioKeys } from '$lib/queries/studio';
 vi.mock('$app/stores', () => ({
   page: {
     subscribe: (fn: (value: unknown) => void) => {
@@ -79,6 +80,27 @@ describe('read-only track', () => {
     const client = show();
     expect(await screen.findByText('No plan yet')).toBeTruthy();
     expect(screen.getByText('No lyrics yet')).toBeTruthy();
+    client.clear();
+  });
+  it('keeps the loaded track visible when a refetch fails', async () => {
+    server.use(
+      http.get(`${BASE}/v1/studio/tracks/t`, () =>
+        HttpResponse.json(makeTrackDetail({ id: 't', title: 'Still here' })),
+      ),
+    );
+    const client = show();
+    expect(await screen.findByText('Still here')).toBeTruthy();
+    server.use(
+      http.get(`${BASE}/v1/studio/tracks/t`, () =>
+        HttpResponse.json(
+          { error: 'server_error', message: 'failed', status_code: 500 },
+          { status: 500 },
+        ),
+      ),
+    );
+    await client.refetchQueries({ queryKey: studioKeys.track('t') });
+    expect(screen.getByText('Still here')).toBeTruthy();
+    expect(await screen.findByRole('status')).toBeTruthy();
     client.clear();
   });
 });

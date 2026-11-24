@@ -15,7 +15,16 @@
   import { studioProject } from '$lib/studio/paths';
   import { codePointLength } from '$lib/studio/text';
   import { STUDIO_LIMITS } from '$lib/studio/limits';
-  import { projectDisableError, projectSaveError } from '$lib/studio/formErrors';
+  import {
+    projectDisableError,
+    projectSaveError,
+    studioError,
+    validationIssues,
+    fieldIssues,
+    describedBy,
+    issueId,
+    issueMessage,
+  } from '$lib/studio/formErrors';
   import * as m from '$paraglide/messages';
   let id = $derived($page.params.projectId ?? '');
   const qc = useQueryClient();
@@ -32,6 +41,13 @@
   let concept = $state('');
   let initialized = false;
   let error = $state('');
+  let submitted = $state(false);
+  let nameIssues = $derived(fieldIssues(validationIssues(rename.error), 'name'));
+  let conceptIssues = $derived(fieldIssues(validationIssues(update.error), 'concept'));
+  let nameConflict = $derived(studioError(rename.error)?.error === 'project_name_conflict');
+  let nameEmpty = $derived(submitted && !name.trim());
+  let nameTooLong = $derived(submitted && codePointLength(name) > STUDIO_LIMITS.projectName);
+  let conceptTooLong = $derived(submitted && codePointLength(concept) > STUDIO_LIMITS.concept);
   $effect(() => {
     if (!initialized && project.data) {
       name = originalName = project.data.name;
@@ -43,6 +59,7 @@
   });
   async function save(event: SubmitEvent) {
     event.preventDefault();
+    submitted = true;
     if (
       !name.trim() ||
       codePointLength(name) > STUDIO_LIMITS.projectName ||
@@ -90,10 +107,35 @@
     <label class="block"
       >{m.studio_name()}<input
         class="mt-2 w-full rounded-lg border border-border bg-surface p-3"
+        id="settings-project-name"
         bind:value={name}
-        required
-      /></label
+        oninput={() => rename.reset()}
+        aria-invalid={nameEmpty || nameTooLong || nameConflict || nameIssues.length > 0}
+        aria-describedby={describedBy('settings-project-name', nameIssues, [
+          'settings-project-name-count',
+          ...(nameEmpty ? ['settings-project-name-empty'] : []),
+          ...(nameTooLong ? ['settings-project-name-long'] : []),
+          ...(nameConflict ? ['settings-project-name-conflict'] : []),
+        ])}
+      /><span id="settings-project-name-count" class="block text-sm text-text-muted"
+        >{codePointLength(name)}/{STUDIO_LIMITS.projectName}</span
+      ></label
     >
+    {#if nameEmpty}<p id="settings-project-name-empty" role="alert">
+        {m.studio_issue_empty()}
+      </p>{/if}
+    {#if nameTooLong}<p id="settings-project-name-long" role="alert">
+        {m.studio_issue_too_long()}
+      </p>{/if}
+    {#if nameConflict}<p id="settings-project-name-conflict" role="alert">
+        {m.studio_name_conflict()}
+      </p>{/if}
+    {#each nameIssues as issue, index (index)}<p
+        id={issueId('settings-project-name', index)}
+        role="alert"
+      >
+        {issueMessage(issue)}
+      </p>{/each}
     <fieldset>
       <legend>{m.studio_release()}</legend>
       <div class="flex gap-4">
@@ -115,9 +157,30 @@
     ><label class="block"
       >{m.studio_concept()}<textarea
         class="mt-2 w-full rounded-lg border border-border bg-surface p-3"
+        id="settings-project-concept"
         rows="6"
-        bind:value={concept}></textarea></label
-    >{#if error}<p role="alert" class="text-danger">{error}</p>{/if}<button
+        bind:value={concept}
+        oninput={() => update.reset()}
+        aria-invalid={conceptTooLong || conceptIssues.length > 0}
+        aria-describedby={describedBy('settings-project-concept', conceptIssues, [
+          'settings-project-concept-count',
+          ...(conceptTooLong ? ['settings-project-concept-long'] : []),
+        ])}></textarea><span
+        id="settings-project-concept-count"
+        class="block text-sm text-text-muted"
+        >{codePointLength(concept)}/{STUDIO_LIMITS.concept}</span
+      ></label
+    >
+    {#if conceptTooLong}<p id="settings-project-concept-long" role="alert">
+        {m.studio_issue_too_long()}
+      </p>{/if}
+    {#each conceptIssues as issue, index (index)}<p
+        id={issueId('settings-project-concept', index)}
+        role="alert"
+      >
+        {issueMessage(issue)}
+      </p>{/each}
+    {#if error}<p role="alert" class="text-danger">{error}</p>{/if}<button
       class="rounded-lg bg-accent px-4 py-2 text-bg"
       disabled={rename.isPending || update.isPending}>{m.studio_save()}</button
     >

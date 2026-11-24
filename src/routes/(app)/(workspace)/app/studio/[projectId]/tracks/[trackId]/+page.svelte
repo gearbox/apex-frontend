@@ -5,6 +5,14 @@
   import type { components } from '$lib/api/types';
   import { codePointLength } from '$lib/studio/text';
   import { STUDIO_LIMITS } from '$lib/studio/limits';
+  import {
+    trackSaveError,
+    validationIssues,
+    fieldIssues,
+    describedBy,
+    issueId,
+    issueMessage,
+  } from '$lib/studio/formErrors';
   import * as m from '$paraglide/messages';
   type Section = components['schemas']['PlanSection'];
   type LyricsSection = components['schemas']['LyricsSection'];
@@ -17,6 +25,7 @@
   let editing = $state(false);
   let title = $state('');
   let error = $state('');
+  let titleIssues = $derived(fieldIssues(validationIssues(rename.error), 'title'));
   let plan = $derived(track.data?.current_plan?.content);
   let lyrics = $derived(track.data?.current_lyrics?.content);
   let sections = $derived((plan?.sections ?? []) as Section[]);
@@ -27,8 +36,8 @@
     try {
       await rename.mutateAsync({ projectId, id, title: title.trim() });
       editing = false;
-    } catch {
-      error = m.studio_save_error();
+    } catch (e) {
+      error = trackSaveError(e);
     }
   }
 </script>
@@ -49,13 +58,18 @@
           id="track-title"
           class="rounded-lg border border-border bg-surface p-2"
           bind:value={title}
-          aria-invalid={codePointLength(title) > STUDIO_LIMITS.trackTitle}
+          oninput={() => rename.reset()}
+          aria-describedby={describedBy('track-title', titleIssues)}
+          aria-invalid={codePointLength(title) > STUDIO_LIMITS.trackTitle || titleIssues.length > 0}
         /><button
           class="text-accent"
           disabled={codePointLength(title) > STUDIO_LIMITS.trackTitle || !title.trim()}
           >{m.studio_save()}</button
         >
       </form>
+      {#each titleIssues as issue, index (index)}<p id={issueId('track-title', index)} role="alert">
+          {issueMessage(issue)}
+        </p>{/each}
       {#if error}<p role="alert">{error}</p>{/if}{:else}<div class="flex items-center gap-4">
         <h1 class="font-display text-3xl">{track.data.title}</h1>
         <button
