@@ -13,6 +13,7 @@
     hint?: string;
     field?: string;
     issues?: StudioValidationIssue[];
+    disabled?: boolean;
   }
 
   let {
@@ -25,6 +26,7 @@
     hint = '',
     field = '',
     issues = [],
+    disabled = false,
   }: Props = $props();
 
   let inputValue = $state('');
@@ -40,6 +42,7 @@
   );
 
   function addTag() {
+    if (disabled) return;
     const value = inputValue.normalize('NFC').trim();
     if (!value) return;
     if (value.includes('[') || value.includes(']')) {
@@ -64,6 +67,7 @@
   }
 
   function onKeydown(event: KeyboardEvent) {
+    if (disabled) return;
     if (event.key === 'Enter' || event.key === ',') {
       event.preventDefault();
       addTag();
@@ -74,6 +78,7 @@
   }
 
   function removeTag(tag: string, index: number) {
+    if (disabled) return;
     values = values.filter((_, itemIndex) => itemIndex !== index);
     feedback = '';
     void tag;
@@ -93,6 +98,7 @@
           <button
             type="button"
             class="rounded-full p-0.5 text-text-muted hover:bg-surface-hover hover:text-text focus-visible:outline-2 focus-visible:outline-accent"
+            {disabled}
             aria-label={m.studio_tag_remove({ tag })}
             onclick={() => removeTag(tag, index)}><X size={13} aria-hidden="true" /></button
           >
@@ -104,6 +110,7 @@
     <input
       {id}
       bind:value={inputValue}
+      {disabled}
       placeholder={placeholder || m.studio_tag_placeholder()}
       aria-describedby={describedBy}
       aria-invalid={tagIssues.length > 0 ? 'true' : undefined}
@@ -115,7 +122,7 @@
       type="button"
       class="rounded-xl border border-border px-3 py-2 text-sm font-semibold text-text hover:bg-surface-hover disabled:opacity-50"
       onclick={addTag}
-      disabled={values.length >= maxItems}>{m.studio_tag_add()}</button
+      disabled={disabled || values.length >= maxItems}>{m.studio_tag_add()}</button
     >
   </div>
   <p id={id + '-count'} class="text-xs text-text-dim">{values.length} / {maxItems}</p>

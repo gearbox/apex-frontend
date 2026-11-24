@@ -1,3 +1,9 @@
+import type { InitialMemory, MemoryFormPayload } from '$lib/components/studio/MemoryForm.svelte';
+
+export function toInitialMemory(payload: MemoryFormPayload): InitialMemory {
+  return { ...payload, occurred_on: payload.occurred_on ?? null };
+}
+
 /** Proposes a one-line diary title from the first non-blank body line. */
 export function deriveMemoryTitle(body: string): string {
   const firstLine = body

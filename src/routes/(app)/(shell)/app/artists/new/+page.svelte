@@ -16,11 +16,14 @@
   } from '$lib/studio/formErrors';
   import { codePointLength } from '$lib/studio/text';
   import { STUDIO_LIMITS } from '$lib/studio/limits';
+  import { addToast } from '$lib/stores/toasts';
+  import { componentSession } from '$lib/utils/sessionTracker';
   import { ROUTES } from '$lib/utils/routes';
   import Spinner from '$lib/components/ui/Spinner.svelte';
   import * as m from '$paraglide/messages';
 
   const queryClient = useQueryClient();
+  const pageSession = componentSession();
   const artistsQuery = createQuery(artistsQueryOptions);
   const createArtistMutation = createMutation(() => createArtistMutationOptions(queryClient));
   let selectedKind = $state<ArtistKind | null>(null);
@@ -79,15 +82,31 @@
   async function submit(event: SubmitEvent) {
     event.preventDefault();
     if (artistLimitReached || createArtistMutation.isPending || !name.trim() || formTooLong) return;
+    const session = pageSession.capture();
+    const submittedName = name.trim();
     const defaultLanguage = language === 'other' ? otherLanguage.trim() : language;
     try {
       const artist = await createArtistMutation.mutateAsync({
-        name: name.trim(),
+        name: submittedName,
         persona: persona.trim() || null,
         ...(defaultLanguage ? { default_language: defaultLanguage } : {}),
       });
-      await goto(`${ROUTES.artists}/${artist.id}?compose=1`);
+      const artistUrl = `${ROUTES.artists}/${artist.id}?compose=1`;
+      if (!session.active) {
+        addToast({
+          type: 'success',
+          message: m.artists_created_named({ name: submittedName }),
+          action: { label: m.common_open(), href: artistUrl },
+        });
+        return;
+      }
+      await goto(artistUrl);
     } catch (error) {
+      if (!session.active) {
+        const message = artistCreateError(error);
+        if (message) addToast({ type: 'error', message });
+        return;
+      }
       if (artistCreateError(error) === m.artists_limit_reached()) hasArtistLimitError = true;
     }
   }

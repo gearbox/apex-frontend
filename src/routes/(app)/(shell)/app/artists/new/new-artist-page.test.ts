@@ -6,6 +6,8 @@ import { server } from '../../../../../../mocks/server';
 import { MOCK_BASE_URL as BASE } from '../../../../../../mocks/config';
 import { makeArtist } from '../../../../../../mocks/factories/studio';
 import { clearAuth, setAuth } from '$lib/stores/auth';
+import { get } from 'svelte/store';
+import { clearToasts, toasts } from '$lib/stores/toasts';
 import { makeUserProfile } from '../../../../../../mocks/factories/user';
 import QueryHarness from '../../../../../../tests/QueryHarness.svelte';
 import type { Component } from 'svelte';
@@ -41,6 +43,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   clearAuth();
+  clearToasts();
 });
 
 describe('new artist page', () => {
@@ -197,5 +200,38 @@ describe('new artist page', () => {
       'You can have up to 50 artists.',
     );
     expect(screen.queryByRole('button', { name: 'Create and write the first memory' })).toBeNull();
+  });
+  it('leaving during creation does not navigate and toasts a link', async () => {
+    let release!: () => void;
+    let started!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const requested = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    server.use(
+      http.post(`${BASE}/v1/studio/artists`, async () => {
+        started();
+        await gate;
+        return HttpResponse.json(makeArtist({ id: 'artist-created', name: 'Iris Vale' }), {
+          status: 201,
+        });
+      }),
+    );
+    renderPage();
+    const name = await screen.findByLabelText('Name');
+    await fireEvent.input(name, { target: { value: 'Iris Vale' } });
+    await fireEvent.click(
+      screen.getByRole('button', { name: 'Create and write the first memory' }),
+    );
+    await requested;
+    cleanup();
+    release();
+    await waitFor(() =>
+      expect(get(toasts).at(-1)?.action?.href).toBe('/app/artists/artist-created?compose=1'),
+    );
+    expect(get(toasts).at(-1)?.message).toContain('Iris Vale');
+    expect(goto).not.toHaveBeenCalled();
   });
 });

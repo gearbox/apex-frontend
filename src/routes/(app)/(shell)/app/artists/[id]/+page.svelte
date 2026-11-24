@@ -13,7 +13,7 @@
     studioKeys,
     updateMemoryMutationOptions,
   } from '$lib/queries/studio';
-  import type { MemoryFormPayload } from '$lib/components/studio/MemoryForm.svelte';
+  import type { InitialMemory, MemoryFormPayload } from '$lib/components/studio/MemoryForm.svelte';
   import MemoryForm from '$lib/components/studio/MemoryForm.svelte';
   import ConfirmDeleteModal from '$lib/components/shared/ConfirmDeleteModal.svelte';
   import ContextMenu from '$lib/components/shared/ContextMenu.svelte';
@@ -23,13 +23,14 @@
   import Spinner from '$lib/components/ui/Spinner.svelte';
   import { addToast } from '$lib/stores/toasts';
   import { isDesktop } from '$lib/utils/breakpoints';
-  import { formatLocalIsoDate } from '$lib/studio/memoryDraft';
+  import { formatLocalIsoDate, toInitialMemory } from '$lib/studio/memoryDraft';
   import {
     memoryDeleteError,
     memorySaveError,
     memoryStatusError,
     validationIssues,
   } from '$lib/studio/formErrors';
+  import { componentSession, createSessionTracker } from '$lib/utils/sessionTracker';
   import { locale } from '$lib/stores/locale';
   import type { components } from '$lib/api/types';
   import * as m from '$paraglide/messages';
@@ -39,6 +40,11 @@
   type MemoryStatus = components['schemas']['StudioMemoryStatus'];
 
   const queryClient = useQueryClient();
+  const pageSession = componentSession();
+  const composerSessions = createSessionTracker();
+  const editSessions = createSessionTracker();
+  let recoveredDraft = $state<{ payload: MemoryFormPayload; error: string } | null>(null);
+  let composerInitial = $state<InitialMemory | undefined>();
   let artistId = $derived($page.params.id ?? '');
   let status = $state<MemoryStatus>('active');
   let composerOpen = $state(false);
@@ -65,8 +71,7 @@
 
   onMount(() => {
     if ($page.url.searchParams.get('compose') === '1') {
-      composerOpen = true;
-      composerAutofocus = true;
+      openComposer();
       void goto($page.url.pathname, { replaceState: true, keepFocus: true, noScroll: true });
     }
   });
@@ -97,7 +102,23 @@
     return patch;
   }
 
+  function openComposer() {
+    composerSessions.invalidate();
+    createError = '';
+    composerInitial = undefined;
+    if (recoveredDraft) {
+      composerInitial = toInitialMemory(recoveredDraft.payload);
+      createError = recoveredDraft.error;
+      recoveredDraft = null;
+      composerVersion += 1;
+    }
+    composerOpen = true;
+    composerAutofocus = true;
+  }
+
   function closeComposer() {
+    composerSessions.invalidate();
+    composerInitial = undefined;
     composerOpen = false;
     composerAutofocus = false;
     createError = '';
@@ -105,18 +126,22 @@
   }
 
   function openEditMemory(memory: Memory) {
+    editSessions.invalidate();
     updateMemory.reset();
     editError = '';
     editMemory = memory;
   }
 
   function closeEditMemory() {
+    editSessions.invalidate();
     editMemory = null;
     editError = '';
     updateMemory.reset();
   }
 
   async function saveNewMemory(payload: MemoryFormPayload) {
+    const session = composerSessions.capture();
+    const page = pageSession.capture();
     createError = '';
     try {
       await createMemory.mutateAsync({
@@ -130,6 +155,11 @@
           salience: payload.salience,
         },
       });
+      if (!session.active || !page.active) {
+        addToast({ type: 'success', message: m.studio_memory_saved() });
+        return;
+      }
+      composerInitial = undefined;
       composerVersion += 1;
       composerAutofocus = false;
       createError = '';
@@ -137,12 +167,39 @@
       if (!$isDesktop) composerOpen = false;
       addToast({ type: 'success', message: m.studio_memory_saved() });
     } catch (error) {
-      createError = memorySaveError(error);
+      const message = memorySaveError(error);
+      if (!session.active || !page.active) {
+        if (page.active) {
+          recoveredDraft = { payload, error: message };
+          addToast({
+            type: 'error',
+            message: m.studio_memory_not_saved_kept(),
+            durationMs: 8000,
+            ...(composerOpen
+              ? {}
+              : {
+                  action: {
+                    label: m.studio_memory_open_draft(),
+                    onClick: () => {
+                      if (page.active && !composerOpen) openComposer();
+                    },
+                  },
+                }),
+          });
+        } else {
+          addToast({ type: 'error', message: message || m.studio_memory_not_saved() });
+        }
+        return;
+      }
+      createError = message;
     }
   }
 
   async function saveEditedMemory(payload: MemoryFormPayload) {
     if (!editMemory) return;
+    const session = editSessions.capture();
+    const page = pageSession.capture();
+    const title = editMemory.title;
     editError = '';
     const current = cachedMemory(editMemory.id) ?? editMemory;
     const patch = patchFromForm(current, payload);
@@ -152,9 +209,13 @@
     }
     try {
       await updateMemory.mutateAsync({ id: current.id, artistId, patch });
-      closeEditMemory();
+      if (session.active && page.active) closeEditMemory();
       addToast({ type: 'success', message: m.studio_memory_saved() });
     } catch (error) {
+      if (!session.active || !page.active) {
+        addToast({ type: 'error', message: m.studio_memory_edit_not_saved({ title }) });
+        return;
+      }
       editError = memorySaveError(error);
     }
   }
@@ -489,11 +550,7 @@
 <button
   type="button"
   class="fixed bottom-[calc(76px+env(safe-area-inset-bottom))] right-4 z-40 inline-flex items-center gap-2 rounded-full bg-accent px-5 py-3 text-sm font-semibold text-bg shadow-lg md:hidden"
-  onclick={() => {
-    createError = '';
-    composerOpen = true;
-    composerAutofocus = true;
-  }}
+  onclick={openComposer}
 >
   <span aria-hidden="true">+</span>{m.studio_add_memory()}
 </button>
@@ -509,6 +566,7 @@
       <MemoryForm
         idPrefix="mobile-memory"
         mode="create"
+        initial={composerInitial}
         pending={createMemory.isPending}
         issues={createIssues}
         error={createError}

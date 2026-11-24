@@ -136,4 +136,64 @@ describe('artist profile page', () => {
     expect((await screen.findByRole('alert')).textContent).toContain('used by 3 project(s)');
     expect(goto).not.toHaveBeenCalled();
   });
+  it('leaving during delete does not navigate', async () => {
+    let release!: () => void;
+    let started!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const requested = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    server.use(
+      http.delete(`${BASE}/v1/studio/artists/artist-one`, async () => {
+        started();
+        await gate;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    const client = renderPage();
+    await screen.findByRole('heading', { name: 'Artist details' });
+    await fireEvent.click(screen.getByRole('button', { name: 'Delete artist' }));
+    await fireEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }),
+    );
+    await requested;
+    cleanup();
+    release();
+    await waitFor(() =>
+      expect(client.getMutationCache().getAll().at(-1)?.state.status).toBe('success'),
+    );
+    expect(goto).not.toHaveBeenCalled();
+  });
+
+  it('a late save failure after leaving toasts the error', async () => {
+    let release!: () => void;
+    let started!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const requested = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    server.use(
+      http.patch(`${BASE}/v1/studio/artists/artist-one`, async () => {
+        started();
+        await gate;
+        return HttpResponse.json(
+          { error: 'server_error', message: 'Failed', status_code: 500 },
+          { status: 500 },
+        );
+      }),
+    );
+    renderPage();
+    await screen.findByRole('heading', { name: 'Artist details' });
+    await fireEvent.input(screen.getByLabelText('Persona'), { target: { value: 'New persona' } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await requested;
+    cleanup();
+    release();
+    await waitFor(() => expect(get(toasts).at(-1)?.type).toBe('error'));
+    expect(get(toasts).at(-1)?.message).toBeTruthy();
+  });
 });

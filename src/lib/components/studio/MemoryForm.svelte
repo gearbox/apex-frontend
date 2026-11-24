@@ -28,7 +28,7 @@
     salience: number;
   }
 
-  interface InitialMemory {
+  export interface InitialMemory {
     title: string;
     body: string;
     occurred_on: string | null;
@@ -63,7 +63,13 @@
 
   let body = $state(untrack(() => initial?.body ?? ''));
   let title = $state(untrack(() => initial?.title ?? ''));
-  let titleEdited = $state(untrack(() => mode === 'edit'));
+  let titleEdited = $state(
+    untrack(
+      () =>
+        mode === 'edit' ||
+        (initial !== undefined && initial.title !== deriveMemoryTitle(initial.body)),
+    ),
+  );
   let occurredOn = $state(
     untrack(() => (initial ? (initial.occurred_on ?? '') : todayLocalIsoDate())),
   );
@@ -142,7 +148,12 @@
   );
 </script>
 
-<form bind:this={formEl} class="space-y-4" onsubmit={submit}>
+<form
+  bind:this={formEl}
+  class="space-y-4"
+  aria-busy={pending ? 'true' : undefined}
+  onsubmit={submit}
+>
   <div class="flex flex-wrap items-center justify-between gap-2">
     <p class="text-sm font-semibold text-text">
       {mode === 'create' ? m.studio_quick_capture() : m.studio_edit_memory()}
@@ -158,6 +169,7 @@
       bind:this={bodyEl}
       value={body}
       rows="5"
+      readonly={pending}
       required
       placeholder={m.studio_memory_body_placeholder()}
       aria-invalid={bodyIssues.length > 0 || bodyLength > STUDIO_LIMITS.memoryBody
@@ -184,6 +196,7 @@
     <input
       id={`${idPrefix}-date`}
       type="date"
+      disabled={pending}
       bind:value={occurredOn}
       aria-label={dateLabel}
       aria-invalid={dateIssues.length > 0 ? 'true' : undefined}
@@ -195,6 +208,7 @@
       <button
         type="button"
         class="rounded-full px-2 py-1 text-xs text-text-muted hover:bg-surface-hover"
+        disabled={pending}
         onclick={() => (occurredOn = '')}
       >
         {m.studio_date_no_date()}
@@ -203,6 +217,7 @@
       <button
         type="button"
         class="rounded-full px-2 py-1 text-xs text-accent hover:bg-surface-hover"
+        disabled={pending}
         onclick={() => (occurredOn = todayLocalIsoDate())}
       >
         {m.studio_date_set_today()}
@@ -229,6 +244,7 @@
         <input
           id={`${idPrefix}-title`}
           value={title}
+          readonly={pending}
           required
           aria-invalid={titleIssues.length > 0 || titleLength > STUDIO_LIMITS.memoryTitle
             ? 'true'
@@ -261,6 +277,7 @@
         field="themes"
         {issues}
         label={m.studio_memory_themes()}
+        disabled={pending}
         bind:values={themes}
         maxItems={STUDIO_LIMITS.themes.items}
         maxLength={STUDIO_LIMITS.themes.length}
@@ -270,6 +287,7 @@
         field="imagery"
         {issues}
         label={m.studio_memory_imagery()}
+        disabled={pending}
         bind:values={imagery}
         maxItems={STUDIO_LIMITS.imagery.items}
         maxLength={STUDIO_LIMITS.imagery.length}
@@ -289,6 +307,7 @@
             <button
               type="button"
               role="radio"
+              disabled={pending}
               aria-checked={salience === level}
               aria-label={m.studio_importance_level({ level: String(level) })}
               class="flex h-9 w-9 items-center justify-center rounded-full border text-sm font-semibold {salience ===

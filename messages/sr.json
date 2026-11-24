@@ -1000,5 +1000,11 @@
   "artists_list_refresh_error": "Nije moguće osvežiti listu izvođača.",
   "studio_memories_refresh_error": "Nije moguće osvežiti sećanja.",
   "studio_memories_more_error": "Nije moguće učitati još sećanja.",
-  "common_try_again": "Pokušaj ponovo"
+  "common_try_again": "Pokušaj ponovo",
+  "studio_memory_not_saved_kept": "Uspomena nije sačuvana. Sačuvali smo nacrt za vas.",
+  "studio_memory_open_draft": "Otvori nacrt",
+  "studio_memory_not_saved": "Uspomena nije sačuvana.",
+  "studio_memory_edit_not_saved": "Izmene za „{title}“ nisu sačuvane.",
+  "artists_created_named": "Izvođač „{name}“ je kreiran.",
+  "common_open": "Otvori"
 }

@@ -69,4 +69,27 @@ describe('TagListInput', () => {
     await fireEvent.keyDown(input, { key: 'Enter' });
     expect(screen.getByText(sixtyEmoji)).toBeTruthy();
   });
+  it('disabled blocks both adding and removing', async () => {
+    render(TagListInput, {
+      props: {
+        id: 'locked',
+        label: 'Tags',
+        values: ['Existing'],
+        maxItems: 3,
+        maxLength: 20,
+        disabled: true,
+      },
+    });
+    const input = screen.getByRole('textbox', { name: 'Tags' }) as HTMLInputElement;
+    const add = screen.getByRole('button', { name: 'Add' }) as HTMLButtonElement;
+    const remove = screen.getByRole('button', { name: 'Remove Existing' }) as HTMLButtonElement;
+    expect(input.disabled && add.disabled && remove.disabled).toBe(true);
+    await fireEvent.input(input, { target: { value: 'New' } });
+    await fireEvent.keyDown(input, { key: 'Enter' });
+    await fireEvent.blur(input);
+    await fireEvent.click(add);
+    await fireEvent.click(remove);
+    expect(screen.getByText('Existing')).toBeTruthy();
+    expect(screen.queryByText('New')).toBeNull();
+  });
 });

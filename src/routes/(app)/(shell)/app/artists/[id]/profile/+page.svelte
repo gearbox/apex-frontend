@@ -25,6 +25,7 @@
   } from '$lib/studio/formErrors';
   import { codePointLength } from '$lib/studio/text';
   import { STUDIO_LIMITS } from '$lib/studio/limits';
+  import { componentSession } from '$lib/utils/sessionTracker';
   import { ROUTES } from '$lib/utils/routes';
   import type { components } from '$lib/api/types';
   import * as m from '$paraglide/messages';
@@ -33,6 +34,7 @@
   type ArtistPatch = components['schemas']['ArtistPatch'];
 
   const queryClient = useQueryClient();
+  const pageSession = componentSession();
   let artistId = $derived($page.params.id ?? '');
   const artistQuery = createQuery(() => ({ ...artistQueryOptions(artistId), enabled: !!artistId }));
   const updateMutation = createMutation(() => updateArtistMutationOptions(queryClient));
@@ -126,21 +128,33 @@
       addToast({ type: 'info', message: m.artists_profile_no_changes() });
       return;
     }
+    const session = pageSession.capture();
     try {
       await updateMutation.mutateAsync({ id: artistId, patch });
       addToast({ type: 'success', message: m.artists_profile_saved() });
     } catch (error) {
-      formMessage = artistSaveError(error);
+      const message = artistSaveError(error);
+      if (!session.active) {
+        if (message) addToast({ type: 'error', message });
+        return;
+      }
+      formMessage = message;
     }
   }
 
   async function removeArtist() {
+    const session = pageSession.capture();
     deleteMessage = '';
     try {
       await deleteMutation.mutateAsync(artistId);
-      await goto(ROUTES.artists);
+      if (session.active) await goto(ROUTES.artists);
     } catch (error) {
-      deleteMessage = artistDeleteError(error);
+      const message = artistDeleteError(error);
+      if (!session.active) {
+        if (message) addToast({ type: 'error', message });
+        return;
+      }
+      deleteMessage = message;
       showDelete = false;
     }
   }

@@ -1000,5 +1000,11 @@
   "artists_list_refresh_error": "We couldn't refresh your artists.",
   "studio_memories_refresh_error": "We couldn't refresh your memories.",
   "studio_memories_more_error": "We couldn't load more memories.",
-  "common_try_again": "Try again"
+  "common_try_again": "Try again",
+  "studio_memory_not_saved_kept": "Your memory wasn't saved. We kept the draft for you.",
+  "studio_memory_open_draft": "Open draft",
+  "studio_memory_not_saved": "Your memory wasn't saved.",
+  "studio_memory_edit_not_saved": "Changes to “{title}” weren't saved.",
+  "artists_created_named": "{name} was created.",
+  "common_open": "Open"
 }

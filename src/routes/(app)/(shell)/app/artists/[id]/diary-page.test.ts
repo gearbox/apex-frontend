@@ -10,6 +10,8 @@ import { makeUserProfile } from '../../../../../../mocks/factories/user';
 import QueryHarness from '../../../../../../tests/QueryHarness.svelte';
 import type { Component } from 'svelte';
 import { studioKeys } from '$lib/queries/studio';
+import { get } from 'svelte/store';
+import { clearToasts, toasts } from '$lib/stores/toasts';
 
 const state = vi.hoisted(() => ({
   page: {
@@ -119,6 +121,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   clearAuth();
+  clearToasts();
   vi.unstubAllGlobals();
 });
 
@@ -613,5 +616,221 @@ describe('artist diary page', () => {
         name: 'Retry',
       }),
     ).toBeTruthy();
+  });
+  async function startGatedDraft(options: { customTitle?: boolean; status?: number } = {}) {
+    let release!: () => void;
+    let started!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const requested = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    server.use(
+      http.post(`${BASE}/v1/studio/artists/artist-one/memories`, async () => {
+        started();
+        await gate;
+        return options.status
+          ? HttpResponse.json(
+              { error: 'server_error', message: 'Failed', status_code: options.status },
+              { status: options.status },
+            )
+          : HttpResponse.json(makeMemory({ title: 'Draft A', body: 'Draft A' }), { status: 201 });
+      }),
+    );
+    await fireEvent.click(screen.getByRole('button', { name: '+ Memory' }));
+    const dialog = screen.getByRole('dialog');
+    await fireEvent.input(within(dialog).getByLabelText('What happened?'), {
+      target: { value: 'Draft A' },
+    });
+    if (options.customTitle) {
+      await fireEvent.click(within(dialog).getByText('More'));
+      await fireEvent.input(within(dialog).getByLabelText('Title'), {
+        target: { value: 'Custom title' },
+      });
+    }
+    await fireEvent.click(within(dialog).getByRole('button', { name: 'Save memory' }));
+    await requested;
+    await fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    return release;
+  }
+
+  async function openDraftB() {
+    await fireEvent.click(screen.getByRole('button', { name: '+ Memory' }));
+    const dialog = screen.getByRole('dialog');
+    const body = within(dialog).getByLabelText('What happened?') as HTMLTextAreaElement;
+    await fireEvent.input(body, { target: { value: 'Draft B unsaved' } });
+    return { dialog, body };
+  }
+
+  it('a late successful save does not close or reset the next draft', async () => {
+    renderPage();
+    const release = await startGatedDraft();
+    const { dialog, body } = await openDraftB();
+    release();
+    await waitFor(() => expect(get(toasts).at(-1)?.message).toBe('Memory saved'));
+    expect(screen.getByRole('dialog')).toBe(dialog);
+    expect(within(dialog).getByLabelText('What happened?')).toBe(body);
+    expect(body.value).toBe('Draft B unsaved');
+  });
+
+  it('a late failed save stays out of the next draft and is restored on the next open', async () => {
+    renderPage();
+    const release = await startGatedDraft({ status: 500 });
+    const { dialog, body } = await openDraftB();
+    release();
+    await waitFor(() =>
+      expect(get(toasts).at(-1)?.message).toBe(
+        "Your memory wasn't saved. We kept the draft for you.",
+      ),
+    );
+    expect(body.value).toBe('Draft B unsaved');
+    expect(within(dialog).queryByRole('alert')).toBeNull();
+    await fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await fireEvent.click(screen.getByRole('button', { name: '+ Memory' }));
+    const restored = screen.getByRole('dialog');
+    expect((within(restored).getByLabelText('What happened?') as HTMLTextAreaElement).value).toBe(
+      'Draft A',
+    );
+    expect(within(restored).getByRole('alert').textContent).toContain(
+      'We could not save this memory.',
+    );
+  });
+
+  it('a late failed save with the composer closed offers Open draft', async () => {
+    renderPage();
+    const release = await startGatedDraft({ status: 500 });
+    release();
+    await waitFor(() => expect(get(toasts).at(-1)?.action?.label).toBe('Open draft'));
+    get(toasts).at(-1)?.action?.onClick?.();
+    await waitFor(() => expect(screen.getByRole('dialog')).toBeTruthy());
+    expect(
+      (within(screen.getByRole('dialog')).getByLabelText('What happened?') as HTMLTextAreaElement)
+        .value,
+    ).toBe('Draft A');
+  });
+
+  it('a restored draft keeps its custom title', async () => {
+    renderPage();
+    const release = await startGatedDraft({ status: 500, customTitle: true });
+    release();
+    await waitFor(() => expect(get(toasts).at(-1)?.action).toBeDefined());
+    await fireEvent.click(screen.getByRole('button', { name: '+ Memory' }));
+    const dialog = screen.getByRole('dialog');
+    await fireEvent.click(within(dialog).getByText('More'));
+    await fireEvent.input(within(dialog).getByLabelText('What happened?'), {
+      target: { value: 'Changed body' },
+    });
+    expect((within(dialog).getByLabelText('Title') as HTMLInputElement).value).toBe('Custom title');
+  });
+
+  it.each(['success', 'failure'])(
+    "a late %s of one edit leaves another memory's edit alone",
+    async (outcome) => {
+      const second = makeMemory({
+        id: 'memory-two',
+        artist_id: 'artist-one',
+        title: 'Second memory',
+        body: 'Second body',
+      });
+      let release!: () => void;
+      let started!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const requested = new Promise<void>((resolve) => {
+        started = resolve;
+      });
+      server.use(
+        http.get(`${BASE}/v1/studio/artists/artist-one/memories`, () =>
+          HttpResponse.json({
+            items: [seedMemory, second],
+            limit: 30,
+            has_more: false,
+            next_cursor: null,
+          }),
+        ),
+        http.patch(`${BASE}/v1/studio/memories/memory-one`, async () => {
+          started();
+          await gate;
+          return outcome === 'success'
+            ? HttpResponse.json(seedMemory)
+            : HttpResponse.json(
+                { error: 'server_error', message: 'Failed', status_code: 500 },
+                { status: 500 },
+              );
+        }),
+      );
+      renderPage();
+      await screen.findByRole('heading', { name: 'Second memory' });
+      await fireEvent.click(menuFor('The first show'));
+      await fireEvent.click(screen.getByRole('menuitem', { name: 'Edit' }));
+      let dialog = screen.getByRole('dialog');
+      await fireEvent.input(within(dialog).getByLabelText('What happened?'), {
+        target: { value: 'Edited A' },
+      });
+      await fireEvent.click(within(dialog).getByRole('button', { name: 'Save memory' }));
+      await requested;
+      await fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+      await fireEvent.click(menuFor('Second memory'));
+      await fireEvent.click(screen.getByRole('menuitem', { name: 'Edit' }));
+      dialog = screen.getByRole('dialog');
+      const body = within(dialog).getByLabelText('What happened?') as HTMLTextAreaElement;
+      await fireEvent.input(body, { target: { value: 'Edited B unsaved' } });
+      release();
+      await waitFor(() =>
+        expect(get(toasts).at(-1)?.message).toBe(
+          outcome === 'success' ? 'Memory saved' : "Changes to “The first show” weren't saved.",
+        ),
+      );
+      expect(screen.getByRole('dialog')).toBe(dialog);
+      expect(body.value).toBe('Edited B unsaved');
+      expect(within(dialog).queryByRole('alert')).toBeNull();
+    },
+  );
+
+  it('a late failure after switching artists only toasts', async () => {
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Infinity },
+        mutations: { retry: false },
+      },
+    });
+    const artists = [
+      makeArtist({ id: 'artist-one', name: 'Artist One' }),
+      makeArtist({ id: 'artist-two', name: 'Artist Two' }),
+    ];
+    client.setQueryData(studioKeys.artists(), {
+      items: artists,
+      limit: 50,
+      has_more: false,
+      next_cursor: null,
+    });
+    for (const artist of artists) {
+      client.setQueryData(studioKeys.artist(artist.id), artist);
+      for (const status of ['active', 'archived'] as const)
+        client.setQueryData(studioKeys.memories(artist.id, status), {
+          pages: [{ items: [], limit: 30, has_more: false, next_cursor: null }],
+          pageParams: [null],
+        });
+    }
+    renderLayoutPage(client);
+    await screen.findByRole('heading', { name: 'Artist One' });
+    const release = await startGatedDraft({ status: 500 });
+    switchArtist('artist-two');
+    await screen.findByRole('heading', { name: 'Artist Two' });
+    const { dialog, body } = await openDraftB();
+    release();
+    await waitFor(() =>
+      expect(get(toasts).at(-1)?.message).toBe('We could not save this memory. Please try again.'),
+    );
+    expect(body.value).toBe('Draft B unsaved');
+    expect(within(dialog).queryByRole('alert')).toBeNull();
+    await fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await fireEvent.click(screen.getByRole('button', { name: '+ Memory' }));
+    expect(
+      (within(screen.getByRole('dialog')).getByLabelText('What happened?') as HTMLTextAreaElement)
+        .value,
+    ).toBe('');
   });
 });

@@ -1000,5 +1000,11 @@
   "artists_list_refresh_error": "Не удалось обновить список артистов.",
   "studio_memories_refresh_error": "Не удалось обновить воспоминания.",
   "studio_memories_more_error": "Не удалось загрузить остальные воспоминания.",
-  "common_try_again": "Попробовать снова"
+  "common_try_again": "Попробовать снова",
+  "studio_memory_not_saved_kept": "Не удалось сохранить воспоминание. Мы сохранили черновик для вас.",
+  "studio_memory_open_draft": "Открыть черновик",
+  "studio_memory_not_saved": "Не удалось сохранить воспоминание.",
+  "studio_memory_edit_not_saved": "Изменения в «{title}» не сохранены.",
+  "artists_created_named": "Артист «{name}» создан.",
+  "common_open": "Открыть"
 }

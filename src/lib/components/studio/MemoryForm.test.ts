@@ -159,4 +159,32 @@ describe('MemoryForm', () => {
     expect(body.getAttribute('aria-invalid')).toBe('true');
     await waitFor(() => expect(document.activeElement).toBe(body));
   });
+  it('fields are read-only while saving', async () => {
+    const props = {
+      mode: 'create' as const,
+      idPrefix: 'pending',
+      pending: true,
+      onsubmit: vi.fn(),
+    };
+    const rendered = render(MemoryForm, { props });
+    await fireEvent.click(screen.getByText('More'));
+    const body = screen.getByLabelText('What happened?') as HTMLTextAreaElement;
+    const title = screen.getByLabelText('Title') as HTMLInputElement;
+    const controls = [
+      screen.getByLabelText('Themes'),
+      screen.getByLabelText('Imagery'),
+      document.getElementById('pending-date')!,
+      ...screen.getAllByRole('radio'),
+      screen.getByRole('button', { name: 'No date' }),
+    ] as HTMLInputElement[];
+    expect(body.readOnly).toBe(true);
+    expect(title.readOnly).toBe(true);
+    expect(controls.every((control) => control.disabled)).toBe(true);
+    expect(body.closest('form')?.getAttribute('aria-busy')).toBe('true');
+    await rendered.rerender({ ...props, pending: false });
+    expect(body.readOnly).toBe(false);
+    expect(title.readOnly).toBe(false);
+    expect(controls.every((control) => !control.disabled)).toBe(true);
+    expect(body.closest('form')?.hasAttribute('aria-busy')).toBe(false);
+  });
 });
