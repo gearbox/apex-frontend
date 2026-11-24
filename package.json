@@ -1,9 +1,9 @@
 {
   "name": "apex-frontend",
-  "version": "0.32.0",
+  "version": "0.33.0",
   "private": true,
   "type": "module",
-  "description": "Apex AI Content Studio — Progressive Web App",
+  "description": "Apex AI Content Studio - Progressive Web App",
   "scripts": {
     "dev": "vite dev",
     "paraglide:compile": "paraglide-js compile --project ./project.inlang --outdir ./src/paraglide --strategy localStorage preferredLanguage baseLocale --emit-ts-declarations",
