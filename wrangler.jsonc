@@ -8,4 +8,5 @@
   },
   "env": { "synthara": { "name": "apex-synthara-staging" } },
   "observability": { "enabled": true },
+  "previews": {},
 }
