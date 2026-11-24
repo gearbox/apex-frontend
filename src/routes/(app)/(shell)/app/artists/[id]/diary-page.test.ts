@@ -102,6 +102,7 @@ function mockBrowserObservers(desktop = false) {
 }
 
 beforeEach(() => {
+  switchArtist('artist-one');
   clearAuth();
   setAuth(
     {
@@ -531,5 +532,86 @@ describe('artist diary page', () => {
       ]),
     );
     expect(JSON.stringify(posts)).not.toContain('A draft for artist one only.');
+  });
+  it('a failed next page keeps loaded memories and offers Try again', async () => {
+    let visible: IntersectionObserverCallback | undefined;
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        constructor(callback: IntersectionObserverCallback) {
+          visible = callback;
+        }
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    let nextFails = true;
+    let nextAttempts = 0;
+    server.use(
+      http.get(`${BASE}/v1/studio/artists/artist-one/memories`, ({ request }) => {
+        if (new URL(request.url).searchParams.get('cursor')) {
+          nextAttempts++;
+          return nextFails
+            ? HttpResponse.error()
+            : HttpResponse.json({
+                items: [makeMemory({ id: 'memory-two', title: 'Second memory' })],
+                limit: 30,
+                has_more: false,
+                next_cursor: null,
+              });
+        }
+        return HttpResponse.json({
+          items: [seedMemory],
+          limit: 30,
+          has_more: true,
+          next_cursor: 'next',
+        });
+      }),
+    );
+    renderPage();
+    await screen.findByRole('heading', { name: 'The first show' });
+    await waitFor(() => expect(visible).toBeDefined());
+    visible?.([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver);
+    const notice = await screen.findByText("We couldn't load more memories.");
+    expect(notice.closest('[role="status"]')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'The first show' })).toBeTruthy();
+    visible?.([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver);
+    expect(nextAttempts).toBe(1);
+    nextFails = false;
+    await fireEvent.click(
+      within(notice.closest('[role="status"]') as HTMLElement).getByRole('button', {
+        name: 'Try again',
+      }),
+    );
+    expect(await screen.findByRole('heading', { name: 'Second memory' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'The first show' })).toBeTruthy();
+  });
+
+  it('a failed background refetch keeps the list', async () => {
+    server.use(
+      http.get(`${BASE}/v1/studio/artists/artist-one/memories`, () =>
+        HttpResponse.json({ items: [seedMemory], limit: 30, has_more: false, next_cursor: null }),
+      ),
+    );
+    const client = renderPage();
+    const heading = await screen.findByRole('heading', { name: 'The first show' });
+    server.use(
+      http.get(`${BASE}/v1/studio/artists/artist-one/memories`, () =>
+        HttpResponse.json(
+          { error: 'server_error', message: 'Failed', status_code: 500 },
+          { status: 500 },
+        ),
+      ),
+    );
+    await client.invalidateQueries({ queryKey: studioKeys.memories('artist-one', 'active') });
+    const notice = await screen.findByText("We couldn't refresh your memories.");
+    expect(notice.closest('[role="status"]')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'The first show' })).toBe(heading);
+    expect(
+      within(notice.closest('[role="status"]') as HTMLElement).getByRole('button', {
+        name: 'Retry',
+      }),
+    ).toBeTruthy();
   });
 });

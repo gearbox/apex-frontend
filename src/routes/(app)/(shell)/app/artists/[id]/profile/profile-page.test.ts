@@ -83,6 +83,7 @@ describe('artist profile page', () => {
     renderPage();
 
     await waitFor(() => expect(screen.getByLabelText('Persona')).toBeTruthy());
+    expect(document.querySelector('[aria-describedby=""]')).toBeNull();
     await fireEvent.input(screen.getByLabelText('Persona'), { target: { value: '' } });
     await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 

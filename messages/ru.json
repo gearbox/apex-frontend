@@ -994,5 +994,11 @@
   "model_guide_wan_directing": "Для видео начинайте с «Extend this video: …» или «Edit this video: …». Выключите расширение промпта для точной постановки.",
   "model_guide_wan_time": "Обычно генерация занимает 1–5 минут.",
   "video_aspect_auto": "Авто",
-  "model_guide_mode_r2v": "Референсы → Видео"
+  "model_guide_mode_r2v": "Референсы → Видео",
+  "artists_refresh_error": "Не удалось обновить данные артиста. Ваши изменения сохранены на этой странице.",
+  "artists_deleted_elsewhere": "Этот артист был удалён. Скопируйте всё, что хотите сохранить.",
+  "artists_list_refresh_error": "Не удалось обновить список артистов.",
+  "studio_memories_refresh_error": "Не удалось обновить воспоминания.",
+  "studio_memories_more_error": "Не удалось загрузить остальные воспоминания.",
+  "common_try_again": "Попробовать снова"
 }

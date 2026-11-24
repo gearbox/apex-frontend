@@ -6,6 +6,19 @@ export interface StudioValidationIssue {
   code: string;
 }
 
+export function issueId(controlId: string, index: number): string {
+  return `${controlId}-issue-${index}`;
+}
+
+export function describedBy(
+  controlId: string,
+  issues: StudioValidationIssue[],
+  extraIds: string[] = [],
+): string | undefined {
+  const ids = [...issues.map((_, index) => issueId(controlId, index)), ...extraIds];
+  return ids.length ? ids.join(' ') : undefined;
+}
+
 export function studioError(error: unknown): ApiRequestError | undefined {
   return error instanceof ApiRequestError ? error : undefined;
 }

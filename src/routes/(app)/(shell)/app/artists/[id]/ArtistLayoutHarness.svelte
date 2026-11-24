@@ -2,4 +2,4 @@
   import Layout from './+layout.svelte';
 </script>
 
-<Layout><p>Diary content</p></Layout>
+<Layout><label>Draft <textarea></textarea></label></Layout>

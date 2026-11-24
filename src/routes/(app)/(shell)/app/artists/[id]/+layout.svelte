@@ -28,7 +28,7 @@
   <div class="flex min-h-96 items-center justify-center" role="status" aria-live="polite">
     <Spinner size="2xl" label={m.common_loading()} />
   </div>
-{:else if artistNotFound}
+{:else if artistQuery.isLoadingError && artistNotFound}
   <section
     class="mx-auto flex min-h-[60vh] max-w-lg flex-col items-center justify-center px-5 text-center"
   >
@@ -45,7 +45,7 @@
       >{m.artists_back_to_all()}</a
     >
   </section>
-{:else if artistQuery.isError || !artist}
+{:else if artistQuery.isLoadingError || !artist}
   <section
     class="mx-auto flex min-h-[60vh] max-w-lg flex-col items-center justify-center px-5 text-center"
     role="alert"
@@ -103,6 +103,25 @@
       </aside>
 
       <div class="min-w-0">
+        {#if artistQuery.isRefetchError}
+          <div
+            role="status"
+            class="mb-4 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-text"
+          >
+            {artistNotFound ? m.artists_deleted_elsewhere() : m.artists_refresh_error()}
+            {#if artistNotFound}
+              <a href={ROUTES.artists} class="ml-2 font-semibold text-accent"
+                >{m.artists_back_to_all()}</a
+              >
+            {:else}
+              <button
+                type="button"
+                class="ml-2 font-semibold text-accent"
+                onclick={() => void artistQuery.refetch()}>{m.common_retry()}</button
+              >
+            {/if}
+          </div>
+        {/if}
         <header class="mb-5 rounded-2xl border border-border bg-surface p-4 md:p-6">
           <div class="flex items-start gap-4">
             <span

@@ -7,19 +7,20 @@
   import { MAX_ARTISTS } from '$lib/studio/artists';
   import {
     artistCreateError,
+    describedBy,
+    issueId,
     fieldIssues,
     issueMessage,
     studioError,
     validationIssues,
   } from '$lib/studio/formErrors';
   import { codePointLength } from '$lib/studio/text';
+  import { STUDIO_LIMITS } from '$lib/studio/limits';
   import { ROUTES } from '$lib/utils/routes';
   import Spinner from '$lib/components/ui/Spinner.svelte';
   import * as m from '$paraglide/messages';
 
   const queryClient = useQueryClient();
-  const MAX_NAME_LENGTH = 100;
-  const MAX_PERSONA_LENGTH = 4000;
   const artistsQuery = createQuery(artistsQueryOptions);
   const createArtistMutation = createMutation(() => createArtistMutationOptions(queryClient));
   let selectedKind = $state<ArtistKind | null>(null);
@@ -42,16 +43,9 @@
   let nameConflict = $derived(
     studioError(createArtistMutation.error)?.error === 'artist_name_conflict',
   );
-  let formTooLong = $derived(nameLength > MAX_NAME_LENGTH || personaLength > MAX_PERSONA_LENGTH);
-
-  function fieldDescription(
-    fieldId: string,
-    currentIssues: { path: string; code: string }[],
-    extraIds: string[] = [],
-  ) {
-    const ids = [...(currentIssues.length ? [fieldId + '-error'] : []), ...extraIds];
-    return ids.length ? ids.join(' ') : undefined;
-  }
+  let formTooLong = $derived(
+    nameLength > STUDIO_LIMITS.artistName || personaLength > STUDIO_LIMITS.persona,
+  );
 
   function selectKind(kind: ArtistKind) {
     if (persona.trim() === '' || (selectedKind !== null && persona === previousTemplate)) {
@@ -175,8 +169,10 @@
             placeholder={selectedKind
               ? ARTIST_KIND_COPY[selectedKind].namePlaceholder()
               : m.artists_name_placeholder()}
-            aria-invalid={nameIssues.length > 0 || nameConflict || nameLength > MAX_NAME_LENGTH}
-            aria-describedby={fieldDescription('artist-name', nameIssues, [
+            aria-invalid={nameIssues.length > 0 ||
+              nameConflict ||
+              nameLength > STUDIO_LIMITS.artistName}
+            aria-describedby={describedBy('artist-name', nameIssues, [
               ...(nameConflict ? ['artist-name-error'] : []),
               'artist-name-count',
             ])}
@@ -184,17 +180,21 @@
           />
           <p
             id="artist-name-count"
-            class="mt-1.5 text-xs {nameLength > MAX_NAME_LENGTH ? 'text-danger' : 'text-text-dim'}"
+            class="mt-1.5 text-xs {nameLength > STUDIO_LIMITS.artistName
+              ? 'text-danger'
+              : 'text-text-dim'}"
           >
-            {nameLength} / {MAX_NAME_LENGTH}
+            {nameLength} / {STUDIO_LIMITS.artistName}
           </p>
           {#if nameConflict}
             <p id="artist-name-error" class="mt-1.5 text-xs text-danger" role="alert">
               {m.artists_name_conflict()}
             </p>
           {:else if nameIssues.length > 0}
-            <ul id="artist-name-error" class="mt-1.5 space-y-1 text-xs text-danger" role="alert">
-              {#each nameIssues as issue, index (`${issue.path}-${index}`)}<li>
+            <ul class="mt-1.5 space-y-1 text-xs text-danger" role="alert">
+              {#each nameIssues as issue, index (`${issue.path}-${index}`)}<li
+                  id={issueId('artist-name', index)}
+                >
                   {issueMessage(issue)}
                 </li>{/each}
             </ul>
@@ -209,8 +209,8 @@
             id="artist-persona"
             bind:value={persona}
             rows="5"
-            aria-invalid={personaIssues.length > 0 || personaLength > MAX_PERSONA_LENGTH}
-            aria-describedby={fieldDescription('artist-persona', personaIssues, [
+            aria-invalid={personaIssues.length > 0 || personaLength > STUDIO_LIMITS.persona}
+            aria-describedby={describedBy('artist-persona', personaIssues, [
               'artist-persona-count',
             ])}
             placeholder={selectedKind
@@ -220,15 +220,17 @@
           ></textarea>
           <p
             id="artist-persona-count"
-            class="mt-1.5 text-xs {personaLength > MAX_PERSONA_LENGTH
+            class="mt-1.5 text-xs {personaLength > STUDIO_LIMITS.persona
               ? 'text-danger'
               : 'text-text-dim'}"
           >
-            {personaLength} / {MAX_PERSONA_LENGTH}
+            {personaLength} / {STUDIO_LIMITS.persona}
           </p>
           {#if personaIssues.length > 0}
-            <ul id="artist-persona-error" class="mt-1.5 space-y-1 text-xs text-danger" role="alert">
-              {#each personaIssues as issue, index (`${issue.path}-${index}`)}<li>
+            <ul class="mt-1.5 space-y-1 text-xs text-danger" role="alert">
+              {#each personaIssues as issue, index (`${issue.path}-${index}`)}<li
+                  id={issueId('artist-persona', index)}
+                >
                   {issueMessage(issue)}
                 </li>{/each}
             </ul>

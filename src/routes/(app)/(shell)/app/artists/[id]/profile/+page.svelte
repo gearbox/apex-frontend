@@ -15,6 +15,8 @@
   import {
     artistDeleteError,
     artistSaveError,
+    describedBy,
+    issueId,
     fieldIssues,
     issueField,
     issueMessage,
@@ -22,6 +24,7 @@
     validationIssues,
   } from '$lib/studio/formErrors';
   import { codePointLength } from '$lib/studio/text';
+  import { STUDIO_LIMITS } from '$lib/studio/limits';
   import { ROUTES } from '$lib/utils/routes';
   import type { components } from '$lib/api/types';
   import * as m from '$paraglide/messages';
@@ -29,9 +32,6 @@
   type Artist = components['schemas']['ArtistOut'];
   type ArtistPatch = components['schemas']['ArtistPatch'];
 
-  const MAX_NAME_LENGTH = 100;
-  const MAX_PERSONA_LENGTH = 4000;
-  const MAX_VOICE_NOTES_LENGTH = 2000;
   const queryClient = useQueryClient();
   let artistId = $derived($page.params.id ?? '');
   const artistQuery = createQuery(() => ({ ...artistQueryOptions(artistId), enabled: !!artistId }));
@@ -93,20 +93,10 @@
   let voiceNotesLength = $derived(codePointLength(voiceNotes));
   let nameConflict = $derived(studioError(updateMutation.error)?.error === 'artist_name_conflict');
   let formTooLong = $derived(
-    nameLength > MAX_NAME_LENGTH ||
-      personaLength > MAX_PERSONA_LENGTH ||
-      voiceNotesLength > MAX_VOICE_NOTES_LENGTH,
+    nameLength > STUDIO_LIMITS.artistName ||
+      personaLength > STUDIO_LIMITS.persona ||
+      voiceNotesLength > STUDIO_LIMITS.voiceNotes,
   );
-
-  function fieldDescription(
-    controlId: string,
-    currentIssues: { path: string; code: string }[],
-    extraIds: string[] = [],
-  ) {
-    return [...currentIssues.map((_, index) => controlId + '-issue-' + index), ...extraIds].join(
-      ' ',
-    );
-  }
 
   function currentArtist(): Artist | undefined {
     return queryClient.getQueryData<Artist>(studioKeys.artist(artistId)) ?? artistQuery.data;
@@ -180,8 +170,10 @@
           id="profile-name"
           bind:value={name}
           required
-          aria-invalid={nameIssues.length > 0 || nameConflict || nameLength > MAX_NAME_LENGTH}
-          aria-describedby={fieldDescription('profile-name', nameIssues, [
+          aria-invalid={nameIssues.length > 0 ||
+            nameConflict ||
+            nameLength > STUDIO_LIMITS.artistName}
+          aria-describedby={describedBy('profile-name', nameIssues, [
             ...(nameConflict ? ['profile-name-conflict'] : []),
             'profile-name-count',
           ])}
@@ -189,9 +181,11 @@
         />
         <p
           id="profile-name-count"
-          class="mt-1 text-xs {nameLength > MAX_NAME_LENGTH ? 'text-danger' : 'text-text-dim'}"
+          class="mt-1 text-xs {nameLength > STUDIO_LIMITS.artistName
+            ? 'text-danger'
+            : 'text-text-dim'}"
         >
-          {nameLength} / {MAX_NAME_LENGTH}
+          {nameLength} / {STUDIO_LIMITS.artistName}
         </p>
         {#if nameConflict}<p
             id="profile-name-conflict"
@@ -201,7 +195,7 @@
             {m.artists_name_conflict()}
           </p>{/if}
         {#each nameIssues as issue, index (`${issue.path}-${index}`)}<p
-            id={'profile-name-issue-' + index}
+            id={issueId('profile-name', index)}
             class="mt-1 text-xs text-danger"
             role="alert"
           >
@@ -217,22 +211,22 @@
           id="profile-persona"
           bind:value={persona}
           rows="4"
-          aria-invalid={personaIssues.length > 0 || personaLength > MAX_PERSONA_LENGTH}
-          aria-describedby={fieldDescription('profile-persona', personaIssues, [
+          aria-invalid={personaIssues.length > 0 || personaLength > STUDIO_LIMITS.persona}
+          aria-describedby={describedBy('profile-persona', personaIssues, [
             'profile-persona-count',
           ])}
           class="w-full resize-y rounded-xl border border-border bg-bg px-4 py-3 text-sm leading-6 text-text outline-none focus:border-accent"
         ></textarea>
         <p
           id="profile-persona-count"
-          class="mt-1 text-xs {personaLength > MAX_PERSONA_LENGTH
+          class="mt-1 text-xs {personaLength > STUDIO_LIMITS.persona
             ? 'text-danger'
             : 'text-text-dim'}"
         >
-          {personaLength} / {MAX_PERSONA_LENGTH}
+          {personaLength} / {STUDIO_LIMITS.persona}
         </p>
         {#each personaIssues as issue, index (`${issue.path}-${index}`)}<p
-            id={'profile-persona-issue-' + index}
+            id={issueId('profile-persona', index)}
             class="mt-1 text-xs text-danger"
             role="alert"
           >
@@ -248,20 +242,20 @@
           id="profile-voice"
           bind:value={voiceNotes}
           rows="3"
-          aria-invalid={voiceIssues.length > 0 || voiceNotesLength > MAX_VOICE_NOTES_LENGTH}
-          aria-describedby={fieldDescription('profile-voice', voiceIssues, ['profile-voice-count'])}
+          aria-invalid={voiceIssues.length > 0 || voiceNotesLength > STUDIO_LIMITS.voiceNotes}
+          aria-describedby={describedBy('profile-voice', voiceIssues, ['profile-voice-count'])}
           class="w-full resize-y rounded-xl border border-border bg-bg px-4 py-3 text-sm leading-6 text-text outline-none focus:border-accent"
         ></textarea>
         <p
           id="profile-voice-count"
-          class="mt-1 text-xs {voiceNotesLength > MAX_VOICE_NOTES_LENGTH
+          class="mt-1 text-xs {voiceNotesLength > STUDIO_LIMITS.voiceNotes
             ? 'text-danger'
             : 'text-text-dim'}"
         >
-          {voiceNotesLength} / {MAX_VOICE_NOTES_LENGTH}
+          {voiceNotesLength} / {STUDIO_LIMITS.voiceNotes}
         </p>
         {#each voiceIssues as issue, index (`${issue.path}-${index}`)}<p
-            id={'profile-voice-issue-' + index}
+            id={issueId('profile-voice', index)}
             class="mt-1 text-xs text-danger"
             role="alert"
           >
@@ -292,8 +286,8 @@
           {issues}
           label={m.artists_style_tags()}
           bind:values={styleTags}
-          maxItems={40}
-          maxLength={60}
+          maxItems={STUDIO_LIMITS.styleTags.items}
+          maxLength={STUDIO_LIMITS.styleTags.length}
           hint={m.artists_style_hint()}
         />
         <TagListInput
@@ -302,8 +296,8 @@
           {issues}
           label={m.artists_global_avoid()}
           bind:values={globalAvoid}
-          maxItems={40}
-          maxLength={60}
+          maxItems={STUDIO_LIMITS.globalAvoid.items}
+          maxLength={STUDIO_LIMITS.globalAvoid.length}
           hint={m.artists_avoid_hint()}
         />
         <TagListInput
@@ -312,8 +306,8 @@
           {issues}
           label={m.artists_aesthetic_references()}
           bind:values={aestheticReferences}
-          maxItems={20}
-          maxLength={200}
+          maxItems={STUDIO_LIMITS.aestheticReferences.items}
+          maxLength={STUDIO_LIMITS.aestheticReferences.length}
           hint={m.artists_aesthetic_hint()}
         />
       </div>

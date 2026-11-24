@@ -118,8 +118,10 @@ describe('new artist page', () => {
 
     const nameIssue = await screen.findByText('This value is longer than allowed.');
     const personaIssue = screen.getByText('Enter a value.');
-    expect(nameIssue.closest('#artist-name-error')).toBeTruthy();
-    expect(personaIssue.closest('#artist-persona-error')).toBeTruthy();
+    expect(screen.getByLabelText('Name').getAttribute('aria-describedby')).toContain(nameIssue.id);
+    expect(screen.getByLabelText('Persona').getAttribute('aria-describedby')).toContain(
+      personaIssue.id,
+    );
 
     cleanup();
     const conflictClient = renderPage();

@@ -994,5 +994,11 @@
   "model_guide_wan_directing": "За видео изворе почните са „Extend this video: …” или „Edit this video: …”. Искључите проширивање промпта за прецизно режирање.",
   "model_guide_wan_time": "Генерисање обично траје 1–5 минута.",
   "video_aspect_auto": "Аутоматски",
-  "model_guide_mode_r2v": "Референце → Видео"
+  "model_guide_mode_r2v": "Референце → Видео",
+  "artists_refresh_error": "Nije moguće osvežiti ovog izvođača. Vaše izmene su i dalje sačuvane na ovoj stranici.",
+  "artists_deleted_elsewhere": "Ovaj izvođač je obrisan. Kopirajte sve što želite da sačuvate.",
+  "artists_list_refresh_error": "Nije moguće osvežiti listu izvođača.",
+  "studio_memories_refresh_error": "Nije moguće osvežiti sećanja.",
+  "studio_memories_more_error": "Nije moguće učitati još sećanja.",
+  "common_try_again": "Pokušaj ponovo"
 }

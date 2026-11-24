@@ -7,7 +7,10 @@
     todayLocalIsoDate,
   } from '$lib/studio/memoryDraft';
   import { codePointLength } from '$lib/studio/text';
+  import { STUDIO_LIMITS } from '$lib/studio/limits';
   import {
+    describedBy,
+    issueId,
     fieldIssues,
     issueField,
     issueMessage,
@@ -24,9 +27,6 @@
     imagery: string[];
     salience: number;
   }
-
-  const MAX_TITLE_LENGTH = 120;
-  const MAX_BODY_LENGTH = 2000;
 
   interface InitialMemory {
     title: string;
@@ -86,19 +86,6 @@
     ),
   );
 
-  function issueId(controlId: string, index: number) {
-    return `${controlId}-issue-${index}`;
-  }
-
-  function issueDescription(
-    controlId: string,
-    currentIssues: StudioValidationIssue[],
-    additionalIds: string[] = [],
-  ) {
-    const ids = [...currentIssues.map((_, index) => issueId(controlId, index)), ...additionalIds];
-    return ids.length ? ids.join(' ') : undefined;
-  }
-
   $effect(() => {
     if (autofocus) bodyEl?.focus();
   });
@@ -143,8 +130,8 @@
       !body.trim() ||
       !title.trim() ||
       !deriveMemoryTitle(body).trim() ||
-      bodyLength > MAX_BODY_LENGTH ||
-      titleLength > MAX_TITLE_LENGTH,
+      bodyLength > STUDIO_LIMITS.memoryBody ||
+      titleLength > STUDIO_LIMITS.memoryTitle,
   );
   let dateLabel = $derived(
     occurredOn
@@ -173,16 +160,17 @@
       rows="5"
       required
       placeholder={m.studio_memory_body_placeholder()}
-      aria-invalid={bodyIssues.length > 0 || bodyLength > MAX_BODY_LENGTH ? 'true' : undefined}
-      aria-describedby={issueDescription(`${idPrefix}-body`, bodyIssues, [
-        `${idPrefix}-body-count`,
-      ])}
+      aria-invalid={bodyIssues.length > 0 || bodyLength > STUDIO_LIMITS.memoryBody
+        ? 'true'
+        : undefined}
+      aria-describedby={describedBy(`${idPrefix}-body`, bodyIssues, [`${idPrefix}-body-count`])}
       class="w-full resize-y rounded-2xl border border-border bg-bg px-4 py-3 text-sm leading-6 text-text outline-none placeholder:text-text-dim focus:border-accent"
       oninput={updateBody}></textarea>
     <span
       id={`${idPrefix}-body-count`}
-      class="block text-xs {bodyLength > MAX_BODY_LENGTH ? 'text-danger' : 'text-text-dim'}"
-      >{bodyLength} / {MAX_BODY_LENGTH}</span
+      class="block text-xs {bodyLength > STUDIO_LIMITS.memoryBody
+        ? 'text-danger'
+        : 'text-text-dim'}">{bodyLength} / {STUDIO_LIMITS.memoryBody}</span
     >
     {#each bodyIssues as issue, index (`${issue.path}-${index}`)}<span
         id={issueId(`${idPrefix}-body`, index)}
@@ -199,7 +187,7 @@
       bind:value={occurredOn}
       aria-label={dateLabel}
       aria-invalid={dateIssues.length > 0 ? 'true' : undefined}
-      aria-describedby={issueDescription(`${idPrefix}-date`, dateIssues)}
+      aria-describedby={describedBy(`${idPrefix}-date`, dateIssues)}
       class="rounded-full border border-border bg-surface px-3 py-1.5 text-sm text-text"
     />
     <span class="text-xs text-text-muted">{dateLabel}</span>
@@ -242,10 +230,10 @@
           id={`${idPrefix}-title`}
           value={title}
           required
-          aria-invalid={titleIssues.length > 0 || titleLength > MAX_TITLE_LENGTH
+          aria-invalid={titleIssues.length > 0 || titleLength > STUDIO_LIMITS.memoryTitle
             ? 'true'
             : undefined}
-          aria-describedby={issueDescription(`${idPrefix}-title`, titleIssues, [
+          aria-describedby={describedBy(`${idPrefix}-title`, titleIssues, [
             `${idPrefix}-title-count`,
           ])}
           class="w-full rounded-xl border border-border bg-bg px-3 py-2.5 text-sm text-text outline-none focus:border-accent"
@@ -256,8 +244,9 @@
         />
         <span
           id={`${idPrefix}-title-count`}
-          class="block text-xs {titleLength > MAX_TITLE_LENGTH ? 'text-danger' : 'text-text-dim'}"
-          >{titleLength} / {MAX_TITLE_LENGTH}</span
+          class="block text-xs {titleLength > STUDIO_LIMITS.memoryTitle
+            ? 'text-danger'
+            : 'text-text-dim'}">{titleLength} / {STUDIO_LIMITS.memoryTitle}</span
         >
         {#each titleIssues as issue, index (`${issue.path}-${index}`)}<p
             id={issueId(`${idPrefix}-title`, index)}
@@ -273,8 +262,8 @@
         {issues}
         label={m.studio_memory_themes()}
         bind:values={themes}
-        maxItems={12}
-        maxLength={60}
+        maxItems={STUDIO_LIMITS.themes.items}
+        maxLength={STUDIO_LIMITS.themes.length}
       />
       <TagListInput
         id={`${idPrefix}-imagery`}
@@ -282,8 +271,8 @@
         {issues}
         label={m.studio_memory_imagery()}
         bind:values={imagery}
-        maxItems={20}
-        maxLength={120}
+        maxItems={STUDIO_LIMITS.imagery.items}
+        maxLength={STUDIO_LIMITS.imagery.length}
       />
       <fieldset>
         <legend class="mb-2 text-sm font-medium text-text">{m.studio_memory_importance()}</legend>
@@ -293,7 +282,7 @@
           role="radiogroup"
           aria-label={m.studio_memory_importance()}
           aria-invalid={salienceIssues.length > 0 ? 'true' : undefined}
-          aria-describedby={issueDescription(`${idPrefix}-salience`, salienceIssues)}
+          aria-describedby={describedBy(`${idPrefix}-salience`, salienceIssues)}
           tabindex={salienceIssues.length > 0 ? -1 : undefined}
         >
           {#each [1, 2, 3, 4, 5] as level (level)}

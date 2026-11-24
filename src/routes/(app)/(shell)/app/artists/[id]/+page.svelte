@@ -322,11 +322,24 @@
       </p>
     {/if}
 
+    {#if memoriesQuery.isRefetchError}
+      <div
+        role="status"
+        class="rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-text"
+      >
+        {m.studio_memories_refresh_error()}
+        <button
+          type="button"
+          class="ml-2 font-semibold text-accent"
+          onclick={() => void memoriesQuery.refetch()}>{m.common_retry()}</button
+        >
+      </div>
+    {/if}
     {#if memoriesQuery.isPending}
       <div class="flex min-h-48 items-center justify-center" role="status">
         <Spinner size="xl" label={m.common_loading()} />
       </div>
-    {:else if memoriesQuery.isError}
+    {:else if memoriesQuery.isLoadingError}
       <div class="rounded-2xl border border-border bg-surface p-6 text-center" role="alert">
         <p class="text-sm text-text-muted">{m.studio_memories_load_error()}</p>
         <button
@@ -432,8 +445,25 @@
           </ContextMenu>
         {/each}
       </div>
+    {/if}
+    {#if memoriesQuery.data}
+      {#if memoriesQuery.isFetchNextPageError}
+        <div
+          role="status"
+          class="rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-text"
+        >
+          {m.studio_memories_more_error()}
+          <button
+            type="button"
+            class="ml-2 font-semibold text-accent"
+            onclick={() => void memoriesQuery.fetchNextPage()}>{m.common_try_again()}</button
+          >
+        </div>
+      {/if}
       <InfiniteScrollSentinel
-        disabled={!memoriesQuery.hasNextPage || memoriesQuery.isFetchingNextPage}
+        disabled={!memoriesQuery.hasNextPage ||
+          memoriesQuery.isFetchingNextPage ||
+          memoriesQuery.isFetchNextPageError}
         onVisible={() => void memoriesQuery.fetchNextPage()}
       />
       {#if memoriesQuery.isFetchingNextPage}<div class="flex justify-center py-4">

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  describedBy,
+  issueId,
   artistCreateError,
   artistDeleteError,
   artistSaveError,
@@ -147,5 +149,22 @@ describe('memoryDeleteError', () => {
     [apiError('server_error', 500), 'We could not delete this memory.'],
   ])('maps %s', (error, expected) => {
     expect(memoryDeleteError(error)).toBe(expected);
+  });
+});
+
+describe('describedBy', () => {
+  it('returns undefined when empty and joins issue and extra ids', () => {
+    expect(describedBy('field', [])).toBeUndefined();
+    expect(
+      describedBy(
+        'field',
+        [
+          { path: 'name', code: 'invalid' },
+          { path: 'name', code: 'empty' },
+        ],
+        ['hint'],
+      ),
+    ).toBe('field-issue-0 field-issue-1 hint');
+    expect(issueId('field', 1)).toBe('field-issue-1');
   });
 });

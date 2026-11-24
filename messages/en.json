@@ -994,5 +994,11 @@
   "model_guide_wan_directing": "For video sources, start with “Extend this video: …” or “Edit this video: …”. Set Expand prompt to Off for precise directing.",
   "model_guide_wan_time": "Typical completion takes 1–5 minutes.",
   "video_aspect_auto": "Auto",
-  "model_guide_mode_r2v": "References → Video"
+  "model_guide_mode_r2v": "References → Video",
+  "artists_refresh_error": "We couldn't refresh this artist. Your changes here are still safe.",
+  "artists_deleted_elsewhere": "This artist was deleted. Copy anything you want to keep.",
+  "artists_list_refresh_error": "We couldn't refresh your artists.",
+  "studio_memories_refresh_error": "We couldn't refresh your memories.",
+  "studio_memories_more_error": "We couldn't load more memories.",
+  "common_try_again": "Try again"
 }
