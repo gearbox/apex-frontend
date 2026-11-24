@@ -12,7 +12,7 @@ export const PRODUCT_MANIFESTS = {
   synthara: {
     name: 'Synthara',
     short_name: 'Synthara',
-    description: 'AI-powered image and video generation for professionals',
+    description: 'Plan, write and visualise releases with your AI artists',
     theme_color: '#0f1117',
     background_color: '#0f1117',
   },

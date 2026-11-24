@@ -1,3 +1,4 @@
+import { setStudioMockLibraryName } from './studio';
 import { http, HttpResponse } from 'msw';
 import { MOCK_BASE_URL as BASE } from '../config';
 import {
@@ -110,6 +111,7 @@ export const libraryHandlers = [
   ),
   http.post(`${BASE}/v1/library/projects`, async ({ request }) => {
     const body = (await request.json()) as { name: string; description?: string | null };
+    setStudioMockLibraryName('project_mock_new', body.name);
     return HttpResponse.json(
       {
         id: 'project_mock_new',
@@ -124,6 +126,7 @@ export const libraryHandlers = [
   http.patch(`${BASE}/v1/library/projects/:project_id`, async ({ params, request }) => {
     const body = (await request.json()) as { name?: string; description?: string | null };
     const existing = mockProjects.find((project) => project.id === params.project_id);
+    if (body.name) setStudioMockLibraryName(String(params.project_id), body.name);
     return HttpResponse.json({
       id: params.project_id,
       name: body.name ?? existing?.name ?? 'Project',

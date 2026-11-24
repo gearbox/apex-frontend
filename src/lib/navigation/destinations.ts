@@ -1,10 +1,21 @@
-import { Activity, Coins, Images, MicVocal, Plus, Server, Shield, User } from '@lucide/svelte';
+import {
+  AudioLines,
+  Activity,
+  Coins,
+  Images,
+  MicVocal,
+  Plus,
+  Server,
+  Shield,
+  User,
+} from '@lucide/svelte';
 import * as m from '$paraglide/messages';
 import { ROUTES } from '$lib/utils/routes';
 import type { Capability } from '$lib/product/capabilities';
 
 export const NavDestinationId = {
   Create: 'create',
+  Studio: 'studio',
   Artists: 'artists',
   Library: 'library',
   Sessions: 'sessions',
@@ -35,6 +46,16 @@ export const NAV_DESTINATIONS = {
     pageTitle: () => m.topbar_create(),
     icon: Plus,
     isActive: byPrefix(ROUTES.create),
+  },
+  studio: {
+    id: 'studio',
+    href: ROUTES.studio,
+    label: () => m.nav_studio(),
+    sheetLabel: () => m.nav_studio(),
+    pageTitle: () => m.studio_title(),
+    icon: AudioLines,
+    requires: 'studio',
+    isActive: byPrefix(ROUTES.studio),
   },
   artists: {
     id: 'artists',

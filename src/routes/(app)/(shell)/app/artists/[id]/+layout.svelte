@@ -3,6 +3,7 @@
   import { page } from '$app/stores';
   import { artistQueryOptions, artistsQueryOptions } from '$lib/queries/studio';
   import { ROUTES } from '$lib/utils/routes';
+  import { studioNewProject } from '$lib/studio/paths';
   import { ArrowLeft } from '@lucide/svelte';
   import Spinner from '$lib/components/ui/Spinner.svelte';
   import { artistMonogram } from '$lib/studio/artists';
@@ -63,6 +64,9 @@
     </button>
   </section>
 {:else}
+  <a class="mx-4 mt-4 inline-block text-accent" href={studioNewProject(artist.id)}
+    >{m.studio_new_project()}</a
+  >
   <div class="mx-auto w-full max-w-7xl px-4 py-4 pb-28 md:px-8 md:py-8 md:pb-10">
     <div class="grid gap-6 lg:grid-cols-[230px_minmax(0,1fr)] xl:grid-cols-[250px_minmax(0,1fr)]">
       <aside class="hidden lg:block">

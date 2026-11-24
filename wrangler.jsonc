@@ -6,5 +6,6 @@
     "directory": "./build",
     "not_found_handling": "single-page-application",
   },
+  "env": { "synthara": { "name": "apex-synthara-staging" } },
   "observability": { "enabled": true },
 }

@@ -14,7 +14,7 @@
   // Public pages never refresh: rotating the shared refresh token from a second tab is treated as
   // token theft by the backend. The (app) layout authenticates if the user follows the back link.
   onMount(() => {
-    if (hasStoredSession()) backHref = get(productProfile).homeRoute;
+    if (hasStoredSession()) backHref = get(productProfile).home.route;
   });
 </script>
 

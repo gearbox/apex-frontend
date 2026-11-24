@@ -17,6 +17,8 @@
   import EntityNameDialog from '$lib/components/shared/EntityNameDialog.svelte';
   import { activeProject } from '$lib/stores/activeProject.svelte';
   import { addToast } from '$lib/stores/toasts';
+  import { ApiRequestError } from '$lib/api/errors';
+  import { studioProject } from '$lib/studio/paths';
   import {
     getActiveLibraryProjectId,
     getProjectNavigationTarget,
@@ -103,8 +105,23 @@
       if (activeProjectId === deletedProject.id || activeProject.id === deletedProject.id) {
         choose(null);
       }
-    } catch {
-      addToast({ type: 'error', message: m.library_project_delete_error() });
+    } catch (error) {
+      const detail =
+        error instanceof ApiRequestError
+          ? (error.detail as { blockers?: { code: string }[] } | undefined)
+          : undefined;
+      if (
+        error instanceof ApiRequestError &&
+        error.error === 'project_in_use' &&
+        detail?.blockers?.some((blocker) => blocker.code === 'studio_tracks')
+      ) {
+        addToast({
+          type: 'error',
+          message: m.studio_library_project_in_use(),
+          durationMs: 8000,
+          action: { label: m.common_open(), href: studioProject(deletedProject.id) },
+        });
+      } else addToast({ type: 'error', message: m.library_project_delete_error() });
     }
   }
 </script>

@@ -29,6 +29,19 @@ describe('applyDefaultTheme', () => {
 });
 
 describe('initTheme', () => {
+  it('applying a theme updates the theme-color meta', async () => {
+    const meta = document.createElement('meta');
+    meta.name = 'theme-color';
+    document.head.append(meta);
+    const { initTheme, setMode } = await import('./theme');
+    const cleanup = initTheme('frost');
+    setMode('dark');
+    expect(meta.content).toBe('#080810');
+    setMode('light');
+    expect(meta.content).toBe('#f5f7fa');
+    cleanup();
+    meta.remove();
+  });
   it('seeds the injected default without persisting it', async () => {
     const { initTheme } = await import('./theme');
     const cleanup = initTheme('frost');

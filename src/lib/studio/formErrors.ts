@@ -1,4 +1,5 @@
 import { ApiRequestError } from '$lib/api/errors';
+import { StudioProjectSetupError } from '$lib/queries/studioProjects';
 import * as m from '$paraglide/messages';
 
 export interface StudioValidationIssue {
@@ -60,6 +61,7 @@ export function artistDeleteError(error: unknown): string {
   if (error == null || isHandledGlobally(error)) return '';
   const apiError = studioError(error);
   if (!apiError) return m.artists_delete_error();
+  if (apiError.error === 'artist_busy') return m.artists_delete_busy();
   if (apiError.error === 'artist_in_use') {
     const detail = apiError.detail as { project_count?: number } | null;
     return m.artists_in_use({ count: String(detail?.project_count ?? 0) });
@@ -122,4 +124,55 @@ export function issueMessage(issue: StudioValidationIssue): string {
     default:
       return m.studio_issue_invalid();
   }
+}
+
+export function projectCreateError(error: unknown): string {
+  if (error == null || isHandledGlobally(error)) return '';
+  if (error instanceof StudioProjectSetupError) return m.studio_setup_error();
+  if (
+    studioError(error)?.error === 'project_name_conflict' ||
+    studioError(error)?.error === 'document_invalid'
+  )
+    return '';
+  return m.studio_save_error();
+}
+export function projectSaveError(error: unknown): string {
+  if (error == null || isHandledGlobally(error)) return '';
+  if (studioError(error)?.error === 'artist_not_found') return m.studio_artist_missing();
+  if (
+    studioError(error)?.error === 'document_invalid' ||
+    studioError(error)?.error === 'project_name_conflict'
+  )
+    return '';
+  return m.studio_save_error();
+}
+export function projectDisableError(error: unknown): string {
+  if (error == null || isHandledGlobally(error)) return '';
+  return studioError(error)?.error === 'project_has_tracks'
+    ? m.studio_remove_tracks()
+    : m.studio_save_error();
+}
+export function trackCreateError(error: unknown): string {
+  if (error == null || isHandledGlobally(error)) return '';
+  if (studioError(error)?.error === 'document_invalid') return '';
+  return studioError(error)?.error === 'track_limit_reached'
+    ? m.studio_track_limit()
+    : m.studio_save_error();
+}
+export function trackSaveError(error: unknown): string {
+  if (error == null || isHandledGlobally(error) || studioError(error)?.error === 'document_invalid')
+    return '';
+  return m.studio_save_error();
+}
+export function trackDeleteError(error: unknown): string {
+  if (error == null || isHandledGlobally(error)) return '';
+  return studioError(error)?.error === 'run_in_progress'
+    ? m.studio_track_busy()
+    : m.studio_save_error();
+}
+export function trackReorderError(error: unknown): string {
+  if (error == null || isHandledGlobally(error)) return '';
+  return studioError(error)?.error === 'track_order_mismatch'
+    ? m.studio_order_changed()
+    : m.studio_save_error();
 }

@@ -6,7 +6,7 @@ describe('product profiles', () => {
   it('has valid identity, routes and navigation slots', () => {
     for (const [id, profile] of Object.entries(PRODUCT_PROFILES)) {
       expect(profile.id).toBe(id);
-      expect(profile.homeRoute).toMatch(/^\/app\//);
+      expect(profile.home.route).toMatch(/^\/app\//);
       const { desktopMain, mobileTabs, moreSheet } = profile.navigation;
       for (const destination of [
         ...desktopMain,
@@ -22,7 +22,7 @@ describe('product profiles', () => {
   });
   it('preserves Vex navigation and home', () => {
     const profile = PRODUCT_PROFILES.vex;
-    expect(profile.homeRoute).toBe('/app/create');
+    expect(profile.home.route).toBe('/app/create');
     expect(profile.navigation.desktopMain).toEqual([
       'create',
       'library',
@@ -66,14 +66,14 @@ describe('product profiles', () => {
     const profile = PRODUCT_PROFILES.synthara;
     expect(profile.defaultTheme).toBe('nocturne');
     expect(profile.navigation).toEqual({
-      desktopMain: ['artists', 'create', 'library', 'sessions', 'jobs', 'billing'],
+      desktopMain: ['studio', 'artists', 'create', 'library', 'sessions', 'jobs', 'billing'],
       mobileTabs: [
+        { kind: 'destination', id: 'studio' },
         { kind: 'destination', id: 'create' },
-        { kind: 'destination', id: 'artists' },
         { kind: 'library' },
         { kind: 'more' },
       ],
-      moreSheet: ['sessions', 'billing', 'jobs', 'profile'],
+      moreSheet: ['artists', 'sessions', 'billing', 'jobs', 'profile'],
     });
   });
 });

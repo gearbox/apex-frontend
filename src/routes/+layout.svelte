@@ -7,7 +7,7 @@
   import { pwaInfo } from 'virtual:pwa-info';
   import { initTheme, applyDefaultTheme } from '$lib/stores/theme';
   import { BUILD_PRODUCT_ID } from '$lib/product/build';
-  import { productProfile } from '$lib/product/profile';
+  import { checkBuildProduct, productProfile } from '$lib/product/profile';
   import { appDisplayName, productInfo } from '$lib/stores/product';
   import { initNetworkListener } from '$lib/stores/network';
   import { initPwaInstallListener } from '$lib/stores/pwaInstall';
@@ -87,6 +87,7 @@
         if (res.ok) {
           const info = await res.json();
           productInfo.set(info);
+          checkBuildProduct(info.product);
 
           applyDefaultTheme(get(productProfile).defaultTheme);
         }

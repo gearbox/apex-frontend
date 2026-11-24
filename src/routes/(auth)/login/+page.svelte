@@ -1,6 +1,5 @@
 <script lang="ts">
-  import { get } from 'svelte/store';
-  import { productProfile } from '$lib/product/profile';
+  import { resolveHomeRoute } from '$lib/product/home';
   import { afterNavigate, goto, replaceState } from '$app/navigation';
   import { page } from '$app/stores';
   import { login, AuthError, AuthOperationCancelledError } from '$lib/api/auth';
@@ -53,7 +52,7 @@
       // Fire-and-forget locale sync — never blocks login flow
       void updateUserLocale($locale);
       const redirect =
-        safeReturnPath($page.url.searchParams.get('redirect')) ?? get(productProfile).homeRoute;
+        safeReturnPath($page.url.searchParams.get('redirect')) ?? (await resolveHomeRoute());
       goto(redirect, { replaceState: true });
     } catch (err) {
       if (err instanceof AuthOperationCancelledError) {

@@ -14,6 +14,13 @@ const defaultProbe: Probe = async () => {
 };
 let pending: Promise<void> | undefined;
 let attempted = false;
+let firstAttemptFinished = false;
+const firstAttemptListeners = new Set<() => void>();
+function finishFirstAttempt() {
+  firstAttemptFinished = true;
+  for (const listener of firstAttemptListeners) listener();
+  firstAttemptListeners.clear();
+}
 
 /** Probe once per tab, sharing concurrent calls and retrying transient failures once. */
 export function probeStudio(probe: Probe = defaultProbe, retryDelayMs = 30_000): Promise<void> {
@@ -30,8 +37,10 @@ export function probeStudio(probe: Probe = defaultProbe, retryDelayMs = 30_000):
       }
       if (status === 200 || status === 404) {
         studio.set(status === 200 ? 'available' : 'unavailable');
+        if (attempt === 0) finishFirstAttempt();
         return;
       }
+      if (attempt === 0) finishFirstAttempt();
       console.warn('studio.capability.probe_failed', { status });
       if (attempt === 0) await new Promise<void>((resolve) => setTimeout(resolve, retryDelayMs));
     }
@@ -49,6 +58,7 @@ export function retryStudioProbe(
 ): Promise<void> {
   if (get(studio) !== 'unreachable') return Promise.resolve();
   attempted = false;
+  firstAttemptFinished = false;
   studio.set('unknown');
   return probeStudio(probe, retryDelayMs);
 }
@@ -59,4 +69,27 @@ export function isCapabilityAvailable(state: CapabilityState): boolean {
 
 export function setStudioCapabilityForTest(state: CapabilityState): void {
   studio.set(state);
+}
+
+/** Wait no longer than the first attempt or the caller's deadline. */
+export function settleCapability(
+  capability: Capability,
+  timeoutMs = 2500,
+): Promise<CapabilityState> {
+  if (capability !== 'studio') return Promise.resolve('unknown');
+  const current = get(studio);
+  if (current !== 'unknown' || firstAttemptFinished) return Promise.resolve(current);
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      firstAttemptListeners.delete(finish);
+      resolve(get(studio));
+    };
+    const timer = setTimeout(finish, timeoutMs);
+    firstAttemptListeners.add(finish);
+    void probeStudio();
+  });
 }

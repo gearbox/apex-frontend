@@ -11,8 +11,16 @@ import {
   memoryDeleteError,
   memorySaveError,
   memoryStatusError,
+  projectCreateError,
+  projectSaveError,
+  projectDisableError,
+  trackCreateError,
+  trackSaveError,
+  trackDeleteError,
+  trackReorderError,
 } from './formErrors';
 import { ApiRequestError } from '$lib/api/errors';
+import { StudioProjectSetupError } from '$lib/queries/studioProjects';
 
 function apiError(error: string, status_code: number, detail?: unknown) {
   return new ApiRequestError({
@@ -116,6 +124,7 @@ describe('artistDeleteError', () => {
       apiError('artist_in_use', 409, { project_count: 3 }),
       'This artist is used by 3 project(s). Remove the artist from them first.',
     ],
+    [apiError('artist_busy', 409), 'This artist is finishing a reply. Try again in a few seconds.'],
     [apiError('server_error', 500), 'We could not delete this artist.'],
   ])('maps %s', (error, expected) => {
     expect(artistDeleteError(error)).toBe(expected);
@@ -166,5 +175,24 @@ describe('describedBy', () => {
       ),
     ).toBe('field-issue-0 field-issue-1 hint');
     expect(issueId('field', 1)).toBe('field-issue-1');
+  });
+});
+
+describe('project and track errors', () => {
+  it('maps setup and project failures', () => {
+    expect(projectCreateError(new StudioProjectSetupError('p', new Error()))).toBe(
+      "The project was created but Studio couldn't be set up. Try again.",
+    );
+    expect(projectCreateError(apiError('project_name_conflict', 409))).toBe('');
+    expect(projectSaveError(apiError('artist_not_found', 404))).toContain('artist');
+    expect(projectSaveError(apiError('document_invalid', 422))).toBe('');
+    expect(projectDisableError(apiError('project_has_tracks', 409))).toContain('tracks');
+  });
+  it('maps track failures', () => {
+    expect(trackCreateError(apiError('track_limit_reached', 409))).toContain('64');
+    expect(trackCreateError(apiError('document_invalid', 422))).toBe('');
+    expect(trackSaveError(apiError('document_invalid', 422))).toBe('');
+    expect(trackDeleteError(apiError('run_in_progress', 409))).toContain('run in progress');
+    expect(trackReorderError(apiError('track_order_mismatch', 422))).toContain('refreshed');
   });
 });

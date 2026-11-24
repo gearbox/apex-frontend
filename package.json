@@ -31,7 +31,10 @@
     "verify": "pnpm check && pnpm lint && pnpm knip && pnpm format:check && pnpm test:unit && pnpm build",
     "verify:mobile": "pnpm verify && pnpm test:e2e:mobile && pnpm test:pwa",
     "verify:all": "pnpm verify && pnpm test:e2e",
-    "knip": "knip"
+    "knip": "knip",
+    "build:vex": "VITE_PRODUCT_ID=vex vite build",
+    "build:synthara": "VITE_PRODUCT_ID=synthara vite build",
+    "check:product-build": "node scripts/check-product-build.mjs"
   },
   "keywords": [
     "apex",
@@ -50,6 +53,7 @@
     "@eslint/js": "^10.0.1",
     "@inlang/paraglide-js": "2.23.0",
     "@playwright/test": "1.57.0",
+    "@resvg/resvg-js": "^2.6.2",
     "@sveltejs/adapter-static": "^3.0.10",
     "@sveltejs/kit": "^2.70.2",
     "@sveltejs/vite-plugin-svelte": "^6.2.4",

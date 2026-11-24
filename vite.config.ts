@@ -4,6 +4,7 @@ import tailwindcss from '@tailwindcss/vite';
 import { SvelteKitPWA } from '@vite-pwa/sveltekit';
 import { defineConfig } from 'vite';
 import { APP_VERSION, BUILD_SHA } from './build-meta.js';
+import { productBrandAssetsPlugin } from './product-brand-assets.js';
 import { appVersionManifestPlugin } from './build-version-manifest.js';
 import { resolveBuildProductForMode } from './product-manifests.js';
 import { paraglideConfig } from './paraglide.config.js';
@@ -16,6 +17,8 @@ export default defineConfig(({ mode }) => {
       __BUILD_SHA__: JSON.stringify(BUILD_SHA),
       __PRODUCT_ID__: JSON.stringify(productId),
       __PRODUCT_NAME__: JSON.stringify(manifest.name),
+      __PRODUCT_SHORT_NAME__: JSON.stringify(manifest.short_name),
+      __PRODUCT_THEME_COLOR__: JSON.stringify(manifest.theme_color),
     },
     build: {
       // Product support is deliberately stricter than Vite's moving baseline.
@@ -35,6 +38,7 @@ export default defineConfig(({ mode }) => {
       paraglideVitePlugin(paraglideConfig),
       tailwindcss(),
       sveltekit(),
+      productBrandAssetsPlugin({ productId }),
       // This is deliberately emitted at build time rather than checked in under
       // static/. Workbox's glob below excludes JSON, so it can never become a
       // stale precache entry.
@@ -65,13 +69,14 @@ export default defineConfig(({ mode }) => {
           // Stable app identity for installed-app/Focus synchronization. Product builds deploy separately.
           id: '/',
           display: 'standalone',
+          lang: 'en',
           scope: '/',
           start_url: '/',
           icons: [
             { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
             { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },
             {
-              src: '/icon-512.png',
+              src: '/icon-maskable-512.png',
               sizes: '512x512',
               type: 'image/png',
               purpose: 'maskable',

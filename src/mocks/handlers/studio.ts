@@ -4,6 +4,11 @@ import {
   makeArtist,
   makeCursorPage,
   makeMemory,
+  makeProjectProfile,
+  makeTrack,
+  makeTrackDetail,
+  type MockProjectProfile,
+  type MockTrack,
   type MockArtist,
   type MockMemory,
 } from '../factories/studio';
@@ -18,12 +23,26 @@ let artists: MockArtist[] = [];
 let memories: MockMemory[] = [];
 let nextArtistId = 1;
 let nextMemoryId = 1;
+let profiles: MockProjectProfile[] = [];
+let tracks: MockTrack[] = [];
+let libraryNames = new Map<string, string>();
+let nextTrackId = 1;
+export function setStudioMockLibraryName(id: string, name: string): void {
+  libraryNames.set(id, name);
+  profiles = profiles.map((profile) =>
+    profile.library_project_id === id ? { ...profile, name } : profile,
+  );
+}
 
 export function resetStudioMockStore(): void {
   artists = [];
   memories = [];
   nextArtistId = 1;
   nextMemoryId = 1;
+  profiles = [];
+  tracks = [];
+  libraryNames = new Map();
+  nextTrackId = 1;
 }
 
 function apiError(status: number, error: string, message: string) {
@@ -62,6 +81,105 @@ function activeMemoryCount(artistId: string): number {
 }
 
 export const studioHandlers = [
+  http.get(`${BASE}/v1/studio/projects`, ({ request }) =>
+    HttpResponse.json(cursorPage(profiles, new URL(request.url))),
+  ),
+  http.get(`${BASE}/v1/studio/projects/:project_id`, ({ params }) => {
+    const profile = profiles.find((item) => item.library_project_id === params.project_id);
+    return profile ? HttpResponse.json(profile) : apiError(404, 'not_found', 'Project not found.');
+  }),
+  http.put(`${BASE}/v1/studio/projects/:project_id`, async ({ params, request }) => {
+    const id = String(params.project_id);
+    const body = (await request.json()) as components['schemas']['ProjectProfilePut'];
+    const old = profiles.find((item) => item.library_project_id === id);
+    const profile = makeProjectProfile({
+      ...old,
+      library_project_id: id,
+      name: libraryNames.get(id) ?? old?.name ?? 'Project',
+      release_kind: body.release_kind,
+      artist_id: body.artist_id ?? null,
+      concept: body.concept ?? null,
+      track_count: tracks.filter((item) => item.library_project_id === id).length,
+    });
+    profiles = [...profiles.filter((item) => item.library_project_id !== id), profile];
+    return HttpResponse.json(profile);
+  }),
+  http.delete(`${BASE}/v1/studio/projects/:project_id`, ({ params }) => {
+    if (tracks.some((item) => item.library_project_id === params.project_id))
+      return apiError(409, 'project_has_tracks', 'Project has tracks.');
+    profiles = profiles.filter((item) => item.library_project_id !== params.project_id);
+    return new HttpResponse(null, { status: 204 });
+  }),
+  http.get(`${BASE}/v1/studio/projects/:project_id/tracks`, ({ params }) =>
+    HttpResponse.json(
+      tracks
+        .filter((item) => item.library_project_id === params.project_id)
+        .sort((a, b) => a.position - b.position),
+    ),
+  ),
+  http.post(`${BASE}/v1/studio/projects/:project_id/tracks`, async ({ params, request }) => {
+    const id = String(params.project_id);
+    const body = (await request.json()) as { title: string };
+    const existing = tracks.filter((item) => item.library_project_id === id);
+    if (existing.length >= 64) return apiError(409, 'track_limit_reached', 'Track limit reached.');
+    const item = makeTrack({
+      id: `track_mock_${nextTrackId++}`,
+      library_project_id: id,
+      title: body.title,
+      position: existing.length,
+    });
+    tracks.push(item);
+    profiles = profiles.map((profile) =>
+      profile.library_project_id === id
+        ? { ...profile, track_count: existing.length + 1 }
+        : profile,
+    );
+    return HttpResponse.json(item, { status: 201 });
+  }),
+  http.put(`${BASE}/v1/studio/projects/:project_id/tracks/order`, async ({ params, request }) => {
+    const body = (await request.json()) as { track_ids: string[] };
+    const existing = tracks.filter((item) => item.library_project_id === params.project_id);
+    if (
+      body.track_ids.length !== existing.length ||
+      new Set(body.track_ids).size !== existing.length ||
+      body.track_ids.some((id) => !existing.some((item) => item.id === id))
+    )
+      return apiError(422, 'track_order_mismatch', 'Track order changed.');
+    tracks = tracks.map((item) =>
+      item.library_project_id === params.project_id
+        ? { ...item, position: body.track_ids.indexOf(item.id) }
+        : item,
+    );
+    return HttpResponse.json(
+      tracks
+        .filter((item) => item.library_project_id === params.project_id)
+        .sort((a, b) => a.position - b.position),
+    );
+  }),
+  http.get(`${BASE}/v1/studio/tracks/:track_id`, ({ params }) => {
+    const item = tracks.find((track) => track.id === params.track_id);
+    return item
+      ? HttpResponse.json(makeTrackDetail(item))
+      : apiError(404, 'not_found', 'Track not found.');
+  }),
+  http.patch(`${BASE}/v1/studio/tracks/:track_id`, async ({ params, request }) => {
+    const body = (await request.json()) as { title: string };
+    const index = tracks.findIndex((item) => item.id === params.track_id);
+    if (index < 0) return apiError(404, 'not_found', 'Track not found.');
+    tracks[index] = { ...tracks[index], title: body.title };
+    return HttpResponse.json(tracks[index]);
+  }),
+  http.delete(`${BASE}/v1/studio/tracks/:track_id`, ({ params }) => {
+    const item = tracks.find((track) => track.id === params.track_id);
+    tracks = tracks.filter((track) => track.id !== params.track_id);
+    if (item)
+      profiles = profiles.map((profile) =>
+        profile.library_project_id === item.library_project_id
+          ? { ...profile, track_count: Math.max(0, profile.track_count - 1) }
+          : profile,
+      );
+    return new HttpResponse(null, { status: 204 });
+  }),
   http.get(`${BASE}/v1/studio/artists`, ({ request }) => {
     const url = new URL(request.url);
     const { limit } = pagination(url, 30);

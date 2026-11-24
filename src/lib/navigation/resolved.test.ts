@@ -9,6 +9,7 @@ describe('resolved navigation', () => {
     const unavailable = resolveNavigation(synthara, () => false);
 
     expect(available.desktopMain).toEqual([
+      'studio',
       'artists',
       'create',
       'library',
@@ -18,18 +19,19 @@ describe('resolved navigation', () => {
     ]);
     expect(unavailable.desktopMain).toEqual(['create', 'library', 'sessions', 'jobs', 'billing']);
     expect(available.mobileTabs).toEqual([
+      { kind: 'destination', id: 'studio' },
       { kind: 'destination', id: 'create' },
-      { kind: 'destination', id: 'artists' },
       { kind: 'library' },
       { kind: 'more' },
     ]);
     expect(unavailable.mobileTabs).toEqual([
       { kind: 'destination', id: 'create' },
       { kind: 'library' },
+      { kind: 'destination', id: 'sessions' },
       { kind: 'more' },
     ]);
-    expect(available.moreSheet).toEqual(['sessions', 'billing', 'jobs', 'profile']);
-    expect(unavailable.moreSheet).toEqual(available.moreSheet);
+    expect(available.moreSheet).toEqual(['artists', 'sessions', 'billing', 'jobs', 'profile']);
+    expect(unavailable.moreSheet).toEqual(['billing', 'jobs', 'profile']);
   });
 
   it('navigationRequires reports whether a profile uses a capability', () => {
