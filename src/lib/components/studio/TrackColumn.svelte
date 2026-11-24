@@ -6,6 +6,7 @@
   import { MoreHorizontal } from '@lucide/svelte';
   import ContextMenu from '$lib/components/shared/ContextMenu.svelte';
   import Sheet from '$lib/components/shared/Sheet.svelte';
+  import SheetActions from '$lib/components/shared/SheetActions.svelte';
   import {
     tracksQueryOptions,
     createTrackMutationOptions,
@@ -33,6 +34,8 @@
   type Track = components['schemas']['TrackOut'];
   let { projectId, instance = 'default' }: { projectId: string; instance?: string } = $props();
   let inputId = $derived(`new-track-${instance}`);
+  let tooLongId = $derived(`${inputId}-too-long`);
+  let countId = $derived(`${inputId}-count`);
   const qc = useQueryClient();
   const query = createQuery(() => tracksQueryOptions(projectId));
   const create = createMutation(() => createTrackMutationOptions(qc));
@@ -43,11 +46,16 @@
   let title = $state('');
   let edit = $state<Track | null>(null);
   let editTitle = $state('');
+  let renameInput = $state<HTMLInputElement | undefined>();
+  let renameForm = $state<HTMLFormElement | undefined>();
   let deleting = $state<Track | null>(null);
   let error = $state('');
   let tracks = $derived(query.data ?? []);
   let createIssues = $derived(fieldIssues(validationIssues(create.error), 'title'));
   let renameIssues = $derived(fieldIssues(validationIssues(rename.error), 'title'));
+  let createTooLong = $derived(codePointLength(title) > STUDIO_LIMITS.trackTitle);
+  let showCreateCount = $derived(codePointLength(title) > STUDIO_LIMITS.trackTitle * 0.8);
+  let renameTooLong = $derived(codePointLength(editTitle) > STUDIO_LIMITS.trackTitle);
   function status(track: Track) {
     return track.current_lyrics_version_id
       ? m.studio_lyrics_chip()
@@ -59,17 +67,42 @@
     event.preventDefault();
     if (
       !title.trim() ||
-      codePointLength(title) > STUDIO_LIMITS.trackTitle ||
+      createTooLong ||
       tracks.length >= STUDIO_LIMITS.tracksPerProject ||
       create.isPending
     )
       return;
     error = '';
+    const submittedTitle = title;
     try {
-      await create.mutateAsync({ projectId, title: title.trim() });
-      title = '';
+      await create.mutateAsync({ projectId, title: submittedTitle.trim() });
+      if (title === submittedTitle) title = '';
     } catch (e) {
       error = trackCreateError(e);
+    }
+  }
+  async function focusMenu(trackId: string) {
+    await tick();
+    Array.from(listElement.querySelectorAll<HTMLButtonElement>('[data-track-menu]'))
+      .find((element) => element.dataset.trackMenu === trackId)
+      ?.focus();
+  }
+  async function closeRename(trackId = edit?.id) {
+    edit = null;
+    editTitle = '';
+    error = '';
+    rename.reset();
+    if (trackId) await focusMenu(trackId);
+  }
+  async function openRename(track: Track) {
+    edit = track;
+    editTitle = track.title;
+    error = '';
+    rename.reset();
+    if ($isDesktop) {
+      await tick();
+      renameInput?.focus();
+      renameInput?.select();
     }
   }
   async function move(index: number, delta: number) {
@@ -99,11 +132,7 @@
     return [
       {
         label: m.studio_rename(),
-        onclick: () => {
-          edit = track;
-          editTitle = track.title;
-          error = '';
-        },
+        onclick: () => void openRename(track),
       },
       {
         label: m.studio_move_up(),
@@ -127,10 +156,12 @@
   }
   async function saveRename(event: SubmitEvent) {
     event.preventDefault();
-    if (!edit || !editTitle.trim() || codePointLength(editTitle) > STUDIO_LIMITS.trackTitle) return;
+    if (!edit || !editTitle.trim() || renameTooLong || rename.isPending) return;
+    const trackId = edit.id;
+    const submittedTitle = editTitle;
     try {
-      await rename.mutateAsync({ projectId, id: edit.id, title: editTitle.trim() });
-      edit = null;
+      await rename.mutateAsync({ projectId, id: trackId, title: submittedTitle.trim() });
+      if (editTitle === submittedTitle) await closeRename(trackId);
     } catch (e) {
       error = trackSaveError(e);
     }
@@ -165,13 +196,27 @@
           <form class="flex min-w-0 flex-1 gap-1" onsubmit={saveRename}>
             <label class="sr-only" for={`rename-${track.id}`}>{m.studio_rename()}</label>
             <input
+              bind:this={renameInput}
               id={`rename-${track.id}`}
               class="min-w-0 flex-1 rounded-lg border border-border bg-bg p-2"
               bind:value={editTitle}
-              aria-invalid={renameIssues.length > 0}
-              aria-describedby={describedBy(`rename-track-${instance}`, renameIssues)}
+              onkeydown={(event) => {
+                if (event.key === 'Escape') {
+                  event.preventDefault();
+                  void closeRename(track.id);
+                }
+              }}
+              aria-invalid={renameTooLong || renameIssues.length > 0}
+              aria-describedby={describedBy(`rename-track-${instance}`, renameIssues, [
+                ...(renameTooLong ? [`rename-track-${instance}-too-long`] : []),
+              ])}
             />
-            <button class="text-accent">{m.studio_save()}</button>
+            <button class="text-accent" disabled={rename.isPending || renameTooLong}
+              >{m.studio_save()}</button
+            >
+            <button type="button" class="text-text-muted" onclick={() => void closeRename(track.id)}
+              >{m.common_cancel()}</button
+            >
           </form>
         {:else}<a
             data-track-link={track.id}
@@ -194,7 +239,8 @@
         <ContextMenu items={menuItems(track, index)}
           >{#snippet children(menu)}<button
               class="rounded-lg p-2"
-              aria-label={`${track.title}: ${m.studio_settings()}`}
+              data-track-menu={track.id}
+              aria-label={m.studio_track_actions({ title: track.title })}
               aria-haspopup="menu"
               aria-expanded={menu.expanded}
               onclick={menu.toggle}><MoreHorizontal size={18} /></button
@@ -206,18 +252,33 @@
   <form class="mt-3" onsubmit={add}>
     <label class="sr-only" for={inputId}>{m.studio_new_track()}</label><input
       id={inputId}
-      aria-invalid={createIssues.length > 0}
-      aria-describedby={describedBy(inputId, createIssues)}
+      aria-invalid={createTooLong || createIssues.length > 0}
+      aria-describedby={describedBy(inputId, createIssues, [
+        ...(showCreateCount ? [countId] : []),
+        ...(createTooLong ? [tooLongId] : []),
+      ])}
       class="w-full rounded-lg border border-border bg-bg p-2"
       placeholder={m.studio_new_track()}
       bind:value={title}
       disabled={tracks.length >= STUDIO_LIMITS.tracksPerProject}
     />
   </form>
+  {#if showCreateCount}<p id={countId} class="mt-1 text-xs text-text-muted">
+      {codePointLength(title)}/{STUDIO_LIMITS.trackTitle}
+    </p>{/if}
+  {#if createTooLong}<p id={tooLongId} role="alert" class="mt-1 text-sm text-danger">
+      {m.studio_issue_too_long()}
+    </p>{/if}
   {#each createIssues as issue, index (index)}<p id={issueId(inputId, index)} role="alert">
       {issueMessage(issue)}
     </p>{/each}
-  {#if edit && $isDesktop}{#each renameIssues as issue, index (index)}<p
+  {#if edit && $isDesktop}{#if renameTooLong}<p
+        id={`rename-track-${instance}-too-long`}
+        role="alert"
+        class="text-sm text-danger"
+      >
+        {m.studio_issue_too_long()}
+      </p>{/if}{#each renameIssues as issue, index (index)}<p
         id={issueId(`rename-track-${instance}`, index)}
         role="alert"
       >
@@ -228,29 +289,32 @@
     </p>{/if}
   {#if error && !edit && !deleting}<p role="alert" class="mt-2 text-danger">{error}</p>{/if}
 </div>
-{#if edit && !$isDesktop}<Sheet
-    ariaLabel={m.studio_rename()}
-    onclose={() => {
-      edit = null;
-      error = '';
-    }}
-    ><form class="space-y-4 p-5" onsubmit={saveRename}>
+{#if edit && !$isDesktop}<Sheet ariaLabel={m.studio_rename()} onclose={() => void closeRename()}
+    ><form bind:this={renameForm} class="space-y-4 p-5" onsubmit={saveRename}>
       <label class="block"
         >{m.studio_rename()}<input
           class="mt-2 w-full rounded-lg border border-border bg-bg p-2"
           bind:value={editTitle}
-          aria-invalid={renameIssues.length > 0}
-          aria-describedby={describedBy(`rename-track-${instance}`, renameIssues)}
+          aria-invalid={renameTooLong || renameIssues.length > 0}
+          aria-describedby={describedBy(`rename-track-${instance}`, renameIssues, [
+            ...(renameTooLong ? [`rename-track-${instance}-too-long`] : []),
+          ])}
         /></label
-      >{#each renameIssues as issue, index (index)}<p
+      >{#if renameTooLong}<p id={`rename-track-${instance}-too-long`} role="alert">
+          {m.studio_issue_too_long()}
+        </p>{/if}{#each renameIssues as issue, index (index)}<p
           id={issueId(`rename-track-${instance}`, index)}
           role="alert"
         >
           {issueMessage(issue)}
-        </p>{/each}{#if error}<p role="alert">{error}</p>{/if}<button
-        class="rounded-lg bg-accent px-4 py-2 text-bg"
-        disabled={rename.isPending}>{m.studio_save()}</button
-      >
+        </p>{/each}{#if error}<p role="alert">{error}</p>{/if}
+      <SheetActions
+        primaryLabel={m.studio_save()}
+        pending={rename.isPending}
+        primaryDisabled={renameTooLong || !editTitle.trim()}
+        oncancel={() => void closeRename()}
+        onprimary={() => renameForm?.requestSubmit()}
+      />
     </form></Sheet
   >{/if}
 {#if deleting}<Sheet
@@ -261,10 +325,16 @@
     }}
     ><div class="space-y-4 p-5">
       <p>{m.studio_delete_track_confirm({ title: deleting.title })}</p>
-      {#if error}<p role="alert" class="text-danger">{error}</p>{/if}<button
-        class="rounded-lg bg-danger px-4 py-2 text-white"
-        disabled={remove.isPending}
-        onclick={() => void deleteTrack()}>{m.studio_delete()}</button
-      >
+      {#if error}<p role="alert" class="text-danger">{error}</p>{/if}
+      <SheetActions
+        primaryLabel={m.studio_delete()}
+        primaryVariant="danger"
+        pending={remove.isPending}
+        oncancel={() => {
+          deleting = null;
+          error = '';
+        }}
+        onprimary={() => void deleteTrack()}
+      />
     </div></Sheet
   >{/if}

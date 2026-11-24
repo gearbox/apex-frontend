@@ -10,6 +10,8 @@
     setAdminCurrencySuppressedMutationOptions,
   } from '$lib/queries/admin';
   import type { AdminCurrency, SyncResult } from '$lib/api/admin';
+  import Sheet from '$lib/components/shared/Sheet.svelte';
+  import SheetActions from '$lib/components/shared/SheetActions.svelte';
 
   const queryClient = useQueryClient();
   const currenciesQuery = createQuery(() => adminPaymentCurrenciesQueryOptions());
@@ -25,6 +27,7 @@
   let catalogFeedback = $state('');
   const pendingRows = new SvelteSet<string>();
   let rowErrors = $state<Record<string, string>>({});
+  let pendingSuppression = $state<AdminCurrency | null>(null);
 
   function rowKey(currency: Pick<AdminCurrency, 'provider' | 'ticker'>): string {
     return `${String(currency.provider)}:${currency.ticker}`;
@@ -49,15 +52,7 @@
     }
   }
 
-  async function toggleSuppression(currency: AdminCurrency): Promise<void> {
-    const isSuppressing = !currency.is_suppressed;
-    if (
-      isSuppressing &&
-      !window.confirm(m.admin_currency_suppress_confirmation({ ticker: currency.ticker }))
-    ) {
-      return;
-    }
-
+  async function setSuppression(currency: AdminCurrency, isSuppressing: boolean): Promise<void> {
     const key = rowKey(currency);
     pendingRows.add(key);
     rowErrors = { ...rowErrors, [key]: '' };
@@ -79,6 +74,21 @@
     } finally {
       pendingRows.delete(key);
     }
+  }
+
+  function toggleSuppression(currency: AdminCurrency): void {
+    if (!currency.is_suppressed) {
+      pendingSuppression = currency;
+      return;
+    }
+    void setSuppression(currency, false);
+  }
+
+  function confirmSuppression(): void {
+    if (!pendingSuppression) return;
+    const currency = pendingSuppression;
+    pendingSuppression = null;
+    void setSuppression(currency, true);
   }
 </script>
 
@@ -202,6 +212,20 @@
     {/if}
   {/if}
 </section>
+{#if pendingSuppression}<Sheet
+    ariaLabel={m.admin_currency_suppress_confirmation({ ticker: pendingSuppression.ticker })}
+    onclose={() => (pendingSuppression = null)}
+    ><div class="space-y-4 p-5">
+      <p>{m.admin_currency_suppress_confirmation({ ticker: pendingSuppression.ticker })}</p>
+      <SheetActions
+        primaryLabel={m.admin_currency_suppress()}
+        primaryVariant="danger"
+        pending={suppressMutation.isPending}
+        oncancel={() => (pendingSuppression = null)}
+        onprimary={confirmSuppression}
+      />
+    </div></Sheet
+  >{/if}
 
 <style>
   .catalog {

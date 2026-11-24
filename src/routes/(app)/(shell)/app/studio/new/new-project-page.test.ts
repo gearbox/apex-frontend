@@ -126,6 +126,53 @@ it('preselects an existing artist from the URL', async () => {
   );
   client.clear();
 });
+it('creating an artist in place keeps the typed project and selects the artist', async () => {
+  let createdArtist = false;
+  let submittedProfile: Record<string, unknown> | undefined;
+  server.use(
+    http.get(`${BASE}/v1/studio/artists`, () =>
+      HttpResponse.json({
+        items: createdArtist ? [makeArtist({ id: 'iris', name: 'Iris' })] : [],
+        limit: 50,
+        has_more: false,
+        next_cursor: null,
+      }),
+    ),
+    http.post(`${BASE}/v1/studio/artists`, () => {
+      createdArtist = true;
+      return HttpResponse.json(makeArtist({ id: 'iris', name: 'Iris' }), { status: 201 });
+    }),
+    http.post(`${BASE}/v1/library/projects`, () =>
+      HttpResponse.json({ id: 'p1', name: 'Untitled release' }, { status: 201 }),
+    ),
+    http.put(`${BASE}/v1/studio/projects/p1`, async ({ request }) => {
+      submittedProfile = (await request.json()) as Record<string, unknown>;
+      return HttpResponse.json({ library_project_id: 'p1' });
+    }),
+  );
+  const client = renderPage();
+  const name = screen.getByLabelText(/Project name/) as HTMLInputElement;
+  const concept = screen.getByLabelText(/Concept/) as HTMLTextAreaElement;
+  await fireEvent.input(name, { target: { value: 'My album' } });
+  await fireEvent.input(concept, { target: { value: 'A story about returning home' } });
+  await fireEvent.click(screen.getByRole('button', { name: 'New artist…' }));
+  await fireEvent.input(screen.getByLabelText('Name'), { target: { value: 'Iris' } });
+  await fireEvent.click(screen.getByRole('button', { name: 'Create artist' }));
+  await waitFor(() =>
+    expect((screen.getByLabelText('Artists') as HTMLSelectElement).value).toBe('iris'),
+  );
+  expect(name.value).toBe('My album');
+  expect(concept.value).toBe('A story about returning home');
+  await fireEvent.click(screen.getByRole('button', { name: 'Create project' }));
+  await waitFor(() => expect(submittedProfile).toBeDefined());
+  expect(submittedProfile).toEqual({
+    release_kind: 'single',
+    artist_id: 'iris',
+    concept: 'A story about returning home',
+  });
+  expect(state.goto).toHaveBeenCalledWith('/app/studio/p1');
+  client.clear();
+});
 it('places a concept validation issue on the concept field', async () => {
   server.use(
     http.post(`${BASE}/v1/library/projects`, () =>
@@ -179,6 +226,39 @@ it('leaving during creation shows an Open toast without navigating', async () =>
   release();
   await waitFor(() => expect(get(toasts).at(-1)?.action?.href).toBe('/app/studio/p1'));
   expect(get(toasts).at(-1)?.durationMs).toBe(8000);
+  expect(state.goto).not.toHaveBeenCalled();
+  client.clear();
+});
+it('a stale setup failure reports that the project is in Library', async () => {
+  let release!: () => void;
+  let started!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const requested = new Promise<void>((resolve) => {
+    started = resolve;
+  });
+  server.use(
+    http.post(`${BASE}/v1/library/projects`, () =>
+      HttpResponse.json({ id: 'p1', name: 'Release' }, { status: 201 }),
+    ),
+    http.put(`${BASE}/v1/studio/projects/p1`, async () => {
+      started();
+      await gate;
+      return HttpResponse.json(
+        { error: 'server_error', message: 'failed', status_code: 500 },
+        { status: 500 },
+      );
+    }),
+  );
+  const client = renderPage();
+  await fireEvent.input(screen.getByLabelText(/Project name/), { target: { value: 'Release' } });
+  await fireEvent.click(screen.getByRole('button', { name: 'Create project' }));
+  await requested;
+  cleanup();
+  release();
+  await waitFor(() => expect(get(toasts).at(-1)?.message).toContain("couldn't be set up"));
+  expect(get(toasts).at(-1)?.message).toContain('The project is in your Library.');
   expect(state.goto).not.toHaveBeenCalled();
   client.clear();
 });

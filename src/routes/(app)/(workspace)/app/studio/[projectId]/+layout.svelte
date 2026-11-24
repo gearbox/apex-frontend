@@ -6,7 +6,7 @@
   import { artistsQueryOptions } from '$lib/queries/studio';
   import { ApiRequestError } from '$lib/api/errors';
   import { ROUTES } from '$lib/utils/routes';
-  import { studioProjectSettings } from '$lib/studio/paths';
+  import { studioProjectSettings, workspaceBack } from '$lib/studio/paths';
   import WorkspaceTopBar from '$lib/components/layout/WorkspaceTopBar.svelte';
   import TrackColumn from '$lib/components/studio/TrackColumn.svelte';
   import Spinner from '$lib/components/ui/Spinner.svelte';
@@ -15,6 +15,12 @@
   let id = $derived($page.params.projectId ?? '');
   const project = createQuery(() => ({ ...projectQueryOptions(id), enabled: !!id }));
   const artists = createQuery(artistsQueryOptions);
+  let routeId = $derived($page.route.id ?? '');
+  let isSettings = $derived(routeId.endsWith('/settings'));
+  let isOverview = $derived(routeId === '/(app)/(workspace)/app/studio/[projectId]');
+  let backHref = $derived(workspaceBack(routeId, id));
+  let backLabel = $derived(isOverview ? m.studio_back() : m.studio_back_to_project());
+  let workspaceTitle = $derived(isSettings ? m.studio_settings() : (project.data?.name ?? ''));
   let artist = $derived(artists.data?.items.find((item) => item.id === project.data?.artist_id));
 </script>
 
@@ -36,9 +42,10 @@
       >{/if}
   </div>
 {:else}
-  <WorkspaceTopBar title={project.data.name} backHref={ROUTES.studio} backLabel={m.studio_back()}
-    >{#snippet actions()}<a href={studioProjectSettings(id)}>{m.studio_settings()}</a
-      >{/snippet}</WorkspaceTopBar
+  <WorkspaceTopBar title={workspaceTitle} {backHref} {backLabel}
+    >{#snippet actions()}{#if !isSettings}<a href={studioProjectSettings(id)}
+          >{m.studio_settings()}</a
+        >{/if}{/snippet}</WorkspaceTopBar
   >
   <header class="hidden items-center gap-3 border-b border-border px-6 py-4 md:flex">
     <a href={ROUTES.studio} class="text-accent">{m.studio_title()}</a><span>/</span><strong
@@ -56,7 +63,7 @@
     <aside class="hidden w-80 shrink-0 overflow-y-auto border-r border-border md:block">
       <TrackColumn projectId={id} instance="desktop" />
     </aside>
-    <div class="min-w-0 flex-1 overflow-y-auto">
+    <div class="workspace-scroll min-w-0 flex-1 overflow-y-auto">
       {#key id}{@render children()}{/key}
     </div>
   </div>

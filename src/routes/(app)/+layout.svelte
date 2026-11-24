@@ -4,6 +4,7 @@
   import { page } from '$app/stores';
   import { createQuery, useQueryClient } from '@tanstack/svelte-query';
   import { currentAuthStatus, currentUser } from '$lib/stores/auth';
+  import { get } from 'svelte/store';
   import { initAuth } from '$lib/api/auth';
   import { probeStudio } from '$lib/product/capabilities';
   import { navigationRequires } from '$lib/navigation/resolved';
@@ -43,7 +44,7 @@
 
   onMount(async () => {
     stopPendingPaymentStorageListener = startPendingPaymentsStorageListener();
-    await initAuth();
+    if (get(currentAuthStatus) === 'unknown') await initAuth();
     checking = false;
   });
 

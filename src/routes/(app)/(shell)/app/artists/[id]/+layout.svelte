@@ -64,9 +64,6 @@
     </button>
   </section>
 {:else}
-  <a class="mx-4 mt-4 inline-block text-accent" href={studioNewProject(artist.id)}
-    >{m.studio_new_project()}</a
-  >
   <div class="mx-auto w-full max-w-7xl px-4 py-4 pb-28 md:px-8 md:py-8 md:pb-10">
     <div class="grid gap-6 lg:grid-cols-[230px_minmax(0,1fr)] xl:grid-cols-[250px_minmax(0,1fr)]">
       <aside class="hidden lg:block">
@@ -153,6 +150,10 @@
                 </ul>
               {/if}
             </div>
+            <a
+              class="shrink-0 rounded-lg bg-accent px-3 py-2 text-center text-sm font-semibold text-bg"
+              href={studioNewProject(artist.id)}>{m.studio_new_project()}</a
+            >
           </div>
           <nav
             class="mt-5 flex gap-1 border-t border-border pt-3"

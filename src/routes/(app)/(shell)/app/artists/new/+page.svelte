@@ -91,11 +91,7 @@
         persona: persona.trim() || null,
         ...(defaultLanguage ? { default_language: defaultLanguage } : {}),
       });
-      const returnTo = new URL(window.location.href).searchParams.get('returnTo');
-      const artistUrl =
-        returnTo === `${ROUTES.studio}/new`
-          ? `${returnTo}?artist=${encodeURIComponent(artist.id)}`
-          : `${ROUTES.artists}/${artist.id}?compose=1`;
+      const artistUrl = `${ROUTES.artists}/${artist.id}?compose=1`;
       if (!session.active) {
         addToast({
           type: 'success',

@@ -27,7 +27,7 @@
 
 <aside class="sidebar" class:collapsed>
   <!-- Logo area -->
-  <a href={$homeHref} class="sidebar-logo">
+  <a href={$homeHref} class="sidebar-logo" aria-label={collapsed ? $appDisplayName : undefined}>
     {#if collapsed}
       <span class="logo-letter">{logoLetter}</span>
     {:else}

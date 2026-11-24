@@ -1,9 +1,23 @@
 # Product deployments
 
-Each product requires its own build and worker. For Synthara staging:
+Each product requires its own build and worker. Always run that product's build immediately before its deploy so the worker receives the matching assets and identity.
+
+For Synthara staging:
 
 ```sh
 pnpm build:synthara && npx wrangler deploy --env synthara
+```
+
+For Vex:
+
+```sh
+pnpm build:vex && npx wrangler deploy
+```
+
+To confirm that the Synthara environment inherits the top-level `assets` configuration, run:
+
+```sh
+npx wrangler deploy --env synthara --dry-run
 ```
 
 For Cloudflare Workers Builds, set `VITE_PRODUCT_ID` separately for each worker.

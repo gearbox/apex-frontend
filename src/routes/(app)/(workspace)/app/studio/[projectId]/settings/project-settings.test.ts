@@ -31,7 +31,7 @@ function show() {
   });
   return client;
 }
-it('saves the profile without renaming when the name is unchanged', async () => {
+it('a successful save announces it without renaming an unchanged name', async () => {
   const profile = makeProjectProfile({ library_project_id: 'p', name: 'Release' });
   let patchCount = 0;
   let putCount = 0;
@@ -52,6 +52,7 @@ it('saves the profile without renaming when the name is unchanged', async () => 
   await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
   await waitFor(() => expect(putCount).toBe(1));
   expect(patchCount).toBe(0);
+  expect((await screen.findByRole('status')).textContent).toContain('Saved.');
   client.clear();
 });
 it('disables removal while tracks exist', async () => {
@@ -155,8 +156,28 @@ it('explains local length limits before submitting', async () => {
   expect(screen.getByLabelText(/Concept/).getAttribute('aria-describedby')).toContain(issue.id);
   client.clear();
 });
-it('removes an empty project and returns to Studio', async () => {
-  vi.spyOn(window, 'confirm').mockReturnValue(true);
+it('removal asks in a sheet and Cancel keeps the project', async () => {
+  server.use(
+    http.get(`${BASE}/v1/studio/projects/p`, () =>
+      HttpResponse.json(makeProjectProfile({ library_project_id: 'p', name: 'Release' })),
+    ),
+    http.get(`${BASE}/v1/studio/projects/p/tracks`, () => HttpResponse.json([])),
+  );
+  const client = show();
+  await screen.findByDisplayValue('Release');
+  const remove = screen.getByRole('button', { name: 'Remove from Studio' }) as HTMLButtonElement;
+  await waitFor(() => expect(remove.disabled).toBe(false));
+  await fireEvent.click(remove);
+  expect(
+    await screen.findByText('Remove this project from Studio? The Library project will be kept.'),
+  );
+  await fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+  expect(screen.getByDisplayValue('Release')).toBeTruthy();
+  expect(state.goto).not.toHaveBeenCalled();
+  client.clear();
+});
+
+it('removes an empty project and returns to Studio after confirmation', async () => {
   server.use(
     http.get(`${BASE}/v1/studio/projects/p`, () =>
       HttpResponse.json(makeProjectProfile({ library_project_id: 'p', name: 'Release' })),
@@ -166,9 +187,9 @@ it('removes an empty project and returns to Studio', async () => {
   );
   const client = show();
   await screen.findByDisplayValue('Release');
-  const remove = screen.getByRole('button', { name: 'Remove from Studio' }) as HTMLButtonElement;
-  await waitFor(() => expect(remove.disabled).toBe(false));
-  await fireEvent.click(remove);
+  await fireEvent.click(screen.getByRole('button', { name: 'Remove from Studio' }));
+  await screen.findByText('Remove this project from Studio? The Library project will be kept.');
+  await fireEvent.click(screen.getAllByRole('button', { name: 'Remove from Studio' }).at(-1)!);
   await waitFor(() => expect(state.goto).toHaveBeenCalledWith('/app/studio'));
   client.clear();
 });

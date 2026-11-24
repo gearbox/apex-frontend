@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/svelte';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import { QueryClient } from '@tanstack/svelte-query';
 import { http, HttpResponse } from 'msw';
 import QueryHarness from '../../../../../../../../tests/QueryHarness.svelte';
@@ -12,6 +12,8 @@ import {
 } from '../../../../../../../../mocks/factories/studio';
 import type { Component } from 'svelte';
 import { studioKeys } from '$lib/queries/studio';
+const state = vi.hoisted(() => ({ goto: vi.fn().mockResolvedValue(undefined) }));
+vi.mock('$app/navigation', () => ({ goto: state.goto }));
 vi.mock('$app/stores', () => ({
   page: {
     subscribe: (fn: (value: unknown) => void) => {
@@ -23,6 +25,7 @@ vi.mock('$app/stores', () => ({
     },
   },
 }));
+import { goto } from '$app/navigation';
 import TrackPage from './+page.svelte';
 function show() {
   const client = new QueryClient({
@@ -33,7 +36,10 @@ function show() {
   });
   return client;
 }
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 describe('read-only track', () => {
   it('matches lyrics by section id, hides instrumental lines and renders text safely', async () => {
     const plan = makePlanVersion({
@@ -60,7 +66,14 @@ describe('read-only track', () => {
     });
     server.use(
       http.get(`${BASE}/v1/studio/tracks/t`, () =>
-        HttpResponse.json(makeTrackDetail({ id: 't', current_plan: plan, current_lyrics: lyrics })),
+        HttpResponse.json(
+          makeTrackDetail({
+            id: 't',
+            library_project_id: 'p',
+            current_plan: plan,
+            current_lyrics: lyrics,
+          }),
+        ),
       ),
     );
     const client = show();
@@ -75,7 +88,9 @@ describe('read-only track', () => {
   });
   it('shows plan and lyrics empty states', async () => {
     server.use(
-      http.get(`${BASE}/v1/studio/tracks/t`, () => HttpResponse.json(makeTrackDetail({ id: 't' }))),
+      http.get(`${BASE}/v1/studio/tracks/t`, () =>
+        HttpResponse.json(makeTrackDetail({ id: 't', library_project_id: 'p' })),
+      ),
     );
     const client = show();
     expect(await screen.findByText('No plan yet')).toBeTruthy();
@@ -85,7 +100,9 @@ describe('read-only track', () => {
   it('keeps the loaded track visible when a refetch fails', async () => {
     server.use(
       http.get(`${BASE}/v1/studio/tracks/t`, () =>
-        HttpResponse.json(makeTrackDetail({ id: 't', title: 'Still here' })),
+        HttpResponse.json(
+          makeTrackDetail({ id: 't', library_project_id: 'p', title: 'Still here' }),
+        ),
       ),
     );
     const client = show();
@@ -103,4 +120,61 @@ describe('read-only track', () => {
     expect(await screen.findByRole('status')).toBeTruthy();
     client.clear();
   });
+});
+
+it('a missing track explains and links back to its project', async () => {
+  server.use(
+    http.get(`${BASE}/v1/studio/tracks/t`, () =>
+      HttpResponse.json(
+        { error: 'track_not_found', message: 'missing', status_code: 404 },
+        { status: 404 },
+      ),
+    ),
+  );
+  const client = show();
+  expect(
+    await screen.findByRole('heading', { name: "This track isn't here any more." }),
+  ).toBeTruthy();
+  expect(screen.getByRole('link', { name: 'Back to project' }).getAttribute('href')).toBe(
+    '/app/studio/p',
+  );
+  expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+  client.clear();
+});
+
+it('a track from another project redirects to its own URL', async () => {
+  server.use(
+    http.get(`${BASE}/v1/studio/tracks/t`, () =>
+      HttpResponse.json(makeTrackDetail({ id: 't', library_project_id: 'other-project' })),
+    ),
+  );
+  const client = show();
+  await waitFor(() =>
+    expect(goto).toHaveBeenCalledWith('/app/studio/other-project/tracks/t', {
+      replaceState: true,
+    }),
+  );
+  client.clear();
+});
+
+it('title rename can be cancelled and returns focus to Rename', async () => {
+  server.use(
+    http.get(`${BASE}/v1/studio/tracks/t`, () =>
+      HttpResponse.json(makeTrackDetail({ id: 't', library_project_id: 'p', title: 'First' })),
+    ),
+  );
+  const client = show();
+  await screen.findByRole('heading', { name: 'First' });
+  expect(document.querySelectorAll('h1')).toHaveLength(1);
+  const trigger = screen.getByRole('button', { name: 'Rename' });
+  await fireEvent.click(trigger);
+  const input = (await screen.findByRole('textbox', { name: 'Rename' })) as HTMLInputElement;
+  await waitFor(() => expect(document.activeElement).toBe(input));
+  expect(input.selectionStart).toBe(0);
+  expect(input.selectionEnd).toBe('First'.length);
+  expect(screen.getByRole('button', { name: 'Cancel' })).toBeTruthy();
+  await fireEvent.keyDown(input, { key: 'Escape' });
+  await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Rename' })).toBeNull());
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Rename' }));
+  client.clear();
 });

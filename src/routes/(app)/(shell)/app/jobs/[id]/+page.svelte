@@ -15,6 +15,8 @@
   import { formatAspectRatio } from '$lib/utils/format';
   import { openFeedbackDialog } from '$lib/stores/feedbackDialog.svelte';
   import * as m from '$paraglide/messages';
+  import Sheet from '$lib/components/shared/Sheet.svelte';
+  import SheetActions from '$lib/components/shared/SheetActions.svelte';
 
   let appTitle = $derived($appDisplayName);
 
@@ -36,9 +38,14 @@
 
   // ── Delete
   const deleteMutation = createMutation(() => deleteJobMutationOptions(queryClient));
+  let confirmDelete = $state(false);
 
   function handleDelete() {
-    if (!window.confirm('Delete this job? This cannot be undone.')) return;
+    confirmDelete = true;
+  }
+
+  function confirmDeleteJob() {
+    confirmDelete = false;
     deleteMutation.mutate(jobId, {
       onSuccess: () => goto(ROUTES.jobs),
       onError: (err) =>
@@ -243,3 +250,17 @@
     {/if}
   {/if}
 </div>
+{#if confirmDelete}<Sheet
+    ariaLabel={m.jobs_delete_confirmation()}
+    onclose={() => (confirmDelete = false)}
+    ><div class="space-y-4 p-5">
+      <p>{m.jobs_delete_confirmation()}</p>
+      <SheetActions
+        primaryLabel={m.common_delete()}
+        primaryVariant="danger"
+        pending={deleteMutation.isPending}
+        oncancel={() => (confirmDelete = false)}
+        onprimary={confirmDeleteJob}
+      />
+    </div></Sheet
+  >{/if}

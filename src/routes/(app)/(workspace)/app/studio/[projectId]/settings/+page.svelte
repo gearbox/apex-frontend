@@ -25,6 +25,8 @@
     issueId,
     issueMessage,
   } from '$lib/studio/formErrors';
+  import Sheet from '$lib/components/shared/Sheet.svelte';
+  import SheetActions from '$lib/components/shared/SheetActions.svelte';
   import * as m from '$paraglide/messages';
   let id = $derived($page.params.projectId ?? '');
   const qc = useQueryClient();
@@ -42,6 +44,8 @@
   let initialized = false;
   let error = $state('');
   let submitted = $state(false);
+  let saved = $state(false);
+  let confirmRemove = $state(false);
   let nameIssues = $derived(fieldIssues(validationIssues(rename.error), 'name'));
   let conceptIssues = $derived(fieldIssues(validationIssues(update.error), 'concept'));
   let nameConflict = $derived(studioError(rename.error)?.error === 'project_name_conflict');
@@ -67,11 +71,14 @@
     )
       return;
     error = '';
+    saved = false;
+    let fullySaved = true;
     if (name.trim() !== originalName) {
       try {
         await rename.mutateAsync({ id, name: name.trim() });
         originalName = name.trim();
       } catch (e) {
+        fullySaved = false;
         error = [m.studio_partial_name(), projectSaveError(e)].filter(Boolean).join(' ');
       }
     }
@@ -85,13 +92,16 @@
         },
       });
     } catch (e) {
+      fullySaved = false;
       error = [error, m.studio_partial_profile(), projectSaveError(e)].filter(Boolean).join(' ');
     }
+    saved = fullySaved;
   }
   async function remove() {
-    if ((tracks.data?.length ?? 1) > 0 || !window.confirm(m.studio_confirm_remove())) return;
+    if ((tracks.data?.length ?? 1) > 0) return;
     try {
       await disable.mutateAsync(id);
+      confirmRemove = false;
       addToast({ type: 'success', message: m.studio_removed() });
       await goto(ROUTES.studio);
     } catch (e) {
@@ -101,7 +111,7 @@
 </script>
 
 <section class="mx-auto max-w-3xl p-6">
-  <a class="text-accent" href={studioProject(id)}>← {m.studio_back()}</a>
+  <a class="hidden text-accent md:inline" href={studioProject(id)}>← {m.studio_back()}</a>
   <h1 class="mt-4 font-display text-3xl">{m.studio_settings()}</h1>
   <form class="mt-6 space-y-5" onsubmit={save}>
     <label class="block"
@@ -109,7 +119,10 @@
         class="mt-2 w-full rounded-lg border border-border bg-surface p-3"
         id="settings-project-name"
         bind:value={name}
-        oninput={() => rename.reset()}
+        oninput={() => {
+          rename.reset();
+          saved = false;
+        }}
         aria-invalid={nameEmpty || nameTooLong || nameConflict || nameIssues.length > 0}
         aria-describedby={describedBy('settings-project-name', nameIssues, [
           'settings-project-name-count',
@@ -140,7 +153,13 @@
       <legend>{m.studio_release()}</legend>
       <div class="flex gap-4">
         {#each [{ id: 'single', label: m.studio_single() }, { id: 'ep', label: m.studio_ep() }, { id: 'album', label: m.studio_album() }] as option (option.id)}<label
-            ><input type="radio" name="release" value={option.id} bind:group={release} />
+            ><input
+              type="radio"
+              name="release"
+              value={option.id}
+              bind:group={release}
+              onchange={() => (saved = false)}
+            />
             {option.label}</label
           >{/each}
       </div>
@@ -149,6 +168,7 @@
       >{m.studio_artists()}<select
         class="mt-2 w-full rounded-lg border border-border bg-surface p-3"
         bind:value={artist}
+        onchange={() => (saved = false)}
         ><option value="">{m.studio_no_artist()}</option
         >{#each artists.data?.items ?? [] as item (item.id)}<option value={item.id}
             >{item.name}</option
@@ -160,7 +180,10 @@
         id="settings-project-concept"
         rows="6"
         bind:value={concept}
-        oninput={() => update.reset()}
+        oninput={() => {
+          update.reset();
+          saved = false;
+        }}
         aria-invalid={conceptTooLong || conceptIssues.length > 0}
         aria-describedby={describedBy('settings-project-concept', conceptIssues, [
           'settings-project-concept-count',
@@ -180,18 +203,35 @@
       >
         {issueMessage(issue)}
       </p>{/each}
-    {#if error}<p role="alert" class="text-danger">{error}</p>{/if}<button
-      class="rounded-lg bg-accent px-4 py-2 text-bg"
-      disabled={rename.isPending || update.isPending}>{m.studio_save()}</button
-    >
+    {#if error}<p role="alert" class="text-danger">{error}</p>{/if}
+    <div class="flex items-center gap-3">
+      <button
+        class="rounded-lg bg-accent px-4 py-2 text-bg"
+        disabled={rename.isPending || update.isPending}>{m.studio_save()}</button
+      >
+      {#if saved}<p class="text-sm text-success" role="status">{m.studio_saved()}</p>{/if}
+    </div>
   </form>
   <div class="mt-10 border-t border-border pt-6">
     <button
       class="rounded-lg border border-danger px-4 py-2 text-danger disabled:opacity-50"
       disabled={!tracks.data || tracks.data.length > 0 || disable.isPending}
-      onclick={() => void remove()}>{m.studio_remove()}</button
+      onclick={() => (confirmRemove = true)}>{m.studio_remove()}</button
     >{#if tracks.data?.length}<p class="mt-2 text-sm text-text-muted">
         {m.studio_remove_tracks()}
       </p>{/if}
   </div>
 </section>
+{#if confirmRemove}<Sheet ariaLabel={m.studio_remove()} onclose={() => (confirmRemove = false)}
+    ><div class="space-y-4 p-5">
+      <p>{m.studio_confirm_remove()}</p>
+      {#if error}<p role="alert" class="text-danger">{error}</p>{/if}
+      <SheetActions
+        primaryLabel={m.studio_remove()}
+        primaryVariant="danger"
+        pending={disable.isPending}
+        oncancel={() => (confirmRemove = false)}
+        onprimary={() => void remove()}
+      />
+    </div></Sheet
+  >{/if}

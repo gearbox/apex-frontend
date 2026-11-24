@@ -2,7 +2,11 @@
   import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
-  import { artistsQueryOptions } from '$lib/queries/studio';
+  import {
+    artistsQueryOptions,
+    createArtistMutationOptions,
+    studioKeys,
+  } from '$lib/queries/studio';
   import {
     createStudioProjectMutationOptions,
     StudioProjectSetupError,
@@ -11,6 +15,7 @@
   import { codePointLength } from '$lib/studio/text';
   import { STUDIO_LIMITS } from '$lib/studio/limits';
   import {
+    artistCreateError,
     studioError,
     validationIssues,
     fieldIssues,
@@ -23,8 +28,13 @@
   import { addToast } from '$lib/stores/toasts';
   import { ROUTES } from '$lib/utils/routes';
   import * as m from '$paraglide/messages';
+  import Sheet from '$lib/components/shared/Sheet.svelte';
+  import SheetActions from '$lib/components/shared/SheetActions.svelte';
+  import { MAX_ARTISTS } from '$lib/studio/artists';
+  import type { components } from '$lib/api/types';
   const qc = useQueryClient();
   const artists = createQuery(artistsQueryOptions);
+  const createArtist = createMutation(() => createArtistMutationOptions(qc));
   const mutation = createMutation(() => createStudioProjectMutationOptions(qc));
   const session = componentSession();
   let name = $state('');
@@ -33,6 +43,19 @@
   let artist = $state('');
   let existingId = $state<string | undefined>();
   let previousName = $state<string | undefined>();
+  let artistSheetOpen = $state(false);
+  let artistName = $state('');
+  let artistForm = $state<HTMLFormElement | undefined>();
+  type ArtistPage = components['schemas']['CursorPage_src.api.schemas.studio.ArtistOut_'];
+  let artistIssues = $derived(fieldIssues(validationIssues(createArtist.error), 'name'));
+  let artistNameConflict = $derived(
+    studioError(createArtist.error)?.error === 'artist_name_conflict',
+  );
+  let artistApiError = $derived(artistCreateError(createArtist.error));
+  let artistLimitReached = $derived(
+    (artists.data?.items.length ?? 0) >= MAX_ARTISTS ||
+      studioError(createArtist.error)?.error === 'artist_limit_reached',
+  );
   let preselected = false;
   $effect(() => {
     const requested = $page.url.searchParams.get('artist');
@@ -86,10 +109,48 @@
       }
       await goto(url);
     } catch (error) {
+      if (!captured.active) {
+        let message = projectCreateError(error);
+        if (error instanceof StudioProjectSetupError) {
+          message = [message, m.studio_project_in_library()].filter(Boolean).join(' ');
+        }
+        if (message) addToast({ type: 'error', message });
+        return;
+      }
       if (error instanceof StudioProjectSetupError) {
         existingId = error.libraryProjectId;
         previousName = submittedName;
       }
+    }
+  }
+  function openArtistSheet() {
+    artistName = '';
+    createArtist.reset();
+    artistSheetOpen = true;
+  }
+  function closeArtistSheet() {
+    artistSheetOpen = false;
+    artistName = '';
+    createArtist.reset();
+  }
+  async function addArtist(event: SubmitEvent) {
+    event.preventDefault();
+    const submittedName = artistName.trim();
+    if (!submittedName || artistLimitReached || createArtist.isPending) return;
+    try {
+      const created = await createArtist.mutateAsync({ name: submittedName, persona: null });
+      const current = qc.getQueryData<ArtistPage>(studioKeys.artists());
+      qc.setQueryData<ArtistPage>(studioKeys.artists(), {
+        ...(current ?? { limit: 50, has_more: false, next_cursor: null }),
+        items: current?.items.some((item) => item.id === created.id)
+          ? current.items
+          : [...(current?.items ?? []), created],
+      });
+      const updated = qc.getQueryData<ArtistPage>(studioKeys.artists());
+      if (updated?.items.some((item) => item.id === created.id)) artist = created.id;
+      closeArtistSheet();
+    } catch {
+      // The mutation state supplies the field and form error below.
     }
   }
 </script>
@@ -140,10 +201,8 @@
             >{item.name}</option
           >{/each}</select
       ></label
-    ><a
-      class="text-accent"
-      href={`${ROUTES.artists}/new?returnTo=${encodeURIComponent(`${ROUTES.studio}/new`)}`}
-      >{m.studio_new_artist_link()}</a
+    ><button type="button" class="text-accent" onclick={openArtistSheet}
+      >{m.studio_new_artist_link()}</button
     >
     <label class="block"
       >{m.studio_concept()}<textarea
@@ -177,3 +236,41 @@
     >
   </form>
 </section>
+{#if artistSheetOpen}<Sheet ariaLabel={m.studio_new_artist_link()} onclose={closeArtistSheet}
+    ><form bind:this={artistForm} class="space-y-4 p-5" onsubmit={addArtist}>
+      <h2 class="font-display text-xl font-semibold">{m.studio_new_artist_link()}</h2>
+      <label class="block"
+        >{m.artists_name_label()}<input
+          id="studio-new-artist-name"
+          class="mt-2 w-full rounded-lg border border-border bg-bg p-3"
+          bind:value={artistName}
+          autocomplete="off"
+          required
+          aria-invalid={artistNameConflict || artistIssues.length > 0 || !!artistApiError}
+          aria-describedby={describedBy('studio-new-artist-name', artistIssues, [
+            ...(artistNameConflict || artistApiError ? ['studio-new-artist-error'] : []),
+          ])}
+        /></label
+      >{#if artistNameConflict}<p id="studio-new-artist-error" role="alert">
+          {m.artists_name_conflict()}
+        </p>{:else if artistApiError}<p id="studio-new-artist-error" role="alert">
+          {artistApiError}
+        </p>{/if}{#each artistIssues as issue, index (index)}<p
+          id={issueId('studio-new-artist-name', index)}
+          role="alert"
+        >
+          {issueMessage(issue)}
+        </p>{/each}
+      {#if artistLimitReached && !artistApiError}<p role="alert">
+          {m.artists_limit_reached()}
+        </p>{/if}
+      <p class="text-sm text-text-muted">{m.studio_artist_persona_later()}</p>
+      <SheetActions
+        primaryLabel={m.studio_create_artist()}
+        pending={createArtist.isPending}
+        primaryDisabled={artistLimitReached || !artistName.trim()}
+        oncancel={closeArtistSheet}
+        onprimary={() => artistForm?.requestSubmit()}
+      />
+    </form></Sheet
+  >{/if}

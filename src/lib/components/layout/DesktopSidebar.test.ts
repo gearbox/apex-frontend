@@ -64,6 +64,14 @@ describe('DesktopSidebar', () => {
   );
   it('forces collapse without changing the preference', () => {
     sidebarCollapsed.set(false);
+    productInfo.set({
+      product: 'synthara',
+      display_name: 'Synthara',
+      age_gate: 'none',
+      allowed_auth_methods: ['email_password'],
+      content_rating: 'sfw',
+      payment_providers: ['stripe'],
+    });
     const { container } = render(QueryHarness<ComponentProps<typeof DesktopSidebar>>, {
       client,
       component: DesktopSidebar,
@@ -71,6 +79,7 @@ describe('DesktopSidebar', () => {
     });
     expect(container.querySelector('.sidebar')?.classList.contains('collapsed')).toBe(true);
     expect(screen.queryByRole('button', { name: /collapse sidebar/i })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Synthara' })).toBeTruthy();
     expect(get(sidebarCollapsed)).toBe(false);
   });
   it('shows the admin entry for admins', () => {

@@ -50,7 +50,6 @@ beforeEach(() => {
   rows = [baseRow(), baseRow({ ticker: 'OLD', is_available: false, is_suppressed: true })];
   suppressMutateAsync = vi.fn().mockResolvedValue(baseRow({ is_suppressed: true }));
   refetchMock.mockClear();
-  vi.spyOn(window, 'confirm').mockReturnValue(true);
 });
 
 describe('AdminCurrencyCatalog', () => {
@@ -62,10 +61,12 @@ describe('AdminCurrencyCatalog', () => {
     expect(screen.getByText('Suppressed')).toBeTruthy();
   });
 
-  it('confirms and sends the exact available row when suppressing it', async () => {
+  it('asks explicitly and sends the exact available row when suppressing it', async () => {
     render(AdminCurrencyCatalog);
     await fireEvent.click(screen.getByRole('button', { name: /suppress USDTTRC20/i }));
-    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('USDTTRC20'));
+    expect(await screen.findByText(/Suppress USDTTRC20\?/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeTruthy();
+    await fireEvent.click(screen.getByRole('button', { name: /^Suppress$/ }));
     await waitFor(() =>
       expect(suppressMutateAsync).toHaveBeenCalledWith({
         provider: 'nowpayments',
@@ -83,6 +84,7 @@ describe('AdminCurrencyCatalog', () => {
       );
     render(AdminCurrencyCatalog);
     await fireEvent.click(screen.getByRole('button', { name: /suppress USDTTRC20/i }));
+    await fireEvent.click(screen.getByRole('button', { name: /^Suppress$/ }));
     await waitFor(() => expect(refetchMock).toHaveBeenCalled());
     expect(screen.getAllByText('Tether')).toHaveLength(2);
   });

@@ -12,18 +12,24 @@ vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
 vi.mock('$app/stores', () => ({
   page: {
     subscribe: (fn: (value: unknown) => void) => {
-      fn({ params: { projectId: 'p' }, url: new URL('http://localhost/app/studio/p') });
+      fn({
+        params: { projectId: 'p' },
+        url: new URL('http://localhost/app/studio/p'),
+        route: { id: '/(app)/(workspace)/app/studio/[projectId]' },
+      });
       return () => {};
     },
   },
 }));
 import Harness from './ProjectLayoutHarness.svelte';
 afterEach(cleanup);
+let mounted: HTMLElement | undefined;
 function show() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  render(QueryHarness, {
+  const result = render(QueryHarness, {
     props: { component: Harness as Component<object>, componentProps: {}, client },
   });
+  mounted = result.container;
   return client;
 }
 it('shows the Studio not-found state on a first 404', async () => {
@@ -37,6 +43,17 @@ it('shows the Studio not-found state on a first 404', async () => {
   );
   const client = show();
   expect(await screen.findByText("This project isn't in Studio")).toBeTruthy();
+  client.clear();
+});
+it('mobile scroll area uses the home-indicator padding utility', async () => {
+  server.use(
+    http.get(`${BASE}/v1/studio/projects/p`, () =>
+      HttpResponse.json(makeProjectProfile({ library_project_id: 'p' })),
+    ),
+  );
+  const client = show();
+  expect(await screen.findByText('Workspace content')).toBeTruthy();
+  expect(mounted?.querySelector('.workspace-scroll')).toBeTruthy();
   client.clear();
 });
 it('keeps the workspace mounted when a background refresh fails', async () => {

@@ -8,6 +8,7 @@
   import InfiniteScrollSentinel from '$lib/components/shared/InfiniteScrollSentinel.svelte';
   import Spinner from '$lib/components/ui/Spinner.svelte';
   import * as m from '$paraglide/messages';
+  import { locale } from '$lib/stores/locale';
   const projects = createInfiniteQuery(projectsInfiniteQueryOptions);
   const artists = createQuery(artistsQueryOptions);
   let items = $derived(projects.data?.pages.flatMap((page) => page.items) ?? []);
@@ -23,7 +24,7 @@
   }
   function relative(value: string) {
     const days = Math.round((new Date(value).getTime() - Date.now()) / 86400000);
-    return new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' }).format(days, 'day');
+    return new Intl.RelativeTimeFormat($locale, { numeric: 'auto' }).format(days, 'day');
   }
 </script>
 
@@ -72,8 +73,9 @@
               : m.studio_no_artist()}
           </p>
           <p class="mt-4 text-sm text-text-muted">
-            {project.track_count}
-            {m.studio_tracks()} · {relative(project.updated_at)}
+            {m.studio_track_count({ count: String(project.track_count) })} · {relative(
+              project.updated_at,
+            )}
           </p></a
         >{/each}
     </div>

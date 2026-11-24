@@ -1,6 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { QueryClient } from '@tanstack/svelte-query';
+import type { Writable } from 'svelte/store';
 import { http, HttpResponse } from 'msw';
 import type { Component } from 'svelte';
 import QueryHarness from '../../../tests/QueryHarness.svelte';
@@ -21,7 +22,12 @@ vi.mock('$app/stores', () => ({
   },
 }));
 import TrackColumn from './TrackColumn.svelte';
-afterEach(cleanup);
+import { isDesktop } from '$lib/utils/breakpoints';
+const desktop = isDesktop as Writable<boolean>;
+afterEach(() => {
+  cleanup();
+  desktop.set(false);
+});
 it('rolls back a keyboard reorder on mismatch and keeps focus on the track', async () => {
   const tracks = [
     makeTrack({ id: 'a', title: 'First', library_project_id: 'p' }),
@@ -111,7 +117,7 @@ it('renames a track using its menu', async () => {
   );
   const client = showColumn();
   await screen.findByRole('link', { name: /First/ });
-  await fireEvent.click(screen.getByRole('button', { name: 'First: Settings' }));
+  await fireEvent.click(screen.getByRole('button', { name: 'Actions for First' }));
   await fireEvent.click(await screen.findByRole('menuitem', { name: 'Rename' }));
   const input = await screen.findByRole('textbox', { name: 'Rename' });
   await fireEvent.input(input, { target: { value: 'Changed' } });
@@ -133,14 +139,101 @@ it('confirms deletion and explains an active run', async () => {
   );
   const client = showColumn();
   await screen.findByRole('link', { name: /First/ });
-  await fireEvent.click(screen.getByRole('button', { name: 'First: Settings' }));
+  await fireEvent.click(screen.getByRole('button', { name: 'Actions for First' }));
   await fireEvent.click(await screen.findByRole('menuitem', { name: 'Delete' }));
   expect(
     await screen.findByText('Delete “First” and all its plan and lyrics versions?'),
   ).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Cancel' })).toBeTruthy();
+  await fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+  expect(screen.queryByText('Delete “First” and all its plan and lyrics versions?')).toBeNull();
+  await fireEvent.click(screen.getByRole('button', { name: 'Actions for First' }));
+  await fireEvent.click(await screen.findByRole('menuitem', { name: 'Delete' }));
   await fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
   expect(await screen.findByText('This track has a run in progress.')).toBeTruthy();
   expect(screen.getByRole('link', { name: /First/ })).toBeTruthy();
+  client.clear();
+});
+it('inline rename takes focus, Escape cancels and focus returns to the row menu', async () => {
+  desktop.set(true);
+  server.use(
+    http.get(`${BASE}/v1/studio/projects/p/tracks`, () =>
+      HttpResponse.json([makeTrack({ id: 'a', library_project_id: 'p', title: 'First' })]),
+    ),
+  );
+  const client = showColumn();
+  await screen.findByRole('link', { name: /First/ });
+  await fireEvent.click(screen.getByRole('button', { name: 'Actions for First' }));
+  await fireEvent.click(await screen.findByRole('menuitem', { name: 'Rename' }));
+  const input = (await screen.findByRole('textbox', { name: 'Rename' })) as HTMLInputElement;
+  await waitFor(() => expect(document.activeElement).toBe(input));
+  expect(input.selectionStart).toBe(0);
+  expect(input.selectionEnd).toBe('First'.length);
+  await fireEvent.keyDown(input, { key: 'Escape' });
+  await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Rename' })).toBeNull());
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Actions for First' }));
+  client.clear();
+});
+it('rename and delete sheets offer Cancel', async () => {
+  server.use(
+    http.get(`${BASE}/v1/studio/projects/p/tracks`, () =>
+      HttpResponse.json([makeTrack({ id: 'a', library_project_id: 'p', title: 'First' })]),
+    ),
+  );
+  const client = showColumn();
+  await screen.findByRole('link', { name: /First/ });
+  await fireEvent.click(screen.getByRole('button', { name: 'Actions for First' }));
+  await fireEvent.click(await screen.findByRole('menuitem', { name: 'Rename' }));
+  expect(await screen.findByRole('button', { name: 'Cancel' })).toBeTruthy();
+  await fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+  expect(screen.queryByRole('dialog')).toBeNull();
+
+  await fireEvent.click(screen.getByRole('button', { name: 'Actions for First' }));
+  await fireEvent.click(await screen.findByRole('menuitem', { name: 'Delete' }));
+  expect(await screen.findByRole('button', { name: 'Cancel' })).toBeTruthy();
+  client.clear();
+});
+it('a title typed while the previous one is created is kept', async () => {
+  let tracks = [] as ReturnType<typeof makeTrack>[];
+  let release!: () => void;
+  let started!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const requested = new Promise<void>((resolve) => {
+    started = resolve;
+  });
+  server.use(
+    http.get(`${BASE}/v1/studio/projects/p/tracks`, () => HttpResponse.json(tracks)),
+    http.post(`${BASE}/v1/studio/projects/p/tracks`, async ({ request }) => {
+      const body = (await request.json()) as { title: string };
+      started();
+      await gate;
+      const created = makeTrack({ id: 'created', library_project_id: 'p', title: body.title });
+      tracks = [created];
+      return HttpResponse.json(created, { status: 201 });
+    }),
+  );
+  const client = showColumn();
+  const input = (await screen.findByLabelText('New track')) as HTMLInputElement;
+  await fireEvent.input(input, { target: { value: 'Track one' } });
+  await fireEvent.submit(input.closest('form')!);
+  await requested;
+  await fireEvent.input(input, { target: { value: 'Track two, typed while saving' } });
+  release();
+  await screen.findByRole('link', { name: /Track one/ });
+  await waitFor(() => expect(input.value).toBe('Track two, typed while saving'));
+  client.clear();
+});
+it('an over-long title explains the limit', async () => {
+  server.use(http.get(`${BASE}/v1/studio/projects/p/tracks`, () => HttpResponse.json([])));
+  const client = showColumn();
+  const input = (await screen.findByLabelText('New track')) as HTMLInputElement;
+  await fireEvent.input(input, { target: { value: 'x'.repeat(201) } });
+  const message = await screen.findByText('This value is longer than allowed.');
+  expect(input.getAttribute('aria-invalid')).toBe('true');
+  expect(input.getAttribute('aria-describedby')).toContain(message.id);
+  expect(screen.getByText('201/200')).toBeTruthy();
   client.clear();
 });
 it('disables creation at the track limit', async () => {

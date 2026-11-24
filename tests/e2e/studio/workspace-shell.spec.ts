@@ -12,6 +12,11 @@ test(
     await page.getByRole('button', { name: 'Create project' }).click();
     await expect(page).toHaveURL(/\/app\/studio\/p1$/);
     await expect(page.locator('.btm-tabs')).toHaveCount(0);
+    const newTrackInput = page.locator('#new-track-mobile');
+    await expect(newTrackInput).toBeVisible();
+    await newTrackInput.fill('Track one');
+    await newTrackInput.press('Enter');
+    await expect(page.getByRole('link', { name: /Track one/ })).toBeVisible();
     const result = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .analyze();
@@ -20,6 +25,14 @@ test(
         ['serious', 'critical'].includes(violation.impact ?? ''),
       ),
     ).toEqual([]);
+    await page.getByRole('link', { name: /Track one/ }).click();
+    await expect(page).toHaveURL(/\/app\/studio\/p1\/tracks\/t1$/);
+    await page.getByRole('link', { name: 'Back to project' }).click();
+    await expect(page).toHaveURL(/\/app\/studio\/p1$/);
+    await page.getByRole('link', { name: 'Settings' }).click();
+    await expect(page).toHaveURL(/\/app\/studio\/p1\/settings$/);
+    await page.getByRole('link', { name: 'Back to project' }).click();
+    await expect(page).toHaveURL(/\/app\/studio\/p1$/);
     await page.getByRole('link', { name: 'Back to Studio' }).click();
     await expect(page).toHaveURL(/\/app\/studio$/);
   },

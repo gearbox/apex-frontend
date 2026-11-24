@@ -8,6 +8,7 @@ import { server } from '../../../../../mocks/server';
 import { MOCK_BASE_URL as BASE } from '../../../../../mocks/config';
 import { makeArtist, makeProjectProfile } from '../../../../../mocks/factories/studio';
 import { studioKeys } from '$lib/queries/studio';
+import { locale } from '$lib/stores/locale';
 import Page from './+page.svelte';
 let reveal: () => void = () => {};
 beforeEach(() => {
@@ -30,6 +31,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  locale.set('en');
 });
 function show() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -104,4 +106,37 @@ it('loads the next project page when the sentinel appears', async () => {
   await act(async () => reveal());
   expect(await screen.findByText('Second page')).toBeTruthy();
   client.clear();
+});
+
+it('uses a counted track label and formats relative dates in the app locale', async () => {
+  const yesterday = new Date(Date.now() - 86_400_000).toISOString();
+  server.use(
+    http.get(`${BASE}/v1/studio/projects`, () =>
+      HttpResponse.json({
+        items: [
+          makeProjectProfile({
+            library_project_id: 'p1',
+            name: 'Yesterday release',
+            track_count: 1,
+            updated_at: yesterday,
+          }),
+        ],
+        limit: 30,
+        has_more: false,
+        next_cursor: null,
+      }),
+    ),
+    http.get(`${BASE}/v1/studio/artists`, () =>
+      HttpResponse.json({ items: [], limit: 50, has_more: false, next_cursor: null }),
+    ),
+  );
+  locale.set('en');
+  const client = show();
+  expect(await screen.findByText(/Tracks: 1/)).toBeTruthy();
+  client.clear();
+  cleanup();
+  locale.set('ru');
+  const russianClient = show();
+  expect(await screen.findByText(/Треки: 1 · вчера/)).toBeTruthy();
+  russianClient.clear();
 });
