@@ -1,6 +1,8 @@
 import type { Action } from 'svelte/action';
 
 export interface PullToRefreshOptions {
+  /** Whether gestures can start. Defaults to true. */
+  enabled?: boolean;
   /** Pull distance (post-damping, px) required to arm the gesture. Default 72. */
   threshold?: number;
   onProgress: (px: number, armed: boolean) => void;
@@ -47,7 +49,7 @@ export const pullToRefresh: Action<HTMLElement, PullToRefreshOptions> = (node, o
   };
 
   const onTouchStart = (e: TouchEvent) => {
-    if (startsInModal(e) || node.scrollTop > 0) {
+    if (opts.enabled === false || startsInModal(e) || node.scrollTop > 0) {
       reset();
       return;
     }
@@ -105,7 +107,12 @@ export const pullToRefresh: Action<HTMLElement, PullToRefreshOptions> = (node, o
 
   return {
     update(newOptions) {
+      const wasEnabled = opts.enabled !== false;
       opts = newOptions;
+      if (wasEnabled && opts.enabled === false) {
+        reset();
+        opts.onProgress(0, false);
+      }
     },
     destroy() {
       node.removeEventListener('touchstart', onTouchStart);

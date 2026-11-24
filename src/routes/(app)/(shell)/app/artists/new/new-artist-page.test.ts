@@ -232,6 +232,7 @@ describe('new artist page', () => {
       expect(get(toasts).at(-1)?.action?.href).toBe('/app/artists/artist-created?compose=1'),
     );
     expect(get(toasts).at(-1)?.message).toContain('Iris Vale');
+    expect(get(toasts).at(-1)?.durationMs).toBe(8000);
     expect(goto).not.toHaveBeenCalled();
   });
 });

@@ -77,12 +77,22 @@ function menuFor(title: string) {
   return screen.getByRole('button', { name: `Actions for ${title}` });
 }
 
+let breakpointListener: ((event: MediaQueryListEvent) => void) | undefined;
+
+function setDesktop(desktop: boolean) {
+  if (!breakpointListener) throw new Error('Expected a breakpoint listener');
+  breakpointListener({ matches: desktop } as MediaQueryListEvent);
+}
+
 function mockBrowserObservers(desktop = false) {
+  breakpointListener = undefined;
   vi.stubGlobal(
     'matchMedia',
     vi.fn().mockReturnValue({
       matches: desktop,
-      addEventListener: vi.fn(),
+      addEventListener: vi.fn((_type: string, listener: (event: MediaQueryListEvent) => void) => {
+        breakpointListener = listener;
+      }),
       removeEventListener: vi.fn(),
     }),
   );
@@ -662,6 +672,166 @@ describe('artist diary page', () => {
     await fireEvent.input(body, { target: { value: 'Draft B unsaved' } });
     return { dialog, body };
   }
+
+  it('the composer draft survives mobile → desktop → mobile', async () => {
+    renderPage();
+    await fireEvent.click(screen.getByRole('button', { name: '+ Memory' }));
+    const dialog = screen.getByRole('dialog');
+    await fireEvent.input(within(dialog).getByLabelText('What happened?'), {
+      target: { value: 'Mobile draft text' },
+    });
+    setDesktop(true);
+    const desktopBody = document.getElementById('desktop-memory-body') as HTMLTextAreaElement;
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(desktopBody));
+    expect(desktopBody.value).toBe('Mobile draft text');
+    setDesktop(false);
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await fireEvent.click(screen.getByRole('button', { name: '+ Memory' }));
+    expect(
+      (within(screen.getByRole('dialog')).getByLabelText('What happened?') as HTMLTextAreaElement)
+        .value,
+    ).toBe('Mobile draft text');
+  });
+
+  it('a desktop draft continues in the mobile sheet', async () => {
+    mockBrowserObservers(true);
+    renderPage();
+    const desktopBody = document.getElementById('desktop-memory-body') as HTMLTextAreaElement;
+    await fireEvent.input(desktopBody, { target: { value: 'Desktop draft text' } });
+    setDesktop(false);
+    await fireEvent.click(screen.getByRole('button', { name: '+ Memory' }));
+    expect(
+      (within(screen.getByRole('dialog')).getByLabelText('What happened?') as HTMLTextAreaElement)
+        .value,
+    ).toBe('Desktop draft text');
+  });
+
+  it('saving from the sheet clears the shared draft once, and nothing else', async () => {
+    mockBrowserObservers(true);
+    let posts = 0;
+    server.use(
+      http.post(`${BASE}/v1/studio/artists/artist-one/memories`, async ({ request }) => {
+        posts++;
+        const body = (await request.json()) as { body: string; title: string };
+        expect(body.body).toBe('Desktop draft text');
+        return HttpResponse.json(makeMemory(body), { status: 201 });
+      }),
+    );
+    renderPage();
+    const desktopBody = document.getElementById('desktop-memory-body') as HTMLTextAreaElement;
+    await fireEvent.input(desktopBody, { target: { value: 'Desktop draft text' } });
+    setDesktop(false);
+    await fireEvent.click(screen.getByRole('button', { name: '+ Memory' }));
+    const dialog = screen.getByRole('dialog');
+    expect((within(dialog).getByLabelText('What happened?') as HTMLTextAreaElement).value).toBe(
+      'Desktop draft text',
+    );
+    await fireEvent.click(within(dialog).getByRole('button', { name: 'Save memory' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    setDesktop(true);
+    await waitFor(() =>
+      expect((document.getElementById('desktop-memory-body') as HTMLTextAreaElement).value).toBe(
+        '',
+      ),
+    );
+    setDesktop(false);
+    await fireEvent.click(screen.getByRole('button', { name: '+ Memory' }));
+    expect(
+      (within(screen.getByRole('dialog')).getByLabelText('What happened?') as HTMLTextAreaElement)
+        .value,
+    ).toBe('');
+    expect(posts).toBe(1);
+  });
+
+  it('a save in flight survives a breakpoint change and completes in place', async () => {
+    mockBrowserObservers(true);
+    let release!: () => void;
+    let started!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const requested = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    let posts = 0;
+    server.use(
+      http.post(`${BASE}/v1/studio/artists/artist-one/memories`, async () => {
+        posts++;
+        started();
+        await gate;
+        return HttpResponse.json(makeMemory({ title: 'In flight', body: 'In flight' }), {
+          status: 201,
+        });
+      }),
+    );
+    renderPage();
+    await fireEvent.input(document.getElementById('desktop-memory-body')!, {
+      target: { value: 'In flight' },
+    });
+    await fireEvent.click(screen.getByRole('button', { name: 'Save memory' }));
+    await requested;
+    setDesktop(false);
+    await fireEvent.click(screen.getByRole('button', { name: '+ Memory' }));
+    const dialog = screen.getByRole('dialog');
+    const body = within(dialog).getByLabelText('What happened?') as HTMLTextAreaElement;
+    expect(body.value).toBe('In flight');
+    await waitFor(() => expect(body.readOnly).toBe(true));
+    expect(within(dialog).getByRole('button', { name: 'Saving…' })).toBeTruthy();
+    release();
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect((document.getElementById('desktop-memory-body') as HTMLTextAreaElement).value).toBe('');
+    expect(get(toasts).filter((toast) => toast.message === 'Memory saved')).toHaveLength(1);
+    expect(posts).toBe(1);
+  });
+
+  it('Cancel discards the shared draft', async () => {
+    renderPage();
+    await fireEvent.click(screen.getByRole('button', { name: '+ Memory' }));
+    const dialog = screen.getByRole('dialog');
+    await fireEvent.input(within(dialog).getByLabelText('What happened?'), {
+      target: { value: 'Discard me' },
+    });
+    await fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    setDesktop(true);
+    await waitFor(() =>
+      expect((document.getElementById('desktop-memory-body') as HTMLTextAreaElement).value).toBe(
+        '',
+      ),
+    );
+  });
+
+  it('a recovered draft is restored only into an empty composer', async () => {
+    renderPage();
+    const release = await startGatedDraft({ status: 500 });
+    const { dialog } = await openDraftB();
+    setDesktop(true);
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    release();
+    await waitFor(() => expect(get(toasts).at(-1)?.action?.label).toBe('Open draft'));
+    get(toasts).at(-1)?.action?.onClick?.();
+    expect((document.getElementById('desktop-memory-body') as HTMLTextAreaElement).value).toBe(
+      'Draft B unsaved',
+    );
+    setDesktop(false);
+    await fireEvent.click(screen.getByRole('button', { name: '+ Memory' }));
+    expect(
+      (within(screen.getByRole('dialog')).getByLabelText('What happened?') as HTMLTextAreaElement)
+        .value,
+    ).toBe('Draft B unsaved');
+    await fireEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }),
+    );
+    await fireEvent.click(screen.getByRole('button', { name: '+ Memory' }));
+    const restored = screen.getByRole('dialog');
+    expect((within(restored).getByLabelText('What happened?') as HTMLTextAreaElement).value).toBe(
+      'Draft A',
+    );
+    expect(within(restored).getByRole('alert').textContent).toContain(
+      'We could not save this memory.',
+    );
+    expect(dialog.isConnected).toBe(false);
+  });
 
   it('a late successful save does not close or reset the next draft', async () => {
     renderPage();

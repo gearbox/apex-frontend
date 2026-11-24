@@ -96,6 +96,7 @@
         addToast({
           type: 'success',
           message: m.artists_created_named({ name: submittedName }),
+          durationMs: 8000,
           action: { label: m.common_open(), href: artistUrl },
         });
         return;

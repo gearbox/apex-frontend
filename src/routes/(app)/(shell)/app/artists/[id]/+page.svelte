@@ -13,7 +13,8 @@
     studioKeys,
     updateMemoryMutationOptions,
   } from '$lib/queries/studio';
-  import type { InitialMemory, MemoryFormPayload } from '$lib/components/studio/MemoryForm.svelte';
+  import type { MemoryFormPayload } from '$lib/studio/memoryDraft';
+  import { MemoryDraft } from '$lib/studio/MemoryDraft.svelte';
   import MemoryForm from '$lib/components/studio/MemoryForm.svelte';
   import ConfirmDeleteModal from '$lib/components/shared/ConfirmDeleteModal.svelte';
   import ContextMenu from '$lib/components/shared/ContextMenu.svelte';
@@ -23,7 +24,7 @@
   import Spinner from '$lib/components/ui/Spinner.svelte';
   import { addToast } from '$lib/stores/toasts';
   import { isDesktop } from '$lib/utils/breakpoints';
-  import { formatLocalIsoDate, toInitialMemory } from '$lib/studio/memoryDraft';
+  import { formatLocalIsoDate } from '$lib/studio/memoryDraft';
   import {
     memoryDeleteError,
     memorySaveError,
@@ -44,7 +45,8 @@
   const composerSessions = createSessionTracker();
   const editSessions = createSessionTracker();
   let recoveredDraft = $state<{ payload: MemoryFormPayload; error: string } | null>(null);
-  let composerInitial = $state<InitialMemory | undefined>();
+  const composerDraft = new MemoryDraft('create');
+  let editDraft = $state<MemoryDraft | null>(null);
   let artistId = $derived($page.params.id ?? '');
   let status = $state<MemoryStatus>('active');
   let composerOpen = $state(false);
@@ -102,23 +104,33 @@
     return patch;
   }
 
+  $effect(() => {
+    if ($isDesktop && composerOpen) {
+      composerOpen = false;
+      void tick().then(() => {
+        if ($isDesktop) document.getElementById('desktop-memory-body')?.focus();
+      });
+    }
+  });
+
   function openComposer() {
-    composerSessions.invalidate();
-    createError = '';
-    composerInitial = undefined;
-    if (recoveredDraft) {
-      composerInitial = toInitialMemory(recoveredDraft.payload);
+    if (recoveredDraft && composerDraft.isEmpty) {
+      composerSessions.invalidate();
+      composerDraft.load(recoveredDraft.payload);
       createError = recoveredDraft.error;
       recoveredDraft = null;
-      composerVersion += 1;
     }
-    composerOpen = true;
+    composerOpen = !$isDesktop;
     composerAutofocus = true;
+    if ($isDesktop)
+      void tick().then(() => {
+        if ($isDesktop) document.getElementById('desktop-memory-body')?.focus();
+      });
   }
 
   function closeComposer() {
     composerSessions.invalidate();
-    composerInitial = undefined;
+    composerDraft.reset();
     composerOpen = false;
     composerAutofocus = false;
     createError = '';
@@ -130,11 +142,13 @@
     updateMemory.reset();
     editError = '';
     editMemory = memory;
+    editDraft = new MemoryDraft('edit', memory);
   }
 
   function closeEditMemory() {
     editSessions.invalidate();
     editMemory = null;
+    editDraft = null;
     editError = '';
     updateMemory.reset();
   }
@@ -159,12 +173,12 @@
         addToast({ type: 'success', message: m.studio_memory_saved() });
         return;
       }
-      composerInitial = undefined;
+      composerDraft.reset();
       composerVersion += 1;
       composerAutofocus = false;
       createError = '';
       createMemory.reset();
-      if (!$isDesktop) composerOpen = false;
+      composerOpen = false;
       addToast({ type: 'success', message: m.studio_memory_saved() });
     } catch (error) {
       const message = memorySaveError(error);
@@ -322,8 +336,8 @@
       {#key `desktop-${composerVersion}`}
         <MemoryForm
           idPrefix="desktop-memory"
-          mode="create"
-          autofocus={composerAutofocus}
+          draft={composerDraft}
+          autofocus={$isDesktop && composerAutofocus}
           pending={createMemory.isPending}
           issues={createIssues}
           error={createError}
@@ -565,8 +579,7 @@
     {#key `mobile-${composerVersion}`}
       <MemoryForm
         idPrefix="mobile-memory"
-        mode="create"
-        initial={composerInitial}
+        draft={composerDraft}
         pending={createMemory.isPending}
         issues={createIssues}
         error={createError}
@@ -577,7 +590,7 @@
   </Sheet>
 {/if}
 
-{#if editMemory}
+{#if editMemory && editDraft}
   <Sheet
     labelledby="memory-edit-title"
     initialFocusSelector={`#edit-memory-${editMemory.id}-body`}
@@ -587,8 +600,7 @@
     <h2 id="memory-edit-title" class="sr-only">{m.studio_edit_memory()}</h2>
     <MemoryForm
       idPrefix={`edit-memory-${editMemory.id}`}
-      mode="edit"
-      initial={editMemory}
+      draft={editDraft}
       pending={updateMemory.isPending}
       issues={updateIssues}
       error={editError}

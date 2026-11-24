@@ -1,5 +1,7 @@
 <script lang="ts">
-  import { tick, untrack } from 'svelte';
+  import { tick } from 'svelte';
+  import type { MemoryDraft } from '$lib/studio/MemoryDraft.svelte';
+  import type { MemoryFormPayload } from '$lib/studio/memoryDraft';
   import TagListInput from '$lib/components/shared/TagListInput.svelte';
   import {
     deriveMemoryTitle,
@@ -19,28 +21,9 @@
   import { locale } from '$lib/stores/locale';
   import * as m from '$paraglide/messages';
 
-  export interface MemoryFormPayload {
-    title: string;
-    body: string;
-    occurred_on?: string | null;
-    themes: string[];
-    imagery: string[];
-    salience: number;
-  }
-
-  export interface InitialMemory {
-    title: string;
-    body: string;
-    occurred_on: string | null;
-    themes: string[];
-    imagery: string[];
-    salience: number;
-  }
-
   interface Props {
-    mode: 'create' | 'edit';
+    draft: MemoryDraft;
     idPrefix?: string;
-    initial?: InitialMemory;
     pending?: boolean;
     autofocus?: boolean;
     issues?: StudioValidationIssue[];
@@ -50,9 +33,8 @@
   }
 
   let {
-    mode,
+    draft,
     idPrefix = 'memory-form',
-    initial,
     pending = false,
     autofocus = false,
     issues = [],
@@ -61,21 +43,6 @@
     oncancel,
   }: Props = $props();
 
-  let body = $state(untrack(() => initial?.body ?? ''));
-  let title = $state(untrack(() => initial?.title ?? ''));
-  let titleEdited = $state(
-    untrack(
-      () =>
-        mode === 'edit' ||
-        (initial !== undefined && initial.title !== deriveMemoryTitle(initial.body)),
-    ),
-  );
-  let occurredOn = $state(
-    untrack(() => (initial ? (initial.occurred_on ?? '') : todayLocalIsoDate())),
-  );
-  let themes = $state<string[]>(untrack(() => [...(initial?.themes ?? [])]));
-  let imagery = $state<string[]>(untrack(() => [...(initial?.imagery ?? [])]));
-  let salience = $state(untrack(() => initial?.salience ?? 3));
   let moreOpen = $state(false);
   let formEl: HTMLFormElement | undefined = $state();
   let bodyEl: HTMLTextAreaElement | undefined = $state();
@@ -111,39 +78,27 @@
     }
   });
 
-  function updateBody(event: Event) {
-    body = (event.currentTarget as HTMLTextAreaElement).value;
-    if (!titleEdited) title = deriveMemoryTitle(body);
-  }
-
   function submit(event: SubmitEvent) {
     event.preventDefault();
     if (saveDisabled) return;
-    void onsubmit({
-      title: title.trim(),
-      body,
-      ...(occurredOn ? { occurred_on: occurredOn } : mode === 'edit' ? { occurred_on: null } : {}),
-      themes,
-      imagery,
-      salience,
-    });
+    void onsubmit(draft.toPayload());
   }
 
-  let bodyLength = $derived(codePointLength(body));
-  let titleLength = $derived(codePointLength(title));
+  let bodyLength = $derived(codePointLength(draft.body));
+  let titleLength = $derived(codePointLength(draft.title));
   let saveDisabled = $derived(
     pending ||
-      !body.trim() ||
-      !title.trim() ||
-      !deriveMemoryTitle(body).trim() ||
+      !draft.body.trim() ||
+      !draft.title.trim() ||
+      !deriveMemoryTitle(draft.body).trim() ||
       bodyLength > STUDIO_LIMITS.memoryBody ||
       titleLength > STUDIO_LIMITS.memoryTitle,
   );
   let dateLabel = $derived(
-    occurredOn
-      ? occurredOn === todayLocalIsoDate()
+    draft.occurredOn
+      ? draft.occurredOn === todayLocalIsoDate()
         ? m.studio_date_today()
-        : formatLocalIsoDate(occurredOn, $locale)
+        : formatLocalIsoDate(draft.occurredOn, $locale)
       : m.studio_date_undated(),
   );
 </script>
@@ -156,7 +111,7 @@
 >
   <div class="flex flex-wrap items-center justify-between gap-2">
     <p class="text-sm font-semibold text-text">
-      {mode === 'create' ? m.studio_quick_capture() : m.studio_edit_memory()}
+      {draft.mode === 'create' ? m.studio_quick_capture() : m.studio_edit_memory()}
     </p>
   </div>
 
@@ -167,7 +122,7 @@
     <textarea
       id={`${idPrefix}-body`}
       bind:this={bodyEl}
-      value={body}
+      value={draft.body}
       rows="5"
       readonly={pending}
       required
@@ -177,7 +132,7 @@
         : undefined}
       aria-describedby={describedBy(`${idPrefix}-body`, bodyIssues, [`${idPrefix}-body-count`])}
       class="w-full resize-y rounded-2xl border border-border bg-bg px-4 py-3 text-sm leading-6 text-text outline-none placeholder:text-text-dim focus:border-accent"
-      oninput={updateBody}></textarea>
+      oninput={(event) => draft.setBody(event.currentTarget.value)}></textarea>
     <span
       id={`${idPrefix}-body-count`}
       class="block text-xs {bodyLength > STUDIO_LIMITS.memoryBody
@@ -197,19 +152,19 @@
       id={`${idPrefix}-date`}
       type="date"
       disabled={pending}
-      bind:value={occurredOn}
+      bind:value={draft.occurredOn}
       aria-label={dateLabel}
       aria-invalid={dateIssues.length > 0 ? 'true' : undefined}
       aria-describedby={describedBy(`${idPrefix}-date`, dateIssues)}
       class="rounded-full border border-border bg-surface px-3 py-1.5 text-sm text-text"
     />
     <span class="text-xs text-text-muted">{dateLabel}</span>
-    {#if occurredOn}
+    {#if draft.occurredOn}
       <button
         type="button"
         class="rounded-full px-2 py-1 text-xs text-text-muted hover:bg-surface-hover"
         disabled={pending}
-        onclick={() => (occurredOn = '')}
+        onclick={() => (draft.occurredOn = '')}
       >
         {m.studio_date_no_date()}
       </button>
@@ -218,7 +173,7 @@
         type="button"
         class="rounded-full px-2 py-1 text-xs text-accent hover:bg-surface-hover"
         disabled={pending}
-        onclick={() => (occurredOn = todayLocalIsoDate())}
+        onclick={() => (draft.occurredOn = todayLocalIsoDate())}
       >
         {m.studio_date_set_today()}
       </button>
@@ -243,7 +198,7 @@
         >
         <input
           id={`${idPrefix}-title`}
-          value={title}
+          value={draft.title}
           readonly={pending}
           required
           aria-invalid={titleIssues.length > 0 || titleLength > STUDIO_LIMITS.memoryTitle
@@ -253,10 +208,7 @@
             `${idPrefix}-title-count`,
           ])}
           class="w-full rounded-xl border border-border bg-bg px-3 py-2.5 text-sm text-text outline-none focus:border-accent"
-          oninput={(event) => {
-            title = (event.currentTarget as HTMLInputElement).value;
-            titleEdited = true;
-          }}
+          oninput={(event) => draft.setTitle(event.currentTarget.value)}
         />
         <span
           id={`${idPrefix}-title-count`}
@@ -278,7 +230,7 @@
         {issues}
         label={m.studio_memory_themes()}
         disabled={pending}
-        bind:values={themes}
+        bind:values={() => draft.themes, (values) => (draft.themes = values)}
         maxItems={STUDIO_LIMITS.themes.items}
         maxLength={STUDIO_LIMITS.themes.length}
       />
@@ -288,7 +240,7 @@
         {issues}
         label={m.studio_memory_imagery()}
         disabled={pending}
-        bind:values={imagery}
+        bind:values={() => draft.imagery, (values) => (draft.imagery = values)}
         maxItems={STUDIO_LIMITS.imagery.items}
         maxLength={STUDIO_LIMITS.imagery.length}
       />
@@ -308,13 +260,13 @@
               type="button"
               role="radio"
               disabled={pending}
-              aria-checked={salience === level}
+              aria-checked={draft.salience === level}
               aria-label={m.studio_importance_level({ level: String(level) })}
-              class="flex h-9 w-9 items-center justify-center rounded-full border text-sm font-semibold {salience ===
+              class="flex h-9 w-9 items-center justify-center rounded-full border text-sm font-semibold {draft.salience ===
               level
                 ? 'border-accent bg-accent text-bg'
                 : 'border-border text-text-muted hover:bg-surface-hover'}"
-              onclick={() => (salience = level)}>{level}</button
+              onclick={() => (draft.salience = level)}>{level}</button
             >
           {/each}
         </div>

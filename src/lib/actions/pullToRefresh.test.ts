@@ -131,6 +131,25 @@ describe('pullToRefresh action', () => {
     expect(onProgress).toHaveBeenLastCalledWith(0, false);
   });
 
+  it('disables gestures and cancels an armed pull when the layout changes', () => {
+    const action = attach({ enabled: true });
+    fire('touchstart', makeTouchEvent([makeTouch(0, 0)]));
+    fire('touchmove', makeTouchEvent([makeTouch(0, 200)]));
+    expect(onProgress).toHaveBeenLastCalledWith(80, true);
+    action?.update?.({ enabled: false, onProgress, onTrigger });
+    expect(onProgress).toHaveBeenLastCalledWith(0, false);
+    fire('touchend', makeTouchEvent([]));
+    fire('touchstart', makeTouchEvent([makeTouch(0, 0)]));
+    fire('touchmove', makeTouchEvent([makeTouch(0, 200)]));
+    fire('touchend', makeTouchEvent([]));
+    expect(onTrigger).not.toHaveBeenCalled();
+    action?.update?.({ enabled: true, onProgress, onTrigger });
+    fire('touchstart', makeTouchEvent([makeTouch(0, 0)]));
+    fire('touchmove', makeTouchEvent([makeTouch(0, 200)]));
+    fire('touchend', makeTouchEvent([]));
+    expect(onTrigger).toHaveBeenCalledTimes(1);
+  });
+
   it('removes all listeners on destroy', () => {
     const action = attach();
     action?.destroy?.();

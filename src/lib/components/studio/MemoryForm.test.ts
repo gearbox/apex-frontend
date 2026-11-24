@@ -1,11 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import MemoryForm from './MemoryForm.svelte';
+import { MemoryDraft } from '$lib/studio/MemoryDraft.svelte';
 
 describe('MemoryForm', () => {
   it('derives the title until edited, preserves body line breaks, and omits an undated create date', async () => {
     const onsubmit = vi.fn();
-    render(MemoryForm, { props: { mode: 'create', idPrefix: 'create-test', onsubmit } });
+    render(MemoryForm, {
+      props: { draft: new MemoryDraft('create'), idPrefix: 'create-test', onsubmit },
+    });
 
     const body = screen.getByLabelText('What happened?');
     expect(screen.getByRole('button', { name: 'Save memory' }).hasAttribute('disabled')).toBe(true);
@@ -35,37 +38,18 @@ describe('MemoryForm', () => {
 
   it('sends occurred_on null when an edit clears its date and disables save while pending', async () => {
     const onsubmit = vi.fn();
-    const rendered = render(MemoryForm, {
-      props: {
-        mode: 'edit',
-        idPrefix: 'edit-test',
-        initial: {
-          title: 'The first show',
-          body: 'A small room.\nA warm light.',
-          occurred_on: '2026-08-10',
-          themes: [],
-          imagery: [],
-          salience: 3,
-        },
-        pending: true,
-        onsubmit,
-      },
+    const draft = new MemoryDraft('edit', {
+      title: 'The first show',
+      body: 'A small room.\nA warm light.',
+      occurred_on: '2026-08-10',
+      themes: [],
+      imagery: [],
+      salience: 3,
     });
+    const props = { draft, idPrefix: 'edit-test', pending: true, onsubmit };
+    const rendered = render(MemoryForm, { props });
     expect(screen.getByRole('button', { name: 'Saving…' }).hasAttribute('disabled')).toBe(true);
-    await rendered.rerender({
-      mode: 'edit',
-      idPrefix: 'edit-test',
-      initial: {
-        title: 'The first show',
-        body: 'A small room.\nA warm light.',
-        occurred_on: '2026-08-10',
-        themes: [],
-        imagery: [],
-        salience: 3,
-      },
-      pending: false,
-      onsubmit,
-    });
+    await rendered.rerender({ ...props, pending: false });
     expect(screen.getByRole('button', { name: 'Save memory' }).hasAttribute('disabled')).toBe(
       false,
     );
@@ -85,7 +69,7 @@ describe('MemoryForm', () => {
   it('opens More and shows a title issue', async () => {
     render(MemoryForm, {
       props: {
-        mode: 'create',
+        draft: new MemoryDraft('create'),
         idPrefix: 'title-issue',
         issues: [{ path: 'title', code: 'too_long_after_normalization' }],
         onsubmit: vi.fn(),
@@ -106,7 +90,7 @@ describe('MemoryForm', () => {
   it('opens More for a tag issue and names the tag', async () => {
     render(MemoryForm, {
       props: {
-        mode: 'create',
+        draft: new MemoryDraft('create'),
         idPrefix: 'tag-issue',
         issues: [{ path: 'themes[1]', code: 'duplicate_tag' }],
         onsubmit: vi.fn(),
@@ -124,7 +108,9 @@ describe('MemoryForm', () => {
 
   it('a 120-emoji title is accepted and 121 disables save', async () => {
     const onsubmit = vi.fn();
-    render(MemoryForm, { props: { mode: 'create', idPrefix: 'emoji-title', onsubmit } });
+    render(MemoryForm, {
+      props: { draft: new MemoryDraft('create'), idPrefix: 'emoji-title', onsubmit },
+    });
     const body = screen.getByLabelText('What happened?');
     const save = screen.getByRole('button', { name: 'Save memory' });
 
@@ -146,7 +132,7 @@ describe('MemoryForm', () => {
   it('does not open More for a body-only issue', async () => {
     render(MemoryForm, {
       props: {
-        mode: 'create',
+        draft: new MemoryDraft('create'),
         idPrefix: 'body-issue',
         issues: [{ path: 'body', code: 'too_long_after_normalization' }],
         onsubmit: vi.fn(),
@@ -161,7 +147,7 @@ describe('MemoryForm', () => {
   });
   it('fields are read-only while saving', async () => {
     const props = {
-      mode: 'create' as const,
+      draft: new MemoryDraft('create'),
       idPrefix: 'pending',
       pending: true,
       onsubmit: vi.fn(),
@@ -186,5 +172,16 @@ describe('MemoryForm', () => {
     expect(title.readOnly).toBe(false);
     expect(controls.every((control) => !control.disabled)).toBe(true);
     expect(body.closest('form')?.hasAttribute('aria-busy')).toBe(false);
+  });
+  it('two forms bound to one draft stay in sync', async () => {
+    const draft = new MemoryDraft('create');
+    render(MemoryForm, { props: { draft, idPrefix: 'one', onsubmit: vi.fn() } });
+    render(MemoryForm, { props: { draft, idPrefix: 'two', onsubmit: vi.fn() } });
+    const first = document.getElementById('one-body') as HTMLTextAreaElement;
+    const second = document.getElementById('two-body') as HTMLTextAreaElement;
+    await fireEvent.input(first, { target: { value: 'Shared draft' } });
+    expect(second.value).toBe('Shared draft');
+    await fireEvent.input(second, { target: { value: 'Edited in the second form' } });
+    expect(first.value).toBe('Edited in the second form');
   });
 });

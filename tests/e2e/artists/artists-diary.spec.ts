@@ -225,6 +225,34 @@ test.describe('Artists diary', () => {
   );
 
   test(
+    'keeps the shared composer draft across viewport changes',
+    { tag: '@cross-browser' },
+    async ({ authenticatedPage: page }) => {
+      await page.setViewportSize({ width: 375, height: 812 });
+      await stubDiary(page, []);
+      await page.goto('/app/artists/artist-probe');
+      await page.getByRole('button', { name: '+ Memory' }).click();
+      const dialog = page.getByRole('dialog', { name: 'Quick capture' });
+      await dialog.getByLabel('What happened?').fill('Mobile draft text');
+      await page.setViewportSize({ width: 1024, height: 768 });
+      await expect(dialog).toHaveCount(0);
+      const desktopBody = page.locator('#desktop-memory-body');
+      await expect(desktopBody).toHaveValue('Mobile draft text');
+      await expect(desktopBody).toBeFocused();
+      await page.setViewportSize({ width: 375, height: 812 });
+      await expect(dialog).toHaveCount(0);
+      await page.getByRole('button', { name: '+ Memory' }).click();
+      await expect(dialog.getByLabel('What happened?')).toHaveValue('Mobile draft text');
+      await dialog.getByRole('button', { name: 'Cancel' }).click();
+      await page.setViewportSize({ width: 1024, height: 768 });
+      await desktopBody.fill('Desktop draft text');
+      await page.setViewportSize({ width: 375, height: 812 });
+      await page.getByRole('button', { name: '+ Memory' }).click();
+      await expect(dialog.getByLabel('What happened?')).toHaveValue('Desktop draft text');
+    },
+  );
+
+  test(
     'limit error stays inside mobile quick capture and keeps its draft at 375 px',
     { tag: '@mobile' },
     async ({ authenticatedPage: page }) => {
