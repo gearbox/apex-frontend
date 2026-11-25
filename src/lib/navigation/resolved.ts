@@ -16,10 +16,28 @@ export function resolveNavigation(
     const requirement = (NAV_DESTINATIONS[id] as NavDestination).requires;
     return requirement === undefined || isAvailable(requirement);
   };
+  const moreSheet = nav.moreSheet.filter(isVisible);
+  const visibleTabs = nav.mobileTabs.filter(
+    (slot) => slot.kind !== 'destination' || isVisible(slot.id),
+  );
+  const used = new Set(
+    visibleTabs.flatMap((slot) =>
+      slot.kind === 'destination' ? [slot.id] : slot.kind === 'library' ? ['library'] : [],
+    ),
+  );
+  const missing = nav.mobileTabs.length - visibleTabs.length;
+  const promoted = moreSheet.filter((id) => !used.has(id)).slice(0, missing);
+  const mobileTabs: Array<ProductNavigation['mobileTabs'][number]> = [];
+  for (const slot of visibleTabs) {
+    if (slot.kind === 'more')
+      mobileTabs.push(...promoted.map((id) => ({ kind: 'destination' as const, id })));
+    mobileTabs.push(slot);
+  }
+
   return {
     desktopMain: nav.desktopMain.filter(isVisible),
-    mobileTabs: nav.mobileTabs.filter((slot) => slot.kind !== 'destination' || isVisible(slot.id)),
-    moreSheet: nav.moreSheet.filter(isVisible),
+    mobileTabs,
+    moreSheet: moreSheet.filter((id) => !promoted.includes(id)),
   };
 }
 

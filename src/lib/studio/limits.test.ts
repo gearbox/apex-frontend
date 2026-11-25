@@ -3,7 +3,12 @@ import { STUDIO_LIMITS } from './limits';
 
 describe('studio contract limits', () => {
   it.each([
+    ['projectName', 100],
+    ['concept', 8000],
+    ['trackTitle', 200],
+    ['tracksPerProject', 64],
     ['artistName', 100],
+    ['artistsPerUser', 50],
     ['persona', 4000],
     ['voiceNotes', 2000],
     ['memoryTitle', 120],

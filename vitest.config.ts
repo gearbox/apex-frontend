@@ -15,6 +15,8 @@ export default defineConfig({
     __BUILD_SHA__: JSON.stringify(BUILD_SHA),
     __PRODUCT_ID__: JSON.stringify(productId),
     __PRODUCT_NAME__: JSON.stringify(manifest.name),
+    __PRODUCT_SHORT_NAME__: JSON.stringify(manifest.short_name),
+    __PRODUCT_THEME_COLOR__: JSON.stringify(manifest.theme_color),
   },
   resolve: {
     alias: {

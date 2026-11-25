@@ -1051,12 +1051,20 @@ describe('initAuth()', () => {
   it('valid refresh token: performs silent refresh and sets status to authenticated', async () => {
     const { currentAuthStatus } = await import('$lib/stores/auth');
     const profile = makeUserProfile();
+    let refreshes = 0;
+    let profileReads = 0;
 
     localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, 'valid-refresh-token');
 
     server.use(
-      http.post(`${BASE}/v1/auth/refresh`, () => HttpResponse.json(makeTokenResponse())),
-      http.get(`${BASE}/v1/users/me`, () => HttpResponse.json(profile)),
+      http.post(`${BASE}/v1/auth/refresh`, () => {
+        refreshes++;
+        return HttpResponse.json(makeTokenResponse());
+      }),
+      http.get(`${BASE}/v1/users/me`, () => {
+        profileReads++;
+        return HttpResponse.json(profile);
+      }),
     );
 
     let status: string | undefined;
@@ -1066,6 +1074,46 @@ describe('initAuth()', () => {
     unsub();
 
     expect(status).toBe('authenticated');
+    await initAuth();
+    expect(refreshes).toBe(1);
+    expect(profileReads).toBe(1);
+  });
+
+  it('shares one in-flight restore across concurrent callers', async () => {
+    const profile = makeUserProfile();
+    let release!: () => void;
+    let started!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const requested = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    let refreshes = 0;
+    let profileReads = 0;
+    localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, 'valid-refresh-token');
+
+    server.use(
+      http.post(`${BASE}/v1/auth/refresh`, async () => {
+        refreshes++;
+        started();
+        await gate;
+        return HttpResponse.json(makeTokenResponse());
+      }),
+      http.get(`${BASE}/v1/users/me`, () => {
+        profileReads++;
+        return HttpResponse.json(profile);
+      }),
+    );
+
+    const first = initAuth();
+    const second = initAuth();
+    await requested;
+    release();
+    await Promise.all([first, second]);
+
+    expect(refreshes).toBe(1);
+    expect(profileReads).toBe(1);
   });
 });
 

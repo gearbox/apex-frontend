@@ -58,6 +58,7 @@ jobs:
       - uses: ./.github/actions/setup-project
       - run: pnpm generate
       - run: pnpm build
+      - run: pnpm check:product-build --product vex
       # `pnpm preview` is SvelteKit's Vite preview. Besides the static adapter
       # output in build/, it imports the generated server/client/prerendered
       # runtime below. Keep both from this one build; E2E must not rebuild.
@@ -72,6 +73,8 @@ jobs:
           include-hidden-files: true
           if-no-files-found: error
           retention-days: 1
+      - run: pnpm build:synthara
+      - run: pnpm check:product-build --product synthara
 
   e2e-chromium:
     name: e2e-chromium

@@ -35,7 +35,7 @@ describe('TopBar', () => {
     });
     expect(container.querySelector('.topbar-title')?.textContent ?? '').toBe(title);
     expect(container.querySelector('.topbar-logo')?.getAttribute('href')).toBe(
-      get(productProfile).homeRoute,
+      get(productProfile).home.route,
     );
   });
 });

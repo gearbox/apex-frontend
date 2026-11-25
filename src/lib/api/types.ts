@@ -1831,6 +1831,112 @@ export interface paths {
         patch: operations["V1StudioArtistsArtistIdPatchArtist"];
         trace?: never;
     };
+    "/v1/studio/artists/{artist_id}/chats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListChats */
+        get: operations["V1StudioArtistsArtistIdChatsListChats"];
+        put?: never;
+        /** CreateChat */
+        post: operations["V1StudioArtistsArtistIdChatsCreateChat"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/studio/chat-messages/{message_id}/memory-draft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** CreateMemoryDraft */
+        post: operations["V1StudioChatMessagesMessageIdMemoryDraftCreateMemoryDraft"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/studio/chats/{chat_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetChat */
+        get: operations["V1StudioChatsChatIdGetChat"];
+        put?: never;
+        post?: never;
+        /** DeleteChat */
+        delete: operations["V1StudioChatsChatIdDeleteChat"];
+        options?: never;
+        head?: never;
+        /** PatchChat */
+        patch: operations["V1StudioChatsChatIdPatchChat"];
+        trace?: never;
+    };
+    "/v1/studio/memory-drafts/{draft_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetMemoryDraft */
+        get: operations["V1StudioMemoryDraftsDraftIdGetMemoryDraft"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/studio/chat-messages/{message_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetMessage */
+        get: operations["V1StudioChatMessagesMessageIdGetMessage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/studio/chats/{chat_id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListMessages */
+        get: operations["V1StudioChatsChatIdMessagesListMessages"];
+        put?: never;
+        /** SendMessage */
+        post: operations["V1StudioChatsChatIdMessagesSendMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/studio/artists/{artist_id}/memories": {
         parameters: {
             query?: never;
@@ -2512,6 +2618,27 @@ export interface components {
             current_password: string;
             new_password: string;
         };
+        /** ChatCreate */
+        ChatCreate: {
+            title: string;
+        };
+        /** ChatOut */
+        ChatOut: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            artist_id: string;
+            title: string;
+            message_count: number;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        /** ChatPatch */
+        ChatPatch: {
+            title: string;
+        };
         /** ClaimCommandRequest */
         ClaimCommandRequest: {
             agent_id: string;
@@ -2653,6 +2780,20 @@ export interface components {
         /** CursorPage[VersionSummary] */
         "CursorPage_src.api.schemas.studio.VersionSummary_": {
             items: components["schemas"]["VersionSummary"][];
+            limit: number;
+            has_more: boolean;
+            next_cursor?: string | null;
+        };
+        /** CursorPage[ChatOut] */
+        "CursorPage_src.api.schemas.studio_chat.ChatOut_": {
+            items: components["schemas"]["ChatOut"][];
+            limit: number;
+            has_more: boolean;
+            next_cursor?: string | null;
+        };
+        /** CursorPage[MessageOut] */
+        "CursorPage_src.api.schemas.studio_chat.MessageOut_": {
+            items: components["schemas"]["MessageOut"][];
             limit: number;
             has_more: boolean;
             next_cursor?: string | null;
@@ -3383,6 +3524,30 @@ export interface components {
             imagery?: string[];
             /** @default 3 */
             salience: number;
+            from_draft_id?: string | null;
+        };
+        /** MemoryDraftContentOut */
+        MemoryDraftContentOut: {
+            title: string;
+            body: string;
+            themes: string[];
+            imagery: string[];
+        };
+        /** MemoryDraftOut */
+        MemoryDraftOut: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            chat_id: string;
+            /** Format: uuid */
+            source_message_id: string;
+            status: components["schemas"]["StudioMemoryDraftStatus"];
+            draft: components["schemas"]["MemoryDraftContentOut"] | null;
+            error_code: string | null;
+            revision: number;
+            /** Format: date-time */
+            created_at: string;
+            finished_at: string | null;
         };
         /** MemoryOut */
         MemoryOut: {
@@ -3412,6 +3577,30 @@ export interface components {
             imagery?: string[];
             salience?: number;
             status?: components["schemas"]["StudioMemoryStatus"];
+        };
+        /** MessageCreate */
+        MessageCreate: {
+            /** Format: uuid */
+            client_message_id: string;
+            content: string;
+        };
+        /** MessageOut */
+        MessageOut: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            chat_id: string;
+            position: number;
+            role: components["schemas"]["StudioChatRole"];
+            status: components["schemas"]["StudioChatMessageStatus"];
+            content: string;
+            truncated: boolean;
+            memory_ids_used: string[];
+            error_code: string | null;
+            revision: number;
+            /** Format: date-time */
+            created_at: string;
+            finished_at: string | null;
         };
         /** MessageResponse */
         MessageResponse: {
@@ -3972,6 +4161,11 @@ export interface components {
             min: number;
             max: number;
         };
+        /** SendOut */
+        SendOut: {
+            user_message: components["schemas"]["MessageOut"];
+            artist_message: components["schemas"]["MessageOut"];
+        };
         /** SetBillingAccountRequest */
         SetBillingAccountRequest: {
             account: components["schemas"]["AccountType"];
@@ -4028,6 +4222,19 @@ export interface components {
             payment_id: string;
         };
         /**
+         * StudioChatMessageStatus
+         * @description A chat message is written once: a user message is born ``complete``; an artist message is
+         *     ``pending`` while its reply streams and ends ``complete`` or ``failed`` (terminal once).
+         * @enum {string}
+         */
+        StudioChatMessageStatus: "pending" | "complete" | "failed";
+        /**
+         * StudioChatRole
+         * @description Who wrote a chat message (artist chat, S1-P2c).
+         * @enum {string}
+         */
+        StudioChatRole: "user" | "artist";
+        /**
          * StudioDocumentKind
          * @description The two independently versioned documents of a track.
          * @enum {string}
@@ -4052,6 +4259,12 @@ export interface components {
          * @enum {string}
          */
         StudioIncompatibleLyricsPolicy: "reject" | "detach";
+        /**
+         * StudioMemoryDraftStatus
+         * @description Lifecycle of a memory draft (an LLM job over a chat message): terminal once.
+         * @enum {string}
+         */
+        StudioMemoryDraftStatus: "pending" | "complete" | "failed";
         /**
          * StudioMemoryOrigin
          * @description Who wrote an artist memory. ``chat`` is declared now so the CHECK needs no later migration.
@@ -9316,6 +9529,785 @@ export interface operations {
             };
         };
     };
+    V1StudioArtistsArtistIdChatsListChats: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: never;
+            path: {
+                artist_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CursorPage_src.api.schemas.studio_chat.ChatOut_"];
+                };
+            };
+            /** @description idempotency_key_required (memory-draft) or invalid_cursor. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Insufficient token balance. */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description artist_not_found, chat_not_found, message_not_found or memory_draft_not_found (or the artist chat is disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description chat_limit_reached, chat_full, chat_reply_in_progress, chat_busy, memory_draft_in_progress or idempotency_conflict. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid (a title or message) or message_not_complete. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description chat_rate_limited. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioArtistsArtistIdChatsCreateChat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                artist_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChatCreate"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatOut"];
+                };
+            };
+            /** @description idempotency_key_required (memory-draft) or invalid_cursor. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Insufficient token balance. */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description artist_not_found, chat_not_found, message_not_found or memory_draft_not_found (or the artist chat is disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description chat_limit_reached, chat_full, chat_reply_in_progress, chat_busy, memory_draft_in_progress or idempotency_conflict. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid (a title or message) or message_not_complete. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description chat_rate_limited. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioChatMessagesMessageIdMemoryDraftCreateMemoryDraft: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required (1-128 characters). The same key for the same message returns the same draft; the same key for another message is 409. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request accepted, processing continues off-line */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemoryDraftOut"];
+                };
+            };
+            /** @description idempotency_key_required (memory-draft) or invalid_cursor. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Insufficient token balance. */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description artist_not_found, chat_not_found, message_not_found or memory_draft_not_found (or the artist chat is disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description chat_limit_reached, chat_full, chat_reply_in_progress, chat_busy, memory_draft_in_progress or idempotency_conflict. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid (a title or message) or message_not_complete. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description chat_rate_limited. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioChatsChatIdGetChat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                chat_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatOut"];
+                };
+            };
+            /** @description idempotency_key_required (memory-draft) or invalid_cursor. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Insufficient token balance. */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description artist_not_found, chat_not_found, message_not_found or memory_draft_not_found (or the artist chat is disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description chat_limit_reached, chat_full, chat_reply_in_progress, chat_busy, memory_draft_in_progress or idempotency_conflict. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid (a title or message) or message_not_complete. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description chat_rate_limited. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioChatsChatIdDeleteChat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                chat_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, nothing follows */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description idempotency_key_required (memory-draft) or invalid_cursor. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Insufficient token balance. */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description artist_not_found, chat_not_found, message_not_found or memory_draft_not_found (or the artist chat is disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description chat_limit_reached, chat_full, chat_reply_in_progress, chat_busy, memory_draft_in_progress or idempotency_conflict. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid (a title or message) or message_not_complete. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description chat_rate_limited. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioChatsChatIdPatchChat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                chat_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChatPatch"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatOut"];
+                };
+            };
+            /** @description idempotency_key_required (memory-draft) or invalid_cursor. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Insufficient token balance. */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description artist_not_found, chat_not_found, message_not_found or memory_draft_not_found (or the artist chat is disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description chat_limit_reached, chat_full, chat_reply_in_progress, chat_busy, memory_draft_in_progress or idempotency_conflict. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid (a title or message) or message_not_complete. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description chat_rate_limited. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioMemoryDraftsDraftIdGetMemoryDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                draft_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemoryDraftOut"];
+                };
+            };
+            /** @description idempotency_key_required (memory-draft) or invalid_cursor. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Insufficient token balance. */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description artist_not_found, chat_not_found, message_not_found or memory_draft_not_found (or the artist chat is disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description chat_limit_reached, chat_full, chat_reply_in_progress, chat_busy, memory_draft_in_progress or idempotency_conflict. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid (a title or message) or message_not_complete. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description chat_rate_limited. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioChatMessagesMessageIdGetMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageOut"];
+                };
+            };
+            /** @description idempotency_key_required (memory-draft) or invalid_cursor. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Insufficient token balance. */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description artist_not_found, chat_not_found, message_not_found or memory_draft_not_found (or the artist chat is disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description chat_limit_reached, chat_full, chat_reply_in_progress, chat_busy, memory_draft_in_progress or idempotency_conflict. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid (a title or message) or message_not_complete. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description chat_rate_limited. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioChatsChatIdMessagesListMessages: {
+        parameters: {
+            query?: {
+                before?: number | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                chat_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CursorPage_src.api.schemas.studio_chat.MessageOut_"];
+                };
+            };
+            /** @description idempotency_key_required (memory-draft) or invalid_cursor. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Insufficient token balance. */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description artist_not_found, chat_not_found, message_not_found or memory_draft_not_found (or the artist chat is disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description chat_limit_reached, chat_full, chat_reply_in_progress, chat_busy, memory_draft_in_progress or idempotency_conflict. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid (a title or message) or message_not_complete. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description chat_rate_limited. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioChatsChatIdMessagesSendMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                chat_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MessageCreate"];
+            };
+        };
+        responses: {
+            /** @description Request accepted, processing continues off-line */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SendOut"];
+                };
+            };
+            /** @description idempotency_key_required (memory-draft) or invalid_cursor. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Insufficient token balance. */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description artist_not_found, chat_not_found, message_not_found or memory_draft_not_found (or the artist chat is disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description chat_limit_reached, chat_full, chat_reply_in_progress, chat_busy, memory_draft_in_progress or idempotency_conflict. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid (a title or message) or message_not_complete. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description chat_rate_limited. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     V1StudioArtistsArtistIdMemoriesListMemories: {
         parameters: {
             query?: {
@@ -11498,10 +12490,13 @@ export const resolutionValues: ReadonlyArray<FlattenedDeepRequired<components>["
 export const runtimeStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["RuntimeState"]> = ["none", "provisioning", "active", "suspended", "removing", "paused", "stale", "stopping"];
 export const samplerValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Sampler"]> = ["euler", "euler_ancestral", "euler_cfg_pp", "heun", "dpm_2", "dpm_2_ancestral", "lms", "dpmpp_2s_ancestral", "dpmpp_sde", "dpmpp_2m", "dpmpp_2m_sde", "dpmpp_3m_sde", "ddim", "uni_pc", "uni_pc_bh2", "lcm", "res_multistep"];
 export const schedulerValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Scheduler"]> = ["normal", "karras", "exponential", "sgm_uniform", "simple", "ddim_uniform", "beta", "linear_quadratic", "kl_optimal"];
+export const studioChatMessageStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["StudioChatMessageStatus"]> = ["pending", "complete", "failed"];
+export const studioChatRoleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["StudioChatRole"]> = ["user", "artist"];
 export const studioDocumentKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["StudioDocumentKind"]> = ["plan", "lyrics"];
 export const studioDocumentOriginValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["StudioDocumentOrigin"]> = ["user", "llm", "import"];
 export const studioExportTargetValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["StudioExportTarget"]> = ["suno"];
 export const studioIncompatibleLyricsPolicyValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["StudioIncompatibleLyricsPolicy"]> = ["reject", "detach"];
+export const studioMemoryDraftStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["StudioMemoryDraftStatus"]> = ["pending", "complete", "failed"];
 export const studioMemoryOriginValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["StudioMemoryOrigin"]> = ["user", "chat"];
 export const studioMemoryStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["StudioMemoryStatus"]> = ["active", "archived"];
 export const studioReleaseKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["StudioReleaseKind"]> = ["single", "ep", "album"];

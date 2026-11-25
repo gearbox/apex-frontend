@@ -71,13 +71,13 @@ describe('MobileBottomTabs', () => {
       Array.from(container.querySelectorAll('.btm-tab-label')).map((node) =>
         node.textContent?.trim(),
       ),
-    ).toEqual(['Create', 'Artists', 'Library', 'More']);
+    ).toEqual(['Studio', 'Create', 'Library', 'More']);
     expect(
       Array.from(container.querySelectorAll('a')).map((node) => node.getAttribute('href')),
-    ).toEqual(['/app/create', '/app/artists', '/app/library']);
+    ).toEqual(['/app/studio', '/app/create', '/app/library']);
   });
 
-  it('shows Synthara Artists only when Studio is available', () => {
+  it('shows the Studio tab only when available', () => {
     productInfo.set({
       product: 'synthara',
       display_name: 'Synthara',
@@ -92,7 +92,7 @@ describe('MobileBottomTabs', () => {
       Array.from(container.querySelectorAll('.btm-tab-label')).map((node) =>
         node.textContent?.trim(),
       ),
-    ).toEqual(['Create', 'Artists', 'Library', 'More']);
+    ).toEqual(['Studio', 'Create', 'Library', 'More']);
     unmount();
 
     for (const state of ['unknown', 'unavailable'] as const) {
@@ -102,7 +102,7 @@ describe('MobileBottomTabs', () => {
         Array.from(hidden.container.querySelectorAll('.btm-tab-label')).map((node) =>
           node.textContent?.trim(),
         ),
-      ).toEqual(['Create', 'Library', 'More']);
+      ).toEqual(['Create', 'Library', 'Sessions', 'More']);
       expect(screen.queryByRole('link', { name: 'Artists' })).toBeNull();
       hidden.unmount();
     }

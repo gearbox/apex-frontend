@@ -6,6 +6,7 @@ export const ROUTES = {
   billingTopUp: '/app/billing?tab=buy',
   create: '/app/create',
   artists: '/app/artists',
+  studio: '/app/studio',
   library: '/app/library',
   sessions: '/app/sessions',
   jobs: '/app/jobs',

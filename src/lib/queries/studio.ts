@@ -12,10 +12,18 @@ type MemoryStatus = components['schemas']['StudioMemoryStatus'];
 
 export const studioKeys = {
   all: ['studio'] as const,
+  projects: () => [...studioKeys.all, 'projects'] as const,
+  project: (id: string) => [...studioKeys.all, 'project', id] as const,
+  tracks: (id: string) => [...studioKeys.project(id), 'tracks'] as const,
+  track: (id: string) => [...studioKeys.all, 'track', id] as const,
   artists: () => [...studioKeys.all, 'artists'] as const,
   artist: (id: string) => [...studioKeys.all, 'artist', id] as const,
   memories: (id: string, status: MemoryStatus) =>
     [...studioKeys.artist(id), 'memories', status] as const,
+};
+export const studioScopes = {
+  project: (id: string) => `studio.project.${id}`,
+  tracks: (projectId: string) => `studio.tracks.${projectId}`,
 };
 export function artistsQueryOptions() {
   return {

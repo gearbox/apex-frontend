@@ -2,6 +2,7 @@ import type { ThemeName } from '$lib/themes';
 import { ROUTES } from '$lib/utils/routes';
 import { NavDestinationId as D, type NavDestinationId } from '$lib/navigation/destinations';
 import type { ProductId } from './ids';
+import type { Capability } from './capabilities';
 
 export type MobileTabSlot =
   | { readonly kind: 'destination'; readonly id: NavDestinationId }
@@ -12,9 +13,13 @@ export interface ProductNavigation {
   readonly mobileTabs: readonly MobileTabSlot[];
   readonly moreSheet: readonly NavDestinationId[];
 }
+export interface ProductHome {
+  readonly route: string;
+  readonly whenCapable?: { readonly capability: Capability; readonly route: string };
+}
 export interface ProductProfile {
   readonly id: ProductId;
-  readonly homeRoute: string;
+  readonly home: ProductHome;
   readonly defaultTheme: ThemeName;
   readonly navigation: ProductNavigation;
 }
@@ -32,23 +37,23 @@ const VEX_NAVIGATION: ProductNavigation = {
 export const PRODUCT_PROFILES = {
   vex: {
     id: 'vex',
-    homeRoute: ROUTES.create,
+    home: { route: ROUTES.create },
     defaultTheme: 'slate',
     navigation: VEX_NAVIGATION,
   },
   synthara: {
     id: 'synthara',
-    homeRoute: ROUTES.create,
+    home: { route: ROUTES.create, whenCapable: { capability: 'studio', route: ROUTES.studio } },
     defaultTheme: 'nocturne',
     navigation: {
-      desktopMain: [D.Artists, D.Create, D.Library, D.Sessions, D.Jobs, D.Billing],
+      desktopMain: [D.Studio, D.Artists, D.Create, D.Library, D.Sessions, D.Jobs, D.Billing],
       mobileTabs: [
+        { kind: 'destination', id: D.Studio },
         { kind: 'destination', id: D.Create },
-        { kind: 'destination', id: D.Artists },
         { kind: 'library' },
         { kind: 'more' },
       ],
-      moreSheet: [D.Sessions, D.Billing, D.Jobs, D.Profile],
+      moreSheet: [D.Artists, D.Sessions, D.Billing, D.Jobs, D.Profile],
     },
   },
 } as const satisfies Record<ProductId, ProductProfile>;

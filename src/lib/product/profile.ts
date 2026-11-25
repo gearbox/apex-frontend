@@ -21,3 +21,12 @@ export function resolveProductProfile(
 export const productProfile = derived(productInfo, ($info) =>
   resolveProductProfile($info?.product),
 );
+
+let reportedMismatch = false;
+export function checkBuildProduct(runtimeId: string | undefined): void {
+  const runtime = parseProductId(runtimeId);
+  if (runtime !== null && runtime !== BUILD_PRODUCT_ID && !reportedMismatch) {
+    reportedMismatch = true;
+    console.error('product.build_mismatch', { build: BUILD_PRODUCT_ID, runtime });
+  }
+}

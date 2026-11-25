@@ -1,5 +1,3 @@
-export const MAX_ARTISTS = 50;
-
 export function artistMonogram(name: string): string {
   return name
     .trim()

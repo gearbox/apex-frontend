@@ -2,6 +2,7 @@ import type { ComponentProps } from 'svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/svelte';
 import { QueryClient } from '@tanstack/svelte-query';
+import { get } from 'svelte/store';
 import QueryHarness from '../../../tests/QueryHarness.svelte';
 import { makeUserProfile } from '../../../mocks/factories/user';
 import { clearAuth, setUser } from '$lib/stores/auth';
@@ -61,6 +62,26 @@ describe('DesktopSidebar', () => {
       expect(screen.queryByRole('link', { name: 'Admin' })).toBeNull();
     },
   );
+  it('forces collapse without changing the preference', () => {
+    sidebarCollapsed.set(false);
+    productInfo.set({
+      product: 'synthara',
+      display_name: 'Synthara',
+      age_gate: 'none',
+      allowed_auth_methods: ['email_password'],
+      content_rating: 'sfw',
+      payment_providers: ['stripe'],
+    });
+    const { container } = render(QueryHarness<ComponentProps<typeof DesktopSidebar>>, {
+      client,
+      component: DesktopSidebar,
+      componentProps: { forceCollapsed: true },
+    });
+    expect(container.querySelector('.sidebar')?.classList.contains('collapsed')).toBe(true);
+    expect(screen.queryByRole('button', { name: /collapse sidebar/i })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Synthara' })).toBeTruthy();
+    expect(get(sidebarCollapsed)).toBe(false);
+  });
   it('shows the admin entry for admins', () => {
     setUser(makeUserProfile({ role: 'admin' }));
     render(QueryHarness<ComponentProps<typeof DesktopSidebar>>, {
@@ -90,7 +111,7 @@ describe('DesktopSidebar', () => {
       Array.from(container.querySelectorAll('.sidebar-nav > a')).map((node) =>
         node.textContent?.trim(),
       ),
-    ).toEqual(['Artists', 'Create', 'Library', 'Sessions', 'Jobs', 'Billing']);
+    ).toEqual(['Studio', 'Artists', 'Create', 'Library', 'Sessions', 'Jobs', 'Billing']);
 
     cleanup();
     for (const state of ['unknown', 'unavailable'] as const) {

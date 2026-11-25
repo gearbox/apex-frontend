@@ -3,6 +3,7 @@
   import { page } from '$app/stores';
   import { artistQueryOptions, artistsQueryOptions } from '$lib/queries/studio';
   import { ROUTES } from '$lib/utils/routes';
+  import { studioNewProject } from '$lib/studio/paths';
   import { ArrowLeft } from '@lucide/svelte';
   import Spinner from '$lib/components/ui/Spinner.svelte';
   import { artistMonogram } from '$lib/studio/artists';
@@ -149,6 +150,10 @@
                 </ul>
               {/if}
             </div>
+            <a
+              class="shrink-0 rounded-lg bg-accent px-3 py-2 text-center text-sm font-semibold text-bg"
+              href={studioNewProject(artist.id)}>{m.studio_new_project()}</a
+            >
           </div>
           <nav
             class="mt-5 flex gap-1 border-t border-border pt-3"

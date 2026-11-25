@@ -10,7 +10,11 @@
   import { ChevronLeft, ChevronRight, Scale, MessageSquareWarning } from '@lucide/svelte';
   import { openFeedbackDialog } from '$lib/stores/feedbackDialog.svelte';
   import { navigation } from '$lib/navigation/resolved';
+  import { homeHref } from '$lib/product/home';
   import { NAV_DESTINATIONS, NavDestinationId } from '$lib/navigation/destinations';
+
+  let { forceCollapsed = false }: { forceCollapsed?: boolean } = $props();
+  let collapsed = $derived(forceCollapsed || $sidebarCollapsed);
 
   const legalItems = [
     { label: () => m.legal_document_terms(), href: ROUTES.terms },
@@ -21,16 +25,16 @@
   let logoLetter = $derived($appDisplayName.charAt(0).toUpperCase());
 </script>
 
-<aside class="sidebar" class:collapsed={$sidebarCollapsed}>
+<aside class="sidebar" class:collapsed>
   <!-- Logo area -->
-  <div class="sidebar-logo">
-    {#if $sidebarCollapsed}
+  <a href={$homeHref} class="sidebar-logo" aria-label={collapsed ? $appDisplayName : undefined}>
+    {#if collapsed}
       <span class="logo-letter">{logoLetter}</span>
     {:else}
       <span class="logo-text">{logoText}</span>
       <span class="logo-badge">PWA</span>
     {/if}
-  </div>
+  </a>
 
   <!-- Main nav -->
   <nav class="sidebar-nav">
@@ -41,17 +45,17 @@
         href={item.href}
         class="nav-item"
         class:active={isActive}
-        class:collapsed={$sidebarCollapsed}
-        title={$sidebarCollapsed ? item.label() : undefined}
+        class:collapsed
+        title={collapsed ? item.label() : undefined}
       >
         <span class="nav-icon"
           >{#if Icon}<Icon size={18} strokeWidth={isActive ? 2 : 1.75} />{/if}</span
         >
-        {#if !$sidebarCollapsed}
+        {#if !collapsed}
           <span class="nav-label">{item.label()}</span>
         {/if}
       </a>
-      {#if item.id === NavDestinationId.Library && !$sidebarCollapsed}
+      {#if item.id === NavDestinationId.Library && !collapsed}
         <ProjectNav surface="desktop" />
       {/if}
     {/each}
@@ -65,13 +69,13 @@
         href={adminItem.href}
         class="nav-item"
         class:active={adminActive}
-        class:collapsed={$sidebarCollapsed}
-        title={$sidebarCollapsed ? adminItem.label() : undefined}
+        class:collapsed
+        title={collapsed ? adminItem.label() : undefined}
       >
         <span class="nav-icon"
           >{#if AdminIcon}<AdminIcon size={18} strokeWidth={adminActive ? 2 : 1.75} />{/if}</span
         >
-        {#if !$sidebarCollapsed}
+        {#if !collapsed}
           <span class="nav-label">{adminItem.label()}</span>
         {/if}
       </a>
@@ -88,8 +92,8 @@
         href={profileItem.href}
         class="nav-item"
         class:active={profileActive}
-        class:collapsed={$sidebarCollapsed}
-        title={$sidebarCollapsed ? profileItem.label() : undefined}
+        class:collapsed
+        title={collapsed ? profileItem.label() : undefined}
       >
         <span class="nav-icon"
           >{#if ProfileIcon}<ProfileIcon
@@ -97,7 +101,7 @@
               strokeWidth={profileActive ? 2 : 1.75}
             />{/if}</span
         >
-        {#if !$sidebarCollapsed}
+        {#if !collapsed}
           <span class="nav-label">{profileItem.label()}</span>
         {/if}
       </a>
@@ -105,12 +109,12 @@
     <button
       type="button"
       class="nav-item support-item"
-      class:collapsed={$sidebarCollapsed}
-      title={$sidebarCollapsed ? m.feedback_title() : undefined}
+      class:collapsed
+      title={collapsed ? m.feedback_title() : undefined}
       onclick={() => openFeedbackDialog()}
     >
       <span class="nav-icon"><MessageSquareWarning size={18} strokeWidth={1.75} /></span>
-      {#if !$sidebarCollapsed}<span class="nav-label">{m.feedback_title()}</span>{/if}
+      {#if !collapsed}<span class="nav-label">{m.feedback_title()}</span>{/if}
     </button>
     {#if $hasLegalDocuments}
       <div class="legal-divider"></div>
@@ -118,25 +122,25 @@
         <a
           href={item.href}
           class="nav-item"
-          class:collapsed={$sidebarCollapsed}
-          title={$sidebarCollapsed ? item.label() : undefined}
+          class:collapsed
+          title={collapsed ? item.label() : undefined}
         >
           <span class="nav-icon"><Scale size={18} strokeWidth={1.75} /></span>
-          {#if !$sidebarCollapsed}<span class="nav-label">{item.label()}</span>{/if}
+          {#if !collapsed}<span class="nav-label">{item.label()}</span>{/if}
         </a>
       {/each}
     {/if}
-    <button
-      onclick={toggleSidebar}
-      class="collapse-btn"
-      aria-label={$sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-    >
-      {#if $sidebarCollapsed}
-        <ChevronRight size={16} />
-      {:else}
-        <ChevronLeft size={16} />
-      {/if}
-    </button>
+    {#if !forceCollapsed}<button
+        onclick={toggleSidebar}
+        class="collapse-btn"
+        aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+      >
+        {#if collapsed}
+          <ChevronRight size={16} />
+        {:else}
+          <ChevronLeft size={16} />
+        {/if}
+      </button>{/if}
   </div>
 </aside>
 

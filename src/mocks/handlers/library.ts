@@ -1,3 +1,4 @@
+import { setStudioMockLibraryName, studioMockTrackCount, removeStudioMockProject } from './studio';
 import { http, HttpResponse } from 'msw';
 import { MOCK_BASE_URL as BASE } from '../config';
 import {
@@ -77,6 +78,18 @@ const mockProjects = [
   },
 ];
 
+type MockLibraryProject = Omit<(typeof mockProjects)[number], 'description'> & {
+  description: string | null;
+};
+let libraryProjects: MockLibraryProject[] = [];
+let nextProjectId = 1;
+export function resetLibraryMockStore(): void {
+  libraryProjects = mockProjects.map((project) => ({ ...project }));
+  nextProjectId = 1;
+  for (const project of libraryProjects) setStudioMockLibraryName(project.id, project.name);
+}
+resetLibraryMockStore();
+
 export const libraryHandlers = [
   // List
   http.get(`${BASE}/v1/library`, ({ request }) => {
@@ -104,38 +117,119 @@ export const libraryHandlers = [
   // Tags
   http.get(`${BASE}/v1/library/tags`, () => HttpResponse.json(makeLibraryTagPage())),
 
-  // Projects
-  http.get(`${BASE}/v1/library/projects`, () =>
-    HttpResponse.json({ items: mockProjects, limit: 50, has_more: false, next_cursor: null }),
-  ),
+  // Projects: shared with the Studio mock so that a project is one entity in both APIs.
+  http.get(`${BASE}/v1/library/projects`, ({ request }) => {
+    const url = new URL(request.url);
+    const requested = Number(url.searchParams.get('limit'));
+    const limit = Number.isInteger(requested) && requested > 0 ? Math.min(requested, 50) : 30;
+    const rawCursor = url.searchParams.get('cursor');
+    const offset = rawCursor && /^\d+$/.test(rawCursor) ? Number(rawCursor) : 0;
+    const items = libraryProjects.slice(offset, offset + limit);
+    const hasMore = offset + items.length < libraryProjects.length;
+    return HttpResponse.json({
+      items,
+      limit,
+      has_more: hasMore,
+      next_cursor: hasMore ? String(offset + items.length) : null,
+    });
+  }),
   http.post(`${BASE}/v1/library/projects`, async ({ request }) => {
     const body = (await request.json()) as { name: string; description?: string | null };
-    return HttpResponse.json(
-      {
-        id: 'project_mock_new',
-        name: body.name,
-        description: body.description ?? null,
-        created_at: '2025-06-01T12:00:00Z',
-        updated_at: '2025-06-01T12:00:00Z',
-      },
-      { status: 201 },
-    );
+    const name = body.name.trim();
+    if (
+      libraryProjects.some(
+        (project) => project.name.toLocaleLowerCase() === name.toLocaleLowerCase(),
+      )
+    )
+      return HttpResponse.json(
+        {
+          error: 'project_name_conflict',
+          message: 'Project name already exists.',
+          status_code: 409,
+        },
+        { status: 409 },
+      );
+    const id = nextProjectId === 1 ? 'project_mock_new' : `project_mock_new_${nextProjectId}`;
+    nextProjectId++;
+    const now = new Date().toISOString();
+    const project = {
+      id,
+      name,
+      description: body.description ?? null,
+      asset_count: 0,
+      created_at: now,
+      updated_at: now,
+    };
+    libraryProjects.push(project);
+    setStudioMockLibraryName(id, name);
+    return HttpResponse.json(project, { status: 201 });
+  }),
+  http.get(`${BASE}/v1/library/projects/:project_id`, ({ params }) => {
+    const project = libraryProjects.find((item) => item.id === params.project_id);
+    return project
+      ? HttpResponse.json(project)
+      : HttpResponse.json(
+          { error: 'not_found', message: 'Project not found.', status_code: 404 },
+          { status: 404 },
+        );
   }),
   http.patch(`${BASE}/v1/library/projects/:project_id`, async ({ params, request }) => {
     const body = (await request.json()) as { name?: string; description?: string | null };
-    const existing = mockProjects.find((project) => project.id === params.project_id);
-    return HttpResponse.json({
-      id: params.project_id,
-      name: body.name ?? existing?.name ?? 'Project',
-      description: body.description ?? existing?.description ?? null,
-      created_at: existing?.created_at ?? '2025-06-01T12:00:00Z',
-      updated_at: '2025-06-02T12:00:00Z',
-    });
+    const index = libraryProjects.findIndex((project) => project.id === params.project_id);
+    if (index < 0)
+      return HttpResponse.json(
+        { error: 'not_found', message: 'Project not found.', status_code: 404 },
+        { status: 404 },
+      );
+    const name = body.name?.trim() ?? libraryProjects[index].name;
+    if (
+      libraryProjects.some(
+        (project) =>
+          project.id !== params.project_id &&
+          project.name.toLocaleLowerCase() === name.toLocaleLowerCase(),
+      )
+    )
+      return HttpResponse.json(
+        {
+          error: 'project_name_conflict',
+          message: 'Project name already exists.',
+          status_code: 409,
+        },
+        { status: 409 },
+      );
+    const updated = {
+      ...libraryProjects[index],
+      ...body,
+      name,
+      updated_at: new Date().toISOString(),
+    };
+    libraryProjects[index] = updated;
+    setStudioMockLibraryName(updated.id, updated.name);
+    return HttpResponse.json(updated);
   }),
-  http.delete(
-    `${BASE}/v1/library/projects/:project_id`,
-    () => new HttpResponse(null, { status: 204 }),
-  ),
+  http.delete(`${BASE}/v1/library/projects/:project_id`, ({ params }) => {
+    const id = String(params.project_id);
+    const count = studioMockTrackCount(id);
+    if (count)
+      return HttpResponse.json(
+        {
+          error: 'project_in_use',
+          message: 'Project is in use.',
+          status_code: 409,
+          detail: { blockers: [{ code: 'studio_tracks', count }] },
+        },
+        { status: 409 },
+      );
+    const index = libraryProjects.findIndex((project) => project.id === id);
+    if (index < 0)
+      return HttpResponse.json(
+        { error: 'not_found', message: 'Project not found.', status_code: 404 },
+        { status: 404 },
+      );
+    libraryProjects.splice(index, 1);
+    removeStudioMockProject(id);
+    return new HttpResponse(null, { status: 204 });
+  }),
 
   // Bulk selection actions
   http.post(`${BASE}/v1/library/assets/bulk`, async ({ request }) => {

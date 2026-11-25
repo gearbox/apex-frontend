@@ -78,6 +78,8 @@ test.describe('Artists capability gate', () => {
       await expect(page.getByRole('heading', { name: "Who's your first artist?" })).toBeVisible();
       await expect(page.getByRole('link', { name: 'Create an artist' })).toBeVisible();
       await expect(page.getByText('Artists are coming soon.')).toHaveCount(0);
+      if (testInfo.project.name.startsWith('mobile'))
+        await page.getByRole('button', { name: 'More' }).click();
       await expect(page.getByRole('link', { name: 'Artists' })).toBeVisible();
     },
   );

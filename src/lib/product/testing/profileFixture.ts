@@ -3,7 +3,7 @@ import type { ProductProfile } from '$lib/product/profiles';
 
 const divergentProfile: ProductProfile = {
   id: 'synthara',
-  homeRoute: '/app/library',
+  home: { route: '/app/library' },
   defaultTheme: 'frost',
   navigation: {
     desktopMain: ['billing', 'create'],

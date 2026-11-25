@@ -1,3 +1,4 @@
+import { studioKeys } from '$lib/queries/studio';
 import apiClient from '$lib/api/client';
 import { parseApiError, ApiRequestError } from '$lib/api/errors';
 import {
@@ -474,6 +475,8 @@ export function renameProjectMutationOptions(queryClient: QueryClient) {
     onSuccess: (_data: LibraryProject, variables: { projectId: string }) => {
       invalidateProjectAndLibraryQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: projectKeys.detail(variables.projectId) });
+      queryClient.invalidateQueries({ queryKey: studioKeys.projects() });
+      queryClient.invalidateQueries({ queryKey: studioKeys.project(variables.projectId) });
     },
   };
 }
@@ -486,7 +489,11 @@ export function deleteProjectMutationOptions(queryClient: QueryClient) {
       });
       if (error) throw new ApiRequestError(parseApiError(error, 0));
     },
-    onSuccess: () => invalidateProjectAndLibraryQueries(queryClient),
+    onSuccess: (_data: void, projectId: string) => {
+      invalidateProjectAndLibraryQueries(queryClient);
+      void queryClient.invalidateQueries({ queryKey: studioKeys.projects() });
+      void queryClient.invalidateQueries({ queryKey: studioKeys.project(projectId) });
+    },
   };
 }
 

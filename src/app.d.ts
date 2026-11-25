@@ -36,3 +36,6 @@ declare module 'virtual:pwa-register' {
   /** The returned generic update helper is intentionally never used by the app. */
   export function registerSW(options?: RegisterSWOptions): (reloadPage?: boolean) => Promise<void>;
 }
+
+declare const __PRODUCT_SHORT_NAME__: string;
+declare const __PRODUCT_THEME_COLOR__: string;

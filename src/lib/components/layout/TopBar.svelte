@@ -3,7 +3,7 @@
   import { currentUser } from '$lib/stores/auth';
   import { appDisplayName } from '$lib/stores/product';
   import { NAV_DESTINATIONS } from '$lib/navigation/destinations';
-  import { productProfile } from '$lib/product/profile';
+  import { homeHref } from '$lib/product/home';
   import BalancePill from './BalancePill.svelte';
 
   let pageTitle = $derived(
@@ -21,7 +21,7 @@
 
 <header class="topbar chrome-no-select">
   <div class="topbar-left">
-    <a href={$productProfile.homeRoute} class="topbar-logo">{logoText}</a>
+    <a href={$homeHref} class="topbar-logo">{logoText}</a>
     {#if pageTitle}
       <span class="topbar-title">{pageTitle}</span>
     {/if}

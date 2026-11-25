@@ -100,6 +100,7 @@ export function initTheme(defaultTheme: ThemeName): () => void {
   );
   const unsubColors = currentColors.subscribe((colors: ThemeColors) => {
     applyThemeColors(document.documentElement, colors);
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', colors.bg);
   });
 
   return () => {

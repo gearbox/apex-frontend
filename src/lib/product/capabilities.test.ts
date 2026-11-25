@@ -80,3 +80,13 @@ describe('studio capability probe', () => {
     expect(retry).not.toHaveBeenCalled();
   });
 });
+
+it('settleCapability returns after a failed first attempt without waiting for retry', async () => {
+  vi.useFakeTimers();
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
+  const { probeStudio, settleCapability } = await import('./capabilities');
+  const pending = probeStudio(vi.fn().mockRejectedValue(new Error('offline')), 30_000);
+  await expect(settleCapability('studio')).resolves.toBe('unknown');
+  await vi.advanceTimersByTimeAsync(30_000);
+  await pending;
+});

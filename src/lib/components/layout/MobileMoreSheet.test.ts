@@ -88,8 +88,8 @@ describe('MobileMoreSheet', () => {
       Array.from(document.querySelectorAll('.sheet-item-label'))
         .slice(0, 4)
         .map((node) => node.textContent?.trim()),
-    ).toEqual(['Sessions', 'Billing & Tokens', 'Job History', 'Profile & Settings']);
-    expect(screen.queryByRole('link', { name: 'Artists' })).toBeNull();
+    ).toEqual(['Artists', 'Sessions', 'Billing & Tokens', 'Job History']);
+    expect(screen.getByRole('link', { name: 'Artists' })).toBeTruthy();
     unmount();
 
     for (const state of ['unknown', 'unavailable'] as const) {

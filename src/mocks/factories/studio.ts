@@ -52,3 +52,75 @@ export function makeCursorPage<Item>(
     next_cursor: nextCursor,
   };
 }
+
+export type MockProjectProfile = components['schemas']['ProjectProfileOut'];
+export type MockTrack = components['schemas']['TrackOut'];
+type MockTrackDetail = components['schemas']['TrackDetail'];
+type MockPlanVersion = components['schemas']['PlanVersionDetail'];
+type MockLyricsVersion = components['schemas']['LyricsVersionDetail'];
+export function makeProjectProfile(
+  overrides: Partial<MockProjectProfile> = {},
+): MockProjectProfile {
+  const now = new Date().toISOString();
+  return {
+    library_project_id: 'project_mock_001',
+    name: 'First release',
+    release_kind: 'single',
+    artist_id: null,
+    concept: null,
+    track_count: 0,
+    created_at: now,
+    updated_at: now,
+    ...overrides,
+  };
+}
+export function makeTrack(overrides: Partial<MockTrack> = {}): MockTrack {
+  const now = new Date().toISOString();
+  return {
+    id: 'track_mock_001',
+    library_project_id: 'project_mock_001',
+    position: 0,
+    title: 'First track',
+    current_plan_version_id: null,
+    current_lyrics_version_id: null,
+    created_at: now,
+    updated_at: now,
+    ...overrides,
+  };
+}
+export function makeTrackDetail(overrides: Partial<MockTrackDetail> = {}): MockTrackDetail {
+  return { ...makeTrack(), current_plan: null, current_lyrics: null, ...overrides };
+}
+export function makePlanVersion(overrides: Partial<MockPlanVersion> = {}): MockPlanVersion {
+  return {
+    id: 'plan_mock_001',
+    track_id: 'track_mock_001',
+    version_number: 1,
+    parent_version_id: null,
+    origin: 'user',
+    schema_version: 2,
+    content_hash: 'hash',
+    created_at: new Date().toISOString(),
+    is_current: true,
+    content: { title: 'First track', instrumental: false, references: [], sections: [] },
+    kind: 'plan',
+    ...overrides,
+  };
+}
+export function makeLyricsVersion(overrides: Partial<MockLyricsVersion> = {}): MockLyricsVersion {
+  return {
+    id: 'lyrics_mock_001',
+    track_id: 'track_mock_001',
+    version_number: 1,
+    parent_version_id: null,
+    based_on_plan_version_id: 'plan_mock_001',
+    origin: 'user',
+    schema_version: 1,
+    content_hash: 'hash',
+    created_at: new Date().toISOString(),
+    is_current: true,
+    content: { language: 'en', sections: [] },
+    kind: 'lyrics',
+    ...overrides,
+  };
+}

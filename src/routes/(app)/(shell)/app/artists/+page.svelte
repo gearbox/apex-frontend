@@ -3,7 +3,8 @@
   import { ArrowUpRight, Plus, UsersRound } from '@lucide/svelte';
   import { artistsQueryOptions } from '$lib/queries/studio';
   import { ROUTES } from '$lib/utils/routes';
-  import { artistMonogram, MAX_ARTISTS } from '$lib/studio/artists';
+  import { artistMonogram } from '$lib/studio/artists';
+  import { STUDIO_LIMITS } from '$lib/studio/limits';
   import Spinner from '$lib/components/ui/Spinner.svelte';
   import * as m from '$paraglide/messages';
 
@@ -80,7 +81,7 @@
         </h1>
         <p class="mt-2 text-sm text-text-muted">{m.artists_index_description()}</p>
       </div>
-      {#if artists.length < MAX_ARTISTS}
+      {#if artists.length < STUDIO_LIMITS.artistsPerUser}
         <a
           href={`${ROUTES.artists}/new`}
           class="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-bg transition hover:brightness-110"
@@ -127,7 +128,7 @@
         </a>
       {/each}
 
-      {#if artists.length < MAX_ARTISTS}
+      {#if artists.length < STUDIO_LIMITS.artistsPerUser}
         <a
           href={`${ROUTES.artists}/new`}
           class="flex min-h-32 items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-transparent p-5 text-sm font-semibold text-text-muted transition hover:border-accent hover:bg-accent-glow hover:text-accent"
@@ -136,7 +137,7 @@
         </a>
       {/if}
     </div>
-    {#if artists.length >= MAX_ARTISTS}
+    {#if artists.length >= STUDIO_LIMITS.artistsPerUser}
       <p class="mt-5 text-center text-sm text-text-muted">{m.artists_limit_hint()}</p>
     {/if}
   {/if}

@@ -12,7 +12,7 @@ afterEach(() => {
 it('redirects to the profile home route', async () => {
   render(RootPage);
   await waitFor(() =>
-    expect(navigation.goto).toHaveBeenCalledWith(get(productProfile).homeRoute, {
+    expect(navigation.goto).toHaveBeenCalledWith(get(productProfile).home.route, {
       replaceState: true,
     }),
   );

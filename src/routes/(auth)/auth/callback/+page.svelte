@@ -1,6 +1,5 @@
 <script lang="ts">
-  import { get } from 'svelte/store';
-  import { productProfile } from '$lib/product/profile';
+  import { resolveHomeRoute } from '$lib/product/home';
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import {
@@ -43,7 +42,7 @@
         void updateUserLocale($locale);
         clearCapturedOAuthFragment();
         oauthReturnTarget.clear();
-        await goto(safeReturnPath(fragment.returnTo) ?? get(productProfile).homeRoute, {
+        await goto(safeReturnPath(fragment.returnTo) ?? (await resolveHomeRoute()), {
           replaceState: true,
         });
       } catch (error) {

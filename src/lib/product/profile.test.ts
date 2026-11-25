@@ -20,6 +20,21 @@ describe('product profile resolution', () => {
     expect(error).toHaveBeenCalledOnce();
     expect(error).toHaveBeenCalledWith('product.profile.unknown', { product: 'acme' });
   });
+  it('reports a build mismatch once and ignores matches and unknown IDs', async () => {
+    vi.resetModules();
+    const { checkBuildProduct } = await import('./profile');
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    checkBuildProduct(BUILD_PRODUCT_ID);
+    checkBuildProduct('unknown');
+    const other = BUILD_PRODUCT_ID === 'vex' ? 'synthara' : 'vex';
+    checkBuildProduct(other);
+    checkBuildProduct(other);
+    expect(error).toHaveBeenCalledOnce();
+    expect(error).toHaveBeenCalledWith('product.build_mismatch', {
+      build: BUILD_PRODUCT_ID,
+      runtime: other,
+    });
+  });
   it('follows runtime product info and defaults to the build', () => {
     productInfo.set(null);
     expect(get(productProfile).id).toBe(BUILD_PRODUCT_ID);
