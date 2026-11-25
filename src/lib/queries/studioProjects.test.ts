@@ -104,15 +104,33 @@ describe('Studio projects', () => {
     expect(options.scope?.id).toBe('studio.project.p');
     expect(updateProjectProfileMutationOptions(qc, 'p').scope?.id).toBe('studio.project.p');
     expect(disableStudioProjectMutationOptions(qc, 'p').scope?.id).toBe('studio.project.p');
-    const first = qc.getMutationCache().build(qc, options).execute({ id: 'p', name: 'B' });
+    const first = qc.getMutationCache().build(qc, options).execute({ name: 'B' });
     await requested;
-    const second = qc.getMutationCache().build(qc, options).execute({ id: 'p', name: 'C' });
+    const second = qc.getMutationCache().build(qc, options).execute({ name: 'C' });
     await Promise.resolve();
     expect(started).toEqual(['B']);
     releaseFirst();
     await Promise.all([first, second]);
     expect(started).toEqual(['B', 'C']);
     expect(serverName).toBe('C');
+    qc.clear();
+  });
+
+  it('project mutation inputs cannot override the project id captured by each factory', () => {
+    const qc = new QueryClient();
+    const rename = renameStudioProjectMutationOptions(qc, 'p');
+    const update = updateProjectProfileMutationOptions(qc, 'p');
+    const disable = disableStudioProjectMutationOptions(qc, 'p');
+
+    const invalidInputs = () => {
+      // @ts-expect-error The project id is captured by the factory.
+      void rename.mutationFn({ id: 'other', name: 'Renamed' });
+      // @ts-expect-error The project id is captured by the factory.
+      void update.mutationFn({ id: 'other', profile });
+      // @ts-expect-error Disable mutations take no project id variable.
+      void disable.mutationFn('other');
+    };
+    void invalidInputs;
     qc.clear();
   });
 });

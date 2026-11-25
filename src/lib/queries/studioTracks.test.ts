@@ -9,6 +9,7 @@ import {
   applyOrder,
   createTrackMutationOptions,
   renameTrackMutationOptions,
+  deleteTrackMutationOptions,
   reorderTracksMutationOptions,
   studioMutationKeys,
   tracksQueryOptions,
@@ -40,7 +41,7 @@ describe('track reorder', () => {
     const before = [track('a'), track('b'), track('c')];
     qc.setQueryData(studioKeys.tracks('p'), before);
     const options = reorderTracksMutationOptions(qc, 'p');
-    const vars = { projectId: 'p', trackIds: ['a', 'c', 'b'] };
+    const vars = { trackIds: ['a', 'c', 'b'] };
     const context = await options.onMutate(vars);
     expect(qc.getQueryData<Track[]>(studioKeys.tracks('p'))?.map((item) => item.id)).toEqual(
       vars.trackIds,
@@ -90,15 +91,9 @@ describe('track reorder', () => {
     const options = renameTrackMutationOptions(qc, 'p');
     expect(options.mutationKey).toEqual(studioMutationKeys.tracks('p'));
     expect(options.scope?.id).toBe('studio.tracks.p');
-    const first = qc
-      .getMutationCache()
-      .build(qc, options)
-      .execute({ projectId: 'p', id: 'a', title: 'First' });
+    const first = qc.getMutationCache().build(qc, options).execute({ id: 'a', title: 'First' });
     await requested;
-    const second = qc
-      .getMutationCache()
-      .build(qc, options)
-      .execute({ projectId: 'p', id: 'a', title: 'Second' });
+    const second = qc.getMutationCache().build(qc, options).execute({ id: 'a', title: 'Second' });
     await Promise.resolve();
     expect(started).toEqual(['First']);
     releaseFirst();
@@ -145,12 +140,12 @@ describe('track reorder', () => {
     const reorder = qc
       .getMutationCache()
       .build(qc, reorderTracksMutationOptions(qc, 'p'))
-      .execute({ projectId: 'p', trackIds: ['b', 'a'] });
+      .execute({ trackIds: ['b', 'a'] });
     await requested;
     const create = qc
       .getMutationCache()
       .build(qc, createTrackMutationOptions(qc, 'p'))
-      .execute({ projectId: 'p', title: 'Gamma' });
+      .execute({ title: 'Gamma' });
     await Promise.resolve();
     expect(posts).toBe(0);
     releaseReorder();
@@ -163,6 +158,27 @@ describe('track reorder', () => {
     ]);
     expect(reads).toBe(2);
     unsubscribe();
+    qc.clear();
+  });
+
+  it('track mutation inputs cannot override the project id captured by each factory', () => {
+    const qc = new QueryClient();
+    const create = createTrackMutationOptions(qc, 'p');
+    const rename = renameTrackMutationOptions(qc, 'p');
+    const remove = deleteTrackMutationOptions(qc, 'p');
+    const reorder = reorderTracksMutationOptions(qc, 'p');
+
+    const invalidInputs = () => {
+      // @ts-expect-error The project id is captured by the factory.
+      void create.mutationFn({ projectId: 'other', title: 'Track' });
+      // @ts-expect-error The project id is captured by the factory.
+      void rename.mutationFn({ projectId: 'other', id: 'track', title: 'Track' });
+      // @ts-expect-error The project id is captured by the factory.
+      void remove.mutationFn({ projectId: 'other', id: 'track' });
+      // @ts-expect-error The project id is captured by the factory.
+      void reorder.mutationFn({ projectId: 'other', trackIds: [] });
+    };
+    void invalidInputs;
     qc.clear();
   });
 });

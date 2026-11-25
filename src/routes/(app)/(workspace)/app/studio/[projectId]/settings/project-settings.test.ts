@@ -7,6 +7,7 @@ import QueryHarness from '../../../../../../../tests/QueryHarness.svelte';
 import { server } from '../../../../../../../mocks/server';
 import { MOCK_BASE_URL as BASE } from '../../../../../../../mocks/config';
 import { makeProjectProfile, makeTrack } from '../../../../../../../mocks/factories/studio';
+import { createTrackMutationOptions } from '$lib/queries/studioTracks';
 const state = vi.hoisted(() => ({ goto: vi.fn().mockResolvedValue(undefined) }));
 vi.mock('$app/navigation', () => ({ goto: state.goto }));
 vi.mock('$app/stores', () => ({
@@ -20,6 +21,7 @@ vi.mock('$app/stores', () => ({
 import Page from './+page.svelte';
 afterEach(() => {
   cleanup();
+  state.goto.mockClear();
   vi.restoreAllMocks();
 });
 function show() {
@@ -30,6 +32,13 @@ function show() {
     props: { component: Page as Component<object>, componentProps: {}, client },
   });
   return client;
+}
+function requestGate() {
+  let release!: () => void;
+  let start!: () => void;
+  const started = new Promise<void>((resolve) => (start = resolve));
+  const wait = new Promise<void>((resolve) => (release = resolve));
+  return { started, start, wait, release: () => release() };
 }
 it('a successful save announces it without renaming an unchanged name', async () => {
   const profile = makeProjectProfile({ library_project_id: 'p', name: 'Release' });
@@ -308,6 +317,168 @@ it('disables removal while tracks exist', async () => {
   expect(
     (screen.getByRole('button', { name: 'Remove from Studio' }) as HTMLButtonElement).disabled,
   ).toBe(true);
+  client.clear();
+});
+
+it('Remove is disabled during a save and remove() ignores a forced call', async () => {
+  const patchGate = requestGate();
+  const requests: string[] = [];
+  const profile = makeProjectProfile({ library_project_id: 'p', name: 'Renamed' });
+  server.use(
+    http.get(`${BASE}/v1/studio/projects/p`, () =>
+      HttpResponse.json(makeProjectProfile({ library_project_id: 'p', name: 'Release' })),
+    ),
+    http.get(`${BASE}/v1/studio/projects/p/tracks`, () => HttpResponse.json([])),
+    http.patch(`${BASE}/v1/library/projects/p`, async () => {
+      requests.push('PATCH');
+      patchGate.start();
+      await patchGate.wait;
+      return HttpResponse.json({ id: 'p', name: 'Renamed' });
+    }),
+    http.put(`${BASE}/v1/studio/projects/p`, () => {
+      requests.push('PUT');
+      return HttpResponse.json(profile);
+    }),
+    http.delete(`${BASE}/v1/studio/projects/p`, () => {
+      requests.push('DELETE');
+      return new HttpResponse(null, { status: 204 });
+    }),
+  );
+  const client = show();
+  await screen.findByDisplayValue('Release');
+  const outerRemove = screen.getByRole('button', { name: 'Remove from Studio' });
+  await waitFor(() => expect((outerRemove as HTMLButtonElement).disabled).toBe(false));
+  await fireEvent.click(outerRemove);
+  const dialog = await screen.findByRole('dialog');
+  await fireEvent.input(screen.getByLabelText(/Project name/), { target: { value: 'Renamed' } });
+  await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  await patchGate.started;
+
+  expect((outerRemove as HTMLButtonElement).disabled).toBe(true);
+  const sheetRemove = screen.getAllByRole('button', { name: 'Remove from Studio' }).at(-1)!;
+  expect((sheetRemove as HTMLButtonElement).disabled).toBe(true);
+  // Simulate a stale click arriving after the control was disabled; the handler guard must hold too.
+  (sheetRemove as HTMLButtonElement).disabled = false;
+  await fireEvent.click(sheetRemove);
+  expect(requests).toEqual(['PATCH']);
+
+  patchGate.release();
+  await waitFor(() => expect(requests).toEqual(['PATCH', 'PUT']));
+  expect(screen.getByRole('dialog')).toBe(dialog);
+  client.clear();
+});
+
+it('Save stays disabled while a removal is in flight, even after dismissing the sheet', async () => {
+  state.goto.mockClear();
+  const deleteGate = requestGate();
+  const requests: string[] = [];
+  server.use(
+    http.get(`${BASE}/v1/studio/projects/p`, () =>
+      HttpResponse.json(makeProjectProfile({ library_project_id: 'p', name: 'Release' })),
+    ),
+    http.get(`${BASE}/v1/studio/projects/p/tracks`, () => HttpResponse.json([])),
+    http.delete(`${BASE}/v1/studio/projects/p`, async () => {
+      requests.push('DELETE');
+      deleteGate.start();
+      await deleteGate.wait;
+      return new HttpResponse(null, { status: 204 });
+    }),
+    http.patch(`${BASE}/v1/library/projects/p`, () => {
+      requests.push('PATCH');
+      return HttpResponse.json({ id: 'p', name: 'Release' });
+    }),
+    http.put(`${BASE}/v1/studio/projects/p`, () => {
+      requests.push('PUT');
+      return HttpResponse.json(makeProjectProfile({ library_project_id: 'p', name: 'Release' }));
+    }),
+  );
+  const client = show();
+  await screen.findByDisplayValue('Release');
+  const outerRemove = screen.getByRole('button', { name: 'Remove from Studio' });
+  await waitFor(() => expect((outerRemove as HTMLButtonElement).disabled).toBe(false));
+  await fireEvent.click(outerRemove);
+  await screen.findByRole('dialog');
+  await fireEvent.click(screen.getAllByRole('button', { name: 'Remove from Studio' }).at(-1)!);
+  await deleteGate.started;
+
+  await fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  const save = screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement;
+  expect(save.disabled).toBe(true);
+  await fireEvent.submit(save.closest('form')!);
+  expect(requests).toEqual(['DELETE']);
+
+  deleteGate.release();
+  await waitFor(() => expect(state.goto).toHaveBeenCalledWith('/app/studio'));
+  expect(requests).toEqual(['DELETE']);
+  client.clear();
+});
+
+it('Remove is disabled while a track is being created in the column', async () => {
+  const createGate = requestGate();
+  server.use(
+    http.get(`${BASE}/v1/studio/projects/p`, () =>
+      HttpResponse.json(makeProjectProfile({ library_project_id: 'p', name: 'Release' })),
+    ),
+    http.get(`${BASE}/v1/studio/projects/p/tracks`, () => HttpResponse.json([])),
+    http.post(`${BASE}/v1/studio/projects/p/tracks`, async ({ request }) => {
+      const body = (await request.json()) as { title: string };
+      createGate.start();
+      await createGate.wait;
+      return HttpResponse.json(makeTrack({ library_project_id: 'p', title: body.title }), {
+        status: 201,
+      });
+    }),
+  );
+  const client = show();
+  await screen.findByDisplayValue('Release');
+  const remove = screen.getByRole('button', { name: 'Remove from Studio' }) as HTMLButtonElement;
+  await waitFor(() => expect(remove.disabled).toBe(false));
+
+  const create = client
+    .getMutationCache()
+    .build(client, createTrackMutationOptions(client, 'p'))
+    .execute({ title: 'New track' });
+  await createGate.started;
+  await waitFor(() => expect(remove.disabled).toBe(true));
+
+  createGate.release();
+  await create;
+  client.clear();
+});
+
+it('a failed removal re-enables both actions', async () => {
+  server.use(
+    http.get(`${BASE}/v1/studio/projects/p`, () =>
+      HttpResponse.json(makeProjectProfile({ library_project_id: 'p', name: 'Release' })),
+    ),
+    http.get(`${BASE}/v1/studio/projects/p/tracks`, () => HttpResponse.json([])),
+    http.delete(`${BASE}/v1/studio/projects/p`, () =>
+      HttpResponse.json(
+        { error: 'server_error', message: 'failed', status_code: 500 },
+        { status: 500 },
+      ),
+    ),
+  );
+  const client = show();
+  await screen.findByDisplayValue('Release');
+  const outerRemove = screen.getByRole('button', { name: 'Remove from Studio' });
+  await waitFor(() => expect((outerRemove as HTMLButtonElement).disabled).toBe(false));
+  await fireEvent.click(outerRemove);
+  await screen.findByRole('dialog');
+  await fireEvent.click(screen.getAllByRole('button', { name: 'Remove from Studio' }).at(-1)!);
+  await screen.findAllByRole('alert');
+
+  await waitFor(() => {
+    expect((screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled).toBe(
+      false,
+    );
+    expect((outerRemove as HTMLButtonElement).disabled).toBe(false);
+  });
+  expect(
+    (screen.getAllByRole('button', { name: 'Remove from Studio' }).at(-1) as HTMLButtonElement)
+      .disabled,
+  ).toBe(false);
   client.clear();
 });
 

@@ -61,7 +61,7 @@ export function createTrackMutationOptions(qc: QueryClient, projectId: string) {
   return {
     mutationKey: studioMutationKeys.tracks(projectId),
     scope: { id: studioScopes.tracks(projectId) },
-    mutationFn: async ({ projectId, title }: { projectId: string; title: string }) => {
+    mutationFn: async ({ title }: { title: string }) => {
       const { data, error, response } = await apiClient.POST(
         '/v1/studio/projects/{project_id}/tracks',
         { params: { path: { project_id: projectId } }, body: { title } },
@@ -69,7 +69,7 @@ export function createTrackMutationOptions(qc: QueryClient, projectId: string) {
       if (error) throw new ApiRequestError(parseApiError(error, response.status));
       return data;
     },
-    onSuccess: (track: Track, { projectId }: { projectId: string }) => {
+    onSuccess: (track: Track) => {
       qc.setQueryData<Track[]>(studioKeys.tracks(projectId), (old) =>
         old?.some((item) => item.id === track.id) ? old : [...(old ?? []), track],
       );
@@ -82,7 +82,7 @@ export function renameTrackMutationOptions(qc: QueryClient, projectId: string) {
   return {
     mutationKey: studioMutationKeys.tracks(projectId),
     scope: { id: studioScopes.tracks(projectId) },
-    mutationFn: async ({ id, title }: { projectId: string; id: string; title: string }) => {
+    mutationFn: async ({ id, title }: { id: string; title: string }) => {
       const { data, error, response } = await apiClient.PATCH('/v1/studio/tracks/{track_id}', {
         params: { path: { track_id: id } },
         body: { title },
@@ -90,7 +90,7 @@ export function renameTrackMutationOptions(qc: QueryClient, projectId: string) {
       if (error) throw new ApiRequestError(parseApiError(error, response.status));
       return data;
     },
-    onSuccess: (track: Track, { projectId, id }: { projectId: string; id: string }) => {
+    onSuccess: (track: Track, { id }: { id: string; title: string }) => {
       qc.setQueryData<Track[]>(studioKeys.tracks(projectId), (old) =>
         old?.map((item) => (item.id === id ? { ...item, ...track } : item)),
       );
@@ -105,13 +105,13 @@ export function deleteTrackMutationOptions(qc: QueryClient, projectId: string) {
   return {
     mutationKey: studioMutationKeys.tracks(projectId),
     scope: { id: studioScopes.tracks(projectId) },
-    mutationFn: async ({ id }: { projectId: string; id: string }) => {
+    mutationFn: async ({ id }: { id: string }) => {
       const { error, response } = await apiClient.DELETE('/v1/studio/tracks/{track_id}', {
         params: { path: { track_id: id } },
       });
       if (error) throw new ApiRequestError(parseApiError(error, response.status));
     },
-    onSuccess: (_data: void, { projectId, id }: { projectId: string; id: string }) => {
+    onSuccess: (_data: void, { id }: { id: string }) => {
       qc.setQueryData<Track[]>(studioKeys.tracks(projectId), (old) =>
         old?.filter((item) => item.id !== id),
       );
@@ -125,7 +125,7 @@ export function reorderTracksMutationOptions(qc: QueryClient, projectId: string)
   return {
     mutationKey: studioMutationKeys.tracks(projectId),
     scope: { id: studioScopes.tracks(projectId) },
-    mutationFn: async ({ projectId, trackIds }: { projectId: string; trackIds: string[] }) => {
+    mutationFn: async ({ trackIds }: { trackIds: string[] }) => {
       const { data, error, response } = await apiClient.PUT(
         '/v1/studio/projects/{project_id}/tracks/order',
         { params: { path: { project_id: projectId } }, body: { track_ids: trackIds } },
@@ -133,7 +133,7 @@ export function reorderTracksMutationOptions(qc: QueryClient, projectId: string)
       if (error) throw new ApiRequestError(parseApiError(error, response.status));
       return data;
     },
-    onMutate: async ({ projectId, trackIds }: { projectId: string; trackIds: string[] }) => {
+    onMutate: async ({ trackIds }: { trackIds: string[] }) => {
       await qc.cancelQueries({ queryKey: studioKeys.tracks(projectId) });
       const previous = qc.getQueryData<Track[]>(studioKeys.tracks(projectId));
       if (previous) {
@@ -143,7 +143,7 @@ export function reorderTracksMutationOptions(qc: QueryClient, projectId: string)
     },
     onError: (
       error: unknown,
-      { projectId }: { projectId: string },
+      _variables: { trackIds: string[] },
       context: { previousOrder?: string[] } | undefined,
     ) => {
       const current = qc.getQueryData<Track[]>(studioKeys.tracks(projectId));
@@ -152,7 +152,7 @@ export function reorderTracksMutationOptions(qc: QueryClient, projectId: string)
       if (error instanceof ApiRequestError && error.error === 'track_order_mismatch')
         void qc.invalidateQueries({ queryKey: studioKeys.tracks(projectId) });
     },
-    onSuccess: (tracks: Track[], { projectId }: { projectId: string }) => {
+    onSuccess: (tracks: Track[]) => {
       const positions = new Map(tracks.map((track) => [track.id, track.position]));
       qc.setQueryData<Track[]>(studioKeys.tracks(projectId), (current) => {
         if (!current) return current;

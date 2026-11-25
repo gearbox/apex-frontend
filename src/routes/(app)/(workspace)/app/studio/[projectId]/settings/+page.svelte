@@ -1,14 +1,19 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
-  import { createQuery, createMutation, useQueryClient } from '@tanstack/svelte-query';
+  import {
+    createQuery,
+    createMutation,
+    useQueryClient,
+    useIsMutating,
+  } from '@tanstack/svelte-query';
   import {
     projectQueryOptions,
     updateProjectProfileMutationOptions,
     renameStudioProjectMutationOptions,
     disableStudioProjectMutationOptions,
   } from '$lib/queries/studioProjects';
-  import { tracksQueryOptions } from '$lib/queries/studioTracks';
+  import { studioMutationKeys, tracksQueryOptions } from '$lib/queries/studioTracks';
   import { artistsQueryOptions } from '$lib/queries/studio';
   import { addToast } from '$lib/stores/toasts';
   import { ROUTES } from '$lib/utils/routes';
@@ -32,6 +37,12 @@
   const qc = useQueryClient();
   const project = createQuery(() => projectQueryOptions(id));
   const tracks = createQuery(() => tracksQueryOptions(id));
+  const trackWrites = useIsMutating({
+    get mutationKey() {
+      return studioMutationKeys.tracks(id);
+    },
+    exact: true,
+  });
   const artists = createQuery(artistsQueryOptions);
   const rename = createMutation(() => renameStudioProjectMutationOptions(qc, id));
   const update = createMutation(() => updateProjectProfileMutationOptions(qc, id));
@@ -45,7 +56,9 @@
   let submitted = $state(false);
   let saved = $state(false);
   let saving = $state(false);
+  let removing = $state(false);
   let confirmRemove = $state(false);
+  let busy = $derived(saving || removing || trackWrites.current > 0);
   let nameIssues = $derived(fieldIssues(validationIssues(rename.error), 'name'));
   let conceptIssues = $derived(fieldIssues(validationIssues(update.error), 'concept'));
   let nameConflict = $derived(studioError(rename.error)?.error === 'project_name_conflict');
@@ -63,9 +76,8 @@
   });
   async function save(event: SubmitEvent) {
     event.preventDefault();
-    if (saving) return;
+    if (saving || removing) return;
     submitted = true;
-    const projectId = id;
     const snapshot = {
       name: name.trim(),
       profile: {
@@ -87,17 +99,14 @@
       let fullySaved = true;
       if (snapshot.name !== project.data?.name) {
         try {
-          await rename.mutateAsync({ id: projectId, name: snapshot.name });
+          await rename.mutateAsync({ name: snapshot.name });
         } catch (e) {
           fullySaved = false;
           error = [m.studio_partial_name(), projectSaveError(e)].filter(Boolean).join(' ');
         }
       }
       try {
-        await update.mutateAsync({
-          id: projectId,
-          profile: snapshot.profile,
-        });
+        await update.mutateAsync({ profile: snapshot.profile });
       } catch (e) {
         fullySaved = false;
         error = [error, m.studio_partial_profile(), projectSaveError(e)].filter(Boolean).join(' ');
@@ -123,14 +132,19 @@
     );
   }
   async function remove() {
-    if ((tracks.data?.length ?? 1) > 0) return;
+    if (busy || !tracks.data || tracks.data.length > 0) return;
+    removing = true;
+    let removed = false;
     try {
-      await disable.mutateAsync(id);
+      await disable.mutateAsync();
+      removed = true;
       confirmRemove = false;
       addToast({ type: 'success', message: m.studio_removed() });
       await goto(ROUTES.studio);
     } catch (e) {
       error = projectDisableError(e);
+    } finally {
+      if (!removed) removing = false;
     }
   }
 </script>
@@ -232,7 +246,8 @@
     <div class="flex items-center gap-3">
       <button
         class="rounded-lg bg-accent px-4 py-2 text-bg"
-        disabled={saving || rename.isPending || update.isPending}>{m.studio_save()}</button
+        disabled={saving || removing || rename.isPending || update.isPending}
+        >{m.studio_save()}</button
       >
       {#if saved}<p class="text-sm text-success" role="status">{m.studio_saved()}</p>{/if}
     </div>
@@ -240,7 +255,7 @@
   <div class="mt-10 border-t border-border pt-6">
     <button
       class="rounded-lg border border-danger px-4 py-2 text-danger disabled:opacity-50"
-      disabled={!tracks.data || tracks.data.length > 0 || disable.isPending}
+      disabled={busy || !tracks.data || tracks.data.length > 0}
       onclick={() => (confirmRemove = true)}>{m.studio_remove()}</button
     >{#if tracks.data?.length}<p class="mt-2 text-sm text-text-muted">
         {m.studio_remove_tracks()}
@@ -254,7 +269,7 @@
       <SheetActions
         primaryLabel={m.studio_remove()}
         primaryVariant="danger"
-        pending={disable.isPending}
+        primaryDisabled={busy || !tracks.data || tracks.data.length > 0}
         oncancel={() => (confirmRemove = false)}
         onprimary={() => void remove()}
       />

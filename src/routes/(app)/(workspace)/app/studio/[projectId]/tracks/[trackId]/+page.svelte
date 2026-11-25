@@ -71,7 +71,7 @@
     const submittedTitle = title;
     renaming = true;
     try {
-      await rename.mutateAsync({ projectId, id, title: submittedTitle.trim() });
+      await rename.mutateAsync({ id, title: submittedTitle.trim() });
       if (!captured.active) return;
       if (title === submittedTitle) await cancelRename();
     } catch (e) {

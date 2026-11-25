@@ -96,9 +96,9 @@ export function createStudioProjectMutationOptions(qc: QueryClient) {
 export function updateProjectProfileMutationOptions(qc: QueryClient, projectId: string) {
   return {
     scope: { id: studioScopes.project(projectId) },
-    mutationFn: ({ id, profile }: { id: string; profile: ProfilePut }) => putProfile(id, profile),
-    onSuccess: (data: Profile, { id }: { id: string }) => {
-      qc.setQueryData(studioKeys.project(id), data);
+    mutationFn: ({ profile }: { profile: ProfilePut }) => putProfile(projectId, profile),
+    onSuccess: (data: Profile) => {
+      qc.setQueryData(studioKeys.project(projectId), data);
       void qc.invalidateQueries({ queryKey: studioKeys.projects() });
     },
   };
@@ -106,17 +106,19 @@ export function updateProjectProfileMutationOptions(qc: QueryClient, projectId: 
 export function renameStudioProjectMutationOptions(qc: QueryClient, projectId: string) {
   return {
     scope: { id: studioScopes.project(projectId) },
-    mutationFn: async ({ id, name }: { id: string; name: string }) => {
+    mutationFn: async ({ name }: { name: string }) => {
       const { data, error, response } = await apiClient.PATCH('/v1/library/projects/{project_id}', {
-        params: { path: { project_id: id } },
+        params: { path: { project_id: projectId } },
         body: { name },
       });
       if (error) throw new ApiRequestError(parseApiError(error, response.status));
       return data as LibraryProject;
     },
-    onSuccess: (_data: LibraryProject, { id, name }: { id: string; name: string }) => {
-      qc.setQueryData<Profile>(studioKeys.project(id), (old) => (old ? { ...old, name } : old));
-      void qc.invalidateQueries({ queryKey: studioKeys.project(id) });
+    onSuccess: (_data: LibraryProject, { name }: { name: string }) => {
+      qc.setQueryData<Profile>(studioKeys.project(projectId), (old) =>
+        old ? { ...old, name } : old,
+      );
+      void qc.invalidateQueries({ queryKey: studioKeys.project(projectId) });
       void qc.invalidateQueries({ queryKey: studioKeys.projects() });
       void qc.invalidateQueries({ queryKey: projectKeys.all });
     },
@@ -125,14 +127,14 @@ export function renameStudioProjectMutationOptions(qc: QueryClient, projectId: s
 export function disableStudioProjectMutationOptions(qc: QueryClient, projectId: string) {
   return {
     scope: { id: studioScopes.project(projectId) },
-    mutationFn: async (id: string) => {
+    mutationFn: async () => {
       const { error, response } = await apiClient.DELETE('/v1/studio/projects/{project_id}', {
-        params: { path: { project_id: id } },
+        params: { path: { project_id: projectId } },
       });
       if (error) throw new ApiRequestError(parseApiError(error, response.status));
     },
-    onSuccess: (_data: void, id: string) => {
-      qc.removeQueries({ queryKey: studioKeys.project(id) });
+    onSuccess: (_data: void) => {
+      qc.removeQueries({ queryKey: studioKeys.project(projectId) });
       void qc.invalidateQueries({ queryKey: studioKeys.projects() });
     },
   };

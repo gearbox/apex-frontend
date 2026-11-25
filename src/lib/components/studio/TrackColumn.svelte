@@ -77,7 +77,7 @@
     error = '';
     const submittedTitle = title;
     try {
-      await create.mutateAsync({ projectId, title: submittedTitle.trim() });
+      await create.mutateAsync({ title: submittedTitle.trim() });
       if (title === submittedTitle) title = '';
     } catch (e) {
       error = trackCreateError(e);
@@ -114,7 +114,7 @@
     const [id] = ids.splice(index, 1);
     ids.splice(next, 0, id);
     error = '';
-    const promise = reorder.mutateAsync({ projectId, trackIds: ids });
+    const promise = reorder.mutateAsync({ trackIds: ids });
     await tick();
     Array.from(listElement.querySelectorAll<HTMLElement>('[data-track-link]'))
       .find((element) => element.dataset.trackLink === id)
@@ -164,7 +164,7 @@
     const submittedTitle = editTitle;
     renaming = true;
     try {
-      await rename.mutateAsync({ projectId, id: trackId, title: submittedTitle.trim() });
+      await rename.mutateAsync({ id: trackId, title: submittedTitle.trim() });
       if (edit?.id === trackId && editTitle === submittedTitle) await closeRename(trackId);
     } catch (e) {
       const message = trackSaveError(e);
@@ -188,7 +188,7 @@
     if (!deleting) return;
     const id = deleting.id;
     try {
-      await remove.mutateAsync({ projectId, id });
+      await remove.mutateAsync({ id });
       deleting = null;
       if ($page.url.pathname === studioTrack(projectId, id)) await goto(studioProject(projectId));
     } catch (e) {
