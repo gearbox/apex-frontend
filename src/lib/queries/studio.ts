@@ -21,6 +21,10 @@ export const studioKeys = {
   memories: (id: string, status: MemoryStatus) =>
     [...studioKeys.artist(id), 'memories', status] as const,
 };
+export const studioScopes = {
+  project: (id: string) => `studio.project.${id}`,
+  tracks: (projectId: string) => `studio.tracks.${projectId}`,
+};
 export function artistsQueryOptions() {
   return {
     queryKey: studioKeys.artists(),

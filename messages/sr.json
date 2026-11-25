@@ -1062,6 +1062,7 @@
   "studio_loading_error": "Nije moguće učitati Studio.",
   "studio_refresh_error": "Osvežavanje nije uspelo. Postojeći sadržaj je sačuvan.",
   "studio_created": "Projekat „{name}” je napravljen",
+  "studio_artist_created": "Izvođač „{name}” je napravljen",
   "studio_instrumental": "Instrumental",
   "studio_tempo": "Tempo",
   "studio_new_artist_link": "Novi izvođač…",

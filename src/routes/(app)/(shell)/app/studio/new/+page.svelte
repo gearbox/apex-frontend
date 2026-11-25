@@ -24,7 +24,7 @@
     describedBy,
     issueId,
   } from '$lib/studio/formErrors';
-  import { componentSession } from '$lib/utils/sessionTracker';
+  import { componentSession, createSessionTracker } from '$lib/utils/sessionTracker';
   import { addToast } from '$lib/stores/toasts';
   import { ROUTES } from '$lib/utils/routes';
   import * as m from '$paraglide/messages';
@@ -36,6 +36,7 @@
   const createArtist = createMutation(() => createArtistMutationOptions(qc));
   const mutation = createMutation(() => createStudioProjectMutationOptions(qc));
   const session = componentSession();
+  const artistSheetSessions = createSessionTracker();
   let name = $state('');
   let concept = $state('');
   let release = $state<'single' | 'ep' | 'album'>('single');
@@ -43,6 +44,7 @@
   let existingId = $state<string | undefined>();
   let previousName = $state<string | undefined>();
   let artistSheetOpen = $state(false);
+  let creatingArtist = $state(false);
   let artistName = $state('');
   let artistForm = $state<HTMLFormElement | undefined>();
   type ArtistPage = components['schemas']['CursorPage_src.api.schemas.studio.ArtistOut_'];
@@ -126,19 +128,23 @@
     }
   }
   function openArtistSheet() {
+    artistSheetSessions.invalidate();
     artistName = '';
-    createArtist.reset();
+    if (!createArtist.isPending) createArtist.reset();
     artistSheetOpen = true;
   }
   function closeArtistSheet() {
+    artistSheetSessions.invalidate();
     artistSheetOpen = false;
     artistName = '';
-    createArtist.reset();
+    if (!createArtist.isPending) createArtist.reset();
   }
   async function addArtist(event: SubmitEvent) {
     event.preventDefault();
     const submittedName = artistName.trim();
-    if (!submittedName || artistNameTooLong || artistLimitReached || createArtist.isPending) return;
+    if (!submittedName || artistNameTooLong || artistLimitReached || creatingArtist) return;
+    const captured = artistSheetSessions.capture();
+    creatingArtist = true;
     try {
       const created = await createArtist.mutateAsync({ name: submittedName, persona: null });
       const current = qc.getQueryData<ArtistPage>(studioKeys.artists());
@@ -153,10 +159,22 @@
           : [...(current?.items ?? []), created],
       });
       const updated = qc.getQueryData<ArtistPage>(studioKeys.artists());
-      if (updated?.items.some((item) => item.id === created.id)) artist = created.id;
-      closeArtistSheet();
-    } catch {
+      if (captured.active) {
+        if (updated?.items.some((item) => item.id === created.id)) artist = created.id;
+        closeArtistSheet();
+      } else {
+        if (!artist && updated?.items.some((item) => item.id === created.id)) artist = created.id;
+        addToast({ type: 'success', message: m.studio_artist_created({ name: submittedName }) });
+      }
+    } catch (error) {
       // The mutation state supplies the field and form error below.
+      if (!captured.active) {
+        const message = artistCreateError(error);
+        if (message) addToast({ type: 'error', message });
+        if (!createArtist.isPending) createArtist.reset();
+      }
+    } finally {
+      creatingArtist = false;
     }
   }
 </script>
@@ -250,6 +268,9 @@
           id="studio-new-artist-name"
           class="mt-2 w-full rounded-lg border border-border bg-bg p-3"
           bind:value={artistName}
+          oninput={() => {
+            if (!createArtist.isPending) createArtist.reset();
+          }}
           autocomplete="off"
           required
           aria-invalid={artistNameTooLong ||
@@ -285,7 +306,7 @@
       <p class="text-sm text-text-muted">{m.studio_artist_persona_later()}</p>
       <SheetActions
         primaryLabel={m.studio_create_artist()}
-        pending={createArtist.isPending}
+        pending={creatingArtist}
         primaryDisabled={artistLimitReached || !artistName.trim() || artistNameTooLong}
         oncancel={closeArtistSheet}
         onprimary={() => artistForm?.requestSubmit()}

@@ -3,7 +3,13 @@ import { QueryClient } from '@tanstack/svelte-query';
 import { http, HttpResponse } from 'msw';
 import { server } from '../../mocks/server';
 import { MOCK_BASE_URL as BASE } from '../../mocks/config';
-import { createStudioProjectMutationOptions, StudioProjectSetupError } from './studioProjects';
+import {
+  createStudioProjectMutationOptions,
+  disableStudioProjectMutationOptions,
+  renameStudioProjectMutationOptions,
+  StudioProjectSetupError,
+  updateProjectProfileMutationOptions,
+} from './studioProjects';
 import { studioKeys } from './studio';
 import { renameProjectMutationOptions, deleteProjectMutationOptions } from './library';
 
@@ -71,6 +77,42 @@ describe('Studio projects', () => {
     deleteProjectMutationOptions(qc).onSuccess(undefined, 'p1');
     expect(qc.getQueryState(studioKeys.projects())?.isInvalidated).toBe(true);
     expect(qc.getQueryState(studioKeys.project('p1'))?.isInvalidated).toBe(true);
+    qc.clear();
+  });
+
+  it('project mutations share a scope and run in submission order', async () => {
+    let releaseFirst!: () => void;
+    let firstStarted!: () => void;
+    const firstGate = new Promise<void>((resolve) => (releaseFirst = resolve));
+    const requested = new Promise<void>((resolve) => (firstStarted = resolve));
+    const started: string[] = [];
+    let serverName = 'Original';
+    server.use(
+      http.patch(`${BASE}/v1/library/projects/p`, async ({ request }) => {
+        const body = (await request.json()) as { name: string };
+        started.push(body.name);
+        if (body.name === 'B') {
+          firstStarted();
+          await firstGate;
+        }
+        serverName = body.name;
+        return HttpResponse.json({ id: 'p', name: serverName });
+      }),
+    );
+    const qc = new QueryClient();
+    const options = renameStudioProjectMutationOptions(qc, 'p');
+    expect(options.scope?.id).toBe('studio.project.p');
+    expect(updateProjectProfileMutationOptions(qc, 'p').scope?.id).toBe('studio.project.p');
+    expect(disableStudioProjectMutationOptions(qc, 'p').scope?.id).toBe('studio.project.p');
+    const first = qc.getMutationCache().build(qc, options).execute({ id: 'p', name: 'B' });
+    await requested;
+    const second = qc.getMutationCache().build(qc, options).execute({ id: 'p', name: 'C' });
+    await Promise.resolve();
+    expect(started).toEqual(['B']);
+    releaseFirst();
+    await Promise.all([first, second]);
+    expect(started).toEqual(['B', 'C']);
+    expect(serverName).toBe('C');
     qc.clear();
   });
 });

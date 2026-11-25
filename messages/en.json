@@ -1062,6 +1062,7 @@
   "studio_loading_error": "Could not load Studio.",
   "studio_refresh_error": "Could not refresh. Your existing content is still available.",
   "studio_created": "{name} was created",
+  "studio_artist_created": "Artist {name} was created",
   "studio_instrumental": "Instrumental",
   "studio_tempo": "Tempo",
   "studio_new_artist_link": "New artist…",

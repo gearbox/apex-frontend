@@ -1062,6 +1062,7 @@
   "studio_loading_error": "Не удалось загрузить Studio.",
   "studio_refresh_error": "Не удалось обновить. Загруженные данные сохранены.",
   "studio_created": "Проект «{name}» создан",
+  "studio_artist_created": "Артист «{name}» создан",
   "studio_instrumental": "Инструментальный",
   "studio_tempo": "Темп",
   "studio_new_artist_link": "Новый артист…",

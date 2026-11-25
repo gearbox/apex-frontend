@@ -33,9 +33,9 @@
   const project = createQuery(() => projectQueryOptions(id));
   const tracks = createQuery(() => tracksQueryOptions(id));
   const artists = createQuery(artistsQueryOptions);
-  const rename = createMutation(() => renameStudioProjectMutationOptions(qc));
-  const update = createMutation(() => updateProjectProfileMutationOptions(qc));
-  const disable = createMutation(() => disableStudioProjectMutationOptions(qc));
+  const rename = createMutation(() => renameStudioProjectMutationOptions(qc, id));
+  const update = createMutation(() => updateProjectProfileMutationOptions(qc, id));
+  const disable = createMutation(() => disableStudioProjectMutationOptions(qc, id));
   let name = $state('');
   let release = $state<'single' | 'ep' | 'album'>('single');
   let artist = $state('');
@@ -44,6 +44,7 @@
   let error = $state('');
   let submitted = $state(false);
   let saved = $state(false);
+  let saving = $state(false);
   let confirmRemove = $state(false);
   let nameIssues = $derived(fieldIssues(validationIssues(rename.error), 'name'));
   let conceptIssues = $derived(fieldIssues(validationIssues(update.error), 'concept'));
@@ -62,6 +63,7 @@
   });
   async function save(event: SubmitEvent) {
     event.preventDefault();
+    if (saving) return;
     submitted = true;
     const projectId = id;
     const snapshot = {
@@ -78,27 +80,32 @@
       codePointLength(snapshot.profile.concept ?? '') > STUDIO_LIMITS.concept
     )
       return;
+    saving = true;
     error = '';
     saved = false;
-    let fullySaved = true;
-    if (snapshot.name !== project.data?.name) {
+    try {
+      let fullySaved = true;
+      if (snapshot.name !== project.data?.name) {
+        try {
+          await rename.mutateAsync({ id: projectId, name: snapshot.name });
+        } catch (e) {
+          fullySaved = false;
+          error = [m.studio_partial_name(), projectSaveError(e)].filter(Boolean).join(' ');
+        }
+      }
       try {
-        await rename.mutateAsync({ id: projectId, name: snapshot.name });
+        await update.mutateAsync({
+          id: projectId,
+          profile: snapshot.profile,
+        });
       } catch (e) {
         fullySaved = false;
-        error = [m.studio_partial_name(), projectSaveError(e)].filter(Boolean).join(' ');
+        error = [error, m.studio_partial_profile(), projectSaveError(e)].filter(Boolean).join(' ');
       }
+      saved = fullySaved && formMatches(snapshot);
+    } finally {
+      saving = false;
     }
-    try {
-      await update.mutateAsync({
-        id: projectId,
-        profile: snapshot.profile,
-      });
-    } catch (e) {
-      fullySaved = false;
-      error = [error, m.studio_partial_profile(), projectSaveError(e)].filter(Boolean).join(' ');
-    }
-    saved = fullySaved && formMatches(snapshot);
   }
   function formMatches(snapshot: {
     name: string;
@@ -138,7 +145,7 @@
         id="settings-project-name"
         bind:value={name}
         oninput={() => {
-          rename.reset();
+          if (!rename.isPending) rename.reset();
           saved = false;
         }}
         aria-invalid={nameEmpty || nameTooLong || nameConflict || nameIssues.length > 0}
@@ -199,7 +206,7 @@
         rows="6"
         bind:value={concept}
         oninput={() => {
-          update.reset();
+          if (!update.isPending) update.reset();
           saved = false;
         }}
         aria-invalid={conceptTooLong || conceptIssues.length > 0}
@@ -225,7 +232,7 @@
     <div class="flex items-center gap-3">
       <button
         class="rounded-lg bg-accent px-4 py-2 text-bg"
-        disabled={rename.isPending || update.isPending}>{m.studio_save()}</button
+        disabled={saving || rename.isPending || update.isPending}>{m.studio_save()}</button
       >
       {#if saved}<p class="text-sm text-success" role="status">{m.studio_saved()}</p>{/if}
     </div>

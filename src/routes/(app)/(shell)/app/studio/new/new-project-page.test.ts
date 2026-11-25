@@ -173,6 +173,87 @@ it('creating an artist in place keeps the typed project and selects the artist',
   expect(state.goto).toHaveBeenCalledWith('/app/studio/p1');
   client.clear();
 });
+it('a late artist creation does not close the reopened sheet or override a chosen artist', async () => {
+  let releaseCreate!: () => void;
+  let createStarted!: () => void;
+  const createGate = new Promise<void>((resolve) => (releaseCreate = resolve));
+  const requested = new Promise<void>((resolve) => (createStarted = resolve));
+  server.use(
+    http.get(`${BASE}/v1/studio/artists`, () =>
+      HttpResponse.json({
+        items: [makeArtist({ id: 'mira', name: 'Mira' })],
+        limit: 50,
+        has_more: false,
+        next_cursor: null,
+      }),
+    ),
+    http.post(`${BASE}/v1/studio/artists`, async () => {
+      createStarted();
+      await createGate;
+      return HttpResponse.json(makeArtist({ id: 'iris', name: 'Iris' }), { status: 201 });
+    }),
+  );
+  const client = renderPage();
+  const artistSelect = (await screen.findByLabelText('Artists')) as HTMLSelectElement;
+  await screen.findByRole('option', { name: 'Mira' });
+  await fireEvent.change(artistSelect, { target: { value: 'mira' } });
+  await fireEvent.click(screen.getByRole('button', { name: 'New artist…' }));
+  await fireEvent.input(screen.getByLabelText('Name'), { target: { value: 'Iris' } });
+  await fireEvent.click(screen.getByRole('button', { name: 'Create artist' }));
+  await requested;
+
+  await fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  await fireEvent.click(screen.getByRole('button', { name: 'New artist…' }));
+  const name = screen.getByLabelText('Name') as HTMLInputElement;
+  await fireEvent.input(name, { target: { value: 'Nova' } });
+  releaseCreate();
+
+  await waitFor(() => expect(get(toasts).at(-1)?.message).toContain('Iris'));
+  expect(screen.getByRole('dialog')).toBeTruthy();
+  expect(name.value).toBe('Nova');
+  expect(artistSelect.value).toBe('mira');
+  expect(get(toasts).at(-1)?.type).toBe('success');
+  client.clear();
+});
+it('a late artist creation failure toasts without changing the reopened sheet', async () => {
+  let releaseCreate!: () => void;
+  let createStarted!: () => void;
+  const createGate = new Promise<void>((resolve) => (releaseCreate = resolve));
+  const requested = new Promise<void>((resolve) => (createStarted = resolve));
+  server.use(
+    http.get(`${BASE}/v1/studio/artists`, () =>
+      HttpResponse.json({ items: [], limit: 50, has_more: false, next_cursor: null }),
+    ),
+    http.post(`${BASE}/v1/studio/artists`, async () => {
+      createStarted();
+      await createGate;
+      return HttpResponse.json(
+        { error: 'server_error', message: 'failed', status_code: 500 },
+        { status: 500 },
+      );
+    }),
+  );
+  const client = renderPage();
+  await fireEvent.click(await screen.findByRole('button', { name: 'New artist…' }));
+  await fireEvent.input(screen.getByLabelText('Name'), { target: { value: 'Iris' } });
+  await fireEvent.click(screen.getByRole('button', { name: 'Create artist' }));
+  await requested;
+
+  await fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  await fireEvent.click(screen.getByRole('button', { name: 'New artist…' }));
+  const name = screen.getByLabelText('Name') as HTMLInputElement;
+  await fireEvent.input(name, { target: { value: 'Nova' } });
+  releaseCreate();
+
+  await waitFor(() => expect(get(toasts).at(-1)?.type).toBe('error'));
+  expect(screen.getByRole('dialog')).toBeTruthy();
+  expect(name.value).toBe('Nova');
+  expect(get(toasts).at(-1)?.message).toContain('We could not create this artist.');
+  expect(screen.queryByRole('alert')).toBeNull();
+  client.clear();
+});
 it('the new-artist sheet explains an over-long name', async () => {
   server.use(
     http.get(`${BASE}/v1/studio/artists`, () =>

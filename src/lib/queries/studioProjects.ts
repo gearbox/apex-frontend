@@ -3,7 +3,7 @@ import apiClient from '$lib/api/client';
 import { ApiRequestError, parseApiError } from '$lib/api/errors';
 import type { components } from '$lib/api/types';
 import { projectKeys } from './library';
-import { studioKeys } from './studio';
+import { studioKeys, studioScopes } from './studio';
 
 type Profile = components['schemas']['ProjectProfileOut'];
 type ProfilePut = components['schemas']['ProjectProfilePut'];
@@ -93,8 +93,9 @@ export function createStudioProjectMutationOptions(qc: QueryClient) {
     },
   };
 }
-export function updateProjectProfileMutationOptions(qc: QueryClient) {
+export function updateProjectProfileMutationOptions(qc: QueryClient, projectId: string) {
   return {
+    scope: { id: studioScopes.project(projectId) },
     mutationFn: ({ id, profile }: { id: string; profile: ProfilePut }) => putProfile(id, profile),
     onSuccess: (data: Profile, { id }: { id: string }) => {
       qc.setQueryData(studioKeys.project(id), data);
@@ -102,8 +103,9 @@ export function updateProjectProfileMutationOptions(qc: QueryClient) {
     },
   };
 }
-export function renameStudioProjectMutationOptions(qc: QueryClient) {
+export function renameStudioProjectMutationOptions(qc: QueryClient, projectId: string) {
   return {
+    scope: { id: studioScopes.project(projectId) },
     mutationFn: async ({ id, name }: { id: string; name: string }) => {
       const { data, error, response } = await apiClient.PATCH('/v1/library/projects/{project_id}', {
         params: { path: { project_id: id } },
@@ -120,8 +122,9 @@ export function renameStudioProjectMutationOptions(qc: QueryClient) {
     },
   };
 }
-export function disableStudioProjectMutationOptions(qc: QueryClient) {
+export function disableStudioProjectMutationOptions(qc: QueryClient, projectId: string) {
   return {
+    scope: { id: studioScopes.project(projectId) },
     mutationFn: async (id: string) => {
       const { error, response } = await apiClient.DELETE('/v1/studio/projects/{project_id}', {
         params: { path: { project_id: id } },

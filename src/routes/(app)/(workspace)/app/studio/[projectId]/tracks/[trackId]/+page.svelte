@@ -27,11 +27,12 @@
   let projectId = $derived($page.params.projectId ?? '');
   const track = createQuery(() => trackQueryOptions(id));
   const qc = useQueryClient();
-  const rename = createMutation(() => renameTrackMutationOptions(qc));
+  const rename = createMutation(() => renameTrackMutationOptions(qc, projectId));
   const pageSession = componentSession();
   let editing = $state(false);
   let title = $state('');
   let error = $state('');
+  let renaming = $state(false);
   let titleInput = $state<HTMLInputElement | undefined>();
   let renameButton = $state<HTMLButtonElement | undefined>();
   let titleIssues = $derived(fieldIssues(validationIssues(rename.error), 'title'));
@@ -49,7 +50,7 @@
   async function startRename() {
     title = track.data?.title ?? '';
     error = '';
-    rename.reset();
+    if (!rename.isPending) rename.reset();
     editing = true;
     await tick();
     titleInput?.focus();
@@ -59,15 +60,16 @@
     editing = false;
     title = track.data?.title ?? '';
     error = '';
-    rename.reset();
+    if (!rename.isPending) rename.reset();
     await tick();
     renameButton?.focus();
   }
   async function save(event: SubmitEvent) {
     event.preventDefault();
-    if (!title.trim() || titleTooLong || rename.isPending) return;
+    if (!title.trim() || titleTooLong || renaming) return;
     const captured = pageSession.capture();
     const submittedTitle = title;
+    renaming = true;
     try {
       await rename.mutateAsync({ projectId, id, title: submittedTitle.trim() });
       if (!captured.active) return;
@@ -79,6 +81,8 @@
         return;
       }
       error = trackSaveError(e);
+    } finally {
+      renaming = false;
     }
   }
 </script>
@@ -109,7 +113,7 @@
           class="rounded-lg border border-border bg-surface p-2"
           bind:value={title}
           oninput={() => {
-            rename.reset();
+            if (!rename.isPending) rename.reset();
             error = '';
           }}
           onkeydown={(event) => {
@@ -122,7 +126,7 @@
             ...(titleTooLong ? ['track-title-too-long'] : []),
           ])}
           aria-invalid={titleTooLong || titleIssues.length > 0}
-        /><button class="text-accent" disabled={titleTooLong || !title.trim() || rename.isPending}
+        /><button class="text-accent" disabled={titleTooLong || !title.trim() || renaming}
           >{m.studio_save()}</button
         >
         <button type="button" class="text-text-muted" onclick={() => void cancelRename()}

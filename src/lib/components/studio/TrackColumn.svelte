@@ -39,10 +39,10 @@
   let countId = $derived(`${inputId}-count`);
   const qc = useQueryClient();
   const query = createQuery(() => tracksQueryOptions(projectId));
-  const create = createMutation(() => createTrackMutationOptions(qc));
-  const rename = createMutation(() => renameTrackMutationOptions(qc));
-  const remove = createMutation(() => deleteTrackMutationOptions(qc));
-  const reorder = createMutation(() => reorderTracksMutationOptions(qc));
+  const create = createMutation(() => createTrackMutationOptions(qc, projectId));
+  const rename = createMutation(() => renameTrackMutationOptions(qc, projectId));
+  const remove = createMutation(() => deleteTrackMutationOptions(qc, projectId));
+  const reorder = createMutation(() => reorderTracksMutationOptions(qc, projectId));
   let listElement: HTMLOListElement;
   let title = $state('');
   let edit = $state<Track | null>(null);
@@ -51,6 +51,7 @@
   let renameForm = $state<HTMLFormElement | undefined>();
   let deleting = $state<Track | null>(null);
   let error = $state('');
+  let renaming = $state(false);
   let tracks = $derived(query.data ?? []);
   let createIssues = $derived(fieldIssues(validationIssues(create.error), 'title'));
   let renameIssues = $derived(fieldIssues(validationIssues(rename.error), 'title'));
@@ -92,14 +93,14 @@
     edit = null;
     editTitle = '';
     error = '';
-    rename.reset();
+    if (!rename.isPending) rename.reset();
     if (trackId) await focusMenu(trackId);
   }
   async function openRename(track: Track) {
     edit = track;
     editTitle = track.title;
     error = '';
-    rename.reset();
+    if (!rename.isPending) rename.reset();
     if ($isDesktop) {
       await tick();
       renameInput?.focus();
@@ -157,10 +158,11 @@
   }
   async function saveRename(event: SubmitEvent) {
     event.preventDefault();
-    if (!edit || !editTitle.trim() || renameTooLong || rename.isPending) return;
+    if (!edit || !editTitle.trim() || renameTooLong || renaming) return;
     const trackId = edit.id;
     const trackTitle = edit.title;
     const submittedTitle = editTitle;
+    renaming = true;
     try {
       await rename.mutateAsync({ projectId, id: trackId, title: submittedTitle.trim() });
       if (edit?.id === trackId && editTitle === submittedTitle) await closeRename(trackId);
@@ -178,6 +180,8 @@
         return;
       }
       error = message;
+    } finally {
+      renaming = false;
     }
   }
   async function deleteTrack() {
@@ -225,7 +229,7 @@
                 ...(renameTooLong ? [`rename-track-${instance}-too-long`] : []),
               ])}
             />
-            <button class="text-accent" disabled={rename.isPending || renameTooLong}
+            <button class="text-accent" disabled={renaming || renameTooLong}
               >{m.studio_save()}</button
             >
             <button type="button" class="text-text-muted" onclick={() => void closeRename(track.id)}
@@ -324,7 +328,7 @@
         </p>{/each}{#if error}<p role="alert">{error}</p>{/if}
       <SheetActions
         primaryLabel={m.studio_save()}
-        pending={rename.isPending}
+        pending={renaming}
         primaryDisabled={renameTooLong || !editTitle.trim()}
         oncancel={() => void closeRename()}
         onprimary={() => renameForm?.requestSubmit()}

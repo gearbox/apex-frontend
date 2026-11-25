@@ -119,6 +119,87 @@ it('a name edited while the rename is pending is saved by the next Save', async 
   expect((await screen.findByRole('status')).textContent).toContain('Saved.');
   client.clear();
 });
+it('Save stays disabled for the whole save, even after editing', async () => {
+  let releaseRename!: () => void;
+  let renameStarted!: () => void;
+  const renameGate = new Promise<void>((resolve) => (releaseRename = resolve));
+  const renameRequested = new Promise<void>((resolve) => (renameStarted = resolve));
+  const patches: string[] = [];
+  let libraryName = 'Release';
+  server.use(
+    http.get(`${BASE}/v1/studio/projects/p`, () =>
+      HttpResponse.json(makeProjectProfile({ library_project_id: 'p', name: libraryName })),
+    ),
+    http.get(`${BASE}/v1/studio/projects/p/tracks`, () => HttpResponse.json([])),
+    http.patch(`${BASE}/v1/library/projects/p`, async ({ request }) => {
+      const body = (await request.json()) as { name: string };
+      patches.push(body.name);
+      renameStarted();
+      await renameGate;
+      libraryName = body.name;
+      return HttpResponse.json({ id: 'p', name: body.name });
+    }),
+    http.put(`${BASE}/v1/studio/projects/p`, () =>
+      HttpResponse.json(makeProjectProfile({ library_project_id: 'p', name: libraryName })),
+    ),
+  );
+  const client = show();
+  await screen.findByDisplayValue('Release');
+  const name = screen.getByLabelText(/Project name/) as HTMLInputElement;
+  const save = screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement;
+  await fireEvent.input(name, { target: { value: 'B' } });
+  await fireEvent.click(save);
+  await renameRequested;
+  await fireEvent.input(name, { target: { value: 'C' } });
+  expect(save.disabled).toBe(true);
+  await fireEvent.click(save);
+  expect(patches).toEqual(['B']);
+  releaseRename();
+  await waitFor(() => expect(save.disabled).toBe(false));
+  expect(patches).toEqual(['B']);
+  expect(libraryName).toBe('B');
+  client.clear();
+});
+it('Save stays disabled while the profile update is pending, even after editing', async () => {
+  let releaseProfile!: () => void;
+  let profileStarted!: () => void;
+  const profileGate = new Promise<void>((resolve) => (releaseProfile = resolve));
+  const profileRequested = new Promise<void>((resolve) => (profileStarted = resolve));
+  let puts = 0;
+  server.use(
+    http.get(`${BASE}/v1/studio/projects/p`, () =>
+      HttpResponse.json(
+        makeProjectProfile({ library_project_id: 'p', name: 'Release', concept: 'Original' }),
+      ),
+    ),
+    http.get(`${BASE}/v1/studio/projects/p/tracks`, () => HttpResponse.json([])),
+    http.put(`${BASE}/v1/studio/projects/p`, async ({ request }) => {
+      puts++;
+      await request.json();
+      profileStarted();
+      await profileGate;
+      return HttpResponse.json(
+        makeProjectProfile({ library_project_id: 'p', name: 'Release', concept: 'Submitted' }),
+      );
+    }),
+  );
+  const client = show();
+  await screen.findByDisplayValue('Release');
+  const concept = screen.getByLabelText(/Concept/) as HTMLTextAreaElement;
+  const save = screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement;
+  await fireEvent.input(concept, { target: { value: 'Submitted' } });
+  await fireEvent.click(save);
+  await profileRequested;
+  await fireEvent.input(concept, { target: { value: 'Later edit' } });
+  expect(save.disabled).toBe(true);
+  await fireEvent.click(save);
+  expect(puts).toBe(1);
+  releaseProfile();
+  await waitFor(() => expect(save.disabled).toBe(false));
+  expect(puts).toBe(1);
+  expect(concept.value).toBe('Later edit');
+  client.clear();
+});
 it('the profile sent is the one on screen at submit', async () => {
   let releaseRename!: () => void;
   let renameStarted!: () => void;

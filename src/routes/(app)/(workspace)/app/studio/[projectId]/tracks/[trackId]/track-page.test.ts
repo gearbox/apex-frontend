@@ -192,6 +192,43 @@ it('title rename can be cancelled and returns focus to Rename', async () => {
   client.clear();
 });
 
+it('Save stays disabled while a rename is pending, even after typing', async () => {
+  let releaseRename!: () => void;
+  let renameStarted!: () => void;
+  const renameGate = new Promise<void>((resolve) => (releaseRename = resolve));
+  const renameRequested = new Promise<void>((resolve) => (renameStarted = resolve));
+  let patches = 0;
+  server.use(
+    http.get(`${BASE}/v1/studio/tracks/t`, () =>
+      HttpResponse.json(makeTrackDetail({ id: 't', library_project_id: 'p', title: 'First' })),
+    ),
+    http.patch(`${BASE}/v1/studio/tracks/t`, async ({ request }) => {
+      patches++;
+      const body = (await request.json()) as { title: string };
+      renameStarted();
+      await renameGate;
+      return HttpResponse.json(makeTrack({ id: 't', library_project_id: 'p', title: body.title }));
+    }),
+  );
+  const client = show();
+  await screen.findByRole('heading', { name: 'First' });
+  await fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
+  const input = (await screen.findByRole('textbox', { name: 'Rename' })) as HTMLInputElement;
+  await fireEvent.input(input, { target: { value: 'Second' } });
+  await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  await renameRequested;
+  await fireEvent.input(input, { target: { value: 'Later edit' } });
+  const save = screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement;
+  expect(save.disabled).toBe(true);
+  await fireEvent.click(save);
+  expect(patches).toBe(1);
+  releaseRename();
+  await waitFor(() => expect(save.disabled).toBe(false));
+  expect(input.value).toBe('Later edit');
+  expect(patches).toBe(1);
+  client.clear();
+});
+
 it('switching tracks discards the rename draft', async () => {
   const trackA = makeTrackDetail({ id: 'a', library_project_id: 'p', title: 'Track A' });
   const trackB = makeTrackDetail({ id: 'b', library_project_id: 'p', title: 'Track B' });
