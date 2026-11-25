@@ -1,9 +1,11 @@
+import { get } from 'svelte/store';
 import { BUILD_PRODUCT_ID } from '$lib/product/build';
 import { API_BASE_URL } from '$lib/utils/constants';
 import {
   setAuth,
   clearAuth,
   getCurrentUser,
+  currentAuthStatus,
   setAuthStatus,
   getRefreshToken,
   getAccessToken,
@@ -79,6 +81,7 @@ export class OAuthCodeAlreadyUsedError extends Error {
 /* ─── State ─── */
 let refreshFlight:
   { epoch: number; refreshToken: string; promise: Promise<SilentRefreshResult> } | undefined;
+let initAuthFlight: Promise<void> | undefined;
 let contentCookieRemintFlight:
   { epoch: number; accessToken: string; promise: Promise<ContentCookieRemintResult> } | undefined;
 const submittedOAuthCodes = new Set<string>();
@@ -483,17 +486,27 @@ export async function verifyEmail(token: string): Promise<void> {
  * Try to restore a session on app load.
  * Checks for a refresh token and attempts silent refresh.
  */
-export async function initAuth(): Promise<void> {
-  const refreshToken = getRefreshToken();
-  if (!refreshToken) {
-    setAuthStatus('unauthenticated');
-    return;
-  }
+export function initAuth(): Promise<void> {
+  if (get(currentAuthStatus) === 'authenticated') return Promise.resolve();
+  if (initAuthFlight) return initAuthFlight;
 
-  const result = await silentRefresh();
-  if (!result.ok) {
-    setAuthStatus('unauthenticated');
-  }
+  const flight = (async () => {
+    const refreshToken = getRefreshToken();
+    if (!refreshToken) {
+      setAuthStatus('unauthenticated');
+      return;
+    }
+
+    const result = await silentRefresh();
+    if (!result.ok && get(currentAuthStatus) !== 'authenticated') {
+      setAuthStatus('unauthenticated');
+    }
+  })();
+  const sharedFlight = flight.finally(() => {
+    if (initAuthFlight === sharedFlight) initAuthFlight = undefined;
+  });
+  initAuthFlight = sharedFlight;
+  return sharedFlight;
 }
 
 /* ─── Internal ─── */

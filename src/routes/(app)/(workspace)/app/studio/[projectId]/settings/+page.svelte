@@ -37,7 +37,6 @@
   const update = createMutation(() => updateProjectProfileMutationOptions(qc));
   const disable = createMutation(() => disableStudioProjectMutationOptions(qc));
   let name = $state('');
-  let originalName = $state('');
   let release = $state<'single' | 'ep' | 'album'>('single');
   let artist = $state('');
   let concept = $state('');
@@ -54,7 +53,7 @@
   let conceptTooLong = $derived(submitted && codePointLength(concept) > STUDIO_LIMITS.concept);
   $effect(() => {
     if (!initialized && project.data) {
-      name = originalName = project.data.name;
+      name = project.data.name;
       release = project.data.release_kind;
       artist = project.data.artist_id ?? '';
       concept = project.data.concept ?? '';
@@ -64,19 +63,27 @@
   async function save(event: SubmitEvent) {
     event.preventDefault();
     submitted = true;
+    const projectId = id;
+    const snapshot = {
+      name: name.trim(),
+      profile: {
+        release_kind: release,
+        artist_id: artist || null,
+        concept: concept.trim() || null,
+      },
+    };
     if (
-      !name.trim() ||
-      codePointLength(name) > STUDIO_LIMITS.projectName ||
-      codePointLength(concept) > STUDIO_LIMITS.concept
+      !snapshot.name ||
+      codePointLength(snapshot.name) > STUDIO_LIMITS.projectName ||
+      codePointLength(snapshot.profile.concept ?? '') > STUDIO_LIMITS.concept
     )
       return;
     error = '';
     saved = false;
     let fullySaved = true;
-    if (name.trim() !== originalName) {
+    if (snapshot.name !== project.data?.name) {
       try {
-        await rename.mutateAsync({ id, name: name.trim() });
-        originalName = name.trim();
+        await rename.mutateAsync({ id: projectId, name: snapshot.name });
       } catch (e) {
         fullySaved = false;
         error = [m.studio_partial_name(), projectSaveError(e)].filter(Boolean).join(' ');
@@ -84,18 +91,29 @@
     }
     try {
       await update.mutateAsync({
-        id,
-        profile: {
-          release_kind: release,
-          artist_id: artist || null,
-          concept: concept.trim() || null,
-        },
+        id: projectId,
+        profile: snapshot.profile,
       });
     } catch (e) {
       fullySaved = false;
       error = [error, m.studio_partial_profile(), projectSaveError(e)].filter(Boolean).join(' ');
     }
-    saved = fullySaved;
+    saved = fullySaved && formMatches(snapshot);
+  }
+  function formMatches(snapshot: {
+    name: string;
+    profile: {
+      release_kind: 'single' | 'ep' | 'album';
+      artist_id: string | null;
+      concept: string | null;
+    };
+  }) {
+    return (
+      name.trim() === snapshot.name &&
+      release === snapshot.profile.release_kind &&
+      (artist || null) === snapshot.profile.artist_id &&
+      (concept.trim() || null) === snapshot.profile.concept
+    );
   }
   async function remove() {
     if ((tracks.data?.length ?? 1) > 0) return;

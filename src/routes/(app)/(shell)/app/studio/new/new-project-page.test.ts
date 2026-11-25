@@ -173,6 +173,25 @@ it('creating an artist in place keeps the typed project and selects the artist',
   expect(state.goto).toHaveBeenCalledWith('/app/studio/p1');
   client.clear();
 });
+it('the new-artist sheet explains an over-long name', async () => {
+  server.use(
+    http.get(`${BASE}/v1/studio/artists`, () =>
+      HttpResponse.json({ items: [], limit: 50, has_more: false, next_cursor: null }),
+    ),
+  );
+  const client = renderPage();
+  await fireEvent.click(await screen.findByRole('button', { name: 'New artist…' }));
+  const name = screen.getByLabelText('Name') as HTMLInputElement;
+  await fireEvent.input(name, { target: { value: '😀'.repeat(101) } });
+  const issue = await screen.findByText('This value is longer than allowed.');
+  expect(name.getAttribute('aria-invalid')).toBe('true');
+  expect(name.getAttribute('aria-describedby')).toContain(issue.id);
+  expect(screen.getByText('101/100')).toBeTruthy();
+  expect(
+    (screen.getByRole('button', { name: 'Create artist' }) as HTMLButtonElement).disabled,
+  ).toBe(true);
+  client.clear();
+});
 it('places a concept validation issue on the concept field', async () => {
   server.use(
     http.post(`${BASE}/v1/library/projects`, () =>

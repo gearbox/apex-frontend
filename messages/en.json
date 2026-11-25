@@ -1038,6 +1038,7 @@
   "studio_coming_next": "Import from Suno or write the plan — coming next.",
   "studio_new_track": "New track",
   "studio_track_limit": "A project can have up to 64 tracks.",
+  "studio_track_rename_failed": "Could not rename {title}.",
   "studio_no_plan_chip": "No plan",
   "studio_plan_chip": "Plan",
   "studio_lyrics_chip": "Plan + lyrics",

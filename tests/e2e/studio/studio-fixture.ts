@@ -32,7 +32,7 @@ export async function stubStudio(page: Page, available = true) {
     updated_at: string;
   }> = [];
   const now = new Date().toISOString();
-  await page.route('**/v1/library/projects', async (route) => {
+  await page.route(/\/v1\/library\/projects(?:\?.*)?$/, async (route) => {
     if (route.request().method() === 'POST') {
       name = route.request().postDataJSON().name;
       return jsonRoute({ id: 'p1', name, created_at: now, updated_at: now }, 201)(route);

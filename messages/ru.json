@@ -1038,6 +1038,7 @@
   "studio_coming_next": "Импорт из Suno и создание плана появятся скоро.",
   "studio_new_track": "Новый трек",
   "studio_track_limit": "В проекте может быть до 64 треков.",
+  "studio_track_rename_failed": "Не удалось переименовать «{title}».",
   "studio_no_plan_chip": "Нет плана",
   "studio_plan_chip": "План",
   "studio_lyrics_chip": "План и текст",

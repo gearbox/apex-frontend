@@ -112,7 +112,8 @@ export function renameStudioProjectMutationOptions(qc: QueryClient) {
       if (error) throw new ApiRequestError(parseApiError(error, response.status));
       return data as LibraryProject;
     },
-    onSuccess: (_data: LibraryProject, { id }: { id: string }) => {
+    onSuccess: (_data: LibraryProject, { id, name }: { id: string; name: string }) => {
+      qc.setQueryData<Profile>(studioKeys.project(id), (old) => (old ? { ...old, name } : old));
       void qc.invalidateQueries({ queryKey: studioKeys.project(id) });
       void qc.invalidateQueries({ queryKey: studioKeys.projects() });
       void qc.invalidateQueries({ queryKey: projectKeys.all });

@@ -1038,6 +1038,7 @@
   "studio_coming_next": "Uvoz iz Suno i pisanje plana uskoro stižu.",
   "studio_new_track": "Nova pesma",
   "studio_track_limit": "Projekat može imati do 64 pesme.",
+  "studio_track_rename_failed": "Preimenovanje „{title}” nije uspelo.",
   "studio_no_plan_chip": "Bez plana",
   "studio_plan_chip": "Plan",
   "studio_lyrics_chip": "Plan i tekst",

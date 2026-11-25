@@ -1,6 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { QueryClient } from '@tanstack/svelte-query';
+import { get } from 'svelte/store';
 import type { Writable } from 'svelte/store';
 import { http, HttpResponse } from 'msw';
 import type { Component } from 'svelte';
@@ -8,6 +9,7 @@ import QueryHarness from '../../../tests/QueryHarness.svelte';
 import { server } from '../../../mocks/server';
 import { MOCK_BASE_URL as BASE } from '../../../mocks/config';
 import { makeTrack } from '../../../mocks/factories/studio';
+import { clearToasts, toasts } from '$lib/stores/toasts';
 vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
 vi.mock('$lib/utils/breakpoints', async () => {
   const { writable } = await import('svelte/store');
@@ -27,6 +29,7 @@ const desktop = isDesktop as Writable<boolean>;
 afterEach(() => {
   cleanup();
   desktop.set(false);
+  clearToasts();
 });
 it('rolls back a keyboard reorder on mismatch and keeps focus on the track', async () => {
   const tracks = [
@@ -174,6 +177,64 @@ it('inline rename takes focus, Escape cancels and focus returns to the row menu'
   expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Actions for First' }));
   client.clear();
 });
+it.each(['success', 'failure'] as const)(
+  'a late rename result for another row does not touch the open editor (%s)',
+  async (outcome) => {
+    desktop.set(true);
+    let release!: () => void;
+    let started!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const requested = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    const tracks = [
+      makeTrack({ id: 'a', title: 'Alpha', library_project_id: 'p' }),
+      makeTrack({ id: 'b', title: 'Beta', library_project_id: 'p', position: 1 }),
+    ];
+    server.use(
+      http.get(`${BASE}/v1/studio/projects/p/tracks`, () => HttpResponse.json(tracks)),
+      http.patch(`${BASE}/v1/studio/tracks/a`, async () => {
+        started();
+        await gate;
+        if (outcome === 'failure') {
+          return HttpResponse.json(
+            { error: 'server_error', message: 'failed', status_code: 500 },
+            { status: 500 },
+          );
+        }
+        return HttpResponse.json(makeTrack({ id: 'a', title: 'Shared', library_project_id: 'p' }));
+      }),
+    );
+    const client = showColumn();
+    await screen.findByRole('link', { name: /Alpha/ });
+    await fireEvent.click(screen.getByRole('button', { name: 'Actions for Alpha' }));
+    await fireEvent.click(await screen.findByRole('menuitem', { name: 'Rename' }));
+    const alphaInput = await screen.findByRole('textbox', { name: 'Rename' });
+    await fireEvent.input(alphaInput, { target: { value: 'Shared' } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await requested;
+
+    await fireEvent.keyDown(alphaInput, { key: 'Escape' });
+    await fireEvent.click(screen.getByRole('button', { name: 'Actions for Beta' }));
+    await fireEvent.click(await screen.findByRole('menuitem', { name: 'Rename' }));
+    const betaInput = (await screen.findByRole('textbox', { name: 'Rename' })) as HTMLInputElement;
+    await fireEvent.input(betaInput, { target: { value: 'Shared' } });
+
+    release();
+    await waitFor(() => expect(betaInput.value).toBe('Shared'));
+    expect(screen.getByRole('textbox', { name: 'Rename' })).toBe(betaInput);
+    if (outcome === 'failure') {
+      await waitFor(() => expect(get(toasts).at(-1)?.type).toBe('error'));
+      expect(get(toasts).at(-1)?.message).toContain('Alpha');
+      expect(screen.queryByText('Could not save. Please try again.')).toBeNull();
+    } else {
+      expect(get(toasts)).toHaveLength(0);
+    }
+    client.clear();
+  },
+);
 it('rename and delete sheets offer Cancel', async () => {
   server.use(
     http.get(`${BASE}/v1/studio/projects/p/tracks`, () =>

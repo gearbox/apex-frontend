@@ -230,6 +230,7 @@
       <div
         class="desktop-project-list"
         data-testid="desktop-project-scroll-region"
+        role="region"
         aria-label={m.library_projects()}
       >
         {@render projectRows()}

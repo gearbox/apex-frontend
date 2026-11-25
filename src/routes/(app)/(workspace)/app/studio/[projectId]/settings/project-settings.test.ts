@@ -55,6 +55,162 @@ it('a successful save announces it without renaming an unchanged name', async ()
   expect((await screen.findByRole('status')).textContent).toContain('Saved.');
   client.clear();
 });
+it('a name edited while the rename is pending is saved by the next Save', async () => {
+  let releaseRename!: () => void;
+  let renameStarted!: () => void;
+  const renameGate = new Promise<void>((resolve) => {
+    releaseRename = resolve;
+  });
+  const renameRequested = new Promise<void>((resolve) => {
+    renameStarted = resolve;
+  });
+  let libraryName = 'Release';
+  const patches: string[] = [];
+  const profiles: Array<{
+    release_kind: string;
+    artist_id: string | null;
+    concept: string | null;
+  }> = [];
+  server.use(
+    http.get(`${BASE}/v1/studio/projects/p`, () =>
+      HttpResponse.json(
+        makeProjectProfile({ library_project_id: 'p', name: libraryName, concept: 'Original' }),
+      ),
+    ),
+    http.get(`${BASE}/v1/studio/projects/p/tracks`, () => HttpResponse.json([])),
+    http.patch(`${BASE}/v1/library/projects/p`, async ({ request }) => {
+      const body = (await request.json()) as { name: string };
+      patches.push(body.name);
+      renameStarted();
+      await renameGate;
+      libraryName = body.name;
+      return HttpResponse.json({ id: 'p', name: body.name });
+    }),
+    http.put(`${BASE}/v1/studio/projects/p`, async ({ request }) => {
+      const body = (await request.json()) as {
+        release_kind: 'single' | 'ep' | 'album';
+        artist_id: string | null;
+        concept: string | null;
+      };
+      profiles.push(body);
+      return HttpResponse.json(
+        makeProjectProfile({ library_project_id: 'p', name: libraryName, ...body }),
+      );
+    }),
+  );
+  const client = show();
+  await screen.findByDisplayValue('Release');
+  const name = screen.getByLabelText(/Project name/) as HTMLInputElement;
+  await fireEvent.input(name, { target: { value: 'B' } });
+  await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  await renameRequested;
+  await fireEvent.input(name, { target: { value: 'C' } });
+  releaseRename();
+  await waitFor(() => expect(profiles).toHaveLength(1));
+  const saveButton = screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement;
+  await waitFor(() => expect(saveButton.disabled).toBe(false));
+  expect(profiles[0].concept).toBe('Original');
+  expect(screen.queryByRole('status')).toBeNull();
+
+  await fireEvent.click(saveButton);
+  await waitFor(() => expect(profiles).toHaveLength(2));
+  await waitFor(() => expect(saveButton.disabled).toBe(false));
+  await waitFor(() => expect(patches).toEqual(['B', 'C']));
+  expect((await screen.findByRole('status')).textContent).toContain('Saved.');
+  client.clear();
+});
+it('the profile sent is the one on screen at submit', async () => {
+  let releaseRename!: () => void;
+  let renameStarted!: () => void;
+  const renameGate = new Promise<void>((resolve) => {
+    releaseRename = resolve;
+  });
+  const renameRequested = new Promise<void>((resolve) => {
+    renameStarted = resolve;
+  });
+  let submittedProfile: Record<string, unknown> | undefined;
+  server.use(
+    http.get(`${BASE}/v1/studio/projects/p`, () =>
+      HttpResponse.json(
+        makeProjectProfile({ library_project_id: 'p', name: 'Release', concept: 'Original' }),
+      ),
+    ),
+    http.get(`${BASE}/v1/studio/projects/p/tracks`, () => HttpResponse.json([])),
+    http.patch(`${BASE}/v1/library/projects/p`, async ({ request }) => {
+      const body = await request.json();
+      renameStarted();
+      await renameGate;
+      return HttpResponse.json({ id: 'p', ...(body as { name: string }) });
+    }),
+    http.put(`${BASE}/v1/studio/projects/p`, async ({ request }) => {
+      submittedProfile = (await request.json()) as Record<string, unknown>;
+      return HttpResponse.json(
+        makeProjectProfile({ library_project_id: 'p', name: 'Renamed', concept: 'Submit concept' }),
+      );
+    }),
+  );
+  const client = show();
+  await screen.findByDisplayValue('Release');
+  await fireEvent.input(screen.getByLabelText(/Project name/), { target: { value: 'Renamed' } });
+  const concept = screen.getByLabelText(/Concept/) as HTMLTextAreaElement;
+  await fireEvent.input(concept, { target: { value: 'Submit concept' } });
+  await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  await renameRequested;
+  await fireEvent.input(concept, { target: { value: 'Later concept' } });
+  releaseRename();
+  await waitFor(() => expect(submittedProfile).toBeDefined());
+  expect(submittedProfile?.concept).toBe('Submit concept');
+  expect(concept.value).toBe('Later concept');
+  client.clear();
+});
+it('Saved is not announced when the form changed during the request', async () => {
+  let releaseProfile!: () => void;
+  let profileStarted!: () => void;
+  const profileGate = new Promise<void>((resolve) => {
+    releaseProfile = resolve;
+  });
+  const profileRequested = new Promise<void>((resolve) => {
+    profileStarted = resolve;
+  });
+  let profileCompleted = false;
+  server.use(
+    http.get(`${BASE}/v1/studio/projects/p`, () =>
+      HttpResponse.json(
+        makeProjectProfile({ library_project_id: 'p', name: 'Release', concept: 'Original' }),
+      ),
+    ),
+    http.get(`${BASE}/v1/studio/projects/p/tracks`, () => HttpResponse.json([])),
+    http.put(`${BASE}/v1/studio/projects/p`, async ({ request }) => {
+      await request.json();
+      profileStarted();
+      await profileGate;
+      const response = makeProjectProfile({
+        library_project_id: 'p',
+        name: 'Release',
+        concept: 'Submitted',
+      });
+      profileCompleted = true;
+      return HttpResponse.json(response);
+    }),
+  );
+  const client = show();
+  await screen.findByDisplayValue('Release');
+  const concept = screen.getByLabelText(/Concept/) as HTMLTextAreaElement;
+  await fireEvent.input(concept, { target: { value: 'Submitted' } });
+  await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  await profileRequested;
+  await fireEvent.input(concept, { target: { value: 'Changed after submit' } });
+  releaseProfile();
+  await waitFor(() => expect(profileCompleted).toBe(true));
+  await waitFor(() =>
+    expect((screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled).toBe(
+      false,
+    ),
+  );
+  expect(screen.queryByRole('status')).toBeNull();
+  expect(concept.value).toBe('Changed after submit');
+  client.clear();
+});
 it('disables removal while tracks exist', async () => {
   server.use(
     http.get(`${BASE}/v1/studio/projects/p`, () =>

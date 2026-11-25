@@ -64,7 +64,7 @@
       <TrackColumn projectId={id} instance="desktop" />
     </aside>
     <div class="workspace-scroll min-w-0 flex-1 overflow-y-auto">
-      {#key id}{@render children()}{/key}
+      {#key `${id}:${$page.params.trackId ?? ''}`}{@render children()}{/key}
     </div>
   </div>
 {/if}

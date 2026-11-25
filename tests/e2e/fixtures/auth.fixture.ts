@@ -49,6 +49,18 @@ export const test = base.extend<{ authenticatedPage: Page }>({
       }),
     );
 
+    // Authenticated app shells immediately renew the content cookie. Keep that background
+    // request deterministic so it cannot mistake an unmocked 401 for an expired session.
+    await page.route('**/v1/auth/content-cookie', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+        }),
+      }),
+    );
+
     // The authenticated app opens a persistent SSE connection. Keep the shared
     // fixture deterministic: tests that exercise streaming can register a
     // more-specific route after this one.

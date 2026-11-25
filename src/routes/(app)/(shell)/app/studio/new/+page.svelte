@@ -30,7 +30,6 @@
   import * as m from '$paraglide/messages';
   import Sheet from '$lib/components/shared/Sheet.svelte';
   import SheetActions from '$lib/components/shared/SheetActions.svelte';
-  import { MAX_ARTISTS } from '$lib/studio/artists';
   import type { components } from '$lib/api/types';
   const qc = useQueryClient();
   const artists = createQuery(artistsQueryOptions);
@@ -48,12 +47,15 @@
   let artistForm = $state<HTMLFormElement | undefined>();
   type ArtistPage = components['schemas']['CursorPage_src.api.schemas.studio.ArtistOut_'];
   let artistIssues = $derived(fieldIssues(validationIssues(createArtist.error), 'name'));
+  let artistNameLength = $derived(codePointLength(artistName));
+  let artistNameTooLong = $derived(artistNameLength > STUDIO_LIMITS.artistName);
+  let showArtistNameCount = $derived(artistNameLength > STUDIO_LIMITS.artistName * 0.8);
   let artistNameConflict = $derived(
     studioError(createArtist.error)?.error === 'artist_name_conflict',
   );
   let artistApiError = $derived(artistCreateError(createArtist.error));
   let artistLimitReached = $derived(
-    (artists.data?.items.length ?? 0) >= MAX_ARTISTS ||
+    (artists.data?.items.length ?? 0) >= STUDIO_LIMITS.artistsPerUser ||
       studioError(createArtist.error)?.error === 'artist_limit_reached',
   );
   let preselected = false;
@@ -136,12 +138,16 @@
   async function addArtist(event: SubmitEvent) {
     event.preventDefault();
     const submittedName = artistName.trim();
-    if (!submittedName || artistLimitReached || createArtist.isPending) return;
+    if (!submittedName || artistNameTooLong || artistLimitReached || createArtist.isPending) return;
     try {
       const created = await createArtist.mutateAsync({ name: submittedName, persona: null });
       const current = qc.getQueryData<ArtistPage>(studioKeys.artists());
       qc.setQueryData<ArtistPage>(studioKeys.artists(), {
-        ...(current ?? { limit: 50, has_more: false, next_cursor: null }),
+        ...(current ?? {
+          limit: STUDIO_LIMITS.artistsPerUser,
+          has_more: false,
+          next_cursor: null,
+        }),
         items: current?.items.some((item) => item.id === created.id)
           ? current.items
           : [...(current?.items ?? []), created],
@@ -246,12 +252,24 @@
           bind:value={artistName}
           autocomplete="off"
           required
-          aria-invalid={artistNameConflict || artistIssues.length > 0 || !!artistApiError}
+          aria-invalid={artistNameTooLong ||
+            artistNameConflict ||
+            artistIssues.length > 0 ||
+            !!artistApiError}
           aria-describedby={describedBy('studio-new-artist-name', artistIssues, [
+            ...(showArtistNameCount ? ['studio-new-artist-name-count'] : []),
+            ...(artistNameTooLong ? ['studio-new-artist-name-long'] : []),
             ...(artistNameConflict || artistApiError ? ['studio-new-artist-error'] : []),
           ])}
         /></label
-      >{#if artistNameConflict}<p id="studio-new-artist-error" role="alert">
+      >{#if showArtistNameCount}<p
+          id="studio-new-artist-name-count"
+          class="text-sm text-text-muted"
+        >
+          {artistNameLength}/{STUDIO_LIMITS.artistName}
+        </p>{/if}{#if artistNameTooLong}<p id="studio-new-artist-name-long" role="alert">
+          {m.studio_issue_too_long()}
+        </p>{/if}{#if artistNameConflict}<p id="studio-new-artist-error" role="alert">
           {m.artists_name_conflict()}
         </p>{:else if artistApiError}<p id="studio-new-artist-error" role="alert">
           {artistApiError}
@@ -268,7 +286,7 @@
       <SheetActions
         primaryLabel={m.studio_create_artist()}
         pending={createArtist.isPending}
-        primaryDisabled={artistLimitReached || !artistName.trim()}
+        primaryDisabled={artistLimitReached || !artistName.trim() || artistNameTooLong}
         oncancel={closeArtistSheet}
         onprimary={() => artistForm?.requestSubmit()}
       />

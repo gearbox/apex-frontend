@@ -15,6 +15,7 @@
     reorderTracksMutationOptions,
   } from '$lib/queries/studioTracks';
   import { studioProject, studioTrack } from '$lib/studio/paths';
+  import { addToast } from '$lib/stores/toasts';
   import {
     trackCreateError,
     trackSaveError,
@@ -158,12 +159,25 @@
     event.preventDefault();
     if (!edit || !editTitle.trim() || renameTooLong || rename.isPending) return;
     const trackId = edit.id;
+    const trackTitle = edit.title;
     const submittedTitle = editTitle;
     try {
       await rename.mutateAsync({ projectId, id: trackId, title: submittedTitle.trim() });
-      if (editTitle === submittedTitle) await closeRename(trackId);
+      if (edit?.id === trackId && editTitle === submittedTitle) await closeRename(trackId);
     } catch (e) {
-      error = trackSaveError(e);
+      const message = trackSaveError(e);
+      if (edit?.id !== trackId) {
+        if (message) {
+          addToast({
+            type: 'error',
+            message: [m.studio_track_rename_failed({ title: trackTitle }), message]
+              .filter(Boolean)
+              .join(' '),
+          });
+        }
+        return;
+      }
+      error = message;
     }
   }
   async function deleteTrack() {

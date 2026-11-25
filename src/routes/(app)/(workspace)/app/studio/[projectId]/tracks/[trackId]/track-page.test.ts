@@ -1,32 +1,43 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import { QueryClient } from '@tanstack/svelte-query';
+import { get } from 'svelte/store';
 import { http, HttpResponse } from 'msw';
 import QueryHarness from '../../../../../../../../tests/QueryHarness.svelte';
 import { server } from '../../../../../../../../mocks/server';
 import { MOCK_BASE_URL as BASE } from '../../../../../../../../mocks/config';
 import {
+  makeTrack,
   makeTrackDetail,
   makePlanVersion,
   makeLyricsVersion,
 } from '../../../../../../../../mocks/factories/studio';
 import type { Component } from 'svelte';
 import { studioKeys } from '$lib/queries/studio';
-const state = vi.hoisted(() => ({ goto: vi.fn().mockResolvedValue(undefined) }));
-vi.mock('$app/navigation', () => ({ goto: state.goto }));
-vi.mock('$app/stores', () => ({
-  page: {
-    subscribe: (fn: (value: unknown) => void) => {
-      fn({
-        params: { projectId: 'p', trackId: 't' },
-        url: new URL('http://localhost/app/studio/p/tracks/t'),
-      });
-      return () => {};
-    },
-  },
+import { clearToasts, toasts } from '$lib/stores/toasts';
+const state = vi.hoisted(() => ({
+  goto: vi.fn().mockResolvedValue(undefined),
+  setPage: undefined as ((value: unknown) => void) | undefined,
 }));
+vi.mock('$app/navigation', () => ({ goto: state.goto }));
+vi.mock('$app/stores', async () => {
+  const { writable } = await import('svelte/store');
+  const initial = pageValue('t');
+  const page = writable(initial);
+  state.setPage = (value) => page.set(value as typeof initial);
+  return { page };
+});
 import { goto } from '$app/navigation';
 import TrackPage from './+page.svelte';
+import TrackPageLayoutHarness from './TrackPageLayoutHarness.svelte';
+import { makeProjectProfile } from '../../../../../../../../mocks/factories/studio';
+function pageValue(trackId: string) {
+  return {
+    params: { projectId: 'p', trackId },
+    url: new URL(`http://localhost/app/studio/p/tracks/${trackId}`),
+    route: { id: '/(app)/(workspace)/app/studio/[projectId]/tracks/[trackId]' },
+  };
+}
 function show() {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -39,6 +50,8 @@ function show() {
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  state.setPage?.(pageValue('t'));
+  clearToasts();
 });
 describe('read-only track', () => {
   it('matches lyrics by section id, hides instrumental lines and renders text safely', async () => {
@@ -176,5 +189,114 @@ it('title rename can be cancelled and returns focus to Rename', async () => {
   await fireEvent.keyDown(input, { key: 'Escape' });
   await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Rename' })).toBeNull());
   expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Rename' }));
+  client.clear();
+});
+
+it('switching tracks discards the rename draft', async () => {
+  const trackA = makeTrackDetail({ id: 'a', library_project_id: 'p', title: 'Track A' });
+  const trackB = makeTrackDetail({ id: 'b', library_project_id: 'p', title: 'Track B' });
+  let patches = 0;
+  server.use(
+    http.get(`${BASE}/v1/studio/projects/p`, () =>
+      HttpResponse.json(makeProjectProfile({ library_project_id: 'p', name: 'Release' })),
+    ),
+    http.get(`${BASE}/v1/studio/projects/p/tracks`, () =>
+      HttpResponse.json([
+        makeTrack({ id: 'a', library_project_id: 'p', title: 'Track A' }),
+        makeTrack({ id: 'b', library_project_id: 'p', title: 'Track B', position: 1 }),
+      ]),
+    ),
+    http.get(`${BASE}/v1/studio/tracks/a`, () => HttpResponse.json(trackA)),
+    http.get(`${BASE}/v1/studio/tracks/b`, () => HttpResponse.json(trackB)),
+    http.patch(`${BASE}/v1/studio/tracks/:id`, () => {
+      patches++;
+      return HttpResponse.json({});
+    }),
+  );
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  state.setPage?.(pageValue('a'));
+  render(QueryHarness, {
+    props: {
+      component: TrackPageLayoutHarness as Component<object>,
+      componentProps: {},
+      client,
+    },
+  });
+  await screen.findByRole('heading', { name: 'Track A' });
+  await fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
+  await fireEvent.input(await screen.findByRole('textbox', { name: 'Rename' }), {
+    target: { value: 'Track A draft' },
+  });
+
+  state.setPage?.(pageValue('b'));
+  await screen.findByRole('heading', { name: 'Track B' });
+  expect(screen.queryByRole('textbox', { name: 'Rename' })).toBeNull();
+  expect(screen.getByRole('heading', { name: 'Track B' })).toBeTruthy();
+  expect(patches).toBe(0);
+  client.clear();
+});
+
+it('a rename that finishes after a switch only toasts on failure', async () => {
+  let release!: () => void;
+  let started!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const requested = new Promise<void>((resolve) => {
+    started = resolve;
+  });
+  server.use(
+    http.get(`${BASE}/v1/studio/projects/p`, () =>
+      HttpResponse.json(makeProjectProfile({ library_project_id: 'p', name: 'Release' })),
+    ),
+    http.get(`${BASE}/v1/studio/projects/p/tracks`, () =>
+      HttpResponse.json([
+        makeTrack({ id: 'a', library_project_id: 'p', title: 'Track A' }),
+        makeTrack({ id: 'b', library_project_id: 'p', title: 'Track B', position: 1 }),
+      ]),
+    ),
+    http.get(`${BASE}/v1/studio/tracks/a`, () =>
+      HttpResponse.json(makeTrackDetail({ id: 'a', library_project_id: 'p', title: 'Track A' })),
+    ),
+    http.get(`${BASE}/v1/studio/tracks/b`, () =>
+      HttpResponse.json(makeTrackDetail({ id: 'b', library_project_id: 'p', title: 'Track B' })),
+    ),
+    http.patch(`${BASE}/v1/studio/tracks/a`, async () => {
+      started();
+      await gate;
+      return HttpResponse.json(
+        { error: 'server_error', message: 'failed', status_code: 500 },
+        { status: 500 },
+      );
+    }),
+  );
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  state.setPage?.(pageValue('a'));
+  render(QueryHarness, {
+    props: {
+      component: TrackPageLayoutHarness as Component<object>,
+      componentProps: {},
+      client,
+    },
+  });
+  await screen.findByRole('heading', { name: 'Track A' });
+  await fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
+  await fireEvent.input(await screen.findByRole('textbox', { name: 'Rename' }), {
+    target: { value: 'Track A draft' },
+  });
+  await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  await requested;
+
+  state.setPage?.(pageValue('b'));
+  await screen.findByRole('heading', { name: 'Track B' });
+  release();
+  await waitFor(() => expect(get(toasts).at(-1)?.type).toBe('error'));
+  expect(screen.queryByRole('textbox', { name: 'Rename' })).toBeNull();
+  expect(screen.queryByText('Could not save. Please try again.')).toBeNull();
+  expect(get(toasts).at(-1)?.message).toContain('Could not save');
   client.clear();
 });

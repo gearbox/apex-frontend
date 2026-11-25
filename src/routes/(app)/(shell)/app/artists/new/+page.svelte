@@ -4,7 +4,6 @@
   import { ArrowLeft, Check } from '@lucide/svelte';
   import { createArtistMutationOptions, artistsQueryOptions } from '$lib/queries/studio';
   import { ARTIST_KINDS, ARTIST_KIND_COPY, type ArtistKind } from '$lib/studio/artistKinds';
-  import { MAX_ARTISTS } from '$lib/studio/artists';
   import {
     artistCreateError,
     describedBy,
@@ -35,7 +34,7 @@
   let hasArtistLimitError = $state(false);
 
   let artistLimitReached = $derived(
-    hasArtistLimitError || (artistsQuery.data?.items.length ?? 0) >= MAX_ARTISTS,
+    hasArtistLimitError || (artistsQuery.data?.items.length ?? 0) >= STUDIO_LIMITS.artistsPerUser,
   );
   let issues = $derived(validationIssues(createArtistMutation.error));
   let nameIssues = $derived(fieldIssues(issues, 'name'));

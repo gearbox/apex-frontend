@@ -9,6 +9,8 @@
   import { STUDIO_LIMITS } from '$lib/studio/limits';
   import { studioProject, studioTrack } from '$lib/studio/paths';
   import { ApiRequestError } from '$lib/api/errors';
+  import { componentSession } from '$lib/utils/sessionTracker';
+  import { addToast } from '$lib/stores/toasts';
   import {
     trackSaveError,
     validationIssues,
@@ -26,6 +28,7 @@
   const track = createQuery(() => trackQueryOptions(id));
   const qc = useQueryClient();
   const rename = createMutation(() => renameTrackMutationOptions(qc));
+  const pageSession = componentSession();
   let editing = $state(false);
   let title = $state('');
   let error = $state('');
@@ -63,11 +66,18 @@
   async function save(event: SubmitEvent) {
     event.preventDefault();
     if (!title.trim() || titleTooLong || rename.isPending) return;
+    const captured = pageSession.capture();
     const submittedTitle = title;
     try {
       await rename.mutateAsync({ projectId, id, title: submittedTitle.trim() });
+      if (!captured.active) return;
       if (title === submittedTitle) await cancelRename();
     } catch (e) {
+      if (!captured.active) {
+        const message = trackSaveError(e);
+        if (message) addToast({ type: 'error', message });
+        return;
+      }
       error = trackSaveError(e);
     }
   }
