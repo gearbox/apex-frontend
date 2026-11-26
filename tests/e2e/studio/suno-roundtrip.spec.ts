@@ -39,9 +39,21 @@ test(
     await page.getByLabel('Lyrics').fill('[Verse]\nA line of lyrics');
     await page.getByRole('button', { name: 'Preview' }).click();
     await expect(page.getByText('Plan: new version')).toBeVisible();
+    await page
+      .getByRole('textbox', { name: 'Lyrics' })
+      .fill('[Verse]\nA line of lyrics\nSecond line');
+    await expect(page.locator('#import-stale-status')).toContainText(
+      'The text changed since the preview. Preview again to see the result.',
+    );
+    await expect(page.locator('#import-preview-heading')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /^Line / })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Preview' }).click();
+    await expect(page.getByText('Plan: new version')).toBeVisible();
     await page.getByRole('button', { name: 'Import', exact: true }).click();
     await expect(page).toHaveURL(/\/app\/studio\/p1\/tracks\/t1$/);
     await expect(page.getByText('A line of lyrics')).toBeVisible();
+    await expect(page.getByText('Second line')).toBeVisible();
+    await expect(page.getByText('New plan v1 and lyrics v1')).toBeVisible();
     await expect(
       page
         .locator('section[aria-labelledby^="document-plan-heading-"]')
@@ -53,7 +65,7 @@ test(
     await expect(dialog).toBeVisible();
     await expect(dialog.getByRole('textbox', { name: 'Style of Music' })).toHaveValue('dream pop');
     await expect(dialog.locator('[data-export-field="lyrics"]')).toHaveText(
-      '[Verse]\nA line of lyrics',
+      '[Verse]\nA line of lyrics\nSecond line',
     );
     await expectNoSeriousAxeViolations(page);
 
@@ -62,7 +74,7 @@ test(
       await dialog.getByRole('button', { name: 'Copy Lyrics' }).click();
       await expect(dialog.getByRole('status')).toContainText('Copied');
       expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
-        '[Verse]\nA line of lyrics',
+        '[Verse]\nA line of lyrics\nSecond line',
       );
     }
     await dialog.getByRole('button', { name: 'Close' }).click();
