@@ -18,8 +18,15 @@
   let routeId = $derived($page.route.id ?? '');
   let isSettings = $derived(routeId.endsWith('/settings'));
   let isOverview = $derived(routeId === '/(app)/(workspace)/app/studio/[projectId]');
-  let backHref = $derived(workspaceBack(routeId, id));
-  let backLabel = $derived(isOverview ? m.studio_back() : m.studio_back_to_project());
+  let isTrackDocument = $derived(routeId.endsWith('/import') || routeId.endsWith('/history'));
+  let backHref = $derived(workspaceBack(routeId, id, $page.params.trackId));
+  let backLabel = $derived(
+    isOverview
+      ? m.studio_back()
+      : isTrackDocument
+        ? m.studio_back_to_track()
+        : m.studio_back_to_project(),
+  );
   let workspaceTitle = $derived(isSettings ? m.studio_settings() : (project.data?.name ?? ''));
   let artist = $derived(artists.data?.items.find((item) => item.id === project.data?.artist_id));
 </script>

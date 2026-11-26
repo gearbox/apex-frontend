@@ -108,6 +108,16 @@ describe('pwaInstall store', () => {
     cleanup();
   });
 
+  it('resetInstallSheetDismissal clears the persisted hint dismissal', async () => {
+    const { dismissInstallSheet, resetInstallSheetDismissal, isInstallSheetDismissed } =
+      await import('./pwaInstall');
+    dismissInstallSheet();
+    expect(get(isInstallSheetDismissed)).toBe(true);
+    resetInstallSheetDismissal();
+    expect(get(isInstallSheetDismissed)).toBe(false);
+    expect(localStorage.getItem(DISMISSED_KEY)).toBeNull();
+  });
+
   it('appinstalled event sets installed and clears canInstall', async () => {
     const { canInstall, initPwaInstallListener } = await import('./pwaInstall');
 
@@ -162,5 +172,61 @@ describe('pwaInstall store', () => {
 
     const { shouldShowInstallButton } = await import('./pwaInstall');
     expect(get(shouldShowInstallButton)).toBe(false);
+  });
+
+  it('installStatus reports every install state', async () => {
+    vi.resetModules();
+    vi.doMock('$lib/utils/platform', () => ({
+      getInstallPlatform: () => 'chromium' as const,
+      isStandalone: () => false,
+    }));
+    let stores = await import('./pwaInstall');
+    expect(get(stores.installStatus)).toBe('not_offered');
+    const cleanup = stores.initPwaInstallListener();
+    window.dispatchEvent(makeMockPromptEvent());
+    expect(get(stores.installStatus)).toBe('available');
+    cleanup();
+
+    vi.resetModules();
+    vi.doMock('$lib/utils/platform', () => ({
+      getInstallPlatform: () => 'ios' as const,
+      isStandalone: () => false,
+    }));
+    stores = await import('./pwaInstall');
+    expect(get(stores.installStatus)).toBe('ios_manual');
+
+    vi.resetModules();
+    vi.doMock('$lib/utils/platform', () => ({
+      getInstallPlatform: () => 'chromium' as const,
+      isStandalone: () => true,
+    }));
+    stores = await import('./pwaInstall');
+    expect(get(stores.installStatus)).toBe('installed');
+
+    vi.resetModules();
+    vi.doMock('$lib/utils/platform', () => ({
+      getInstallPlatform: () => 'chromium' as const,
+      isStandalone: () => false,
+    }));
+    stores = await import('./pwaInstall');
+    stores.dismissInstallSheet();
+    expect(get(stores.installStatus)).toBe('dismissed_hint');
+  });
+
+  it('resetInstallSheetDismissal clears the saved dismissal and makes the sheet eligible', async () => {
+    const {
+      shouldShowInstallSheet,
+      dismissInstallSheet,
+      resetInstallSheetDismissal,
+      initPwaInstallListener,
+    } = await import('./pwaInstall');
+    const cleanup = initPwaInstallListener();
+    window.dispatchEvent(makeMockPromptEvent());
+    dismissInstallSheet();
+    expect(get(shouldShowInstallSheet)).toBe(false);
+    resetInstallSheetDismissal();
+    expect(localStorage.getItem(DISMISSED_KEY)).toBeNull();
+    expect(get(shouldShowInstallSheet)).toBe(true);
+    cleanup();
   });
 });

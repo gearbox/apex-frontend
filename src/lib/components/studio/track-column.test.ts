@@ -8,8 +8,13 @@ import type { Component } from 'svelte';
 import QueryHarness from '../../../tests/QueryHarness.svelte';
 import { server } from '../../../mocks/server';
 import { MOCK_BASE_URL as BASE } from '../../../mocks/config';
-import { makeTrack } from '../../../mocks/factories/studio';
+import {
+  makeSunoImportResult,
+  makeTrack,
+  makeVersionSummary,
+} from '../../../mocks/factories/studio';
 import { clearToasts, toasts } from '$lib/stores/toasts';
+import { sunoImportMutationOptions } from '$lib/queries/studioVersions';
 vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
 vi.mock('$lib/utils/breakpoints', async () => {
   const { writable } = await import('svelte/store');
@@ -87,6 +92,46 @@ function showColumn() {
   });
   return client;
 }
+
+it('refreshes the current status chip after a Suno import', async () => {
+  let track = makeTrack({ id: 't1', library_project_id: 'p', title: 'Song' });
+  server.use(
+    http.get(`${BASE}/v1/studio/projects/p/tracks`, () => HttpResponse.json([track])),
+    http.post(`${BASE}/v1/studio/tracks/t1/imports/suno`, async ({ request }) => {
+      const body = (await request.json()) as { dry_run?: boolean };
+      expect(body.dry_run).toBe(false);
+      track = {
+        ...track,
+        current_plan_version_id: 'plan-1',
+        current_lyrics_version_id: 'lyrics-1',
+      };
+      return HttpResponse.json(
+        makeSunoImportResult({
+          dry_run: false,
+          created: true,
+          plan_version: makeVersionSummary({ id: 'plan-1', kind: 'plan' }),
+          lyrics_version: makeVersionSummary({ id: 'lyrics-1', kind: 'lyrics' }),
+        }),
+        { status: 201 },
+      );
+    }),
+  );
+  const client = showColumn();
+  await screen.findByRole('link', { name: /No plan/ });
+  const mutation = sunoImportMutationOptions(client, 'p', 't1');
+  await mutation.mutationFn({
+    style: 'dream pop',
+    exclude: '',
+    lyrics: '[Verse]\nA line',
+    title: null,
+    instrumental: null,
+    language: null,
+  });
+  await mutation.onSettled?.();
+  await waitFor(() => expect(screen.getByRole('link', { name: /Plan \+ lyrics/ })).toBeTruthy());
+  client.clear();
+});
+
 it('creates a track and keeps focus in the input', async () => {
   server.use(
     http.get(`${BASE}/v1/studio/projects/p/tracks`, () => HttpResponse.json([])),

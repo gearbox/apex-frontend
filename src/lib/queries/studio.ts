@@ -16,6 +16,16 @@ export const studioKeys = {
   project: (id: string) => [...studioKeys.all, 'project', id] as const,
   tracks: (id: string) => [...studioKeys.project(id), 'tracks'] as const,
   track: (id: string) => [...studioKeys.all, 'track', id] as const,
+  versions: (trackId: string, kind: 'plan' | 'lyrics') =>
+    [...studioKeys.track(trackId), 'versions', kind] as const,
+  version: (id: string) => [...studioKeys.all, 'version', id] as const,
+  sunoExport: (trackId: string, pair: { plan?: string; lyrics?: string }) =>
+    [
+      ...studioKeys.track(trackId),
+      'suno-export',
+      pair.plan ?? 'current',
+      pair.lyrics ?? 'current',
+    ] as const,
   artists: () => [...studioKeys.all, 'artists'] as const,
   artist: (id: string) => [...studioKeys.all, 'artist', id] as const,
   memories: (id: string, status: MemoryStatus) =>
@@ -24,6 +34,7 @@ export const studioKeys = {
 export const studioScopes = {
   project: (id: string) => `studio.project.${id}`,
   tracks: (projectId: string) => `studio.tracks.${projectId}`,
+  track: (trackId: string) => `studio.track.${trackId}`,
 };
 export function artistsQueryOptions() {
   return {

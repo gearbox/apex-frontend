@@ -7,17 +7,27 @@ import {
   makeProjectProfile,
   makeTrack,
   makeTrackDetail,
+  makePlanVersion,
+  makeLyricsVersion,
+  makeVersionSummary,
+  makeSunoExport,
+  makeSunoImportResult,
   type MockProjectProfile,
   type MockTrack,
   type MockArtist,
   type MockMemory,
+  type MockVersionSummary,
 } from '../factories/studio';
 import { MOCK_BASE_URL as BASE } from '../config';
+import { sectionDisplayName } from '$lib/studio/sections';
 
 type ArtistCreate = components['schemas']['ArtistCreate'];
 type ArtistPatch = components['schemas']['ArtistPatch'];
 type MemoryCreate = components['schemas']['MemoryCreate'];
 type MemoryPatch = components['schemas']['MemoryPatch'];
+type MockPlanVersion = components['schemas']['PlanVersionDetail'];
+type MockLyricsVersion = components['schemas']['LyricsVersionDetail'];
+type MockVersion = MockPlanVersion | MockLyricsVersion;
 
 let artists: MockArtist[] = [];
 let memories: MockMemory[] = [];
@@ -27,6 +37,9 @@ let profiles: MockProjectProfile[] = [];
 let tracks: MockTrack[] = [];
 let libraryNames = new Map<string, string>();
 let nextTrackId = 1;
+let versions: MockVersion[] = [];
+let nextVersionId = 1;
+let nextSectionId = 1;
 export function setStudioMockLibraryName(id: string, name: string): void {
   libraryNames.set(id, name);
   profiles = profiles.map((profile) =>
@@ -51,6 +64,9 @@ export function resetStudioMockStore(): void {
   tracks = [];
   libraryNames = new Map();
   nextTrackId = 1;
+  versions = [];
+  nextVersionId = 1;
+  nextSectionId = 1;
 }
 
 function apiError(status: number, error: string, message: string) {
@@ -86,6 +102,133 @@ function diaryOrder(a: MockMemory, b: MockMemory): number {
 function activeMemoryCount(artistId: string): number {
   return memories.filter((memory) => memory.artist_id === artistId && memory.status === 'active')
     .length;
+}
+
+function versionSummary(version: MockVersion): MockVersionSummary {
+  return makeVersionSummary({
+    id: version.id,
+    kind: version.kind,
+    version_number: version.version_number,
+    parent_version_id: version.parent_version_id,
+    based_on_plan_version_id: version.kind === 'lyrics' ? version.based_on_plan_version_id : null,
+    origin: version.origin,
+    schema_version: version.schema_version,
+    content_hash: version.content_hash,
+    created_at: version.created_at,
+    is_current: version.is_current,
+  });
+}
+
+function trackDetail(track: MockTrack) {
+  return makeTrackDetail({
+    ...track,
+    current_plan:
+      (versions.find(
+        (version) => version.id === track.current_plan_version_id && version.kind === 'plan',
+      ) as MockPlanVersion | undefined) ?? null,
+    current_lyrics:
+      (versions.find(
+        (version) => version.id === track.current_lyrics_version_id && version.kind === 'lyrics',
+      ) as MockLyricsVersion | undefined) ?? null,
+  });
+}
+
+function mockImportDocuments(
+  track: MockTrack,
+  request: components['schemas']['SunoImportRequest'],
+) {
+  const currentPlan = versions.find(
+    (version) => version.id === track.current_plan_version_id && version.kind === 'plan',
+  ) as MockPlanVersion | undefined;
+  const sections: components['schemas']['PlanSection'][] = [];
+  const lyricSections: components['schemas']['LyricsSection'][] = [];
+  const lines = (request.lyrics ?? '').replace(/\r\n?/g, '\n').split('\n');
+  let currentSection: components['schemas']['PlanSection'] | undefined;
+  let currentLines: components['schemas']['LyricLine'][] = [];
+  const flush = () => {
+    if (!currentSection) return;
+    sections.push(currentSection);
+    if (currentLines.length)
+      lyricSections.push({ section_id: currentSection.id, lines: currentLines });
+    currentSection = undefined;
+    currentLines = [];
+  };
+  const kinds: Record<string, components['schemas']['StudioSectionKind']> = {
+    intro: 'intro',
+    verse: 'verse',
+    'pre-chorus': 'pre_chorus',
+    chorus: 'chorus',
+    'post-chorus': 'post_chorus',
+    hook: 'hook',
+    bridge: 'bridge',
+    build: 'build',
+    drop: 'drop',
+    breakdown: 'breakdown',
+    instrumental: 'instrumental',
+    interlude: 'interlude',
+    outro: 'outro',
+  };
+  for (const line of lines) {
+    const header = /^\[([^\]]+)\]$/.exec(line.trim());
+    if (header) {
+      flush();
+      const name = header[1].split(':', 1)[0].trim();
+      const kindName = name.toLowerCase().replace(/\s+\d+$/, '');
+      currentSection = {
+        id: `section_mock_${nextSectionId++}`,
+        kind: kinds[kindName] ?? 'interlude',
+        ...(kinds[kindName] ? {} : { label: name }),
+        delivery: [],
+        instrumental: false,
+      };
+    } else if (line.trim()) {
+      if (!currentSection) {
+        currentSection = {
+          id: `section_mock_${nextSectionId++}`,
+          kind: 'verse',
+          delivery: [],
+          instrumental: false,
+        };
+      }
+      currentLines.push({ text: line.trim(), delivery: [] });
+    }
+  }
+  flush();
+  const style = (request.style ?? '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const exclude = (request.exclude ?? '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const plan: components['schemas']['PlanDocument'] = {
+    title: request.title ?? currentPlan?.content.title ?? track.title,
+    instrumental: request.instrumental ?? currentPlan?.content.instrumental ?? false,
+    global_style: { tags: style, avoid: exclude },
+    references: [],
+    sections,
+  };
+  const lyrics: components['schemas']['LyricsDocument'] | null = lyricSections.length
+    ? { language: request.language ?? 'en', sections: lyricSections }
+    : null;
+  return { plan, lyrics };
+}
+
+function mockRenderedLyrics(
+  plan: components['schemas']['PlanDocument'],
+  lyrics: components['schemas']['LyricsDocument'] | null,
+) {
+  const sections = (plan.sections ?? []) as components['schemas']['PlanSection'][];
+  const lyricSections = (lyrics?.sections ?? []) as components['schemas']['LyricsSection'][];
+  return sections
+    .map((section) => {
+      const label = sectionDisplayName(section, sections);
+      const entry = lyricSections.find((item) => item.section_id === section.id);
+      const lines = (entry?.lines ?? []) as components['schemas']['LyricLine'][];
+      return [`[${label}]`, ...lines.map((line) => line.text)].join('\n');
+    })
+    .join('\n\n');
 }
 
 export const studioHandlers = [
@@ -178,8 +321,229 @@ export const studioHandlers = [
   http.get(`${BASE}/v1/studio/tracks/:track_id`, ({ params }) => {
     const item = tracks.find((track) => track.id === params.track_id);
     return item
-      ? HttpResponse.json(makeTrackDetail(item))
+      ? HttpResponse.json(trackDetail(item))
       : apiError(404, 'not_found', 'Track not found.');
+  }),
+  http.get(`${BASE}/v1/studio/tracks/:track_id/versions`, ({ params, request }) => {
+    const trackId = String(params.track_id);
+    if (!tracks.some((track) => track.id === trackId))
+      return apiError(404, 'not_found', 'Track not found.');
+    const url = new URL(request.url);
+    const kind = url.searchParams.get('kind');
+    const items = versions
+      .filter((version) => version.track_id === trackId && (!kind || version.kind === kind))
+      .sort((a, b) => b.version_number - a.version_number)
+      .map(versionSummary);
+    return HttpResponse.json(cursorPage(items, url));
+  }),
+  http.get(`${BASE}/v1/studio/versions/:version_id`, ({ params }) => {
+    const version = versions.find((item) => item.id === params.version_id);
+    return version ? HttpResponse.json(version) : apiError(404, 'not_found', 'Version not found.');
+  }),
+  http.delete(`${BASE}/v1/studio/versions/:version_id`, ({ params }) => {
+    const version = versions.find((item) => item.id === params.version_id);
+    if (!version) return apiError(404, 'not_found', 'Version not found.');
+    if (version.is_current) return apiError(409, 'version_is_current', 'The version is current.');
+    const children = versions.filter((item) => item.parent_version_id === version.id).length;
+    if (children)
+      return HttpResponse.json(
+        {
+          error: 'version_has_children',
+          message: 'Version has children.',
+          status_code: 409,
+          detail: { count: children },
+        },
+        { status: 409 },
+      );
+    const lyricBases = versions.filter(
+      (item) => item.kind === 'lyrics' && item.based_on_plan_version_id === version.id,
+    ).length;
+    if (lyricBases)
+      return HttpResponse.json(
+        {
+          error: 'version_is_lyrics_base',
+          message: 'Version is a lyrics base.',
+          status_code: 409,
+          detail: { count: lyricBases },
+        },
+        { status: 409 },
+      );
+    versions = versions.filter((item) => item.id !== version.id);
+    return new HttpResponse(null, { status: 204 });
+  }),
+  http.put(`${BASE}/v1/studio/tracks/:track_id/current`, async ({ params, request }) => {
+    const index = tracks.findIndex((track) => track.id === params.track_id);
+    if (index < 0) return apiError(404, 'not_found', 'Track not found.');
+    const body = (await request.json()) as components['schemas']['CurrentPut'];
+    const track = tracks[index];
+    const planId = body.plan_version_id ?? track.current_plan_version_id;
+    const lyricsId =
+      body.lyrics_version_id === undefined
+        ? track.current_lyrics_version_id
+        : body.lyrics_version_id;
+    const plan = versions.find((version) => version.id === planId && version.kind === 'plan');
+    const lyrics = versions.find((version) => version.id === lyricsId && version.kind === 'lyrics');
+    if (body.plan_version_id && !plan)
+      return apiError(404, 'plan_version_not_found', 'Plan version not found.');
+    if (lyricsId && !lyrics) return apiError(404, 'not_found', 'Lyrics version not found.');
+    if (lyricsId && !planId) return apiError(409, 'plan_required', 'A plan is required.');
+    if (lyrics && plan && (lyrics as MockLyricsVersion).based_on_plan_version_id !== plan.id)
+      return apiError(409, 'lyrics_incompatible_with_plan', 'Lyrics are incompatible.');
+    tracks[index] = {
+      ...track,
+      current_plan_version_id: planId,
+      current_lyrics_version_id: lyricsId,
+    };
+    versions = versions.map((version) =>
+      version.track_id !== track.id
+        ? version
+        : { ...version, is_current: version.id === planId || version.id === lyricsId },
+    );
+    return HttpResponse.json(tracks[index]);
+  }),
+  http.get(`${BASE}/v1/studio/tracks/:track_id/exports/suno`, ({ params, request }) => {
+    const track = tracks.find((item) => item.id === params.track_id);
+    if (!track) return apiError(404, 'not_found', 'Track not found.');
+    const url = new URL(request.url);
+    const explicitPlan = url.searchParams.get('plan_version_id');
+    const explicitLyrics = url.searchParams.get('lyrics_version_id');
+    const planId = explicitPlan ?? track.current_plan_version_id;
+    const plan = versions.find((version) => version.id === planId && version.kind === 'plan') as
+      MockPlanVersion | undefined;
+    if (!plan) return apiError(409, 'plan_required', 'A plan is required.');
+    const lyricsId = explicitLyrics ?? (explicitPlan ? null : track.current_lyrics_version_id);
+    const lyrics = versions.find(
+      (version) => version.id === lyricsId && version.kind === 'lyrics',
+    ) as MockLyricsVersion | undefined;
+    if (lyrics && lyrics.based_on_plan_version_id !== plan.id)
+      return apiError(409, 'lyrics_incompatible_with_plan', 'Lyrics are incompatible.');
+    const styleTags = [
+      ...(plan.content.global_style?.tags ?? []),
+      ...(plan.content.tempo_bpm ? [`${plan.content.tempo_bpm} BPM`] : []),
+    ];
+    const style = styleTags.join(', ');
+    const exclude = (plan.content.global_style?.avoid ?? []).join(', ');
+    const renderedLyrics = mockRenderedLyrics(plan.content, lyrics?.content ?? null);
+    const count = (text: string) => Array.from(text).length;
+    return HttpResponse.json(
+      makeSunoExport({
+        plan_version_id: plan.id,
+        lyrics_version_id: lyrics?.id ?? null,
+        title: plan.content.title,
+        style,
+        exclude,
+        lyrics: renderedLyrics,
+        instrumental: plan.content.instrumental ?? false,
+        fields: {
+          title: { length: count(plan.content.title), limit: null, within_limit: true },
+          style: { length: count(style), limit: 1000, within_limit: count(style) <= 1000 },
+          exclude: { length: count(exclude), limit: 1000, within_limit: count(exclude) <= 1000 },
+          lyrics: {
+            length: count(renderedLyrics),
+            limit: 5000,
+            within_limit: count(renderedLyrics) <= 5000,
+          },
+        },
+      }),
+    );
+  }),
+  http.post(`${BASE}/v1/studio/tracks/:track_id/imports/suno`, async ({ params, request }) => {
+    const trackIndex = tracks.findIndex((item) => item.id === params.track_id);
+    if (trackIndex < 0) return apiError(404, 'not_found', 'Track not found.');
+    const track = tracks[trackIndex];
+    const body = (await request.json()) as components['schemas']['SunoImportRequest'];
+    const { plan, lyrics } = mockImportDocuments(track, body);
+    const currentPlan = versions.find(
+      (version) => version.id === track.current_plan_version_id && version.kind === 'plan',
+    ) as MockPlanVersion | undefined;
+    const currentLyrics = versions.find(
+      (version) => version.id === track.current_lyrics_version_id && version.kind === 'lyrics',
+    ) as MockLyricsVersion | undefined;
+    const planUnchanged =
+      !!currentPlan && JSON.stringify(currentPlan.content) === JSON.stringify(plan);
+    const lyricsUnchanged =
+      planUnchanged &&
+      (lyrics === null
+        ? currentLyrics === undefined
+        : JSON.stringify(currentLyrics?.content) === JSON.stringify(lyrics));
+    const resultBase = makeSunoImportResult({
+      dry_run: body.dry_run ?? false,
+      plan,
+      lyrics,
+      plan_unchanged: planUnchanged,
+      lyrics_unchanged: lyricsUnchanged,
+      created: !planUnchanged || !lyricsUnchanged,
+    });
+    if (body.dry_run) return HttpResponse.json(resultBase);
+    if (planUnchanged && lyricsUnchanged)
+      return HttpResponse.json({
+        ...resultBase,
+        plan_version: currentPlan ? versionSummary(currentPlan) : null,
+        lyrics_version: currentLyrics ? versionSummary(currentLyrics) : null,
+        created: false,
+      });
+    let planVersion = currentPlan;
+    if (!planUnchanged) {
+      const versionNumber =
+        versions.filter((version) => version.track_id === track.id && version.kind === 'plan')
+          .length + 1;
+      planVersion = makePlanVersion({
+        id: `plan_mock_${String(nextVersionId++).padStart(3, '0')}`,
+        track_id: track.id,
+        version_number: versionNumber,
+        parent_version_id: track.current_plan_version_id,
+        origin: 'import',
+        is_current: true,
+        content: plan,
+      });
+      versions = versions.map((version) =>
+        version.track_id === track.id && version.kind === 'plan'
+          ? { ...version, is_current: false }
+          : version,
+      );
+      versions.push(planVersion);
+    }
+    let lyricsVersion: MockLyricsVersion | undefined;
+    if (lyrics) {
+      if (lyricsUnchanged && currentLyrics && planUnchanged) lyricsVersion = currentLyrics;
+      else {
+        const versionNumber =
+          versions.filter((version) => version.track_id === track.id && version.kind === 'lyrics')
+            .length + 1;
+        lyricsVersion = makeLyricsVersion({
+          id: `lyrics_mock_${String(nextVersionId++).padStart(3, '0')}`,
+          track_id: track.id,
+          version_number: versionNumber,
+          parent_version_id: track.current_lyrics_version_id,
+          based_on_plan_version_id: planVersion!.id,
+          origin: 'import',
+          is_current: true,
+          content: lyrics,
+        });
+        versions = versions.map((version) =>
+          version.track_id === track.id && version.kind === 'lyrics'
+            ? { ...version, is_current: false }
+            : version,
+        );
+        versions.push(lyricsVersion);
+      }
+    }
+    const nextTrack = {
+      ...track,
+      current_plan_version_id: planVersion?.id ?? track.current_plan_version_id,
+      current_lyrics_version_id: lyricsVersion?.id ?? null,
+    };
+    tracks[trackIndex] = nextTrack;
+    return HttpResponse.json(
+      {
+        ...resultBase,
+        dry_run: false,
+        plan_version: planVersion ? versionSummary(planVersion) : null,
+        lyrics_version: lyricsVersion ? versionSummary(lyricsVersion) : null,
+        created: true,
+      },
+      { status: 201 },
+    );
   }),
   http.patch(`${BASE}/v1/studio/tracks/:track_id`, async ({ params, request }) => {
     const body = (await request.json()) as { title: string };

@@ -119,10 +119,38 @@ export function issueMessage(issue: StudioValidationIssue): string {
       return m.studio_issue_reserved_characters();
     case 'reserved_tempo_tag':
       return m.studio_issue_reserved_tempo_tag();
+    case 'duplicate_section_id':
+      return m.studio_issue_duplicate_section_id();
+    case 'tag_conflict':
+      return m.studio_issue_tag_conflict();
+    case 'reserved_descriptor':
+      return m.studio_issue_reserved_descriptor();
+    case 'reserved_delivery_tag':
+      return m.studio_issue_reserved_delivery_tag();
+    case 'instrumental_plan_has_lines':
+      return m.studio_issue_instrumental_plan_has_lines();
+    case 'total_duration_exceeded':
+      return m.studio_issue_total_duration_exceeded();
+    case 'unknown_section':
+      return m.studio_issue_unknown_section();
+    case 'duplicate_section':
+      return m.studio_issue_duplicate_section();
+    case 'instrumental_section_has_lines':
+      return m.studio_issue_instrumental_section_has_lines();
+    case 'syllable_range_inverted':
+      return m.studio_issue_syllable_range_inverted();
+    case 'lyrics_too_long':
+      return m.studio_issue_lyrics_too_long();
+    case 'requires_make_current':
+      return m.studio_issue_requires_make_current();
+    case 'too_many_items':
+      return m.studio_import_too_many_items();
     case 'document_too_large':
       return m.studio_issue_document_too_large();
+    case 'unsupported_inline_tag':
+      return m.studio_issue_unsupported_inline_tag();
     default:
-      return m.studio_issue_invalid();
+      return m.studio_issue_unknown({ code: issue.code });
   }
 }
 
@@ -175,4 +203,130 @@ export function trackReorderError(error: unknown): string {
   return studioError(error)?.error === 'track_order_mismatch'
     ? m.studio_order_changed()
     : m.studio_save_error();
+}
+
+function errorCode(error: unknown): string {
+  return studioError(error)?.error ?? 'network';
+}
+
+function errorCount(error: unknown): string {
+  const detail = studioError(error)?.detail;
+  if (!detail || typeof detail !== 'object' || !('count' in detail)) return '0';
+  const count = (detail as { count?: unknown }).count;
+  return String(typeof count === 'number' && Number.isFinite(count) ? count : 0);
+}
+
+/** Explain why a plan or lyrics version cannot be deleted. */
+export function versionDeleteError(error: unknown): string {
+  if (error == null || isHandledGlobally(error)) return '';
+  switch (errorCode(error)) {
+    case 'version_is_current':
+      return m.studio_history_version_current_error();
+    case 'version_has_children':
+      return m.studio_history_children_error({ count: errorCount(error) });
+    case 'version_is_lyrics_base':
+      return m.studio_history_lyrics_base_error({ count: errorCount(error) });
+    case 'version_has_audio':
+      return m.studio_history_audio_error({ count: errorCount(error) });
+    case 'version_in_use_by_run':
+      return m.studio_history_run_error();
+    case 'network':
+      return m.studio_history_delete_error();
+    default:
+      return m.studio_versions_unknown_error({ code: errorCode(error) });
+  }
+}
+
+/** Explain a rejected request to change the current plan and lyrics pair. */
+export function setCurrentError(error: unknown): string {
+  if (error == null || isHandledGlobally(error)) return '';
+  switch (errorCode(error)) {
+    case 'plan_required':
+      return m.studio_history_plan_required();
+    case 'lyrics_incompatible_with_plan':
+      return m.studio_history_lyrics_incompatible();
+    case 'not_found':
+    case 'plan_version_not_found':
+      return m.studio_history_not_found();
+    case 'network':
+      return m.studio_history_set_current_error();
+    default:
+      return m.studio_versions_unknown_error({ code: errorCode(error) });
+  }
+}
+
+/** Map deterministic Suno import failures while leaving document issues available to the page. */
+export function importError(error: unknown): string {
+  if (error == null || isHandledGlobally(error)) return '';
+  const code = errorCode(error);
+  if (code === 'document_invalid') {
+    return validationIssues(error).map(issueMessage).join(' ');
+  }
+  if (code === 'import_invalid') {
+    const issues = validationIssues(error);
+    for (const issue of issues) {
+      if (issue.code === 'language_required') return m.studio_import_language_required();
+      if (issue.code === 'instrumental_with_lyric_lines')
+        return m.studio_import_instrumental_lines();
+      if (issue.code === 'reserved_tempo_tag') return m.studio_import_reserved_tempo();
+      if (issue.code === 'too_many_items') return m.studio_import_too_many_items();
+    }
+    return issues.length ? issues.map(issueMessage).join(' ') : m.studio_import_invalid();
+  }
+  switch (code) {
+    case 'language_required':
+      return m.studio_import_language_required();
+    case 'instrumental_with_lyric_lines':
+      return m.studio_import_instrumental_lines();
+    case 'reserved_tempo_tag':
+      return m.studio_import_reserved_tempo();
+    case 'version_limit_reached':
+      return m.studio_import_version_limit();
+    case 'too_many_items':
+      return m.studio_import_too_many_items();
+    case 'network':
+      return m.studio_import_copy_error();
+    default:
+      return m.studio_import_error_code({ code });
+  }
+}
+
+/** Localized meanings for the stable export warnings from the Studio contract. */
+export function exportWarningMessage(code: string): string {
+  switch (code) {
+    case 'local_avoid_not_exportable':
+      return m.studio_export_local_avoid();
+    case 'section_duration_not_exportable':
+      return m.studio_export_duration();
+    case 'lyrics_above_recommended_length':
+      return m.studio_export_long_lyrics();
+    case 'style_exclude_overlap':
+      return m.studio_export_overlap();
+    default:
+      return m.studio_export_warning_unknown({ code });
+  }
+}
+
+/** Localized meanings for the stable import warnings from the Studio contract. */
+export function importWarningMessage(code: string): string {
+  switch (code) {
+    case 'no_section_headers':
+      return m.studio_import_warning_no_headers();
+    case 'text_before_first_header':
+      return m.studio_import_warning_before_header();
+    case 'dangling_delivery':
+      return m.studio_import_warning_dangling_delivery();
+    case 'unknown_section_name':
+      return m.studio_import_warning_unknown_section();
+    case 'duplicate_descriptor':
+      return m.studio_import_warning_duplicate_descriptor();
+    case 'no_lyric_lines':
+      return m.studio_import_warning_no_lines();
+    case 'duplicate_style_item':
+      return m.studio_import_warning_duplicate_style();
+    case 'duplicate_tempo':
+      return m.studio_import_warning_duplicate_tempo();
+    default:
+      return m.studio_import_warning_unknown({ code });
+  }
 }
