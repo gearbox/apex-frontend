@@ -1,5 +1,89 @@
 import { expect, it } from 'vitest';
-import { buildImportRequest, importIssueField, lineRange, sameImportRequest } from './sunoImport';
+import {
+  buildImportRequest,
+  importIssueField,
+  importOutcome,
+  lineRange,
+  sameImportRequest,
+  type SunoImportResult,
+} from './sunoImport';
+
+const version = (version_number: number) =>
+  ({ version_number }) as SunoImportResult['plan_version'];
+const lyricsDocument = { language: 'en', sections: [] } as SunoImportResult['lyrics'];
+const importResult = (
+  values: Partial<
+    Pick<
+      SunoImportResult,
+      | 'plan_unchanged'
+      | 'lyrics_unchanged'
+      | 'plan_version'
+      | 'lyrics_version'
+      | 'lyrics'
+      | 'created'
+    >
+  >,
+) =>
+  ({
+    plan_unchanged: true,
+    lyrics_unchanged: true,
+    plan_version: null,
+    lyrics_version: null,
+    lyrics: null,
+    created: false,
+    ...values,
+  }) as SunoImportResult;
+
+it.each([
+  { name: 'nothing changed', input: {}, expected: { kind: 'nothing' } },
+  {
+    name: 'plan changed',
+    input: { plan_unchanged: false, plan_version: version(2) },
+    expected: { kind: 'plan', plan: 2 },
+  },
+  {
+    name: 'plan and lyrics changed',
+    input: {
+      plan_unchanged: false,
+      lyrics_unchanged: false,
+      plan_version: version(2),
+      lyrics_version: version(3),
+      lyrics: lyricsDocument,
+    },
+    expected: { kind: 'plan_and_lyrics', plan: 2, lyrics: 3 },
+  },
+  {
+    name: 'plan changed and lyrics cleared',
+    input: {
+      plan_unchanged: false,
+      lyrics_unchanged: false,
+      plan_version: version(2),
+      lyrics: null,
+    },
+    expected: { kind: 'plan_lyrics_cleared', plan: 2 },
+  },
+  {
+    name: 'lyrics changed',
+    input: {
+      lyrics_unchanged: false,
+      lyrics_version: version(3),
+      lyrics: lyricsDocument,
+    },
+    expected: { kind: 'lyrics', lyrics: 3 },
+  },
+  {
+    name: 'lyrics cleared without creating a version',
+    input: {
+      created: false,
+      plan_unchanged: true,
+      lyrics_unchanged: false,
+      lyrics: null,
+    },
+    expected: { kind: 'lyrics_cleared' },
+  },
+])('classifies the import response when $name', ({ input, expected }) => {
+  expect(importOutcome(importResult(input))).toEqual(expected);
+});
 
 it('builds an exact, non-normalized preview request and compares each field', () => {
   const request = buildImportRequest({

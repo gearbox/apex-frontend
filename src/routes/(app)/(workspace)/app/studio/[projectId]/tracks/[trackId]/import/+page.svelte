@@ -22,8 +22,10 @@
   import {
     buildImportRequest,
     importIssueField,
+    importOutcome,
     lineRange,
     sameImportRequest,
+    type ImportOutcome,
     type SunoImportForm,
   } from '$lib/studio/sunoImport';
   import { componentSession } from '$lib/utils/sessionTracker';
@@ -195,30 +197,35 @@
     const captured = session.capture();
     try {
       const result = await importMutation.mutateAsync(displayedPreview.request);
-      const message = importSuccessMessage(result);
-      addToast({ type: result.created ? 'success' : 'info', message });
+      const outcome = importOutcome(result);
+      addToast({
+        type: outcome.kind === 'nothing' ? 'info' : 'success',
+        message: importSuccessMessage(outcome),
+      });
       if (captured.active) void goto(studioTrack(projectId, trackId));
     } catch (error) {
-      const message = importError(error);
-      if (message) addToast({ type: 'error', message });
-      if (captured.active) previewError = { request: displayedPreview.request, error };
+      if (!captured.active) {
+        const message = importError(error);
+        if (message) addToast({ type: 'error', message });
+        return;
+      }
+      previewError = { request: displayedPreview.request, error };
     }
   }
 
-  function importSuccessMessage(result: PreviewResult): string {
-    if (!result.created) return m.studio_import_nothing_changed();
-    const planChanged = !result.plan_unchanged;
-    const lyricsChanged = !result.lyrics_unchanged;
-    const plan = String(result.plan_version?.version_number ?? '');
-    const lyrics = String(result.lyrics_version?.version_number ?? '');
-    const lyricsCleared =
-      lyricsChanged && result.lyrics === null && !!track.data?.current_lyrics_version_id;
-    if (planChanged && lyricsCleared) return m.studio_import_new_plan_lyrics_cleared({ plan });
-    if (planChanged && lyricsChanged) return m.studio_import_new_plan_and_lyrics({ plan, lyrics });
-    if (planChanged) return m.studio_import_new_plan({ plan });
-    if (lyricsCleared) return m.studio_import_lyrics_cleared();
-    if (lyricsChanged) return m.studio_import_new_lyrics({ lyrics });
-    return m.studio_import_nothing_changed();
+  function importSuccessMessage(outcome: ImportOutcome): string {
+    if (outcome.kind === 'nothing') return m.studio_import_nothing_changed();
+    if (outcome.kind === 'plan') return m.studio_import_new_plan({ plan: String(outcome.plan) });
+    if (outcome.kind === 'plan_and_lyrics')
+      return m.studio_import_new_plan_and_lyrics({
+        plan: String(outcome.plan),
+        lyrics: String(outcome.lyrics),
+      });
+    if (outcome.kind === 'plan_lyrics_cleared')
+      return m.studio_import_new_plan_lyrics_cleared({ plan: String(outcome.plan) });
+    if (outcome.kind === 'lyrics')
+      return m.studio_import_new_lyrics({ lyrics: String(outcome.lyrics) });
+    return m.studio_import_lyrics_cleared();
   }
 
   function selectLine(line: number) {

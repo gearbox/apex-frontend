@@ -1198,6 +1198,8 @@
   "studio_history_switch_plan_action": "Сменить план",
   "studio_history_detach": "Отвязать текст",
   "studio_history_delete": "Удалить версию",
+  "studio_history_deleted": "Версия v{version} удалена",
+  "studio_history_pick_version": "Выберите версию для просмотра",
   "studio_history_export": "Экспортировать эту версию",
   "studio_history_plan_incompatible": "Текст не подходит к этому плану. Сделать план текущим без текста?",
   "studio_history_switch_plan": "Текст написан для плана v{version}. Переключить план на v{version} вместе с этим текстом?",

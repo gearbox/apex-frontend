@@ -42,7 +42,12 @@
         planNumber: number | null;
       }
     | { kind: 'detach-lyrics'; versionId: string }
-    | { kind: 'delete'; versionId: string; versionNumber: number };
+    | {
+        kind: 'delete';
+        documentKind: 'plan' | 'lyrics';
+        versionId: string;
+        versionNumber: number;
+      };
   let projectId = $derived($page.params.projectId ?? '');
   let trackId = $derived($page.params.trackId ?? '');
   const qc = useQueryClient();
@@ -69,6 +74,9 @@
   let selectedKind = $state<'plan' | 'lyrics'>('plan');
   let selectedVersionId = $state('');
   let showMobileViewer = $state(false);
+  let planListHeading = $state<HTMLHeadingElement>();
+  let lyricsListHeading = $state<HTMLHeadingElement>();
+  let mobileViewerOpener = $state<HTMLButtonElement>();
   let viewerHeading = $state<HTMLHeadingElement>();
   let focusAfterSelection = $state(false);
   let confirmAction = $state<ConfirmAction | null>(null);
@@ -96,14 +104,14 @@
 
   onDestroy(() => viewerSession.invalidate());
 
-  async function selectVersion(version: VersionSummary, mobile: boolean) {
+  function selectVersion(version: VersionSummary, mobile: boolean, opener?: HTMLButtonElement) {
     viewerSession.invalidate();
     selectedVersionId = version.id;
     confirmAction = null;
     actionError = '';
     showMobileViewer = mobile;
+    mobileViewerOpener = mobile ? opener : undefined;
     focusAfterSelection = !mobile;
-    if (!mobile) await tick();
   }
 
   async function makeVersionCurrent(version: PlanVersion | LyricsVersion) {
@@ -112,10 +120,6 @@
     if (version.kind === 'plan') {
       try {
         await setCurrent.mutateAsync({ plan: version.id });
-        if (!captured.active) {
-          addToast({ type: 'success', message: m.studio_saved() });
-          return;
-        }
         addToast({ type: 'success', message: m.studio_saved() });
       } catch (error) {
         if (!captured.active) {
@@ -158,6 +162,7 @@
   async function confirmActionNow() {
     const action = confirmAction;
     if (!action) return;
+    const deletedKind = action.kind === 'delete' ? action.documentKind : undefined;
     const captured = viewerSession.capture();
     actionError = '';
     try {
@@ -167,16 +172,23 @@
         await setCurrent.mutateAsync({ plan: action.planId, lyrics: action.versionId });
       else if (action.kind === 'detach-lyrics') await setCurrent.mutateAsync({ lyrics: null });
       else await remove.mutateAsync({ id: action.versionId });
+      const successMessage =
+        action.kind === 'delete'
+          ? m.studio_history_deleted({ version: String(action.versionNumber) })
+          : m.studio_saved();
       if (!captured.active) {
-        addToast({ type: 'success', message: m.studio_saved() });
+        addToast({ type: 'success', message: successMessage });
         return;
       }
-      confirmAction = null;
-      addToast({
-        type: 'success',
-        message: action.kind === 'delete' ? m.studio_history_delete() : m.studio_saved(),
-      });
-      if (action.kind === 'delete') selectedVersionId = '';
+      if (action.kind === 'delete') {
+        clearSelection();
+        addToast({ type: 'success', message: successMessage });
+        await tick();
+        (deletedKind === 'lyrics' ? lyricsListHeading : planListHeading)?.focus();
+      } else {
+        confirmAction = null;
+        addToast({ type: 'success', message: successMessage });
+      }
     } catch (error) {
       const message = action.kind === 'delete' ? versionDeleteError(error) : setCurrentError(error);
       if (!captured.active) {
@@ -188,6 +200,19 @@
     }
   }
 
+  function clearSelection() {
+    viewerSession.invalidate();
+    selectedVersionId = '';
+    showMobileViewer = false;
+    confirmAction = null;
+  }
+
+  async function closeMobileViewer() {
+    showMobileViewer = false;
+    await tick();
+    mobileViewerOpener?.focus();
+  }
+
   function openDetachLyrics(version: LyricsVersion) {
     confirmAction = { kind: 'detach-lyrics', versionId: version.id };
   }
@@ -195,6 +220,7 @@
   function openDelete(version: PlanVersion | LyricsVersion) {
     confirmAction = {
       kind: 'delete',
+      documentKind: version.kind,
       versionId: version.id,
       versionNumber: version.version_number,
     };
@@ -283,9 +309,25 @@
           class:hidden={!$isDesktop && selectedKind !== list.kind}
           aria-labelledby={`history-${list.kind}`}
         >
-          <h2 id={`history-${list.kind}`} class="font-display text-lg font-semibold">
-            {list.kind === 'plan' ? m.studio_history_plan() : m.studio_history_lyrics()}
-          </h2>
+          {#if list.kind === 'plan'}
+            <h2
+              bind:this={planListHeading}
+              id={`history-${list.kind}`}
+              tabindex="-1"
+              class="font-display text-lg font-semibold"
+            >
+              {m.studio_history_plan()}
+            </h2>
+          {:else}
+            <h2
+              bind:this={lyricsListHeading}
+              id={`history-${list.kind}`}
+              tabindex="-1"
+              class="font-display text-lg font-semibold"
+            >
+              {m.studio_history_lyrics()}
+            </h2>
+          {/if}
           {#if list.query.isRefetchError && list.items.length}
             <p role="status" class="mt-2 text-sm text-warning">{m.studio_refresh_error()}</p>
           {/if}
@@ -312,7 +354,7 @@
                       ? 'border-accent'
                       : ''}"
                     aria-pressed={selectedVersionId === version.id}
-                    onclick={() => void selectVersion(version, !$isDesktop)}
+                    onclick={(event) => selectVersion(version, !$isDesktop, event.currentTarget)}
                   >
                     <span class="flex flex-wrap items-center gap-2">
                       <strong>v{version.version_number}</strong>
@@ -360,13 +402,18 @@
       {#if $isDesktop}
         <section class="md:col-span-2 min-w-0">
           {#if selectedVersionId}{#key selectedVersionId}{@render viewerContent()}{/key}
-          {:else}<p class="text-text-muted">{m.studio_pick_track()}</p>{/if}
+          {:else}<p class="text-text-muted">{m.studio_history_pick_version()}</p>{/if}
         </section>
       {/if}
     </div>
-    {#if !$isDesktop && showMobileViewer}
+    {#if !$isDesktop && showMobileViewer && selectedVersionId}
       {#key selectedVersionId}
-        <Sheet ariaLabel={m.studio_history_title()} onclose={() => (showMobileViewer = false)}>
+        <Sheet ariaLabel={m.studio_history_title()} onclose={closeMobileViewer}>
+          <div class="mb-4 flex justify-end">
+            <button class="rounded-lg border border-border px-3 py-2" onclick={closeMobileViewer}
+              >{m.common_close()}</button
+            >
+          </div>
           {@render viewerContent()}
         </Sheet>
       {/key}
@@ -433,7 +480,7 @@
     {#if actionError}<p role="alert" class="mt-3 text-danger">{actionError}</p>{/if}
     <div class="mt-5 rounded-xl border border-border p-4">
       {#if viewer.kind === 'plan'}
-        <TrackDocumentView plan={viewer.content} lyrics={null} />
+        <TrackDocumentView plan={viewer.content} lyrics={null} emptyLyrics="" />
       {:else if basePlanQuery.isPending}
         <p role="status">{m.common_loading()}</p>
       {:else if basePlanQuery.data?.kind === 'plan'}

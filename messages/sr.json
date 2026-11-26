@@ -1198,6 +1198,8 @@
   "studio_history_switch_plan_action": "Promeni plan",
   "studio_history_detach": "Odvoji tekst",
   "studio_history_delete": "Obriši verziju",
+  "studio_history_deleted": "Verzija v{version} je obrisana",
+  "studio_history_pick_version": "Izaberite verziju za prikaz",
   "studio_history_export": "Izvezi ovu verziju",
   "studio_history_plan_incompatible": "Ovaj tekst ne odgovara planu. Postaviti plan kao trenutni bez teksta?",
   "studio_history_switch_plan": "Tekst je napisan za plan v{version}. Preći na plan v{version} sa ovim tekstom?",

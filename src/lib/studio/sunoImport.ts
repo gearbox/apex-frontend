@@ -1,4 +1,45 @@
 import type { ImportRequest } from '$lib/queries/studioVersions';
+import type { components } from '$lib/api/types';
+
+export type SunoImportResult = components['schemas']['SunoImportOut'];
+
+export type ImportOutcome =
+  | { kind: 'nothing' }
+  | { kind: 'plan'; plan: number }
+  | { kind: 'plan_and_lyrics'; plan: number; lyrics: number }
+  | { kind: 'plan_lyrics_cleared'; plan: number }
+  | { kind: 'lyrics'; lyrics: number }
+  | { kind: 'lyrics_cleared' };
+
+function requiredVersionNumber(
+  version: SunoImportResult['plan_version'] | SunoImportResult['lyrics_version'],
+  kind: 'plan' | 'lyrics',
+): number {
+  if (!version)
+    throw new Error(`Suno import response did not include the changed ${kind} version.`);
+  return version.version_number;
+}
+
+/** Describe the document changes using only the import response. */
+export function importOutcome(result: SunoImportResult): ImportOutcome {
+  const planChanged = !result.plan_unchanged;
+  const lyricsChanged = !result.lyrics_unchanged;
+  if (!planChanged && !lyricsChanged) return { kind: 'nothing' };
+
+  if (planChanged) {
+    const plan = requiredVersionNumber(result.plan_version, 'plan');
+    if (!lyricsChanged) return { kind: 'plan', plan };
+    if (result.lyrics === null) return { kind: 'plan_lyrics_cleared', plan };
+    return {
+      kind: 'plan_and_lyrics',
+      plan,
+      lyrics: requiredVersionNumber(result.lyrics_version, 'lyrics'),
+    };
+  }
+
+  if (result.lyrics === null) return { kind: 'lyrics_cleared' };
+  return { kind: 'lyrics', lyrics: requiredVersionNumber(result.lyrics_version, 'lyrics') };
+}
 
 export interface SunoImportForm {
   style: string;

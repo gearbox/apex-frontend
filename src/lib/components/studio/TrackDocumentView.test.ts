@@ -37,6 +37,76 @@ it('renders localized sections, section lyrics, global tags and content omitted 
   expect(screen.getByText('Keep the last line quiet')).toBeTruthy();
 });
 
+it("renders lyrics in the plan's section order, not the stored order", () => {
+  const plan: components['schemas']['PlanDocument'] = {
+    title: 'Song',
+    instrumental: false,
+    references: [],
+    sections: [
+      { id: 'chorus', kind: 'chorus', instrumental: false },
+      { id: 'verse', kind: 'verse', instrumental: false },
+    ],
+  };
+  const lyrics: components['schemas']['LyricsDocument'] = {
+    language: 'en',
+    sections: [
+      { section_id: 'verse', lines: [{ text: 'Verse line' }] },
+      { section_id: 'chorus', lines: [{ text: 'Chorus line' }] },
+    ],
+  };
+  render(TrackDocumentView, { props: { plan, lyrics } });
+
+  const lyricsSection = screen.getByRole('heading', { name: 'Lyrics' }).closest('section');
+  expect(
+    within(lyricsSection!)
+      .getAllByRole('heading', { level: 3 })
+      .map((heading) => heading.textContent),
+  ).toEqual(['Chorus', 'Verse']);
+  expect(screen.getByText('Chorus line').closest('article')).toBe(
+    within(lyricsSection!).getByRole('heading', { name: 'Chorus' }).closest('article'),
+  );
+  expect(screen.getByText('Verse line').closest('article')).toBe(
+    within(lyricsSection!).getByRole('heading', { name: 'Verse' }).closest('article'),
+  );
+});
+
+it('shows every plan section in the lyrics part, including empty and instrumental sections', () => {
+  const plan: components['schemas']['PlanDocument'] = {
+    title: 'Song',
+    instrumental: false,
+    references: [],
+    sections: [
+      { id: 'verse', kind: 'verse', instrumental: false },
+      { id: 'chorus', kind: 'chorus', instrumental: false },
+      { id: 'instrumental', kind: 'instrumental', instrumental: true },
+    ],
+  };
+  const lyrics: components['schemas']['LyricsDocument'] = {
+    language: 'en',
+    sections: [{ section_id: 'verse', lines: [{ text: 'Verse line' }] }],
+  };
+  render(TrackDocumentView, { props: { plan, lyrics } });
+
+  const lyricsSection = screen.getByRole('heading', { name: 'Lyrics' }).closest('section');
+  expect(
+    within(lyricsSection!)
+      .getAllByRole('heading', { level: 3 })
+      .map((heading) => heading.textContent),
+  ).toEqual(['Verse', 'Chorus', 'Instrumental']);
+  expect(within(lyricsSection!).getByText('Verse line')).toBeTruthy();
+  const emptySection = within(lyricsSection!)
+    .getByRole('heading', { name: 'Chorus' })
+    .closest('article');
+  const instrumentalSection = within(lyricsSection!)
+    .getByRole('heading', {
+      name: 'Instrumental',
+    })
+    .closest('article');
+  expect(emptySection?.querySelector('p')).toBeNull();
+  expect(instrumentalSection?.querySelector('span')?.textContent).toBe('Instrumental');
+  expect(instrumentalSection?.querySelectorAll('p')).toHaveLength(0);
+});
+
 it('renders nothing when there is no plan', () => {
   const { container } = render(TrackDocumentView, { props: { plan: null, lyrics: null } });
   expect(container.querySelector('*')).toBeNull();

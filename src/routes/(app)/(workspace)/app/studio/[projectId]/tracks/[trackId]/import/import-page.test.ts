@@ -326,7 +326,7 @@ it.each([
   },
   {
     name: 'no changes',
-    result: { created: false },
+    result: { created: false, plan_unchanged: true, lyrics_unchanged: true },
     expected: 'Nothing changed',
   },
 ])('the toast names only what changed: $name', async ({ result, expected }) => {
@@ -384,12 +384,55 @@ it('sets Instrumental to Off and previews again after an instrumental-lines erro
 });
 
 it('shows a Nothing changed toast for a no-op import', async () => {
-  const { client } = await setup(() => makeSunoImportResult({ dry_run: false, created: false }));
+  const { client } = await setup(() =>
+    makeSunoImportResult({
+      dry_run: false,
+      created: false,
+      plan_unchanged: true,
+      lyrics_unchanged: true,
+    }),
+  );
   await fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
   await screen.findByText('Plan: new version');
   await fireEvent.click(screen.getByRole('button', { name: 'Import' }));
   await waitFor(() => expect(get(toasts).at(-1)?.message).toBe('Nothing changed'));
   expect(goto).toHaveBeenCalledWith('/app/studio/p1/tracks/t1');
+  client.clear();
+});
+
+it('an import that only detaches lyrics says so', async () => {
+  const { client } = await setup(() =>
+    makeSunoImportResult({
+      dry_run: false,
+      created: false,
+      plan_unchanged: true,
+      lyrics_unchanged: false,
+      lyrics: null,
+    }),
+  );
+  await fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
+  await screen.findByText('Plan: new version');
+  await fireEvent.click(screen.getByRole('button', { name: 'Import' }));
+  await waitFor(() => expect(get(toasts).at(-1)?.message).toBe('Lyrics cleared'));
+  expect(get(toasts).at(-1)?.type).toBe('success');
+  client.clear();
+});
+
+it('an import failure on the open page is shown inline without a toast', async () => {
+  const { client } = await setup(() =>
+    HttpResponse.json(
+      { error: 'server_error', message: 'failed', status_code: 500 },
+      { status: 500 },
+    ),
+  );
+  await fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
+  await screen.findByText('Plan: new version');
+  await fireEvent.click(screen.getByRole('button', { name: 'Import' }));
+  expect(
+    await screen.findByRole('heading', { name: 'Import could not be previewed' }),
+  ).toBeTruthy();
+  expect(get(toasts)).toHaveLength(0);
+  expect(goto).not.toHaveBeenCalled();
   client.clear();
 });
 
@@ -401,7 +444,11 @@ it('a late import response only toasts after the page is destroyed', async () =>
   const { client } = await setup(async () => {
     started();
     await gate;
-    return makeSunoImportResult({ dry_run: false, created: true });
+    return makeSunoImportResult({
+      dry_run: false,
+      created: true,
+      plan_version: makeVersionSummary({ version_number: 4 }),
+    });
   });
   await fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
   await screen.findByText('Plan: new version');
@@ -411,6 +458,30 @@ it('a late import response only toasts after the page is destroyed', async () =>
   release();
   await waitFor(() => expect(get(toasts).at(-1)?.message).toContain('New plan v'));
   expect(goto).not.toHaveBeenCalled();
+  client.clear();
+});
+
+it('a late import failure only toasts after the page is destroyed', async () => {
+  let release!: () => void;
+  let started!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  const requested = new Promise<void>((resolve) => (started = resolve));
+  const { client } = await setup(async () => {
+    started();
+    await gate;
+    return HttpResponse.json(
+      { error: 'server_error', message: 'failed', status_code: 500 },
+      { status: 500 },
+    );
+  });
+  await fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
+  await screen.findByText('Plan: new version');
+  await fireEvent.click(screen.getByRole('button', { name: 'Import' }));
+  await requested;
+  cleanup();
+  release();
+  await waitFor(() => expect(get(toasts).at(-1)?.type).toBe('error'));
+  expect(get(toasts).at(-1)?.message).toBe('Import failed (server_error). Please try again.');
   client.clear();
 });
 

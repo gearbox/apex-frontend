@@ -1198,6 +1198,8 @@
   "studio_history_switch_plan_action": "Switch plan",
   "studio_history_detach": "Detach lyrics",
   "studio_history_delete": "Delete version",
+  "studio_history_deleted": "Version v{version} deleted",
+  "studio_history_pick_version": "Select a version to view it",
   "studio_history_export": "Export this version",
   "studio_history_plan_incompatible": "These lyrics don't fit this plan. Make the plan current without lyrics?",
   "studio_history_switch_plan": "These lyrics were written for plan v{version}. Switch to plan v{version} with them?",

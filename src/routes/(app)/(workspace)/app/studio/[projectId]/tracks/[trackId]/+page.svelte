@@ -167,7 +167,6 @@
           >{m.studio_import_from_suno()}</a
         >
       </p>
-      <TrackDocumentView plan={null} lyrics={null} emptyPlan="" emptyLyrics="" />
     {:else}
       <div class="mt-8">
         <TrackDocumentView {plan} {lyrics} />

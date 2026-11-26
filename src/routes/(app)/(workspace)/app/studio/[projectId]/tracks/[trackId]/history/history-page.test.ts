@@ -85,32 +85,36 @@ function setup(
         options.currentLyrics === undefined ? 'lyrics-1' : options.currentLyrics,
     }),
   };
-  const plans = options.planVersions ?? [
-    makeVersionSummary({
-      id: 'plan-2',
-      kind: 'plan',
-      version_number: 2,
-      is_current: false,
-      created_at: now,
-    }),
-    makeVersionSummary({
-      id: 'plan-1',
-      kind: 'plan',
-      version_number: 1,
-      is_current: true,
-      created_at: now,
-    }),
-  ];
-  const lyrics = options.lyricsVersions ?? [
-    makeVersionSummary({
-      id: 'lyrics-1',
-      kind: 'lyrics',
-      version_number: 1,
-      based_on_plan_version_id: options.lyricsBasePlanId ?? 'plan-1',
-      is_current: true,
-      created_at: now,
-    }),
-  ];
+  const plans = (
+    options.planVersions ?? [
+      makeVersionSummary({
+        id: 'plan-2',
+        kind: 'plan',
+        version_number: 2,
+        is_current: false,
+        created_at: now,
+      }),
+      makeVersionSummary({
+        id: 'plan-1',
+        kind: 'plan',
+        version_number: 1,
+        is_current: true,
+        created_at: now,
+      }),
+    ]
+  ).slice();
+  const lyrics = (
+    options.lyricsVersions ?? [
+      makeVersionSummary({
+        id: 'lyrics-1',
+        kind: 'lyrics',
+        version_number: 1,
+        based_on_plan_version_id: options.lyricsBasePlanId ?? 'plan-1',
+        is_current: true,
+        created_at: now,
+      }),
+    ]
+  ).slice();
   const currentBodies: Record<string, unknown>[] = [];
   let planListReads = 0;
   server.use(
@@ -167,10 +171,16 @@ function setup(
         currentTrack.current_lyrics_version_id = body.lyrics_version_id as string | null;
       return HttpResponse.json(currentTrack);
     }),
-    http.delete(
-      `${BASE}/v1/studio/versions/:id`,
-      () => options.onDelete?.() ?? new HttpResponse(null, { status: 204 }),
-    ),
+    http.delete(`${BASE}/v1/studio/versions/:id`, ({ params }) => {
+      const response = options.onDelete?.() ?? new HttpResponse(null, { status: 204 });
+      if (response.status >= 200 && response.status < 300) {
+        for (const versions of [plans, lyrics]) {
+          const index = versions.findIndex((version) => version.id === params.id);
+          if (index >= 0) versions.splice(index, 1);
+        }
+      }
+      return response;
+    }),
   );
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -179,7 +189,7 @@ function setup(
   render(QueryHarness<ComponentProps<typeof HistoryPage>>, {
     props: { component: HistoryPage, componentProps: {}, client },
   });
-  return { client, currentBodies, currentTrack, planListReads };
+  return { client, currentBodies, currentTrack, getPlanListReads: () => planListReads };
 }
 
 it('renders current badges and shows which plan a lyrics version uses', async () => {
@@ -188,6 +198,16 @@ it('renders current badges and shows which plan a lyrics version uses', async ()
   expect(screen.getAllByText('Current')).toHaveLength(2);
   expect(screen.getByRole('heading', { name: 'Plan' })).toBeTruthy();
   expect(screen.getByRole('heading', { name: 'Lyrics' })).toBeTruthy();
+  client.clear();
+});
+
+it('a plan version viewer has no lyrics section', async () => {
+  const { client } = setup();
+  const planList = (await screen.findByRole('heading', { name: 'Plan' })).closest('section');
+  await fireEvent.click(await within(planList!).findByRole('button', { name: /v2/ }));
+  const viewerHeading = await screen.findByRole('heading', { name: 'Plan v2' });
+  const viewer = viewerHeading.closest('section');
+  expect(within(viewer!).queryByRole('heading', { name: 'Lyrics' })).toBeNull();
   client.clear();
 });
 
@@ -400,6 +420,77 @@ it('hides delete for the current version and shows a version-delete refusal', as
   expect(
     await screen.findByText('This version has dependent child versions (1). Delete them first.'),
   ).toBeTruthy();
+  client.clear();
+});
+
+it('mobile: deleting the viewed version closes the viewer, reports it, and focuses the list heading', async () => {
+  const { client } = setup();
+  desktop.set(false);
+  const planList = (await screen.findByRole('heading', { name: 'Plan' })).closest('section');
+  await fireEvent.click(await within(planList!).findByRole('button', { name: /v2/ }));
+  await screen.findByRole('heading', { name: 'Plan v2' });
+  await fireEvent.click(screen.getByRole('button', { name: 'Delete version' }));
+  const confirm = await screen.findByRole('dialog', {
+    name: 'Delete version v2? This cannot be undone.',
+  });
+  await fireEvent.click(within(confirm).getByRole('button', { name: 'Delete version' }));
+
+  await waitFor(() => expect(screen.queryAllByRole('dialog')).toHaveLength(0));
+  expect(screen.queryByText('Loading…')).toBeNull();
+  expect(get(toasts).at(-1)?.message).toBe('Version v2 deleted');
+  await waitFor(() =>
+    expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Plan' })),
+  );
+  client.clear();
+});
+
+it('desktop: deleting the viewed version shows the placeholder and focuses the list heading', async () => {
+  const { client } = setup();
+  const planList = (await screen.findByRole('heading', { name: 'Plan' })).closest('section');
+  await fireEvent.click(await within(planList!).findByRole('button', { name: /v2/ }));
+  await screen.findByRole('heading', { name: 'Plan v2' });
+  await fireEvent.click(screen.getByRole('button', { name: 'Delete version' }));
+  const confirm = await screen.findByRole('dialog', {
+    name: 'Delete version v2? This cannot be undone.',
+  });
+  await fireEvent.click(within(confirm).getByRole('button', { name: 'Delete version' }));
+
+  expect(await screen.findByText('Select a version to view it')).toBeTruthy();
+  expect(get(toasts).at(-1)?.message).toBe('Version v2 deleted');
+  await waitFor(() =>
+    expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Plan' })),
+  );
+  client.clear();
+});
+
+it('mobile viewer has a Close button that closes it and returns focus to the version row', async () => {
+  const { client } = setup();
+  desktop.set(false);
+  const planList = (await screen.findByRole('heading', { name: 'Plan' })).closest('section');
+  const versionRow = await within(planList!).findByRole('button', { name: /v2/ });
+  await fireEvent.click(versionRow);
+  const viewer = await screen.findByRole('dialog', { name: 'Version history' });
+  await screen.findByRole('heading', { name: 'Plan v2' });
+  await fireEvent.click(within(viewer).getByRole('button', { name: 'Close' }));
+  await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Version history' })).toBeNull());
+  await waitFor(() => expect(document.activeElement).toBe(versionRow));
+  client.clear();
+});
+
+it('a deleted version stays gone after the lists reconcile', async () => {
+  const { client, getPlanListReads } = setup();
+  const planList = (await screen.findByRole('heading', { name: 'Plan' })).closest('section');
+  const readsBeforeDelete = getPlanListReads();
+  await fireEvent.click(await within(planList!).findByRole('button', { name: /v2/ }));
+  await screen.findByRole('heading', { name: 'Plan v2' });
+  await fireEvent.click(screen.getByRole('button', { name: 'Delete version' }));
+  const confirm = await screen.findByRole('dialog', {
+    name: 'Delete version v2? This cannot be undone.',
+  });
+  await fireEvent.click(within(confirm).getByRole('button', { name: 'Delete version' }));
+
+  await waitFor(() => expect(getPlanListReads()).toBeGreaterThan(readsBeforeDelete));
+  expect(within(planList!).queryByRole('button', { name: /v2/ })).toBeNull();
   client.clear();
 });
 
