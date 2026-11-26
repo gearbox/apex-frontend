@@ -21,6 +21,7 @@ import SunoExportSheet from './SunoExportSheet.svelte';
 
 afterEach(() => {
   cleanup();
+  document.querySelector('.test-background-dialog')?.remove();
   Reflect.deleteProperty(navigator, 'clipboard');
   Reflect.deleteProperty(document, 'execCommand');
   vi.restoreAllMocks();
@@ -59,9 +60,23 @@ it('renders all four Suno boxes and copies the exact selected field', async () =
   expect(document.querySelector('[data-export-field="lyrics"]')?.textContent?.trim()).toBe(
     'Lyrics exactly\nline two',
   );
-  await fireEvent.click(screen.getAllByRole('button', { name: 'Copy' })[3]);
+  await fireEvent.click(screen.getByRole('button', { name: 'Copy Lyrics' }));
   await waitFor(() => expect(writeText).toHaveBeenCalledWith('Lyrics exactly\nline two'));
   expect(await screen.findByRole('status')).toBeTruthy();
+  client.clear();
+});
+
+it('gives each copy button a distinct accessible name', async () => {
+  server.use(
+    http.get(`${BASE}/v1/studio/tracks/t1/exports/suno`, () => HttpResponse.json(makeSunoExport())),
+  );
+  const { client } = mount();
+  await screen.findByDisplayValue('First track');
+  expect(
+    screen
+      .getAllByRole('button', { name: /^Copy / })
+      .map((button) => button.getAttribute('aria-label')),
+  ).toEqual(['Copy Song title', 'Copy Style of Music', 'Copy Exclude styles', 'Copy Lyrics']);
   client.clear();
 });
 
@@ -160,11 +175,45 @@ it('explains clipboard fallback failure and allows manual selection', async () =
   Object.defineProperty(document, 'execCommand', { configurable: true, value: vi.fn(() => false) });
   const { client } = mount();
   await screen.findByDisplayValue('First track');
-  await fireEvent.click(screen.getAllByRole('button', { name: 'Copy' })[0]);
+  await fireEvent.click(screen.getByRole('button', { name: 'Copy Song title' }));
   expect((await screen.findByRole('status')).textContent).toContain(
     "Couldn't copy. Select the text and copy it manually.",
   );
   expect(document.activeElement).toBe(screen.getByDisplayValue('First track'));
+  client.clear();
+});
+
+it('shows the export load error for a generic failure', async () => {
+  server.use(
+    http.get(`${BASE}/v1/studio/tracks/t1/exports/suno`, () =>
+      HttpResponse.json(
+        { error: 'server_error', message: 'failed', status_code: 500 },
+        { status: 500 },
+      ),
+    ),
+  );
+  const { client } = mount();
+  expect(await screen.findByText('Could not load this export. Please try again.')).toBeTruthy();
+  client.clear();
+});
+
+it('selects the fallback field in this sheet when another dialog is open', async () => {
+  const background = document.createElement('div');
+  background.className = 'test-background-dialog';
+  background.setAttribute('role', 'dialog');
+  background.innerHTML = '<input data-export-field="style" value="Background field" />';
+  document.body.prepend(background);
+  server.use(
+    http.get(`${BASE}/v1/studio/tracks/t1/exports/suno`, () => HttpResponse.json(makeSunoExport())),
+  );
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined });
+  Object.defineProperty(document, 'execCommand', { configurable: true, value: vi.fn(() => false) });
+  const { client } = mount();
+  await screen.findByDisplayValue('First track');
+  const style = screen.getByDisplayValue('dream pop, warm synths');
+  await fireEvent.click(screen.getByRole('button', { name: 'Copy Style of Music' }));
+  await waitFor(() => expect(document.activeElement).toBe(style));
+  expect(document.activeElement).not.toBe(background.querySelector('input'));
   client.clear();
 });
 

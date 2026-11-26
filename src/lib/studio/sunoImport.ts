@@ -1,5 +1,4 @@
 import type { ImportRequest } from '$lib/queries/studioVersions';
-import type { components } from '$lib/api/types';
 
 export interface SunoImportForm {
   style: string;
@@ -55,61 +54,21 @@ export function lineRange(text: string, lineNumber: number): TextRange | null {
   return line === lineNumber ? { start, end: text.length } : null;
 }
 
-const SUNO_SECTION_NAMES: Record<components['schemas']['StudioSectionKind'], string> = {
-  intro: 'Intro',
-  verse: 'Verse',
-  pre_chorus: 'Pre-Chorus',
-  chorus: 'Chorus',
-  post_chorus: 'Post-Chorus',
-  hook: 'Hook',
-  bridge: 'Bridge',
-  build: 'Build',
-  drop: 'Drop',
-  breakdown: 'Breakdown',
-  instrumental: 'Instrumental',
-  interlude: 'Interlude',
-  outro: 'Outro',
-};
-const NO_NUMBER = new Set(['chorus', 'pre_chorus', 'post_chorus', 'hook']);
-
-/** Render the normalized dry-run documents into their canonical Suno Lyrics box. */
-export function normalizedSunoLyrics(
-  plan: components['schemas']['PlanDocument'],
-  lyrics: components['schemas']['LyricsDocument'] | null,
-): string {
-  const sections = (plan.sections ?? []) as components['schemas']['PlanSection'][];
-  const lyricSections = (lyrics?.sections ?? []) as components['schemas']['LyricsSection'][];
-  type LyricLine = components['schemas']['LyricLine'];
-  const counts = new Map<string, number>();
-  for (const section of sections) counts.set(section.kind, (counts.get(section.kind) ?? 0) + 1);
-  return sections
-    .map((section) => {
-      const repeated = (counts.get(section.kind) ?? 0) > 1 && !NO_NUMBER.has(section.kind);
-      const index = sections
-        .filter((item) => item.kind === section.kind)
-        .findIndex((item) => item.id === section.id);
-      const label =
-        section.label ?? `${SUNO_SECTION_NAMES[section.kind]}${repeated ? ` ${index + 1}` : ''}`;
-      const delivery = (section.delivery ?? []) as string[];
-      const styleTags = (section.style?.tags ?? []) as string[];
-      const descriptors = [
-        ...(section.instrumental && section.kind !== 'instrumental' ? ['instrumental'] : []),
-        ...delivery,
-        ...styleTags,
-      ].filter(
-        (tag, tagIndex, all) =>
-          all.findIndex((value) => value.toLowerCase() === tag.toLowerCase()) === tagIndex,
-      );
-      const header = `[${label}${descriptors.length ? `: ${descriptors.join(', ')}` : ''}]`;
-      const lines = (lyricSections.find((entry) => entry.section_id === section.id)?.lines ??
-        []) as LyricLine[];
-      const body = lines.flatMap((line) => [
-        ...((line.delivery as string[] | undefined)?.length
-          ? [`[${(line.delivery as string[]).join(', ')}]`]
-          : []),
-        line.text,
-      ]);
-      return [header, ...body].join('\n');
-    })
-    .join('\n\n');
+/** Place a structured import issue in exactly one field or in the general issue list. */
+export function importIssueField(path: string): 'style' | 'exclude' | 'lyrics' | null {
+  const normalized = path.toLowerCase();
+  if (
+    normalized.includes('global_style.avoid') ||
+    normalized.includes('artist.global_avoid') ||
+    normalized.includes('exclude')
+  )
+    return 'exclude';
+  if (
+    normalized.includes('global_style.tags') ||
+    normalized.includes('tempo_bpm') ||
+    normalized.includes('artist.style_tags')
+  )
+    return 'style';
+  if (normalized.startsWith('lyrics') || normalized.includes('plan.sections')) return 'lyrics';
+  return null;
 }

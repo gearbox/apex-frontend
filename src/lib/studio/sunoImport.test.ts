@@ -1,10 +1,5 @@
 import { expect, it } from 'vitest';
-import {
-  buildImportRequest,
-  lineRange,
-  normalizedSunoLyrics,
-  sameImportRequest,
-} from './sunoImport';
+import { buildImportRequest, importIssueField, lineRange, sameImportRequest } from './sunoImport';
 
 it('builds an exact, non-normalized preview request and compares each field', () => {
   const request = buildImportRequest({
@@ -36,27 +31,15 @@ it.each([
   expect(lineRange(text, line)).toEqual(expected);
 });
 
-it('renders normalized lyrics under their plan section IDs', () => {
-  expect(
-    normalizedSunoLyrics(
-      {
-        title: 'Song',
-        instrumental: false,
-        references: [],
-        sections: [
-          {
-            id: 'v',
-            kind: 'verse',
-            delivery: ['soft'],
-            instrumental: false,
-            style: { tags: ['warm'] },
-          },
-        ],
-      },
-      {
-        language: 'en',
-        sections: [{ section_id: 'v', lines: [{ text: 'Line', delivery: ['breathy'] }] }],
-      },
-    ),
-  ).toBe('[Verse: soft, warm]\n[breathy]\nLine');
+it.each([
+  ['plan.global_style.avoid[0]', 'exclude'],
+  ['artist.global_avoid[0]', 'exclude'],
+  ['plan.global_style.tags[0]', 'style'],
+  ['plan.tempo_bpm', 'style'],
+  ['artist.style_tags[0]', 'style'],
+  ['lyrics.sections[0].lines[1].text', 'lyrics'],
+  ['plan.sections[0].lines[1].text', 'lyrics'],
+  ['title', null],
+])('places import issue path %s under exactly one destination', (path, field) => {
+  expect(importIssueField(path)).toBe(field);
 });

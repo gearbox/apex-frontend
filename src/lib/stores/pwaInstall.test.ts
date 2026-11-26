@@ -210,7 +210,13 @@ describe('pwaInstall store', () => {
     }));
     stores = await import('./pwaInstall');
     stores.dismissInstallSheet();
-    expect(get(stores.installStatus)).toBe('dismissed_hint');
+    expect(get(stores.installStatus)).toBe('not_offered');
+  });
+
+  it('a dismissed Chromium tip without a prompt is not_offered', async () => {
+    const { installStatus, dismissInstallSheet } = await import('./pwaInstall');
+    dismissInstallSheet();
+    expect(get(installStatus)).toBe('not_offered');
   });
 
   it('resetInstallSheetDismissal clears the saved dismissal and makes the sheet eligible', async () => {

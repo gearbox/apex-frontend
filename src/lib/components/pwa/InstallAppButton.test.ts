@@ -43,7 +43,6 @@ it.each([
   ['available', 'Install App'],
   ['ios_manual', 'Install App'],
   ['not_offered', "Your browser hasn't offered installation"],
-  ['dismissed_hint', 'The install tip is hidden.'],
 ] as const)('always renders an explanatory row for %s', (status, content) => {
   (installStatus as unknown as Writable<InstallStatus>).set(status);
   render(InstallAppButton);
@@ -52,7 +51,7 @@ it.each([
 });
 
 it('resets a dismissed tip so the install sheet can be shown again', async () => {
-  (installStatus as unknown as Writable<InstallStatus>).set('dismissed_hint');
+  (installStatus as unknown as Writable<InstallStatus>).set('not_offered');
   (isInstallSheetDismissed as unknown as Writable<boolean>).set(true);
   render(InstallAppButton);
   await fireEvent.click(screen.getByRole('button', { name: 'Show install tip again' }));

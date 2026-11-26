@@ -68,6 +68,7 @@ function setup(
   options: {
     currentPlan?: string | null;
     currentLyrics?: string | null;
+    lyricsBasePlanId?: string;
     planVersions?: ReturnType<typeof makeVersionSummary>[];
     lyricsVersions?: ReturnType<typeof makeVersionSummary>[];
     onCurrent?: (body: Record<string, unknown>) => Response | Promise<Response>;
@@ -79,8 +80,9 @@ function setup(
       id: 't1',
       library_project_id: 'p1',
       title: 'Song',
-      current_plan_version_id: options.currentPlan ?? 'plan-1',
-      current_lyrics_version_id: options.currentLyrics ?? 'lyrics-1',
+      current_plan_version_id: options.currentPlan === undefined ? 'plan-1' : options.currentPlan,
+      current_lyrics_version_id:
+        options.currentLyrics === undefined ? 'lyrics-1' : options.currentLyrics,
     }),
   };
   const plans = options.planVersions ?? [
@@ -104,7 +106,7 @@ function setup(
       id: 'lyrics-1',
       kind: 'lyrics',
       version_number: 1,
-      based_on_plan_version_id: 'plan-1',
+      based_on_plan_version_id: options.lyricsBasePlanId ?? 'plan-1',
       is_current: true,
       created_at: now,
     }),
@@ -145,7 +147,7 @@ function setup(
             id: 'lyrics-1',
             track_id: 't1',
             version_number: 1,
-            based_on_plan_version_id: 'plan-1',
+            based_on_plan_version_id: options.lyricsBasePlanId ?? 'plan-1',
             created_at: now,
             content: lyricsContent,
           }),
@@ -210,7 +212,9 @@ it('asks before making an incompatible plan current and sends null only after co
     name: "These lyrics don't fit this plan. Make the plan current without lyrics?",
   });
   expect(currentBodies).toEqual([{ plan_version_id: 'plan-2' }]);
-  await fireEvent.click(within(dialog).getByRole('button', { name: 'Make current' }));
+  await fireEvent.click(
+    within(dialog).getByRole('button', { name: 'Make current without lyrics' }),
+  );
   await waitFor(() =>
     expect(currentBodies).toEqual([
       { plan_version_id: 'plan-2' },
@@ -243,10 +247,71 @@ it('offers to switch to a lyrics version base plan and sends both ids', async ()
   const dialog = await screen.findByRole('dialog', {
     name: 'These lyrics were written for plan v1. Switch to plan v1 with them?',
   });
-  await fireEvent.click(within(dialog).getByRole('button', { name: 'Make current' }));
+  await fireEvent.click(within(dialog).getByRole('button', { name: 'Switch plan' }));
   await waitFor(() =>
     expect(currentBodies).toEqual([{ plan_version_id: 'plan-1', lyrics_version_id: 'lyrics-1' }]),
   );
+  client.clear();
+});
+
+it('uses Detach lyrics as the confirmation action label', async () => {
+  const { client, currentBodies } = setup();
+  await screen.findByText('for plan v1');
+  const lyricsList = screen.getByRole('heading', { name: 'Lyrics' }).closest('section');
+  await fireEvent.click(within(lyricsList!).getByRole('button', { name: /v1.*Current/ }));
+  await screen.findByRole('heading', { name: /Lyrics v1/ });
+  await fireEvent.click(screen.getByRole('button', { name: 'Detach lyrics' }));
+  const dialog = await screen.findByRole('dialog', {
+    name: 'Detach the current lyrics from this track?',
+  });
+  await fireEvent.click(within(dialog).getByRole('button', { name: 'Detach lyrics' }));
+  await waitFor(() => expect(currentBodies).toEqual([{ lyrics_version_id: null }]));
+  client.clear();
+});
+
+it('uses the plan wording when the lyrics base plan number is unknown', async () => {
+  const { client } = setup({
+    currentPlan: 'plan-2',
+    currentLyrics: null,
+    lyricsBasePlanId: 'plan-missing',
+    lyricsVersions: [
+      makeVersionSummary({
+        id: 'lyrics-1',
+        kind: 'lyrics',
+        version_number: 1,
+        based_on_plan_version_id: 'plan-missing',
+        is_current: false,
+        created_at: now,
+      }),
+    ],
+  });
+  await screen.findByText('for an older plan');
+  const lyricsList = screen.getByRole('heading', { name: 'Lyrics' }).closest('section');
+  await fireEvent.click(within(lyricsList!).getByRole('button', { name: /v1/ }));
+  await screen.findByRole('heading', { name: /Lyrics v1/ });
+  const makeCurrent = await screen.findByRole('button', { name: 'Make current' });
+  await waitFor(() => expect((makeCurrent as HTMLButtonElement).disabled).toBe(false));
+  await fireEvent.click(makeCurrent);
+  const dialog = await screen.findByRole('dialog', {
+    name: 'These lyrics were written for a different plan. Switch to the plan these lyrics were written for?',
+  });
+  expect(within(dialog).getByRole('button', { name: 'Switch plan' })).toBeTruthy();
+  client.clear();
+});
+
+it('selecting a version moves focus and scrolls to the viewer heading', async () => {
+  const scrollIntoView = vi.fn();
+  Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+    configurable: true,
+    value: scrollIntoView,
+  });
+  const { client } = setup();
+  const planList = (await screen.findByRole('heading', { name: 'Plan' })).closest('section');
+  await fireEvent.click(await within(planList!).findByRole('button', { name: /v2/ }));
+  const heading = await screen.findByRole('heading', { name: /Plan v2/ });
+  await waitFor(() => expect(document.activeElement).toBe(heading));
+  expect(heading.getAttribute('tabindex')).toBe('-1');
+  expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' });
   client.clear();
 });
 

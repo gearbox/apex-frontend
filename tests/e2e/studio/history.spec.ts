@@ -51,7 +51,7 @@ test('making an incompatible plan current asks before detaching its lyrics', asy
   const secondConfirmation = page.getByRole('dialog', {
     name: "These lyrics don't fit this plan. Make the plan current without lyrics?",
   });
-  await secondConfirmation.getByRole('button', { name: 'Make current' }).click();
+  await secondConfirmation.getByRole('button', { name: 'Make current without lyrics' }).click();
   await expect
     .poll(() => currentRequests)
     .toEqual([

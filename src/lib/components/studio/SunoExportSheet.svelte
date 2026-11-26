@@ -1,10 +1,11 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
   import { page } from '$app/stores';
   import { createQuery } from '@tanstack/svelte-query';
   import { ApiRequestError } from '$lib/api/errors';
   import { studioTrackHistory, studioTrackImport } from '$lib/studio/paths';
   import { exportWarningMessage } from '$lib/studio/formErrors';
-  import { sectionDisplayName } from '$lib/studio/sections';
+  import { sunoSectionName } from '$lib/studio/sections';
   import { copyText } from '$lib/utils/clipboard';
   import { versionQueryOptions, sunoExportQueryOptions } from '$lib/queries/studioVersions';
   import type { components } from '$lib/api/types';
@@ -35,6 +36,9 @@
   let copiedField = $state('');
   let copyMessage = $state('');
   let copyTimer: ReturnType<typeof setTimeout> | undefined;
+  let fieldRefs = $state<
+    Partial<Record<(typeof blocks)[number]['key'], HTMLInputElement | HTMLElement>>
+  >({});
   let planSections = $derived(
     planQuery.data?.kind === 'plan'
       ? ((planQuery.data.content.sections ?? []) as components['schemas']['PlanSection'][])
@@ -42,6 +46,10 @@
   );
   let error = $derived(query.error);
   let exportFailure = $derived(error instanceof ApiRequestError ? error : null);
+
+  onDestroy(() => {
+    if (copyTimer) clearTimeout(copyTimer);
+  });
 
   function copy(field: (typeof blocks)[number]['key']) {
     const data = query.data;
@@ -61,31 +69,23 @@
   }
 
   function selectField(field: (typeof blocks)[number]['key']) {
-    const input = document.querySelector<HTMLInputElement>(
-      `[role="dialog"] input[data-export-field="${field}"]`,
-    );
-    if (input) {
-      input.focus();
-      input.select();
+    const element = fieldRefs[field];
+    if (element instanceof HTMLInputElement) {
+      element.focus();
+      element.select();
       return;
     }
-    const lyricsPre = document.querySelector<HTMLElement>(
-      '[role="dialog"] [data-export-field="lyrics"]',
-    );
-    if (!lyricsPre) return;
+    if (!element) return;
     const selection = window.getSelection();
     const range = document.createRange();
-    range.selectNodeContents(lyricsPre);
+    range.selectNodeContents(element);
     selection?.removeAllRanges();
     selection?.addRange(range);
   }
 </script>
 
 <Sheet ariaLabel={m.studio_export_title()} {onclose}>
-  <div class="flex items-start justify-between gap-4">
-    <h2 class="font-display text-2xl font-semibold">{m.studio_export_title()}</h2>
-    <button class="text-text-muted" onclick={onclose}>{m.common_close()}</button>
-  </div>
+  <h2 class="font-display text-2xl font-semibold">{m.studio_export_title()}</h2>
   {#if query.isRefetchError && query.data}
     <p role="status" class="mt-3 text-warning">{m.studio_refresh_error()}</p>
   {/if}
@@ -106,7 +106,7 @@
       >
     {:else}
       <div role="alert" class="mt-6">
-        <p>{m.studio_import_copy_error()}</p>
+        <p>{m.studio_export_load_error()}</p>
         <button class="mt-2 text-accent underline" onclick={() => void query.refetch()}
           >{m.studio_retry()}</button
         >
@@ -127,6 +127,7 @@
             <h3 class="font-semibold">{block.label}</h3>
             <button
               class="rounded-lg border border-border px-3 py-1.5 text-sm"
+              aria-label={m.studio_copy_field({ field: block.label })}
               onclick={() => copy(block.key)}
             >
               {copiedField === block.key ? m.studio_copied() : m.studio_copy()}
@@ -134,10 +135,12 @@
           </div>
           {#if block.key === 'lyrics'}
             <pre
+              bind:this={fieldRefs[block.key]}
               data-export-field={block.key}
               class="mt-3 max-h-60 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-surface p-3 font-mono text-sm">{value}</pre>
           {:else}
             <input
+              bind:this={fieldRefs[block.key]}
               data-export-field={block.key}
               class="mt-3 w-full rounded-lg border border-border bg-surface p-2"
               readonly
@@ -163,7 +166,7 @@
             {#if warning.section_id}
               {@const section = planSections.find((item) => item.id === warning.section_id)}
               {#if section}
-                — {sectionDisplayName(section, planSections)}{/if}
+                — {sunoSectionName(section, planSections)}{/if}
             {/if}
           </li>
         {/each}
@@ -175,7 +178,7 @@
   {/if}
   <div class="mt-6 flex justify-end border-t border-border pt-4">
     <button class="rounded-lg border border-border px-4 py-2" onclick={onclose}
-      >{m.common_cancel()}</button
+      >{m.common_close()}</button
     >
   </div>
 </Sheet>

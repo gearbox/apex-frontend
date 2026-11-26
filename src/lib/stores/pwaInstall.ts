@@ -29,8 +29,7 @@ export const installPlatform = readable<InstallPlatform>(
 /** True when the app is running as an installed PWA (any platform). */
 export const isAppInstalled = { subscribe: installed.subscribe };
 
-export type InstallStatus =
-  'installed' | 'available' | 'ios_manual' | 'not_offered' | 'dismissed_hint';
+export type InstallStatus = 'installed' | 'available' | 'ios_manual' | 'not_offered';
 
 /** Whether the first-visit install sheet has been dismissed on this origin. */
 export const isInstallSheetDismissed: Readable<boolean> = { subscribe: dismissed.subscribe };
@@ -43,12 +42,11 @@ export const canInstall = derived(
 
 /** A profile row status that explains why an install action is or is not available. */
 export const installStatus: Readable<InstallStatus> = derived(
-  [installPlatform, installed, canInstall, dismissed],
-  ([$platform, $installed, $canInstall, $dismissed]) => {
+  [installPlatform, installed, canInstall],
+  ([$platform, $installed, $canInstall]) => {
     if ($installed) return 'installed';
     if ($canInstall) return 'available';
     if ($platform === 'ios') return 'ios_manual';
-    if ($dismissed) return 'dismissed_hint';
     return 'not_offered';
   },
 );

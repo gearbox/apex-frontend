@@ -21,8 +21,8 @@
   import { codePointLength } from '$lib/studio/text';
   import {
     buildImportRequest,
+    importIssueField,
     lineRange,
-    normalizedSunoLyrics,
     sameImportRequest,
     type SunoImportForm,
   } from '$lib/studio/sunoImport';
@@ -64,24 +64,43 @@
     language: '',
   });
   let previewSnapshot = $state<{ request: ImportRequest; result: PreviewResult } | null>(null);
-  let previewError = $state<unknown>();
+  let previewError = $state<{ request: ImportRequest; error: unknown } | null>(null);
   let lyricsTextarea = $state<HTMLTextAreaElement>();
   let lyricsGutter = $state<HTMLElement>();
   let moreDetails = $state<HTMLDetailsElement>();
   let languageInput = $state<HTMLInputElement>();
   let request = $derived(buildImportRequest(form));
-  let matchesPreview = $derived(
+  let previewIsCurrent = $derived(
     !!previewSnapshot && sameImportRequest(request, previewSnapshot.request),
   );
-  let canImport = $derived(matchesPreview && !writeCount.current && !importMutation.isPending);
+  let errorIsCurrent = $derived(!!previewError && sameImportRequest(request, previewError.request));
+  let hasOutdatedContent = $derived(
+    (!!previewSnapshot && !previewIsCurrent) || (!!previewError && !errorIsCurrent),
+  );
+  let currentPreviewError = $derived(errorIsCurrent ? previewError?.error : undefined);
+  let canImport = $derived(previewIsCurrent && !writeCount.current && !importMutation.isPending);
   let styleLength = $derived(codePointLength(form.style));
   let excludeLength = $derived(codePointLength(form.exclude));
   let lyricsLength = $derived(codePointLength(form.lyrics));
   let titleLength = $derived(codePointLength(form.title));
   let lineCount = $derived(form.lyrics.split(/\r\n|\r|\n/).length);
-  let requestError = $derived(previewError instanceof ApiRequestError ? previewError : null);
-  let errorIssues = $derived(validationIssues(previewError));
-  let sourceLines = $derived(readSourceLines(previewError));
+  let requestError = $derived(
+    currentPreviewError instanceof ApiRequestError ? currentPreviewError : null,
+  );
+  let errorIssues = $derived(validationIssues(currentPreviewError));
+  let fieldIssues = $derived(
+    errorIssues.filter((issue) => {
+      const field = importIssueField(issue.path);
+      return field === 'style' || field === 'exclude';
+    }),
+  );
+  let generalIssues = $derived(
+    errorIssues.filter((issue) => {
+      const field = importIssueField(issue.path);
+      return field === null || field === 'lyrics';
+    }),
+  );
+  let sourceLines = $derived(readSourceLines(currentPreviewError));
   let hasInstrumentalLineIssue = $derived(
     errorIssues.some((issue) => issue.code === 'instrumental_with_lyric_lines') ||
       requestError?.error === 'instrumental_with_lyric_lines',
@@ -103,13 +122,28 @@
   let excludeTooLong = $derived(excludeLength > STUDIO_LIMITS.sunoExclude);
   let lyricsTooLong = $derived(lyricsLength > STUDIO_LIMITS.sunoLyrics);
   let titleTooLong = $derived(titleLength > STUDIO_LIMITS.trackTitle);
+  let languageValid = $derived(
+    form.language === '' ||
+      (form.language.length <= 35 && /^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(form.language)),
+  );
   let canPreview = $derived(
     !styleTooLong &&
       !excludeTooLong &&
       !lyricsTooLong &&
       !titleTooLong &&
+      languageValid &&
       !previewMutation.isPending,
   );
+
+  function issuesForField(field: 'style' | 'exclude') {
+    return fieldIssues.filter((issue) => importIssueField(issue.path) === field);
+  }
+
+  function errorSummary(error: unknown): string {
+    const summary = importError(error);
+    const issueText = validationIssues(error).map(issueMessage).join(' ');
+    return issueText && summary === issueText ? m.studio_import_invalid() : summary;
+  }
 
   function readSourceLines(error: unknown): Record<string, number | number[]> {
     if (!(error instanceof ApiRequestError) || !error.detail || typeof error.detail !== 'object')
@@ -127,15 +161,6 @@
       : [];
   }
 
-  function issuesForField(field: 'style' | 'exclude') {
-    return errorIssues.filter((issue) => {
-      const path = issue.path.toLowerCase();
-      return field === 'style'
-        ? path.includes('style') || path.includes('tempo')
-        : path.includes('avoid') || path.includes('exclude');
-    });
-  }
-
   async function revealLanguage(): Promise<void> {
     await tick();
     if (!hasLanguageIssue) return;
@@ -148,7 +173,7 @@
     if (!canPreview) return;
     const snapshot = buildImportRequest(form);
     const captured = session.capture();
-    previewError = undefined;
+    previewError = null;
     try {
       const result = await previewMutation.mutateAsync(snapshot);
       if (!captured.active) return;
@@ -159,7 +184,7 @@
         if (message) addToast({ type: 'error', message });
         return;
       }
-      previewError = error;
+      previewError = { request: snapshot, error };
       await revealLanguage();
     }
   }
@@ -170,20 +195,30 @@
     const captured = session.capture();
     try {
       const result = await importMutation.mutateAsync(displayedPreview.request);
-      const message = result.created
-        ? `${m.studio_imported({ plan: String(result.plan_version?.version_number ?? 0) })}${
-            result.lyrics_version
-              ? m.studio_imported_lyrics({ lyrics: String(result.lyrics_version.version_number) })
-              : ''
-          }`
-        : m.studio_import_nothing_changed();
+      const message = importSuccessMessage(result);
       addToast({ type: result.created ? 'success' : 'info', message });
       if (captured.active) void goto(studioTrack(projectId, trackId));
     } catch (error) {
       const message = importError(error);
       if (message) addToast({ type: 'error', message });
-      if (captured.active) previewError = error;
+      if (captured.active) previewError = { request: displayedPreview.request, error };
     }
+  }
+
+  function importSuccessMessage(result: PreviewResult): string {
+    if (!result.created) return m.studio_import_nothing_changed();
+    const planChanged = !result.plan_unchanged;
+    const lyricsChanged = !result.lyrics_unchanged;
+    const plan = String(result.plan_version?.version_number ?? '');
+    const lyrics = String(result.lyrics_version?.version_number ?? '');
+    const lyricsCleared =
+      lyricsChanged && result.lyrics === null && !!track.data?.current_lyrics_version_id;
+    if (planChanged && lyricsCleared) return m.studio_import_new_plan_lyrics_cleared({ plan });
+    if (planChanged && lyricsChanged) return m.studio_import_new_plan_and_lyrics({ plan, lyrics });
+    if (planChanged) return m.studio_import_new_plan({ plan });
+    if (lyricsCleared) return m.studio_import_lyrics_cleared();
+    if (lyricsChanged) return m.studio_import_new_lyrics({ lyrics });
+    return m.studio_import_nothing_changed();
   }
 
   function selectLine(line: number) {
@@ -302,7 +337,7 @@
               aria-invalid={titleTooLong}
             />
             <p class="mt-1 text-right text-xs {titleTooLong ? 'text-danger' : 'text-text-muted'}">
-              {titleLength} / 200
+              {titleLength} / {STUDIO_LIMITS.trackTitle}
             </p>
           </div>
           <fieldset>
@@ -345,6 +380,7 @@
               id="suno-language"
               class="w-full rounded-lg border border-border bg-surface p-2"
               bind:value={form.language}
+              aria-invalid={!languageValid}
               aria-describedby="suno-language-hint"
             />
             <p id="suno-language-hint" class="mt-1 text-sm text-text-muted">
@@ -355,13 +391,77 @@
       </details>
     </div>
 
-    {#if previewError}
+    {#if hasOutdatedContent}
+      <p id="import-stale-status" role="status" class="mt-6 rounded-lg bg-surface p-3 text-sm">
+        {m.studio_import_preview_outdated()}
+      </p>
+      <details class="mt-3 rounded-xl border border-border p-4">
+        <summary class="cursor-pointer font-medium">
+          {m.studio_import_show_previous_preview()}
+        </summary>
+        {#if previewSnapshot && !previewIsCurrent}
+          {@const previous = previewSnapshot.result}
+          <section
+            class="mt-4 rounded-xl border border-border p-4"
+            aria-label={m.studio_import_status()}
+          >
+            <h2 class="font-semibold">
+              {m.studio_import_status()} · {m.studio_import_preview_outdated()}
+            </h2>
+            <div class="mt-3 flex flex-wrap gap-3 text-sm">
+              <span
+                >{previous.plan_unchanged ? m.studio_plan_unchanged() : m.studio_plan_new()}</span
+              >
+              {#if previous.lyrics === null && track.data.current_lyrics_version_id}
+                <strong>{m.studio_lyrics_none_clear()}</strong>
+              {:else}
+                <span
+                  >{previous.lyrics_unchanged
+                    ? m.studio_lyrics_unchanged()
+                    : m.studio_lyrics_new()}</span
+                >
+              {/if}
+            </div>
+            {#if previous.warnings.length}
+              <ul class="mt-4 list-disc space-y-2 pl-5 text-sm text-warning">
+                {#each previous.warnings as warning, index (`${warning.code}-${index}`)}
+                  <li>{importWarningMessage(warning.code)}</li>
+                {/each}
+              </ul>
+            {/if}
+            {#if !previous.round_trip.lyrics}
+              <p class="mt-4 text-sm">{m.studio_import_lyrics_round_trip_hint()}</p>
+            {/if}
+            <div class="mt-4 rounded-xl bg-surface p-4">
+              <TrackDocumentView plan={previous.plan} lyrics={previous.lyrics} />
+            </div>
+          </section>
+        {/if}
+        {#if previewError && !errorIsCurrent}
+          <section class="mt-4 rounded-xl border border-border p-4">
+            <h2 class="font-semibold">
+              {m.studio_import_error_heading()} · {m.studio_import_preview_outdated()}
+            </h2>
+            <p class="mt-2 text-sm">{errorSummary(previewError.error)}</p>
+            {#if validationIssues(previewError.error).length}
+              <ul class="mt-3 space-y-2">
+                {#each validationIssues(previewError.error) as issue, index (`${issue.path}-${issue.code}-${index}`)}
+                  <li class="text-sm">{issueMessage(issue)}</li>
+                {/each}
+              </ul>
+            {/if}
+          </section>
+        {/if}
+      </details>
+    {/if}
+
+    {#if currentPreviewError}
       <section
         class="mt-6 rounded-xl border border-danger/40 bg-surface p-4"
         aria-labelledby="import-error-heading"
       >
         <h2 id="import-error-heading" class="font-semibold">{m.studio_import_error_heading()}</h2>
-        <p class="mt-2 text-sm">{importError(previewError)}</p>
+        <p class="mt-2 text-sm">{errorSummary(currentPreviewError)}</p>
         {#if hasReservedTempoIssue && artistTempoIssue && project.data?.artist_id}
           <a
             class="mt-2 inline-block text-accent underline"
@@ -372,7 +472,7 @@
         {/if}
         {#if errorIssues.length}
           <ul class="mt-3 space-y-2">
-            {#each errorIssues as issue, index (`${issue.path}-${issue.code}-${index}`)}
+            {#each generalIssues as issue, index (`${issue.path}-${issue.code}-${index}`)}
               <li class="text-sm">
                 {issueMessage(issue)}
                 {#each issueLines(issue.path) as line (`${issue.path}-${line}`)}
@@ -406,7 +506,7 @@
       </section>
     {/if}
 
-    {#if previewSnapshot}
+    {#if previewIsCurrent && previewSnapshot}
       {@const result = previewSnapshot.result}
       <section
         class="mt-8 rounded-2xl border border-border p-4 md:p-6"
@@ -453,10 +553,8 @@
                 text: (result.plan.global_style?.avoid ?? []).join(', '),
               })}
             </p>{/if}
-          {#if !result.round_trip.lyrics}<p class="whitespace-pre-wrap">
-              {m.studio_import_lyrics_normalized({
-                text: normalizedSunoLyrics(result.plan, result.lyrics),
-              })}
+          {#if !result.round_trip.lyrics}<p>
+              {m.studio_import_lyrics_round_trip_hint()}
             </p>{/if}
         </div>
         <div class="mt-6 rounded-xl bg-surface p-4">
@@ -479,6 +577,7 @@
     <button
       class="rounded-lg bg-accent px-4 py-3 text-bg disabled:opacity-50"
       disabled={!canImport}
+      aria-describedby={hasOutdatedContent ? 'import-stale-status' : undefined}
       onclick={() => void importPreview()}
     >
       {importMutation.isPending ? m.common_loading() : m.studio_import_action()}

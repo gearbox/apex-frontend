@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy } from 'svelte';
+  import { onDestroy, tick } from 'svelte';
   import { page } from '$app/stores';
   import {
     createInfiniteQuery,
@@ -35,7 +35,12 @@
   type LyricsVersion = components['schemas']['LyricsVersionDetail'];
   type ConfirmAction =
     | { kind: 'make-plan-without-lyrics'; versionId: string }
-    | { kind: 'switch-plan-with-lyrics'; versionId: string; planId: string; planNumber: number }
+    | {
+        kind: 'switch-plan-with-lyrics';
+        versionId: string;
+        planId: string;
+        planNumber: number | null;
+      }
     | { kind: 'detach-lyrics'; versionId: string }
     | { kind: 'delete'; versionId: string; versionNumber: number };
   let projectId = $derived($page.params.projectId ?? '');
@@ -64,6 +69,8 @@
   let selectedKind = $state<'plan' | 'lyrics'>('plan');
   let selectedVersionId = $state('');
   let showMobileViewer = $state(false);
+  let viewerHeading = $state<HTMLHeadingElement>();
+  let focusAfterSelection = $state(false);
   let confirmAction = $state<ConfirmAction | null>(null);
   let actionError = $state('');
   let exportOpen = $state(false);
@@ -89,12 +96,14 @@
 
   onDestroy(() => viewerSession.invalidate());
 
-  function selectVersion(version: VersionSummary, mobile: boolean) {
+  async function selectVersion(version: VersionSummary, mobile: boolean) {
     viewerSession.invalidate();
     selectedVersionId = version.id;
     confirmAction = null;
     actionError = '';
     showMobileViewer = mobile;
+    focusAfterSelection = !mobile;
+    if (!mobile) await tick();
   }
 
   async function makeVersionCurrent(version: PlanVersion | LyricsVersion) {
@@ -141,7 +150,7 @@
         kind: 'switch-plan-with-lyrics',
         versionId: version.id,
         planId: version.based_on_plan_version_id,
-        planNumber: baseNumber ?? 0,
+        planNumber: baseNumber ?? null,
       };
     }
   }
@@ -209,13 +218,34 @@
     confirmAction?.kind === 'make-plan-without-lyrics'
       ? m.studio_history_plan_incompatible()
       : confirmAction?.kind === 'switch-plan-with-lyrics'
-        ? m.studio_history_switch_plan({ version: String(confirmAction.planNumber) })
+        ? confirmAction.planNumber === null
+          ? m.studio_history_switch_plan_unknown()
+          : m.studio_history_switch_plan({ version: String(confirmAction.planNumber) })
         : confirmAction?.kind === 'detach-lyrics'
           ? m.studio_history_detach_confirm()
           : confirmAction?.kind === 'delete'
             ? m.studio_history_delete_confirm({ version: String(confirmAction.versionNumber) })
             : '',
   );
+  let confirmPrimaryLabel = $derived(
+    confirmAction?.kind === 'detach-lyrics'
+      ? m.studio_history_detach()
+      : confirmAction?.kind === 'make-plan-without-lyrics'
+        ? m.studio_history_make_current_without_lyrics()
+        : confirmAction?.kind === 'switch-plan-with-lyrics'
+          ? m.studio_history_switch_plan_action()
+          : confirmAction?.kind === 'delete'
+            ? m.studio_history_delete()
+            : m.studio_history_make_current(),
+  );
+
+  $effect(() => {
+    if (!focusAfterSelection || !$isDesktop || viewer?.id !== selectedVersionId || !viewerHeading)
+      return;
+    viewerHeading.focus();
+    viewerHeading.scrollIntoView?.({ block: 'nearest' });
+    focusAfterSelection = false;
+  });
 </script>
 
 <svelte:head><title>{m.studio_history_title()}</title></svelte:head>
@@ -282,7 +312,7 @@
                       ? 'border-accent'
                       : ''}"
                     aria-pressed={selectedVersionId === version.id}
-                    onclick={() => selectVersion(version, !$isDesktop)}
+                    onclick={() => void selectVersion(version, !$isDesktop)}
                   >
                     <span class="flex flex-wrap items-center gap-2">
                       <strong>v{version.version_number}</strong>
@@ -364,7 +394,7 @@
       </p>{/if}
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h2 class="font-display text-xl font-semibold">
+        <h2 bind:this={viewerHeading} tabindex="-1" class="font-display text-xl font-semibold">
           {viewer.kind === 'plan' ? m.studio_history_plan() : m.studio_history_lyrics()} v{viewer.version_number}
         </h2>
         <p class="mt-1 text-sm text-text-muted">
@@ -425,9 +455,7 @@
         {#if actionError}<p class="mt-3 text-danger" role="alert">{actionError}</p>{/if}
         <div class="mt-6">
           <SheetActions
-            primaryLabel={confirmAction.kind === 'delete'
-              ? m.studio_history_delete()
-              : m.studio_history_make_current()}
+            primaryLabel={confirmPrimaryLabel}
             primaryVariant={confirmAction.kind === 'delete' ? 'danger' : 'default'}
             pending={setCurrent.isPending || remove.isPending}
             oncancel={() => (confirmAction = null)}

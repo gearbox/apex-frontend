@@ -43,15 +43,15 @@ test(
     await expect(page).toHaveURL(/\/app\/studio\/p1\/tracks\/t1$/);
     await expect(page.getByText('A line of lyrics')).toBeVisible();
     await expect(
-      page.locator('section[aria-labelledby="document-plan-heading"]').getByRole('heading', {
-        name: 'Verse',
-      }),
+      page
+        .locator('section[aria-labelledby^="document-plan-heading-"]')
+        .getByRole('heading', { name: 'Verse' }),
     ).toBeVisible();
 
     await page.getByRole('button', { name: 'Export', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Export to Suno' });
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByLabel('Style of Music')).toHaveValue('dream pop');
+    await expect(dialog.getByRole('textbox', { name: 'Style of Music' })).toHaveValue('dream pop');
     await expect(dialog.locator('[data-export-field="lyrics"]')).toHaveText(
       '[Verse]\nA line of lyrics',
     );
@@ -59,7 +59,7 @@ test(
 
     if (browserName === 'chromium') {
       await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
-      await dialog.getByRole('button', { name: 'Copy' }).nth(3).click();
+      await dialog.getByRole('button', { name: 'Copy Lyrics' }).click();
       await expect(dialog.getByRole('status')).toContainText('Copied');
       expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
         '[Verse]\nA line of lyrics',

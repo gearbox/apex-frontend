@@ -60,8 +60,6 @@
         <p>{m.pwa_install_ios_step3()}</p>
       </div>
     {/if}
-  {:else if $installStatus === 'dismissed_hint'}
-    <p class="install-status">{m.pwa_install_status_dismissed()}</p>
   {:else}
     <p class="install-status">{m.pwa_install_status_not_offered({ appName: $appDisplayName })}</p>
   {/if}

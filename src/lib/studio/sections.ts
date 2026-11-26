@@ -21,14 +21,42 @@ const DEFAULT_LABELS: Record<SectionKind, () => string> = {
 };
 
 const UNNUMBERED_KINDS = new Set<SectionKind>(['chorus', 'pre_chorus', 'post_chorus', 'hook']);
+const SUNO_LABELS: Record<SectionKind, () => string> = {
+  intro: () => 'Intro',
+  verse: () => 'Verse',
+  pre_chorus: () => 'Pre-Chorus',
+  chorus: () => 'Chorus',
+  post_chorus: () => 'Post-Chorus',
+  hook: () => 'Hook',
+  bridge: () => 'Bridge',
+  build: () => 'Build',
+  drop: () => 'Drop',
+  breakdown: () => 'Breakdown',
+  instrumental: () => 'Instrumental',
+  interlude: () => 'Interlude',
+  outro: () => 'Outro',
+};
 
-/** Match the default section labels and numbering used by the Suno renderer. */
-export function sectionDisplayName(section: PlanSection, allSections: PlanSection[]): string {
+function sectionName(
+  section: PlanSection,
+  allSections: PlanSection[],
+  names: Record<SectionKind, () => string>,
+): string {
   if (section.label != null) return section.label;
-  const base = DEFAULT_LABELS[section.kind]();
+  const base = names[section.kind]();
   if (UNNUMBERED_KINDS.has(section.kind)) return base;
   const sameKind = allSections.filter((item) => item.kind === section.kind);
   if (sameKind.length < 2) return base;
   const position = sameKind.findIndex((item) => item.id === section.id);
   return `${base} ${position < 0 ? sameKind.length : position + 1}`;
+}
+
+/** Match the localized section labels and numbering used by the document view. */
+export function sectionDisplayName(section: PlanSection, allSections: PlanSection[]): string {
+  return sectionName(section, allSections, DEFAULT_LABELS);
+}
+
+/** Match the English section name and numbering used in Suno export headers. */
+export function sunoSectionName(section: PlanSection, allSections: PlanSection[]): string {
+  return sectionName(section, allSections, SUNO_LABELS);
 }

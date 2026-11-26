@@ -174,6 +174,170 @@ it('selects the requested line with CRLF and CR pasted line endings', async () =
   client.clear();
 });
 
+it('editing after a preview marks it outdated and hides line buttons', async () => {
+  const { client } = await setup(
+    () => makeSunoImportResult({ dry_run: false }),
+    () =>
+      HttpResponse.json(
+        {
+          error: 'import_invalid',
+          message: 'invalid',
+          status_code: 422,
+          detail: {
+            issues: [{ path: 'lyrics', code: 'unsupported_inline_tag' }],
+            source_lines: { lyrics: [2] },
+          },
+        },
+        { status: 422 },
+      ),
+  );
+  const lyrics = screen.getByLabelText('Lyrics');
+  await fireEvent.input(lyrics, { target: { value: '[Verse]\nla [soft] la' } });
+  await fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
+  await screen.findByRole('button', { name: 'Line 2' });
+  await fireEvent.input(lyrics, { target: { value: 'inserted\n[Verse]\nla [soft] la' } });
+  const status = screen.getByRole('status', { name: '' });
+  expect(status.textContent).toContain(
+    'The text changed since the preview. Preview again to see the result.',
+  );
+  expect(screen.queryByRole('button', { name: 'Line 2' })).toBeNull();
+  expect((screen.getByRole('button', { name: 'Import' }) as HTMLButtonElement).disabled).toBe(true);
+  await fireEvent.click(screen.getByText('Show the previous preview (outdated)'));
+  expect(screen.queryByRole('button', { name: 'Line 2' })).toBeNull();
+  client.clear();
+});
+
+it('editing after an error hides stale issues until the next preview', async () => {
+  let previews = 0;
+  const { client } = await setup(
+    () => makeSunoImportResult({ dry_run: false }),
+    () => {
+      previews++;
+      return previews === 1
+        ? HttpResponse.json(
+            {
+              error: 'import_invalid',
+              message: 'invalid',
+              status_code: 422,
+              detail: { issues: [{ path: 'plan.global_style.avoid[0]', code: 'tag_conflict' }] },
+            },
+            { status: 422 },
+          )
+        : makeSunoImportResult();
+    },
+  );
+  await fireEvent.input(screen.getByLabelText('Style of Music'), { target: { value: 'rock' } });
+  await fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
+  const issue = await screen.findByText('A style tag is also listed as an avoid tag.');
+  const styleBox = screen.getByLabelText('Style of Music').parentElement;
+  const excludeBox = screen.getByLabelText('Exclude styles').parentElement;
+  expect(styleBox?.contains(issue)).toBe(false);
+  expect(excludeBox?.contains(issue)).toBe(true);
+  await fireEvent.input(screen.getByLabelText('Style of Music'), {
+    target: { value: 'dream pop' },
+  });
+  expect(screen.getByRole('status').textContent).toContain('The text changed since the preview.');
+  expect(screen.queryByRole('alert')).toBeNull();
+  const previous = screen.getByText('Show the previous preview (outdated)');
+  await fireEvent.click(previous);
+  expect(screen.getByText('A style tag is also listed as an avoid tag.')).toBeTruthy();
+  await fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
+  await screen.findByText('Plan: new version');
+  expect(screen.queryByText('Show the previous preview (outdated)')).toBeNull();
+  expect(screen.queryByText('A style tag is also listed as an avoid tag.')).toBeNull();
+  client.clear();
+});
+
+it('the disabled Import explains why the preview cannot be reused', async () => {
+  const { client } = await setup();
+  await fireEvent.input(screen.getByLabelText('Style of Music'), { target: { value: 'rock' } });
+  await fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
+  await screen.findByText('Plan: new version');
+  await fireEvent.input(screen.getByLabelText('Style of Music'), {
+    target: { value: 'dream pop' },
+  });
+  const importButton = screen.getByRole('button', { name: 'Import' });
+  expect((importButton as HTMLButtonElement).disabled).toBe(true);
+  const statusId = importButton.getAttribute('aria-describedby');
+  expect(statusId).toBe('import-stale-status');
+  expect(document.getElementById(statusId!)?.textContent).toContain(
+    'The text changed since the preview. Preview again to see the result.',
+  );
+  client.clear();
+});
+
+it('an invalid language blocks Preview with a format hint', async () => {
+  const { client } = await setup();
+  await fireEvent.click(screen.getByText('More'));
+  const language = screen.getByLabelText('Language');
+  await fireEvent.input(language, { target: { value: 'EN-us' } });
+  expect(language.getAttribute('aria-invalid')).toBe('true');
+  expect(screen.getByText(/Use a language code such as en or pt-BR/)).toBeTruthy();
+  expect((screen.getByRole('button', { name: 'Preview' }) as HTMLButtonElement).disabled).toBe(
+    true,
+  );
+  client.clear();
+});
+
+it.each([
+  {
+    name: 'changed plan and lyrics',
+    result: {
+      created: true,
+      plan_unchanged: false,
+      lyrics_unchanged: false,
+      plan_version: makeVersionSummary({ version_number: 3 }),
+      lyrics_version: makeVersionSummary({ kind: 'lyrics', version_number: 4 }),
+      lyrics: { language: 'en', sections: [] },
+    },
+    expected: 'New plan v3 and lyrics v4',
+  },
+  {
+    name: 'changed plan only',
+    result: {
+      created: true,
+      plan_unchanged: false,
+      lyrics_unchanged: true,
+      plan_version: makeVersionSummary({ version_number: 3 }),
+    },
+    expected: 'New plan v3',
+  },
+  {
+    name: 'changed lyrics only',
+    result: {
+      created: true,
+      plan_unchanged: true,
+      lyrics_unchanged: false,
+      lyrics_version: makeVersionSummary({ kind: 'lyrics', version_number: 4 }),
+      lyrics: { language: 'en', sections: [] },
+    },
+    expected: 'New lyrics v4',
+  },
+  {
+    name: 'changed plan and cleared lyrics',
+    result: {
+      created: true,
+      plan_unchanged: false,
+      lyrics_unchanged: false,
+      plan_version: makeVersionSummary({ version_number: 3 }),
+      lyrics: null,
+    },
+    expected: 'New plan v3; lyrics cleared',
+  },
+  {
+    name: 'no changes',
+    result: { created: false },
+    expected: 'Nothing changed',
+  },
+])('the toast names only what changed: $name', async ({ result, expected }) => {
+  const { client } = await setup(() => makeSunoImportResult({ dry_run: false, ...result }));
+  await fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
+  await screen.findByText('Plan: new version');
+  await fireEvent.click(screen.getByRole('button', { name: 'Import' }));
+  await waitFor(() => expect(get(toasts).at(-1)?.message).toBe(expected));
+  client.clear();
+});
+
 it('opens More and focuses Language after language_required', async () => {
   const { client } = await setup(
     () => makeSunoImportResult({ dry_run: false }),
@@ -245,7 +409,7 @@ it('a late import response only toasts after the page is destroyed', async () =>
   await requested;
   cleanup();
   release();
-  await waitFor(() => expect(get(toasts).at(-1)?.message).toContain('Imported: plan v'));
+  await waitFor(() => expect(get(toasts).at(-1)?.message).toContain('New plan v'));
   expect(goto).not.toHaveBeenCalled();
   client.clear();
 });
