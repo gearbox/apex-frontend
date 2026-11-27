@@ -14,6 +14,10 @@ import {
 } from './user';
 import { ApiRequestError } from './errors';
 import { makeUserProfile } from '../../mocks/factories/user';
+import { setAuth } from '$lib/stores/auth';
+import { songDraftStore } from '$lib/studio/songDraftStore';
+import { newDraft } from '$lib/studio/songDraft';
+import { STORAGE_KEYS } from '$lib/utils/constants';
 
 const BASE = 'http://localhost:8000';
 
@@ -275,6 +279,21 @@ describe('verifyAge()', () => {
 describe('deleteAccount()', () => {
   it('returns DeleteAccountResponse with deactivated_at', async () => {
     const deactivatedAt = '2026-03-30T12:00:00Z';
+    const user = makeUserProfile({ id: 'deleted-draft-user' });
+    setAuth(
+      {
+        accessToken: 'user-access',
+        refreshToken: 'user-refresh',
+        expiresAt: 'later',
+        contentCookieExpiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+      },
+      user,
+    );
+    songDraftStore.save(user.id, 'track-1', {
+      savedAt: new Date().toISOString(),
+      base: { plan: null, lyrics: null },
+      draft: newDraft('blank', 'Untitled', '', () => 'section-1'),
+    });
     server.use(
       http.delete(`${BASE}/v1/users/me`, () =>
         HttpResponse.json({
@@ -286,6 +305,7 @@ describe('deleteAccount()', () => {
     const result = await deleteAccount();
     expect(result.message).toBe('Account deactivated');
     expect(result.deactivated_at).toBe(deactivatedAt);
+    expect(localStorage.getItem(`${STORAGE_KEYS.STUDIO_SONG_DRAFT}:${user.id}:track-1`)).toBeNull();
   });
 
   it('throws ApiRequestError on server error', async () => {

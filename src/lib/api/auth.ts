@@ -26,6 +26,7 @@ import {
   type AuthOperation,
 } from '$lib/stores/authLifecycle';
 import { parseApiError, AuthError } from '$lib/api/errors';
+import { songDraftStore } from '$lib/studio/songDraftStore';
 import { parseRateLimitHeaders, endpointKey } from '$lib/api/rateLimit';
 import { updateRateLimit } from '$lib/stores/rateLimit';
 import type { AcceptedDocument } from '$lib/api/legal';
@@ -387,6 +388,7 @@ export async function remintContentCookie(): Promise<ContentCookieRemintResult> 
 
 export async function logout(): Promise<void> {
   const userId = getCurrentUser()?.id;
+  if (userId) songDraftStore.clearUser(userId);
   // Local async work dies before the slower push/logout best-effort operations begin.
   beginAuthTransition();
   const logoutEpoch = getAuthEpoch();

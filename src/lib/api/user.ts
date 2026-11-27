@@ -3,6 +3,8 @@ import type { components } from '$lib/api/types';
 import { throwApiError } from '$lib/api/errors';
 import type { Locale } from '$lib/stores/locale';
 import type { UserProfile } from '$lib/stores/auth';
+import { getCurrentUser } from '$lib/stores/auth';
+import { songDraftStore } from '$lib/studio/songDraftStore';
 
 export type UserStatsResponse = components['schemas']['UserStatsResponse'];
 export type DeleteAccountResponse = components['schemas']['DeleteAccountResponse'];
@@ -62,8 +64,10 @@ export async function logoutAllDevices(): Promise<MessageResponse> {
 }
 
 export async function deleteAccount(): Promise<DeleteAccountResponse> {
+  const userId = getCurrentUser()?.id;
   const { data, error } = await apiClient.DELETE('/v1/users/me');
   if (error || !data) throwApiError(error, 'Failed to delete account');
+  if (userId) songDraftStore.clearUser(userId);
   return data;
 }
 

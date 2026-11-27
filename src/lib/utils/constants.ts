@@ -16,6 +16,7 @@ export const STORAGE_KEYS = {
   VPDEBUG: 'apex-vpdebug',
   PUSH_REGISTRATION: 'apex:push:registration',
   PUSH_PROMPT_STATE: 'apex:push:prompt-state',
+  STUDIO_SONG_DRAFT: 'apex:studio:song-draft:v1',
 } as const;
 
 /* ─── Breakpoints ─── */

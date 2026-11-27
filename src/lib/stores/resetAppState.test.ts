@@ -21,6 +21,8 @@ import { STORAGE_KEYS } from '$lib/utils/constants';
 import { operationKeys, upsertOperation } from '$lib/queries/operations';
 import type { components } from '$lib/api/types';
 import { feedbackDialog } from './feedbackDialog.svelte';
+import { songDraftStore } from '$lib/studio/songDraftStore';
+import { newDraft } from '$lib/studio/songDraft';
 
 type OperationResponse = components['schemas']['OperationResponse'];
 
@@ -54,6 +56,29 @@ describe('clearAuth() -> resetAppState()', () => {
 
     expect(returnValue).toBeUndefined();
     expect(getQueryClient().getQueryData(['library', 'user-a'])).toBeUndefined();
+  });
+
+  it('preserves local song drafts when auth expires', () => {
+    const user = makeUserProfile({ id: 'expired-user' });
+    setAuth(
+      {
+        accessToken: 'expired-access',
+        refreshToken: 'expired-refresh',
+        expiresAt: new Date(Date.now() - 1_000).toISOString(),
+        contentCookieExpiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+      },
+      user,
+    );
+    const key = `${STORAGE_KEYS.STUDIO_SONG_DRAFT}:${user.id}:track-1`;
+    songDraftStore.save(user.id, 'track-1', {
+      savedAt: new Date().toISOString(),
+      base: { plan: null, lyrics: null },
+      draft: newDraft('blank', 'Untitled', '', () => 'section-1'),
+    });
+
+    clearAuth();
+
+    expect(localStorage.getItem(key)).not.toBeNull();
   });
 
   it('clears retained operation revision watermarks on logout', () => {

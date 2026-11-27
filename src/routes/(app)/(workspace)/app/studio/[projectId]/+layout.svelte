@@ -18,7 +18,9 @@
   let routeId = $derived($page.route.id ?? '');
   let isSettings = $derived(routeId.endsWith('/settings'));
   let isOverview = $derived(routeId === '/(app)/(workspace)/app/studio/[projectId]');
-  let isTrackDocument = $derived(routeId.endsWith('/import') || routeId.endsWith('/history'));
+  let isTrackDocument = $derived(
+    routeId.endsWith('/import') || routeId.endsWith('/history') || routeId.endsWith('/edit'),
+  );
   let backHref = $derived(workspaceBack(routeId, id, $page.params.trackId));
   let backLabel = $derived(
     isOverview

@@ -56,7 +56,7 @@ export async function stubStudio(page: Page, available = true, emptyTrackDocumen
     version_number: number;
     parent_version_id: string | null;
     based_on_plan_version_id?: string;
-    origin: 'import';
+    origin: 'user' | 'import';
     schema_version: number;
     content_hash: string;
     created_at: string;
@@ -155,7 +155,7 @@ export async function stubStudio(page: Page, available = true, emptyTrackDocumen
             .replace(/\s+\d+$/, '')
             .replace(/-/g, '_');
           active = {
-            id: `section-${sections.length + 1}`,
+            id: `section-${importCount + 1}-${sections.length + 1}`,
             kind: [
               'intro',
               'verse',
@@ -180,7 +180,7 @@ export async function stubStudio(page: Page, available = true, emptyTrackDocumen
         } else if (line.trim()) {
           if (!active)
             active = {
-              id: `section-${sections.length + 1}`,
+              id: `section-${importCount + 1}-${sections.length + 1}`,
               kind: 'verse',
               label: null,
               delivery: [],
@@ -293,6 +293,111 @@ export async function stubStudio(page: Page, available = true, emptyTrackDocumen
       )(route);
     }
     const versionsPath = path.match(/^\/v1\/studio\/tracks\/(t\d+)\/versions$/);
+    if (versionsPath && method === 'POST') {
+      const track = tracks.find((item) => item.id === versionsPath[1]);
+      if (!track)
+        return jsonRoute(
+          { error: 'not_found', message: 'Track not found', status_code: 404 },
+          404,
+        )(route);
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      const kind = body.kind as 'plan' | 'lyrics';
+      const parentId = (body.parent_version_id as string | null | undefined) ?? null;
+      const content = body.content as Plan | Lyrics;
+      const basedOn = kind === 'lyrics' ? String(body.based_on_plan_version_id) : undefined;
+      const parent = versions.find(
+        (version) =>
+          version.id === parentId && version.track_id === track.id && version.kind === kind,
+      );
+      if (parentId && !parent)
+        return jsonRoute(
+          { error: 'parent_version_not_found', message: 'Parent not found', status_code: 404 },
+          404,
+        )(route);
+      if (
+        kind === 'lyrics' &&
+        !versions.some(
+          (version) =>
+            version.id === basedOn && version.track_id === track.id && version.kind === 'plan',
+        )
+      )
+        return jsonRoute(
+          { error: 'plan_version_not_found', message: 'Plan not found', status_code: 404 },
+          404,
+        )(route);
+      const replay = versions.find(
+        (version) =>
+          version.track_id === track.id &&
+          version.kind === kind &&
+          version.parent_version_id === parentId &&
+          (kind === 'lyrics' ? version.based_on_plan_version_id === basedOn : true) &&
+          JSON.stringify(version.content) === JSON.stringify(content),
+      );
+      if (replay) return jsonRoute({ version: replay, lyrics_detached: false })(route);
+      if (parent && JSON.stringify(parent.content) === JSON.stringify(content))
+        return jsonRoute(
+          { error: 'version_unchanged', message: 'Content is unchanged', status_code: 409 },
+          409,
+        )(route);
+      const versionNumber =
+        Math.max(
+          0,
+          ...versions
+            .filter((version) => version.track_id === track.id && version.kind === kind)
+            .map((version) => version.version_number),
+        ) + 1;
+      const version: Version = {
+        id: `${kind}-${track.id}-v${versionNumber}`,
+        track_id: track.id,
+        version_number: versionNumber,
+        parent_version_id: parentId,
+        ...(kind === 'lyrics' ? { based_on_plan_version_id: basedOn } : {}),
+        origin: 'user',
+        schema_version: kind === 'plan' ? 2 : 1,
+        content_hash: `${kind}-hash-${track.id}-${versionNumber}`,
+        created_at: new Date().toISOString(),
+        is_current: body.make_current !== false,
+        kind,
+        content,
+      };
+      if (body.make_current !== false) {
+        const planId = kind === 'plan' ? version.id : track.current_plan_version_id;
+        const lyricsId = kind === 'lyrics' ? version.id : track.current_lyrics_version_id;
+        const plan = (
+          kind === 'plan' ? version.content : versions.find((item) => item.id === planId)?.content
+        ) as Plan | undefined;
+        const lyrics = (
+          kind === 'lyrics'
+            ? version.content
+            : versions.find((item) => item.id === lyricsId)?.content
+        ) as Lyrics | undefined;
+        const compatible =
+          !!plan &&
+          (!lyrics ||
+            (!plan.instrumental &&
+              lyrics.sections.every((section) =>
+                plan.sections.some(
+                  (item) =>
+                    item.id === section.section_id &&
+                    !item.instrumental &&
+                    item.kind !== 'instrumental',
+                ),
+              )));
+        if (!compatible)
+          return jsonRoute(
+            {
+              error: 'lyrics_incompatible_with_plan',
+              message: 'Incompatible lyrics',
+              status_code: 409,
+            },
+            409,
+          )(route);
+        track.current_plan_version_id = planId;
+        track.current_lyrics_version_id = lyricsId;
+      }
+      versions.push(version);
+      return jsonRoute({ version, lyrics_detached: false }, 201)(route);
+    }
     if (versionsPath && method === 'GET') {
       const kind = new URL(route.request().url()).searchParams.get('kind');
       const items = versions
@@ -350,7 +455,25 @@ export async function stubStudio(page: Page, available = true, emptyTrackDocumen
           { error: 'plan_required', message: 'A plan is required', status_code: 409 },
           409,
         )(route);
-      if (lyrics && lyrics.based_on_plan_version_id !== planId)
+      const planVersion = versions.find(
+        (version) => version.id === planId && version.kind === 'plan',
+      );
+      const planContent = planVersion?.content as Plan | undefined;
+      const lyricsContent = lyrics?.content as Lyrics | undefined;
+      if (
+        lyrics &&
+        (!planContent ||
+          planContent.instrumental ||
+          lyricsContent?.sections.some(
+            (item) =>
+              !planContent.sections.some(
+                (section) =>
+                  section.id === item.section_id &&
+                  !section.instrumental &&
+                  section.kind !== 'instrumental',
+              ),
+          ))
+      )
         return jsonRoute(
           {
             error: 'lyrics_incompatible_with_plan',
@@ -362,7 +485,8 @@ export async function stubStudio(page: Page, available = true, emptyTrackDocumen
       track.current_plan_version_id = planId;
       track.current_lyrics_version_id = lyricsId;
       versions.forEach((version) => {
-        version.is_current = version.id === planId || version.id === lyricsId;
+        if (version.track_id === track.id)
+          version.is_current = version.id === planId || version.id === lyricsId;
       });
       return jsonRoute(track)(route);
     }
@@ -389,7 +513,10 @@ export async function stubStudio(page: Page, available = true, emptyTrackDocumen
           const lyricSection = lyrics?.sections.find((item) => item.section_id === section.id);
           return [
             `[${section.label ?? section.kind.replace(/_/g, '-')}]`,
-            ...(lyricSection?.lines.map((line) => line.text) ?? []),
+            ...(lyricSection?.lines.flatMap((line) => [
+              ...(line.delivery?.length ? [`[${line.delivery.join(', ')}]`] : []),
+              line.text,
+            ]) ?? []),
           ].join('\n');
         })
         .join('\n\n');
