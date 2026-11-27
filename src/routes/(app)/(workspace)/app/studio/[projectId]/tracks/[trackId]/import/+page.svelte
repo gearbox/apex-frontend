@@ -18,6 +18,7 @@
     validationIssues,
   } from '$lib/studio/formErrors';
   import { STUDIO_LIMITS } from '$lib/studio/limits';
+  import { isLanguageTag } from '$lib/studio/language';
   import { codePointLength } from '$lib/studio/text';
   import {
     buildImportRequest,
@@ -124,10 +125,7 @@
   let excludeTooLong = $derived(excludeLength > STUDIO_LIMITS.sunoExclude);
   let lyricsTooLong = $derived(lyricsLength > STUDIO_LIMITS.sunoLyrics);
   let titleTooLong = $derived(titleLength > STUDIO_LIMITS.trackTitle);
-  let languageValid = $derived(
-    form.language === '' ||
-      (form.language.length <= 35 && /^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(form.language)),
-  );
+  let languageValid = $derived(form.language === '' || isLanguageTag(form.language));
   let canPreview = $derived(
     !styleTooLong &&
       !excludeTooLong &&

@@ -7,6 +7,8 @@ export const studioTrack = (projectId: string, trackId: string) =>
   `${studioProject(projectId)}/tracks/${encodeURIComponent(trackId)}`;
 export const studioTrackImport = (projectId: string, trackId: string) =>
   `${studioTrack(projectId, trackId)}/import`;
+export const studioTrackEdit = (projectId: string, trackId: string) =>
+  `${studioTrack(projectId, trackId)}/edit`;
 export const studioTrackHistory = (projectId: string, trackId: string) =>
   `${studioTrack(projectId, trackId)}/history`;
 
@@ -17,7 +19,8 @@ export function workspaceBack(
 ): string {
   if (
     routeId === '/(app)/(workspace)/app/studio/[projectId]/tracks/[trackId]/import' ||
-    routeId === '/(app)/(workspace)/app/studio/[projectId]/tracks/[trackId]/history'
+    routeId === '/(app)/(workspace)/app/studio/[projectId]/tracks/[trackId]/history' ||
+    routeId === '/(app)/(workspace)/app/studio/[projectId]/tracks/[trackId]/edit'
   ) {
     return trackId ? studioTrack(projectId, trackId) : studioProject(projectId);
   }

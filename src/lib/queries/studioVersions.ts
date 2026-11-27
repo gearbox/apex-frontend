@@ -9,9 +9,14 @@ type VersionPage = components['schemas']['CursorPage_src.api.schemas.studio.Vers
 type DocumentKind = 'plan' | 'lyrics';
 export type ImportRequest = Omit<components['schemas']['SunoImportRequest'], 'dry_run'>;
 type SetCurrentRequest = {
-  plan?: string;
+  plan?: string | null;
   lyrics?: string | null;
+  plan_version_id?: string | null;
+  lyrics_version_id?: string | null;
 };
+
+type VersionCreate =
+  components['schemas']['PlanVersionCreate'] | components['schemas']['LyricsVersionCreate'];
 
 export function versionsInfiniteQueryOptions(trackId: string, kind: DocumentKind) {
   return {
@@ -88,13 +93,35 @@ export async function sunoImportPreview(trackId: string, request: ImportRequest)
   return data;
 }
 
-function reconcileTrackDocuments(qc: QueryClient, projectId: string, trackId: string): void {
+export function reconcileTrackDocuments(qc: QueryClient, projectId: string, trackId: string): void {
   if (qc.isMutating({ mutationKey: studioMutationKeys.trackDocuments(trackId) }) > 1) return;
   void qc.invalidateQueries({ queryKey: studioKeys.track(trackId), exact: true });
   void qc.invalidateQueries({ queryKey: studioKeys.versions(trackId, 'plan') });
   void qc.invalidateQueries({ queryKey: studioKeys.versions(trackId, 'lyrics') });
   void qc.invalidateQueries({ queryKey: studioKeys.tracks(projectId) });
   void qc.invalidateQueries({ queryKey: [...studioKeys.track(trackId), 'suno-export'] });
+}
+
+/** Create a plan or lyrics version without changing the current pair. */
+export function createVersionMutationOptions(qc: QueryClient, trackId: string) {
+  return {
+    mutationKey: studioMutationKeys.trackDocuments(trackId),
+    scope: { id: studioScopes.track(trackId) },
+    mutationFn: async (body: VersionCreate) => {
+      const { data, error, response } = await apiClient.POST(
+        '/v1/studio/tracks/{track_id}/versions',
+        { params: { path: { track_id: trackId } }, body },
+      );
+      if (error) throw new ApiRequestError(parseApiError(error, response.status));
+      return data.version;
+    },
+    onSuccess: (
+      version:
+        components['schemas']['PlanVersionDetail'] | components['schemas']['LyricsVersionDetail'],
+    ) => {
+      qc.setQueryData(studioKeys.version(version.id), version);
+    },
+  };
 }
 
 export function sunoImportMutationOptions(qc: QueryClient, projectId: string, trackId: string) {
@@ -116,13 +143,21 @@ export function sunoImportMutationOptions(qc: QueryClient, projectId: string, tr
   };
 }
 
-export function setCurrentMutationOptions(qc: QueryClient, projectId: string, trackId: string) {
+export function setCurrentMutationOptions(
+  qc: QueryClient,
+  projectId: string,
+  trackId: string,
+  options: { reconcile?: boolean } = {},
+) {
   return {
     mutationKey: studioMutationKeys.trackDocuments(trackId),
     scope: { id: studioScopes.track(trackId) },
-    mutationFn: async ({ plan, lyrics }: SetCurrentRequest) => {
+    mutationFn: async (request: SetCurrentRequest) => {
+      const plan = request.plan_version_id !== undefined ? request.plan_version_id : request.plan;
+      const lyrics =
+        request.lyrics_version_id !== undefined ? request.lyrics_version_id : request.lyrics;
       const body: components['schemas']['CurrentPut'] = {
-        ...(plan !== undefined ? { plan_version_id: plan } : {}),
+        ...(plan !== undefined && plan !== null ? { plan_version_id: plan } : {}),
         ...(lyrics !== undefined ? { lyrics_version_id: lyrics } : {}),
       };
       const { data, error, response } = await apiClient.PUT(
@@ -132,7 +167,9 @@ export function setCurrentMutationOptions(qc: QueryClient, projectId: string, tr
       if (error) throw new ApiRequestError(parseApiError(error, response.status));
       return data;
     },
-    onSettled: () => reconcileTrackDocuments(qc, projectId, trackId),
+    ...(options.reconcile === false
+      ? {}
+      : { onSettled: () => reconcileTrackDocuments(qc, projectId, trackId) }),
   };
 }
 

@@ -133,6 +133,24 @@ function trackDetail(track: MockTrack) {
   });
 }
 
+function pairCompatible(plan: MockPlanVersion, lyrics: MockLyricsVersion): boolean {
+  const planSections = plan.content.sections as unknown as Array<{
+    id: string;
+    kind: string;
+    instrumental: boolean;
+  }>;
+  const lyricsSections = lyrics.content.sections as unknown as Array<{
+    section_id: string;
+    lines: unknown[];
+  }>;
+  if (plan.content.instrumental && lyricsSections.some((section) => section.lines.length))
+    return false;
+  return lyricsSections.every((entry) => {
+    const section = planSections.find((item) => item.id === entry.section_id);
+    return !!section && !section.instrumental && section.kind !== 'instrumental';
+  });
+}
+
 function mockImportDocuments(
   track: MockTrack,
   request: components['schemas']['SunoImportRequest'],
@@ -336,6 +354,105 @@ export const studioHandlers = [
       .map(versionSummary);
     return HttpResponse.json(cursorPage(items, url));
   }),
+  http.post(`${BASE}/v1/studio/tracks/:track_id/versions`, async ({ params, request }) => {
+    const trackId = String(params.track_id);
+    if (!tracks.some((track) => track.id === trackId))
+      return apiError(404, 'not_found', 'Track not found.');
+    const body = (await request.json()) as
+      components['schemas']['PlanVersionCreate'] | components['schemas']['LyricsVersionCreate'];
+    const parentId = body.parent_version_id ?? null;
+    const parent = parentId
+      ? versions.find(
+          (version) =>
+            version.id === parentId && version.track_id === trackId && version.kind === body.kind,
+        )
+      : undefined;
+    if (parentId && !parent)
+      return apiError(404, 'parent_version_not_found', 'Parent version not found.');
+    if (
+      body.kind === 'lyrics' &&
+      !versions.some(
+        (version) =>
+          version.id === body.based_on_plan_version_id &&
+          version.track_id === trackId &&
+          version.kind === 'plan',
+      )
+    )
+      return apiError(404, 'plan_version_not_found', 'Plan version not found.');
+    const basedOn = body.kind === 'lyrics' ? body.based_on_plan_version_id : null;
+    const replay = versions.find(
+      (version) =>
+        version.track_id === trackId &&
+        version.kind === body.kind &&
+        version.parent_version_id === parentId &&
+        (version.kind === 'lyrics' ? version.based_on_plan_version_id === basedOn : true) &&
+        JSON.stringify(version.content) === JSON.stringify(body.content),
+    );
+    if (replay) {
+      return HttpResponse.json({ version: replay, lyrics_detached: false });
+    }
+    if (parent && JSON.stringify(parent.content) === JSON.stringify(body.content))
+      return apiError(409, 'version_unchanged', 'Content is unchanged.');
+
+    const versionNumber =
+      Math.max(
+        0,
+        ...versions
+          .filter((version) => version.track_id === trackId && version.kind === body.kind)
+          .map((version) => version.version_number),
+      ) + 1;
+    const id = `${body.kind}_mock_${String(nextVersionId++).padStart(3, '0')}`;
+    const makeCurrent = body.make_current ?? true;
+    let version: MockVersion;
+    if (body.kind === 'plan') {
+      version = makePlanVersion({
+        id,
+        track_id: trackId,
+        version_number: versionNumber,
+        parent_version_id: parentId,
+        is_current: makeCurrent,
+        content: body.content,
+      });
+    } else {
+      version = makeLyricsVersion({
+        id,
+        track_id: trackId,
+        version_number: versionNumber,
+        parent_version_id: parentId,
+        based_on_plan_version_id: body.based_on_plan_version_id,
+        is_current: makeCurrent,
+        content: body.content,
+      });
+    }
+    if (makeCurrent) {
+      const track = tracks.find((item) => item.id === trackId)!;
+      const planId = version.kind === 'plan' ? version.id : track.current_plan_version_id;
+      const lyricsId = version.kind === 'lyrics' ? version.id : track.current_lyrics_version_id;
+      const plan =
+        (versions.find((item) => item.id === planId && item.kind === 'plan') as
+          MockPlanVersion | undefined) ?? (version.kind === 'plan' ? version : undefined);
+      const lyrics =
+        (versions.find((item) => item.id === lyricsId && item.kind === 'lyrics') as
+          MockLyricsVersion | undefined) ?? (version.kind === 'lyrics' ? version : undefined);
+      if (
+        lyrics &&
+        (!plan || !pairCompatible(plan as MockPlanVersion, lyrics as MockLyricsVersion))
+      )
+        return apiError(409, 'lyrics_incompatible_with_plan', 'Lyrics are incompatible.');
+      tracks = tracks.map((item) =>
+        item.id === trackId
+          ? { ...item, current_plan_version_id: planId, current_lyrics_version_id: lyricsId }
+          : item,
+      );
+      versions = versions.map((item) =>
+        item.track_id !== trackId
+          ? item
+          : { ...item, is_current: item.id === planId || item.id === lyricsId },
+      );
+    }
+    versions.push(version);
+    return HttpResponse.json({ version, lyrics_detached: false }, { status: 201 });
+  }),
   http.get(`${BASE}/v1/studio/versions/:version_id`, ({ params }) => {
     const version = versions.find((item) => item.id === params.version_id);
     return version ? HttpResponse.json(version) : apiError(404, 'not_found', 'Version not found.');
@@ -387,7 +504,7 @@ export const studioHandlers = [
       return apiError(404, 'plan_version_not_found', 'Plan version not found.');
     if (lyricsId && !lyrics) return apiError(404, 'not_found', 'Lyrics version not found.');
     if (lyricsId && !planId) return apiError(409, 'plan_required', 'A plan is required.');
-    if (lyrics && plan && (lyrics as MockLyricsVersion).based_on_plan_version_id !== plan.id)
+    if (lyrics && plan && !pairCompatible(plan as MockPlanVersion, lyrics as MockLyricsVersion))
       return apiError(409, 'lyrics_incompatible_with_plan', 'Lyrics are incompatible.');
     tracks[index] = {
       ...track,
@@ -415,7 +532,7 @@ export const studioHandlers = [
     const lyrics = versions.find(
       (version) => version.id === lyricsId && version.kind === 'lyrics',
     ) as MockLyricsVersion | undefined;
-    if (lyrics && lyrics.based_on_plan_version_id !== plan.id)
+    if (lyrics && !pairCompatible(plan, lyrics))
       return apiError(409, 'lyrics_incompatible_with_plan', 'Lyrics are incompatible.');
     const styleTags = [
       ...(plan.content.global_style?.tags ?? []),

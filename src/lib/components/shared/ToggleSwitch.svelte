@@ -3,10 +3,11 @@
     checked: boolean;
     disabled?: boolean;
     loading?: boolean;
+    ariaLabel?: string;
     ontoggle: (checked: boolean) => void;
   }
 
-  let { checked, disabled = false, loading = false, ontoggle }: Props = $props();
+  let { checked, disabled = false, loading = false, ariaLabel, ontoggle }: Props = $props();
 
   function handleClick() {
     if (!disabled && !loading) {
@@ -18,6 +19,7 @@
 <button
   type="button"
   role="switch"
+  aria-label={ariaLabel}
   aria-checked={checked}
   class="toggle"
   class:checked
