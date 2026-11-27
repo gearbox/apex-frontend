@@ -32,6 +32,7 @@ export function makeLibraryAssetItem(overrides: Partial<LibraryAssetItem> = {}):
     media: makeMediaObject(),
     created_at: '2025-06-01T12:00:00Z',
     expires_at: '2025-07-01T12:00:00Z',
+    held: false,
     display_title: null,
     original_filename: null,
     display_filename: null,
@@ -90,6 +91,7 @@ export function makeLibraryOutputItem(
     output_index: 0,
     created_at: '2025-06-01T12:01:00Z',
     expires_at: '2025-07-01T12:00:00Z',
+    held: false,
     media: makeMediaObject(),
     ...overrides,
   };

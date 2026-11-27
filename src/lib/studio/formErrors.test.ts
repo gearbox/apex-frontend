@@ -18,6 +18,11 @@ import {
   trackSaveError,
   trackDeleteError,
   trackReorderError,
+  versionDeleteError,
+  setCurrentError,
+  importError,
+  exportWarningMessage,
+  importWarningMessage,
 } from './formErrors';
 import { ApiRequestError } from '$lib/api/errors';
 import { StudioProjectSetupError } from '$lib/queries/studioProjects';
@@ -47,9 +52,107 @@ describe('studio validation issues', () => {
 
   it('uses a generic message for unknown codes and extracts the field before an array index', () => {
     expect(issueMessage({ path: 'name', code: 'future_validation_code' })).toBe(
-      "This value isn't valid.",
+      'Validation issue: future_validation_code',
     );
     expect(issueField({ path: 'themes[2]', code: 'too_long_after_normalization' })).toBe('themes');
+  });
+});
+
+describe('version and current-pair error messages', () => {
+  it.each([
+    ['version_is_current', undefined, 'The current version cannot be deleted.'],
+    [
+      'version_has_children',
+      { count: 2 },
+      'This version has dependent child versions (2). Delete them first.',
+    ],
+    [
+      'version_is_lyrics_base',
+      { count: 3 },
+      'This plan is the base for 3 lyrics version(s). Delete those first.',
+    ],
+    [
+      'version_has_audio',
+      { count: 1 },
+      'This version is linked to 1 audio version(s). Clear those links or delete the audio versions first.',
+    ],
+    [
+      'version_in_use_by_run',
+      undefined,
+      'This version is in use by a run. It can be deleted when the run ends.',
+    ],
+  ])('maps delete refusal %s', (code, detail, expected) => {
+    expect(versionDeleteError(apiError(code, 409, detail))).toBe(expected);
+  });
+  it('maps network and unknown delete errors with a diagnosable code', () => {
+    expect(versionDeleteError(new TypeError('offline'))).toContain('delete');
+    expect(versionDeleteError(apiError('new_delete_code', 409))).toContain('new_delete_code');
+  });
+  it.each([
+    ['plan_required', 'A plan is required before lyrics can be current.'],
+    ['lyrics_incompatible_with_plan', 'These lyrics do not fit the current plan.'],
+    ['not_found', 'This version could not be found.'],
+    ['plan_version_not_found', 'This version could not be found.'],
+  ])('maps set current error %s', (code, expected) => {
+    expect(setCurrentError(apiError(code, 409))).toBe(expected);
+  });
+});
+
+describe('Suno import errors and warning messages', () => {
+  it.each([
+    ['language_required', 'Add a language before previewing lyrics.'],
+    ['instrumental_with_lyric_lines', 'These lyrics have lines while Instrumental is on.'],
+    [
+      'reserved_tempo_tag',
+      'A saved Style tag looks like a tempo. Move the plan tag to Tempo or remove the artist tag, then import again.',
+    ],
+    ['version_limit_reached', 'This track has reached its version limit.'],
+    ['too_many_items', 'This paste contains more items than Studio allows.'],
+  ])('maps import failure %s', (code, expected) => {
+    expect(importError(apiError(code, 422))).toBe(expected);
+  });
+  it('maps import issues and retains unknown error codes', () => {
+    expect(
+      importError(
+        apiError('import_invalid', 422, {
+          issues: [{ path: 'lyrics[2]', code: 'instrumental_section_has_lines' }],
+        }),
+      ),
+    ).toBe('An instrumental section cannot contain lyric lines.');
+    expect(
+      importError(
+        apiError('import_invalid', 422, {
+          issues: [{ path: 'lyrics[2]', code: 'unsupported_inline_tag' }],
+        }),
+      ),
+    ).toBe(
+      'Remove square brackets from lyric text or make the whole line a section or delivery tag.',
+    );
+    expect(importError(apiError('future_import_code', 422))).toContain('future_import_code');
+  });
+  it.each([
+    ['local_avoid_not_exportable', 'Section avoid tags are not sent to Suno.'],
+    ['section_duration_not_exportable', 'Planned section duration is not sent to Suno.'],
+    ['lyrics_above_recommended_length', 'Suno may rush lyrics longer than 3,000 characters.'],
+    ['style_exclude_overlap', 'A tag appears in both Style and Exclude.'],
+  ])('maps export warning %s', (code, expected) => {
+    expect(exportWarningMessage(code)).toBe(expected);
+  });
+  it.each([
+    ['no_section_headers', 'No section headers were found; the lyrics will become one verse.'],
+    ['text_before_first_header', 'Text before the first header will become an implicit verse.'],
+    ['dangling_delivery', 'A delivery tag without a lyric line will be dropped.'],
+    ['unknown_section_name', 'This section name is unknown and will be kept as an interlude.'],
+    ['duplicate_descriptor', 'Repeated descriptors will be collapsed.'],
+    ['no_lyric_lines', 'No lyric lines were found.'],
+    ['duplicate_style_item', 'Repeated Style or Exclude items will be dropped.'],
+    ['duplicate_tempo', 'Only the first tempo item will be kept.'],
+  ])('maps import warning %s', (code, expected) => {
+    expect(importWarningMessage(code)).toBe(expected);
+  });
+  it('includes unknown warning codes in the fallback', () => {
+    expect(exportWarningMessage('future_export_code')).toContain('future_export_code');
+    expect(importWarningMessage('future_import_warning')).toContain('future_import_warning');
   });
 });
 

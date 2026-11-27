@@ -4,13 +4,15 @@
   import { goto } from '$app/navigation';
   import { createQuery, createMutation, useQueryClient } from '@tanstack/svelte-query';
   import { trackQueryOptions, renameTrackMutationOptions } from '$lib/queries/studioTracks';
-  import type { components } from '$lib/api/types';
   import { codePointLength } from '$lib/studio/text';
   import { STUDIO_LIMITS } from '$lib/studio/limits';
   import { studioProject, studioTrack } from '$lib/studio/paths';
   import { ApiRequestError } from '$lib/api/errors';
   import { componentSession } from '$lib/utils/sessionTracker';
   import { addToast } from '$lib/stores/toasts';
+  import TrackDocumentView from '$lib/components/studio/TrackDocumentView.svelte';
+  import SunoExportSheet from '$lib/components/studio/SunoExportSheet.svelte';
+  import { studioTrackHistory, studioTrackImport } from '$lib/studio/paths';
   import {
     trackSaveError,
     validationIssues,
@@ -20,9 +22,6 @@
     issueMessage,
   } from '$lib/studio/formErrors';
   import * as m from '$paraglide/messages';
-  type Section = components['schemas']['PlanSection'];
-  type LyricsSection = components['schemas']['LyricsSection'];
-  type Line = components['schemas']['LyricLine'];
   let id = $derived($page.params.trackId ?? '');
   let projectId = $derived($page.params.projectId ?? '');
   const track = createQuery(() => trackQueryOptions(id));
@@ -37,10 +36,9 @@
   let renameButton = $state<HTMLButtonElement | undefined>();
   let titleIssues = $derived(fieldIssues(validationIssues(rename.error), 'title'));
   let titleTooLong = $derived(codePointLength(title) > STUDIO_LIMITS.trackTitle);
-  let plan = $derived(track.data?.current_plan?.content);
-  let lyrics = $derived(track.data?.current_lyrics?.content);
-  let sections = $derived((plan?.sections ?? []) as Section[]);
-  let lyricSections = $derived((lyrics?.sections ?? []) as LyricsSection[]);
+  let plan = $derived(track.data?.current_plan?.content ?? null);
+  let lyrics = $derived(track.data?.current_lyrics?.content ?? null);
+  let exportOpen = $state(false);
   $effect(() => {
     const loaded = track.data;
     if (loaded && loaded.library_project_id !== projectId) {
@@ -145,44 +143,37 @@
           >{m.studio_rename()}</button
         >
       </div>{/if}
-    <div class="mt-8">
-      <h2 class="font-display text-xl font-semibold">{m.studio_plan_chip()}</h2>
-      {#if plan}<div class="mt-3 text-sm text-text-muted">
-          {#if plan.tempo_bpm}{m.studio_tempo()}: {plan.tempo_bpm} BPM{/if}{#if plan.instrumental}
-            · {m.studio_instrumental()}{/if}
-        </div>
-        <div class="mt-3 flex flex-wrap gap-2">
-          {#each plan.global_style?.tags ?? [] as tag, index (index)}<span
-              class="rounded-full bg-surface px-2 py-1 text-sm">{String(tag)}</span
-            >{/each}
-        </div>{:else}<p class="mt-3">{m.studio_no_plan()}</p>
-        <p class="text-text-muted">{m.studio_coming_next()}</p>{/if}
-    </div>
-    <div class="mt-8">
-      <h2 class="font-display text-xl font-semibold">{m.studio_lyrics_chip()}</h2>
-      {#if !lyrics}<p class="mt-3">{m.studio_no_lyrics()}</p>
-        <p class="text-text-muted">{m.studio_coming_next()}</p>{/if}
-      {#each sections as section (section.id)}{@const entry = lyricSections.find(
-          (item) => item.section_id === section.id,
-        )}
-        <div class="mt-6">
-          <h3 class="font-semibold">{section.label || section.kind.replaceAll('_', ' ')}</h3>
-          <div class="mt-2 flex flex-wrap gap-2">
-            {#each section.delivery ?? [] as tag, index (index)}<span
-                class="rounded-full bg-surface px-2 py-1 text-xs">{String(tag)}</span
-              >{/each}{#each section.style?.tags ?? [] as tag, index (index)}<span
-                class="rounded-full bg-surface px-2 py-1 text-xs">{String(tag)}</span
-              >{/each}
-          </div>
-          {#if !section.instrumental && entry}{#each entry.lines as raw, lineIndex (lineIndex)}{@const line =
-                raw as Line}
-              <p class="mt-2 whitespace-pre-wrap">
-                {line.text}
-                {#each line.delivery ?? [] as tag, index (index)}<span
-                    class="rounded-full bg-surface px-2 py-1 text-xs">{String(tag)}</span
-                  >{/each}
-              </p>{/each}{/if}
-        </div>{/each}
-    </div>
+    <nav
+      aria-label={m.studio_track_actions({ title: track.data.title })}
+      class="mt-5 flex flex-wrap gap-2"
+    >
+      <button
+        class="rounded-lg border border-border px-3 py-2 disabled:cursor-not-allowed disabled:opacity-50"
+        disabled={!plan}
+        title={!plan ? m.studio_export_plan_required() : undefined}
+        onclick={() => (exportOpen = true)}>{m.studio_export()}</button
+      >
+      <a class="rounded-lg border border-border px-3 py-2" href={studioTrackImport(projectId, id)}
+        >{m.studio_import_from_suno()}</a
+      >
+      <a class="rounded-lg border border-border px-3 py-2" href={studioTrackHistory(projectId, id)}
+        >{m.studio_history()}</a
+      >
+    </nav>
+    {#if !plan}
+      <p class="mt-8 text-text-muted">
+        {m.studio_no_plan()} ·
+        <a class="text-accent underline" href={studioTrackImport(projectId, id)}
+          >{m.studio_import_from_suno()}</a
+        >
+      </p>
+    {:else}
+      <div class="mt-8">
+        <TrackDocumentView {plan} {lyrics} />
+      </div>
+    {/if}
+    {#if exportOpen}
+      <SunoExportSheet trackId={id} onclose={() => (exportOpen = false)} />
+    {/if}
   {/if}
 </section>

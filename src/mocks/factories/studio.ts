@@ -14,6 +14,7 @@ export function makeArtist(overrides: Partial<MockArtist> = {}): MockArtist {
     aesthetic_references: [],
     style_tags: [],
     global_avoid: [],
+    performer_cast_member_id: null,
     created_at: now,
     updated_at: now,
     ...overrides,
@@ -58,6 +59,9 @@ export type MockTrack = components['schemas']['TrackOut'];
 type MockTrackDetail = components['schemas']['TrackDetail'];
 type MockPlanVersion = components['schemas']['PlanVersionDetail'];
 type MockLyricsVersion = components['schemas']['LyricsVersionDetail'];
+export type MockVersionSummary = components['schemas']['VersionSummary'];
+type MockSunoExport = components['schemas']['SunoExportOut'];
+type MockSunoImportResult = components['schemas']['SunoImportOut'];
 export function makeProjectProfile(
   overrides: Partial<MockProjectProfile> = {},
 ): MockProjectProfile {
@@ -83,13 +87,20 @@ export function makeTrack(overrides: Partial<MockTrack> = {}): MockTrack {
     title: 'First track',
     current_plan_version_id: null,
     current_lyrics_version_id: null,
+    current_audio_version_id: null,
     created_at: now,
     updated_at: now,
     ...overrides,
   };
 }
 export function makeTrackDetail(overrides: Partial<MockTrackDetail> = {}): MockTrackDetail {
-  return { ...makeTrack(), current_plan: null, current_lyrics: null, ...overrides };
+  return {
+    ...makeTrack(),
+    current_plan: null,
+    current_lyrics: null,
+    current_audio: null,
+    ...overrides,
+  };
 }
 export function makePlanVersion(overrides: Partial<MockPlanVersion> = {}): MockPlanVersion {
   return {
@@ -121,6 +132,64 @@ export function makeLyricsVersion(overrides: Partial<MockLyricsVersion> = {}): M
     is_current: true,
     content: { language: 'en', sections: [] },
     kind: 'lyrics',
+    ...overrides,
+  };
+}
+
+export function makeVersionSummary(
+  overrides: Partial<MockVersionSummary> = {},
+): MockVersionSummary {
+  return {
+    id: 'version_mock_001',
+    kind: 'plan',
+    version_number: 1,
+    parent_version_id: null,
+    based_on_plan_version_id: null,
+    origin: 'user',
+    schema_version: 2,
+    content_hash: 'hash',
+    created_at: new Date().toISOString(),
+    is_current: true,
+    ...overrides,
+  };
+}
+
+export function makeSunoExport(overrides: Partial<MockSunoExport> = {}): MockSunoExport {
+  return {
+    target: 'suno',
+    renderer_version: 'suno-v6.2026-11',
+    plan_version_id: 'plan_mock_001',
+    lyrics_version_id: 'lyrics_mock_001',
+    title: 'First track',
+    style: 'dream pop, warm synths',
+    exclude: 'harsh noise',
+    lyrics: '[Verse]\nFirst line',
+    instrumental: false,
+    fields: {
+      title: { length: 11, limit: null, within_limit: true },
+      style: { length: 25, limit: 1000, within_limit: true },
+      exclude: { length: 11, limit: 1000, within_limit: true },
+      lyrics: { length: 18, limit: 5000, within_limit: true },
+    },
+    warnings: [],
+    ...overrides,
+  };
+}
+
+export function makeSunoImportResult(
+  overrides: Partial<MockSunoImportResult> = {},
+): MockSunoImportResult {
+  return {
+    dry_run: true,
+    plan: { title: 'First track', instrumental: false, references: [], sections: [] },
+    lyrics: null,
+    plan_unchanged: false,
+    lyrics_unchanged: true,
+    warnings: [],
+    round_trip: { style: true, exclude: true, lyrics: true },
+    plan_version: null,
+    lyrics_version: null,
+    created: false,
     ...overrides,
   };
 }

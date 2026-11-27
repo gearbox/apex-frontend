@@ -22,6 +22,7 @@ const track = (id: string): Track => ({
   position: 0,
   current_plan_version_id: null,
   current_lyrics_version_id: null,
+  current_audio_version_id: null,
   created_at: '',
   updated_at: '',
 });

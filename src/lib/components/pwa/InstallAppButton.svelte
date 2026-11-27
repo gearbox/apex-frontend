@@ -1,6 +1,13 @@
 <script lang="ts">
   import { Download, Share } from '@lucide/svelte';
-  import { shouldShowInstallButton, installPlatform, triggerInstall } from '$lib/stores/pwaInstall';
+  import {
+    installStatus,
+    installPlatform,
+    triggerInstall,
+    isInstallSheetDismissed,
+    resetInstallSheetDismissal,
+  } from '$lib/stores/pwaInstall';
+  import { appDisplayName } from '$lib/stores/product';
   import { addToast } from '$lib/stores/toasts';
   import * as m from '$paraglide/messages';
 
@@ -33,26 +40,62 @@
   }
 </script>
 
-{#if $shouldShowInstallButton}
-  <button class="install-btn" onclick={handleClick} disabled={installing}>
-    {#if $installPlatform === 'ios'}
-      <Share size={16} strokeWidth={1.75} />
-    {:else}
-      <Download size={16} strokeWidth={1.75} />
-    {/if}
-    <span>{installing ? m.common_loading() : m.pwa_install_profile_button()}</span>
-  </button>
+<section class="install-row" aria-label={m.pwa_install_profile_button()}>
+  {#if $installStatus === 'installed'}
+    <p class="install-status" role="status">{m.pwa_install_status_installed()}</p>
+  {:else if $installStatus === 'available' || $installStatus === 'ios_manual'}
+    <button class="install-btn" onclick={handleClick} disabled={installing}>
+      {#if $installPlatform === 'ios'}
+        <Share size={16} strokeWidth={1.75} />
+      {:else}
+        <Download size={16} strokeWidth={1.75} />
+      {/if}
+      <span>{installing ? m.common_loading() : m.pwa_install_profile_button()}</span>
+    </button>
 
-  {#if showIosHint}
-    <div class="ios-hint">
-      <p>{m.pwa_install_ios_step1()}</p>
-      <p>{m.pwa_install_ios_step2()}</p>
-      <p>{m.pwa_install_ios_step3()}</p>
-    </div>
+    {#if showIosHint}
+      <div class="ios-hint">
+        <p>{m.pwa_install_ios_step1()}</p>
+        <p>{m.pwa_install_ios_step2()}</p>
+        <p>{m.pwa_install_ios_step3()}</p>
+      </div>
+    {/if}
+  {:else}
+    <p class="install-status">{m.pwa_install_status_not_offered({ appName: $appDisplayName })}</p>
   {/if}
-{/if}
+  {#if $isInstallSheetDismissed && $installStatus !== 'installed'}
+    <button class="install-tip-link" type="button" onclick={resetInstallSheetDismissal}
+      >{m.pwa_install_show_tip_again()}</button
+    >
+  {/if}
+</section>
 
 <style>
+  .install-row {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .install-status {
+    margin: 0;
+    color: var(--apex-text-muted);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .install-tip-link {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--apex-accent);
+    font: inherit;
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+  }
+
   .install-btn {
     display: flex;
     align-items: center;

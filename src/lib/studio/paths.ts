@@ -5,8 +5,22 @@ export const studioProject = (id: string) => `${ROUTES.studio}/${encodeURICompon
 export const studioProjectSettings = (id: string) => `${studioProject(id)}/settings`;
 export const studioTrack = (projectId: string, trackId: string) =>
   `${studioProject(projectId)}/tracks/${encodeURIComponent(trackId)}`;
+export const studioTrackImport = (projectId: string, trackId: string) =>
+  `${studioTrack(projectId, trackId)}/import`;
+export const studioTrackHistory = (projectId: string, trackId: string) =>
+  `${studioTrack(projectId, trackId)}/history`;
 
-export function workspaceBack(routeId: string | null | undefined, projectId: string): string {
+export function workspaceBack(
+  routeId: string | null | undefined,
+  projectId: string,
+  trackId?: string | null,
+): string {
+  if (
+    routeId === '/(app)/(workspace)/app/studio/[projectId]/tracks/[trackId]/import' ||
+    routeId === '/(app)/(workspace)/app/studio/[projectId]/tracks/[trackId]/history'
+  ) {
+    return trackId ? studioTrack(projectId, trackId) : studioProject(projectId);
+  }
   if (
     routeId === '/(app)/(workspace)/app/studio/[projectId]/settings' ||
     routeId === '/(app)/(workspace)/app/studio/[projectId]/tracks/[trackId]'

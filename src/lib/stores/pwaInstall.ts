@@ -1,4 +1,5 @@
 import { writable, derived, readable } from 'svelte/store';
+import type { Readable } from 'svelte/store';
 import { isBrowser } from '$lib/utils/env';
 import { STORAGE_KEYS } from '$lib/utils/constants';
 import { getInstallPlatform, isStandalone, type InstallPlatform } from '$lib/utils/platform';
@@ -28,10 +29,26 @@ export const installPlatform = readable<InstallPlatform>(
 /** True when the app is running as an installed PWA (any platform). */
 export const isAppInstalled = { subscribe: installed.subscribe };
 
+export type InstallStatus = 'installed' | 'available' | 'ios_manual' | 'not_offered';
+
+/** Whether the first-visit install sheet has been dismissed on this origin. */
+export const isInstallSheetDismissed: Readable<boolean> = { subscribe: dismissed.subscribe };
+
 /** True when the Chromium browser has offered an install prompt we can trigger. */
 export const canInstall = derived(
   [deferredPrompt, installed],
   ([$prompt, $installed]) => $prompt !== null && !$installed,
+);
+
+/** A profile row status that explains why an install action is or is not available. */
+export const installStatus: Readable<InstallStatus> = derived(
+  [installPlatform, installed, canInstall],
+  ([$platform, $installed, $canInstall]) => {
+    if ($installed) return 'installed';
+    if ($canInstall) return 'available';
+    if ($platform === 'ios') return 'ios_manual';
+    return 'not_offered';
+  },
 );
 
 /**
@@ -79,6 +96,14 @@ export function dismissInstallSheet(): void {
   dismissed.set(true);
   if (isBrowser()) {
     localStorage.setItem(STORAGE_KEYS.PWA_INSTALL_DISMISSED, 'true');
+  }
+}
+
+/** Allow the first-visit install sheet to be shown again. */
+export function resetInstallSheetDismissal(): void {
+  dismissed.set(false);
+  if (isBrowser()) {
+    localStorage.removeItem(STORAGE_KEYS.PWA_INSTALL_DISMISSED);
   }
 }
 

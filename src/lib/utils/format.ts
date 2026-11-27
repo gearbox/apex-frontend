@@ -104,6 +104,20 @@ export function formatRelativeTime(iso: string): string {
   return timeAgo(iso);
 }
 
+/** Format relative time using the app's active locale. */
+export function formatRelativeDate(iso: string): string {
+  const seconds = Math.round((new Date(iso).getTime() - Date.now()) / 1000);
+  const formatter = new Intl.RelativeTimeFormat(currentLocale(), { numeric: 'auto' });
+  const abs = Math.abs(seconds);
+  if (abs < MINUTE) return formatter.format(seconds, 'second');
+  if (abs < HOUR) return formatter.format(Math.round(seconds / MINUTE), 'minute');
+  if (abs < DAY) return formatter.format(Math.round(seconds / HOUR), 'hour');
+  if (abs < WEEK) return formatter.format(Math.round(seconds / DAY), 'day');
+  if (abs < MONTH) return formatter.format(Math.round(seconds / WEEK), 'week');
+  if (abs < YEAR) return formatter.format(Math.round(seconds / MONTH), 'month');
+  return formatter.format(Math.round(seconds / YEAR), 'year');
+}
+
 /** Format an aspect ratio value, falling back to the "Auto (source)" label when unset. */
 export function formatAspectRatio(value: string | null | undefined): string {
   return value ?? m.media_aspect_auto_source();

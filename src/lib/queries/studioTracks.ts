@@ -8,6 +8,7 @@ type Track = components['schemas']['TrackOut'];
 type TrackDetail = components['schemas']['TrackDetail'];
 export const studioMutationKeys = {
   tracks: (projectId: string) => ['studio', 'mutation', 'tracks', projectId] as const,
+  trackDocuments: (trackId: string) => ['studio', 'mutation', 'track-documents', trackId] as const,
 };
 
 /** Re-sort the current list by order, keeping unmentioned tracks at the end. */

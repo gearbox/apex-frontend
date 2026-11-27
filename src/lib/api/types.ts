@@ -1686,6 +1686,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/library/assets/{asset_ref}/peaks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetAudioPeaks */
+        get: operations["V1LibraryAssetsAssetRefPeaksGetAudioPeaks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/library/groups/{job_id}": {
         parameters: {
             query?: never;
@@ -1829,6 +1846,130 @@ export interface paths {
         head?: never;
         /** PatchArtist */
         patch: operations["V1StudioArtistsArtistIdPatchArtist"];
+        trace?: never;
+    };
+    "/v1/studio/cast/{member_id}/references": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** AddReference */
+        post: operations["V1StudioCastMemberIdReferencesAddReference"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/studio/cast/{member_id}/looks/{look_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** DeleteLook */
+        delete: operations["V1StudioCastMemberIdLooksLookIdDeleteLook"];
+        options?: never;
+        head?: never;
+        /** ChangeLook */
+        patch: operations["V1StudioCastMemberIdLooksLookIdChangeLook"];
+        trace?: never;
+    };
+    "/v1/studio/cast/{member_id}/references/{reference_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** DeleteReference */
+        delete: operations["V1StudioCastMemberIdReferencesReferenceIdDeleteReference"];
+        options?: never;
+        head?: never;
+        /** ChangeReference */
+        patch: operations["V1StudioCastMemberIdReferencesReferenceIdChangeReference"];
+        trace?: never;
+    };
+    "/v1/studio/cast/{member_id}/looks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** CreateLook */
+        post: operations["V1StudioCastMemberIdLooksCreateLook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/studio/cast": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListCast */
+        get: operations["V1StudioCastListCast"];
+        put?: never;
+        /** CreateMember */
+        post: operations["V1StudioCastCreateMember"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/studio/cast/{member_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetMember */
+        get: operations["V1StudioCastMemberIdGetMember"];
+        put?: never;
+        post?: never;
+        /** DeleteMember */
+        delete: operations["V1StudioCastMemberIdDeleteMember"];
+        options?: never;
+        head?: never;
+        /** PatchMember */
+        patch: operations["V1StudioCastMemberIdPatchMember"];
+        trace?: never;
+    };
+    "/v1/studio/cast/{member_id}/references/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** ReorderReferences */
+        put: operations["V1StudioCastMemberIdReferencesOrderReorderReferences"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/v1/studio/artists/{artist_id}/chats": {
@@ -2095,6 +2236,43 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/v1/studio/tracks/{track_id}/audio": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListAudio */
+        get: operations["V1StudioTracksTrackIdAudioListAudio"];
+        put?: never;
+        /** CreateAudio */
+        post: operations["V1StudioTracksTrackIdAudioCreateAudio"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/studio/audio/{audio_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetAudio */
+        get: operations["V1StudioAudioAudioIdGetAudio"];
+        put?: never;
+        post?: never;
+        /** DeleteAudio */
+        delete: operations["V1StudioAudioAudioIdDeleteAudio"];
+        options?: never;
+        head?: never;
+        /** PatchAudio */
+        patch: operations["V1StudioAudioAudioIdPatchAudio"];
         trace?: never;
     };
     "/v1/studio/tracks/{track_id}/versions": {
@@ -2495,6 +2673,7 @@ export interface components {
             aesthetic_references?: string[];
             style_tags?: string[];
             global_avoid?: string[];
+            performer_cast_member_id?: string | null;
         };
         /** ArtistOut */
         ArtistOut: {
@@ -2507,6 +2686,7 @@ export interface components {
             aesthetic_references: string[];
             style_tags: string[];
             global_avoid: string[];
+            performer_cast_member_id: string | null;
             /** Format: date-time */
             created_at: string;
             /** Format: date-time */
@@ -2521,6 +2701,7 @@ export interface components {
             aesthetic_references?: string[];
             style_tags?: string[];
             global_avoid?: string[];
+            performer_cast_member_id?: string | null;
         };
         /**
          * AspectRatio
@@ -2531,6 +2712,12 @@ export interface components {
         /** AttachDeploymentRequest */
         AttachDeploymentRequest: {
             model: components["schemas"]["ModelType"];
+        };
+        /** AudioPeaksResponse */
+        AudioPeaksResponse: {
+            version: number;
+            buckets: number;
+            peaks: number[];
         };
         /** AuditLogEntry */
         AuditLogEntry: {
@@ -2575,6 +2762,7 @@ export interface components {
         BulkOperationItemResult: {
             asset_ref: string;
             success: boolean;
+            error?: string | null;
         };
         /** BulkOperationResult */
         BulkOperationResult: {
@@ -2603,6 +2791,87 @@ export interface components {
             project_id: string | null;
             /** @constant */
             type: "set_project";
+        };
+        /** CastLookIn */
+        CastLookIn: {
+            name: string;
+            reference_ids: string[];
+        };
+        /** CastLookOut */
+        CastLookOut: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            reference_ids: string[];
+        };
+        /** CastLookPatch */
+        CastLookPatch: {
+            name?: string;
+            reference_ids?: string[];
+        };
+        /** CastMemberCreate */
+        CastMemberCreate: {
+            name: string;
+            description?: string | null;
+            appearance?: string | null;
+            references?: components["schemas"]["CastReferenceIn"][];
+        };
+        /** CastMemberOut */
+        CastMemberOut: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            description: string | null;
+            appearance: string | null;
+            references: components["schemas"]["CastReferenceOut"][];
+            looks: components["schemas"]["CastLookOut"][];
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        /** CastMemberPatch */
+        CastMemberPatch: {
+            name?: string;
+            description?: string | null;
+            appearance?: string | null;
+        };
+        /** CastMemberSummary */
+        CastMemberSummary: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            appearance: string | null;
+            reference_count: number;
+            look_count: number;
+            cover: components["schemas"]["MediaObject"] | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        /** CastReferenceIn */
+        CastReferenceIn: {
+            label: string;
+            asset: string;
+        };
+        /** CastReferenceOrder */
+        CastReferenceOrder: {
+            reference_ids: string[];
+        };
+        /** CastReferenceOut */
+        CastReferenceOut: {
+            /** Format: uuid */
+            id: string;
+            label: string;
+            position: number;
+            asset: string;
+            media: components["schemas"]["MediaObject"];
+        };
+        /** CastReferencePatch */
+        CastReferencePatch: {
+            label?: string;
+            asset?: string;
         };
         /** CategoryHealthResponse */
         CategoryHealthResponse: {
@@ -2685,6 +2954,7 @@ export interface components {
         CurrentPut: {
             plan_version_id?: string;
             lyrics_version_id?: string | null;
+            audio_version_id?: string | null;
         };
         /** CursorPage[AdminOrgResponse] */
         "CursorPage_src.api.schemas.admin.AdminOrgResponse_": {
@@ -2763,6 +3033,13 @@ export interface components {
             has_more: boolean;
             next_cursor?: string | null;
         };
+        /** CursorPage[CastMemberSummary] */
+        "CursorPage_src.api.schemas.studio.CastMemberSummary_": {
+            items: components["schemas"]["CastMemberSummary"][];
+            limit: number;
+            has_more: boolean;
+            next_cursor?: string | null;
+        };
         /** CursorPage[MemoryOut] */
         "CursorPage_src.api.schemas.studio.MemoryOut_": {
             items: components["schemas"]["MemoryOut"][];
@@ -2773,6 +3050,13 @@ export interface components {
         /** CursorPage[ProjectProfileOut] */
         "CursorPage_src.api.schemas.studio.ProjectProfileOut_": {
             items: components["schemas"]["ProjectProfileOut"][];
+            limit: number;
+            has_more: boolean;
+            next_cursor?: string | null;
+        };
+        /** CursorPage[TrackAudioOut] */
+        "CursorPage_src.api.schemas.studio.TrackAudioOut_": {
+            items: components["schemas"]["TrackAudioOut"][];
             limit: number;
             has_more: boolean;
             next_cursor?: string | null;
@@ -3158,6 +3442,7 @@ export interface components {
             created_at: string;
             /** Format: date-time */
             expires_at: string;
+            held: boolean;
             display_title?: string | null;
             original_filename?: string | null;
             display_filename?: string | null;
@@ -3190,6 +3475,7 @@ export interface components {
             created_at: string;
             /** Format: date-time */
             expires_at: string;
+            held: boolean;
             display_title?: string | null;
             original_filename?: string | null;
             display_filename?: string | null;
@@ -3287,6 +3573,7 @@ export interface components {
             created_at: string;
             /** Format: date-time */
             expires_at: string;
+            held: boolean;
             media: components["schemas"]["MediaObject"];
         };
         /** LibraryProject */
@@ -3482,7 +3769,7 @@ export interface components {
          * @description Supported owned-library media kinds.
          * @enum {string}
          */
-        MediaKind: "image" | "video";
+        MediaKind: "image" | "video" | "audio";
         /** MediaObject */
         MediaObject: {
             media_type: components["schemas"]["MediaKind"];
@@ -4309,6 +4596,15 @@ export interface components {
          */
         StudioSectionKind: "intro" | "verse" | "pre_chorus" | "chorus" | "post_chorus" | "hook" | "bridge" | "build" | "drop" | "breakdown" | "instrumental" | "interlude" | "outro";
         /**
+         * StudioTrackAudioOrigin
+         * @description Where a track's audio version came from.
+         *
+         *     ``generated`` joins in S2b (a new CHECK member then); until a generator exists the column
+         *     admits only ``upload``.
+         * @enum {string}
+         */
+        StudioTrackAudioOrigin: "upload";
+        /**
          * StyleSpec
          * @default {
          *       "tags": [],
@@ -4442,6 +4738,38 @@ export interface components {
             threshold_usd: number;
             discount_pct: number;
         };
+        /** TrackAudioCreate */
+        TrackAudioCreate: {
+            asset: string;
+            label?: string | null;
+            plan_version_id?: string | null;
+            lyrics_version_id?: string | null;
+        };
+        /** TrackAudioOut */
+        TrackAudioOut: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            track_id: string;
+            version_number: number;
+            label: string | null;
+            origin: components["schemas"]["StudioTrackAudioOrigin"];
+            asset: components["schemas"]["MediaObject"];
+            duration_ms: number;
+            plan_version_id: string | null;
+            lyrics_version_id: string | null;
+            is_current: boolean;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        /** TrackAudioPatch */
+        TrackAudioPatch: {
+            label?: string | null;
+            plan_version_id?: string | null;
+            lyrics_version_id?: string | null;
+        };
         /** TrackCreate */
         TrackCreate: {
             title: string;
@@ -4456,12 +4784,14 @@ export interface components {
             title: string;
             current_plan_version_id: string | null;
             current_lyrics_version_id: string | null;
+            current_audio_version_id: string | null;
             /** Format: date-time */
             created_at: string;
             /** Format: date-time */
             updated_at: string;
             current_plan: components["schemas"]["PlanVersionDetail"] | null;
             current_lyrics: components["schemas"]["LyricsVersionDetail"] | null;
+            current_audio: components["schemas"]["TrackAudioOut"] | null;
         };
         /** TrackOrderPut */
         TrackOrderPut: {
@@ -4477,6 +4807,7 @@ export interface components {
             title: string;
             current_plan_version_id: string | null;
             current_lyrics_version_id: string | null;
+            current_audio_version_id: string | null;
             /** Format: date-time */
             created_at: string;
             /** Format: date-time */
@@ -8602,6 +8933,43 @@ export interface operations {
             };
         };
     };
+    V1LibraryAssetsAssetRefPeaksGetAudioPeaks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                asset_ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AudioPeaksResponse"] | components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status_code: number;
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                    };
+                };
+            };
+        };
+    };
     V1LibraryGroupsJobIdGetGroupDetail: {
         parameters: {
             query?: never;
@@ -9519,6 +9887,729 @@ export interface operations {
                 };
             };
             /** @description document_invalid (style tags). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioCastMemberIdReferencesAddReference: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                member_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CastReferenceIn"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CastReferenceOut"];
+                };
+            };
+            /** @description invalid_cursor or invalid_asset_ref. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description cast_member_not_found, cast_reference_not_found, cast_look_not_found or asset_not_found (or studio disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description cast_name_taken, cast_label_taken, cast_look_name_taken, cast_limit_reached or cast_member_in_use. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid, invalid_order or asset_not_eligible. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioCastMemberIdLooksLookIdDeleteLook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                member_id: string;
+                look_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, nothing follows */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description invalid_cursor or invalid_asset_ref. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description cast_member_not_found, cast_reference_not_found, cast_look_not_found or asset_not_found (or studio disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description cast_name_taken, cast_label_taken, cast_look_name_taken, cast_limit_reached or cast_member_in_use. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid, invalid_order or asset_not_eligible. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioCastMemberIdLooksLookIdChangeLook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                member_id: string;
+                look_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CastLookPatch"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CastLookOut"];
+                };
+            };
+            /** @description invalid_cursor or invalid_asset_ref. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description cast_member_not_found, cast_reference_not_found, cast_look_not_found or asset_not_found (or studio disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description cast_name_taken, cast_label_taken, cast_look_name_taken, cast_limit_reached or cast_member_in_use. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid, invalid_order or asset_not_eligible. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioCastMemberIdReferencesReferenceIdDeleteReference: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                member_id: string;
+                reference_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, nothing follows */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description invalid_cursor or invalid_asset_ref. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description cast_member_not_found, cast_reference_not_found, cast_look_not_found or asset_not_found (or studio disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description cast_name_taken, cast_label_taken, cast_look_name_taken, cast_limit_reached or cast_member_in_use. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid, invalid_order or asset_not_eligible. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioCastMemberIdReferencesReferenceIdChangeReference: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                member_id: string;
+                reference_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CastReferencePatch"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CastReferenceOut"];
+                };
+            };
+            /** @description invalid_cursor or invalid_asset_ref. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description cast_member_not_found, cast_reference_not_found, cast_look_not_found or asset_not_found (or studio disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description cast_name_taken, cast_label_taken, cast_look_name_taken, cast_limit_reached or cast_member_in_use. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid, invalid_order or asset_not_eligible. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioCastMemberIdLooksCreateLook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                member_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CastLookIn"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CastLookOut"];
+                };
+            };
+            /** @description invalid_cursor or invalid_asset_ref. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description cast_member_not_found, cast_reference_not_found, cast_look_not_found or asset_not_found (or studio disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description cast_name_taken, cast_label_taken, cast_look_name_taken, cast_limit_reached or cast_member_in_use. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid, invalid_order or asset_not_eligible. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioCastListCast: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursor?: string | null;
+                /** @description An asset ref (`upload:<uuid>` / `output:<uuid>`): only the members that reference that asset (to name the holders of a `409 asset_held`). */
+                holding?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CursorPage_src.api.schemas.studio.CastMemberSummary_"];
+                };
+            };
+            /** @description invalid_cursor or invalid_asset_ref. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description cast_member_not_found, cast_reference_not_found, cast_look_not_found or asset_not_found (or studio disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description cast_name_taken, cast_label_taken, cast_look_name_taken, cast_limit_reached or cast_member_in_use. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid, invalid_order or asset_not_eligible. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioCastCreateMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CastMemberCreate"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CastMemberOut"];
+                };
+            };
+            /** @description invalid_cursor or invalid_asset_ref. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description cast_member_not_found, cast_reference_not_found, cast_look_not_found or asset_not_found (or studio disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description cast_name_taken, cast_label_taken, cast_look_name_taken, cast_limit_reached or cast_member_in_use. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid, invalid_order or asset_not_eligible. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioCastMemberIdGetMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                member_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CastMemberOut"];
+                };
+            };
+            /** @description invalid_cursor or invalid_asset_ref. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description cast_member_not_found, cast_reference_not_found, cast_look_not_found or asset_not_found (or studio disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description cast_name_taken, cast_label_taken, cast_look_name_taken, cast_limit_reached or cast_member_in_use. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid, invalid_order or asset_not_eligible. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioCastMemberIdDeleteMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                member_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, nothing follows */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description invalid_cursor or invalid_asset_ref. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description cast_member_not_found, cast_reference_not_found, cast_look_not_found or asset_not_found (or studio disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description cast_name_taken, cast_label_taken, cast_look_name_taken, cast_limit_reached or cast_member_in_use. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid, invalid_order or asset_not_eligible. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioCastMemberIdPatchMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                member_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CastMemberPatch"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CastMemberOut"];
+                };
+            };
+            /** @description invalid_cursor or invalid_asset_ref. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description cast_member_not_found, cast_reference_not_found, cast_look_not_found or asset_not_found (or studio disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description cast_name_taken, cast_label_taken, cast_look_name_taken, cast_limit_reached or cast_member_in_use. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid, invalid_order or asset_not_eligible. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioCastMemberIdReferencesOrderReorderReferences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                member_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CastReferenceOrder"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CastMemberOut"];
+                };
+            };
+            /** @description invalid_cursor or invalid_asset_ref. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description cast_member_not_found, cast_reference_not_found, cast_look_not_found or asset_not_found (or studio disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description cast_name_taken, cast_label_taken, cast_look_name_taken, cast_limit_reached or cast_member_in_use. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid, invalid_order or asset_not_eligible. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -11412,6 +12503,305 @@ export interface operations {
             };
         };
     };
+    V1StudioTracksTrackIdAudioListAudio: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: never;
+            path: {
+                track_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CursorPage_src.api.schemas.studio.TrackAudioOut_"];
+                };
+            };
+            /** @description invalid_cursor. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description not_found (the track), audio_version_not_found, asset_not_found or version_not_found (or studio disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description audio_version_limit_reached or audio_version_is_current. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid, asset_not_eligible or version_kind_mismatch. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioTracksTrackIdAudioCreateAudio: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                track_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TrackAudioCreate"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrackAudioOut"];
+                };
+            };
+            /** @description invalid_cursor. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description not_found (the track), audio_version_not_found, asset_not_found or version_not_found (or studio disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description audio_version_limit_reached or audio_version_is_current. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid, asset_not_eligible or version_kind_mismatch. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioAudioAudioIdGetAudio: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                audio_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrackAudioOut"];
+                };
+            };
+            /** @description invalid_cursor. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description not_found (the track), audio_version_not_found, asset_not_found or version_not_found (or studio disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description audio_version_limit_reached or audio_version_is_current. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid, asset_not_eligible or version_kind_mismatch. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioAudioAudioIdDeleteAudio: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                audio_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, nothing follows */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description invalid_cursor. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description not_found (the track), audio_version_not_found, asset_not_found or version_not_found (or studio disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description audio_version_limit_reached or audio_version_is_current. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid, asset_not_eligible or version_kind_mismatch. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    V1StudioAudioAudioIdPatchAudio: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                audio_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TrackAudioPatch"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrackAudioOut"];
+                };
+            };
+            /** @description invalid_cursor. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description not_found (the track), audio_version_not_found, asset_not_found or version_not_found (or studio disabled). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description audio_version_limit_reached or audio_version_is_current. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description document_invalid, asset_not_eligible or version_kind_mismatch. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     V1StudioTracksTrackIdVersionsListVersions: {
         parameters: {
             query?: {
@@ -11460,7 +12850,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description version_unchanged, plan_required, lyrics_incompatible_with_plan, version_limit_reached, version_is_current, version_has_children, version_is_lyrics_base or version_in_use_by_run. */
+            /** @description version_unchanged, plan_required, lyrics_incompatible_with_plan, version_limit_reached, version_is_current, version_has_children, version_is_lyrics_base, version_has_audio or version_in_use_by_run. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -11528,7 +12918,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description version_unchanged, plan_required, lyrics_incompatible_with_plan, version_limit_reached, version_is_current, version_has_children, version_is_lyrics_base or version_in_use_by_run. */
+            /** @description version_unchanged, plan_required, lyrics_incompatible_with_plan, version_limit_reached, version_is_current, version_has_children, version_is_lyrics_base, version_has_audio or version_in_use_by_run. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -11592,7 +12982,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description version_unchanged, plan_required, lyrics_incompatible_with_plan, version_limit_reached, version_is_current, version_has_children, version_is_lyrics_base or version_in_use_by_run. */
+            /** @description version_unchanged, plan_required, lyrics_incompatible_with_plan, version_limit_reached, version_is_current, version_has_children, version_is_lyrics_base, version_has_audio or version_in_use_by_run. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -11654,7 +13044,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description version_unchanged, plan_required, lyrics_incompatible_with_plan, version_limit_reached, version_is_current, version_has_children, version_is_lyrics_base or version_in_use_by_run. */
+            /** @description version_unchanged, plan_required, lyrics_incompatible_with_plan, version_limit_reached, version_is_current, version_has_children, version_is_lyrics_base, version_has_audio or version_in_use_by_run. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -11722,7 +13112,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description version_unchanged, plan_required, lyrics_incompatible_with_plan, version_limit_reached, version_is_current, version_has_children, version_is_lyrics_base or version_in_use_by_run. */
+            /** @description version_unchanged, plan_required, lyrics_incompatible_with_plan, version_limit_reached, version_is_current, version_has_children, version_is_lyrics_base, version_has_audio or version_in_use_by_run. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -11786,7 +13176,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description version_unchanged, plan_required, lyrics_incompatible_with_plan, version_limit_reached, version_is_current, version_has_children, version_is_lyrics_base or version_in_use_by_run. */
+            /** @description version_unchanged, plan_required, lyrics_incompatible_with_plan, version_limit_reached, version_is_current, version_has_children, version_is_lyrics_base, version_has_audio or version_in_use_by_run. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -11848,7 +13238,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description version_unchanged, plan_required, lyrics_incompatible_with_plan, version_limit_reached, version_is_current, version_has_children, version_is_lyrics_base or version_in_use_by_run. */
+            /** @description version_unchanged, plan_required, lyrics_incompatible_with_plan, version_limit_reached, version_is_current, version_has_children, version_is_lyrics_base, version_has_audio or version_in_use_by_run. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -11915,7 +13305,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description version_unchanged, plan_required, lyrics_incompatible_with_plan, version_limit_reached, version_is_current, version_has_children, version_is_lyrics_base or version_in_use_by_run. */
+            /** @description version_unchanged, plan_required, lyrics_incompatible_with_plan, version_limit_reached, version_is_current, version_has_children, version_is_lyrics_base, version_has_audio or version_in_use_by_run. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -11983,7 +13373,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description version_unchanged, plan_required, lyrics_incompatible_with_plan, version_limit_reached, version_is_current, version_has_children, version_is_lyrics_base or version_in_use_by_run. */
+            /** @description version_unchanged, plan_required, lyrics_incompatible_with_plan, version_limit_reached, version_is_current, version_has_children, version_is_lyrics_base, version_has_audio or version_in_use_by_run. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -12051,7 +13441,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description version_unchanged, plan_required, lyrics_incompatible_with_plan, version_limit_reached, version_is_current, version_has_children, version_is_lyrics_base or version_in_use_by_run. */
+            /** @description version_unchanged, plan_required, lyrics_incompatible_with_plan, version_limit_reached, version_is_current, version_has_children, version_is_lyrics_base, version_has_audio or version_in_use_by_run. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -12476,7 +13866,7 @@ export const libraryBadgeValues: ReadonlyArray<FlattenedDeepRequired<components>
 export const libraryGroupSourceTypeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["LibraryGroupSourceType"]> = ["upload", "output"];
 export const librarySortValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["LibrarySort"]> = ["newest", "oldest", "expiring_soon"];
 export const lineageRelationValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["LineageRelation"]> = ["generated_from_upload", "generated_from_output", "frame_of_output", "frame_of_upload"];
-export const mediaKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MediaKind"]> = ["image", "video"];
+export const mediaKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MediaKind"]> = ["image", "video", "audio"];
 export const mediaSlotValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MediaSlot"]> = ["reference", "first_frame", "last_frame", "source"];
 export const modelTypeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ModelType"]> = ["aisha-image", "aisha-image-lite", "aisha-video", "grok-imagine-image", "grok-2-image-1212", "grok-imagine-video", "wan3.0-video"];
 export const notificationLevelValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["NotificationLevel"]> = ["info", "warning", "critical"];
@@ -12504,6 +13894,7 @@ export const studioRunKindValues: ReadonlyArray<FlattenedDeepRequired<components
 export const studioRunStageValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["StudioRunStage"]> = ["context", "drafting", "validating", "revising", "saving"];
 export const studioRunStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["StudioRunStatus"]> = ["queued", "running", "succeeded", "failed", "cancelled"];
 export const studioSectionKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["StudioSectionKind"]> = ["intro", "verse", "pre_chorus", "chorus", "post_chorus", "hook", "bridge", "build", "drop", "breakdown", "instrumental", "interlude", "outro"];
+export const studioTrackAudioOriginValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["StudioTrackAudioOrigin"]> = ["upload"];
 export const subscriptionTierValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SubscriptionTier"]> = ["free", "basic", "pro", "enterprise"];
 export const supportedLocaleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SupportedLocale"]> = ["en", "ru", "sr"];
 export const userRoleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["UserRole"]> = ["system", "superadmin", "admin", "user"];

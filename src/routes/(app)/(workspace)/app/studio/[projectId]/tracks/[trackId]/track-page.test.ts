@@ -90,24 +90,31 @@ describe('read-only track', () => {
       ),
     );
     const client = show();
-    const first = (await screen.findByText('First')).parentElement!;
-    const second = screen.getByText('Second').parentElement!;
-    expect(within(first).getByText('<img src=x onerror=alert(1)>')).toBeTruthy();
-    expect(within(first).queryByText('second line')).toBeNull();
-    expect(within(second).getByText('second line')).toBeTruthy();
+    await screen.findByRole('heading', { name: 'Plan' });
+    const planSection = screen.getByRole('heading', { name: 'Plan' }).closest('section')!;
+    const lyricsSection = screen.getByRole('heading', { name: 'Lyrics' }).closest('section')!;
+    expect(within(planSection).getByText('First')).toBeTruthy();
+    expect(within(lyricsSection).getByText('First')).toBeTruthy();
+    expect(within(lyricsSection).getByText('<img src=x onerror=alert(1)>')).toBeTruthy();
+    expect(within(planSection).queryByText('second line')).toBeNull();
+    expect(within(lyricsSection).getByText('second line')).toBeTruthy();
+    expect(within(lyricsSection).queryByText('hidden line')).toBeNull();
     expect(screen.queryByText('hidden line')).toBeNull();
     expect(document.querySelector('img')).toBeNull();
     client.clear();
   });
-  it('shows plan and lyrics empty states', async () => {
+  it('links the empty plan state to Suno import', async () => {
     server.use(
       http.get(`${BASE}/v1/studio/tracks/t`, () =>
         HttpResponse.json(makeTrackDetail({ id: 't', library_project_id: 'p' })),
       ),
     );
     const client = show();
-    expect(await screen.findByText('No plan yet')).toBeTruthy();
-    expect(screen.getByText('No lyrics yet')).toBeTruthy();
+    const emptyPlan = await screen.findByText(/No plan yet/);
+    expect(
+      within(emptyPlan.closest('p')!).getByRole('link', { name: 'Import from Suno' }),
+    ).toBeTruthy();
+    expect(screen.queryByText('No lyrics yet')).toBeNull();
     client.clear();
   });
   it('keeps the loaded track visible when a refetch fails', async () => {
