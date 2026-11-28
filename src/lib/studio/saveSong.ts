@@ -56,7 +56,7 @@ function isVersionUnchanged(error: unknown): boolean {
   );
 }
 
-function isMissingBase(error: unknown): boolean {
+export function isMissingBase(error: unknown): boolean {
   return (
     error instanceof ApiRequestError &&
     (error.status_code === 404 || error.error === 'parent_version_not_found')

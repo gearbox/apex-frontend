@@ -88,8 +88,9 @@ export function createLocalSongDraftStore(
     get available() {
       return usable;
     },
+    // An empty user id would file the draft under a key that sign-out never clears.
     load(userId, trackId) {
-      if (!usable || !storage) return null;
+      if (!usable || !storage || !userId) return null;
       const key = draftKey(userId, trackId);
       try {
         const raw = storage.getItem(key);
@@ -103,7 +104,7 @@ export function createLocalSongDraftStore(
       }
     },
     save(userId, trackId, record) {
-      if (!usable || !storage) return false;
+      if (!usable || !storage || !userId) return false;
       try {
         const snapshot = JSON.parse(JSON.stringify(record)) as StoredSongDraft;
         const key = draftKey(userId, trackId);

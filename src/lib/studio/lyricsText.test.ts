@@ -53,6 +53,19 @@ describe('section lyrics text format', () => {
     expect(looksLikeSectionHeader(text)).toBe(false);
   });
 
+  it('header check is linear', () => {
+    const row = `a${' '.repeat(100_000)}x`;
+    const started = performance.now();
+    expect(looksLikeSectionHeader(row)).toBe(false);
+    expect(performance.now() - started).toBeLessThan(50);
+  });
+
+  it('Verse 123 and Verse2 are not headers; PRE-CHORUS 12 is', () => {
+    expect(looksLikeSectionHeader('Verse 123')).toBe(false);
+    expect(looksLikeSectionHeader('Verse2')).toBe(false);
+    expect(looksLikeSectionHeader('PRE-CHORUS 12')).toBe(true);
+  });
+
   it('pins the complete backend alias set', () => {
     expect(SECTION_HEADER_ALIASES).toEqual([
       'intro',

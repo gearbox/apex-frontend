@@ -1,4 +1,4 @@
-import { normalizeText } from './normalize';
+import { casefold, normalizeText } from './normalize';
 import type { LyricLine } from './songDraft';
 export type LyricRowCode =
   | 'reserved_characters'
@@ -51,13 +51,21 @@ export const SECTION_HEADER_ALIASES = [
 
 const HEADER_ALIAS_SET = new Set<string>(SECTION_HEADER_ALIASES);
 
+/** `name` without an optional trailing `<whitespace><1-2 digits>`. Reads from the end, so there is
+ *  nothing to backtrack over: it runs on every keystroke, and a row can be very long. */
+function baseName(name: string): string {
+  const text = name.trim();
+  let start = text.length;
+  while (start > 0 && text.length - start < 2 && /\p{Nd}/u.test(text[start - 1]!)) start -= 1;
+  if (start < text.length && start > 0 && /\s/u.test(text[start - 1]!))
+    return text.slice(0, start).trimEnd();
+  return text;
+}
+
 /** Mirror section_names.py's _base_name, _key and is_header_text. */
 export function looksLikeSectionHeader(bracketContent: string): boolean {
   const beforeColon = bracketContent.split(':', 1)[0] ?? '';
-  const trimmed = beforeColon.trim();
-  const withoutNumber = trimmed.replace(/\s+\p{Decimal_Number}{1,2}$/u, '');
-  const key = withoutNumber
-    .toLocaleLowerCase()
+  const key = casefold(baseName(beforeColon))
     .replace(/-/gu, ' ')
     .split(/\s+/u)
     .filter(Boolean)

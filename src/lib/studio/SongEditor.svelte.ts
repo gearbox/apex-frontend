@@ -1,18 +1,18 @@
 import type {
-  PlanDocument,
-  LyricsDocument,
+  BuiltSong,
+  DocumentPair,
   Pair,
   SectionDraft,
   SectionKind,
   SongDraft,
 } from './songDraft';
-import { buildSong, draftFromDocuments, newDraft, sameLyrics, samePlan } from './songDraft';
+import { buildSong, draftFromDocuments, hasUnsentInput, newDraft, sameDocs } from './songDraft';
 import type { SongDraftStore, StoredSongDraft } from './songDraftStore';
 import { validateSong, type DraftIssue } from './songValidation';
 
-interface DocumentPair {
-  plan: PlanDocument | null;
-  lyrics: LyricsDocument | null;
+/** Whether the device must keep a draft: it has unsaved documents, or text they cannot carry. */
+function mustKeepOnDevice(draft: SongDraft, built: BuiltSong, baseDocs: DocumentPair): boolean {
+  return !sameDocs(built, baseDocs) || hasUnsentInput(draft, built);
 }
 
 interface EditorDependencies {
@@ -32,11 +32,13 @@ export class SongEditor {
     this.draft && this.built ? validateSong(this.draft, this.built) : [],
   );
   readonly dirty = $derived(
-    this.draft && this.built
-      ? !samePlan(this.built.plan, this.baseDocs.plan) ||
-          !sameLyrics(this.built.lyrics, this.baseDocs.lyrics)
-      : false,
+    this.draft && this.built ? !sameDocs(this.built, this.baseDocs) : false,
   );
+  readonly needsLocalCopy = $derived(
+    this.draft && this.built ? mustKeepOnDevice(this.draft, this.built, this.baseDocs) : false,
+  );
+  /** `savedAt` of the stored record this instance holds; a late save uses it to prove ownership. */
+  private lastWrittenAt: string | undefined;
 
   constructor(private readonly deps: EditorDependencies) {}
 
@@ -58,10 +60,18 @@ export class SongEditor {
     this.base = { ...record.base };
     this.baseDocs = { ...docs };
     this.draft = JSON.parse(JSON.stringify(record.draft)) as SongDraft;
+    this.lastWrittenAt = record.savedAt;
   }
 
   discardStored(): void {
     this.deps.store.remove(this.deps.userId, this.deps.trackId);
+    this.lastWrittenAt = undefined;
+  }
+
+  /** False once another editor of this track has written the stored record. */
+  ownsStoredRecord(): boolean {
+    const savedAt = this.deps.store.load(this.deps.userId, this.deps.trackId)?.savedAt;
+    return savedAt === undefined || savedAt === this.lastWrittenAt;
   }
 
   addSection(kind: SectionKind): string {
@@ -108,25 +118,19 @@ export class SongEditor {
     this.baseDocs = { ...docs };
   }
 
+  /** Reads state, never the deriveds: a late save persists an editor whose component is gone, and
+   *  Svelte answers a derived of a destroyed component with its stale value. */
   persist(): void {
     if (!this.draft) return;
-    if (!this.dirty) {
+    const draft = $state.snapshot(this.draft) as SongDraft;
+    if (!mustKeepOnDevice(draft, buildSong(draft), this.baseDocs)) {
       this.discardStored();
       return;
     }
-    const draft = JSON.parse(JSON.stringify($state.snapshot(this.draft))) as SongDraft;
-    this.deps.store.save(this.deps.userId, this.deps.trackId, {
-      savedAt: this.deps.now().toISOString(),
-      base: { ...this.base },
-      draft,
-    });
-  }
-
-  clearStoredIfEqual(snapshot: SongDraft): void {
-    if (!this.draft) return;
-    if (JSON.stringify($state.snapshot(this.draft)) === JSON.stringify(snapshot)) {
-      this.discardStored();
-    }
+    const savedAt = this.deps.now().toISOString();
+    const record = { savedAt, base: { ...this.base }, draft };
+    if (this.deps.store.save(this.deps.userId, this.deps.trackId, record))
+      this.lastWrittenAt = savedAt;
   }
 
   private emptySection(id: string, kind: SectionKind): SectionDraft {

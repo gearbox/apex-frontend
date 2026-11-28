@@ -413,6 +413,9 @@ export async function logout(): Promise<void> {
   }
   // A new login may have completed while best-effort cleanup was in flight.  Never clear it.
   if (isAuthEpochCurrent(logoutEpoch)) clearAuth();
+  // An open editor can write its draft again while sign-out is in flight, e.g. when the app is
+  // hidden. A user who has signed back in meanwhile keeps theirs.
+  if (userId && getCurrentUser()?.id !== userId) songDraftStore.clearUser(userId);
 }
 
 /** Sends the supplied credentials to end their server-side session. */

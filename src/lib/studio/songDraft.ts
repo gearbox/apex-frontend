@@ -1,9 +1,11 @@
 import type { components } from '$lib/api/types';
 import { normalizeBlock, normalizeText } from './normalize';
 import { parseSectionLyrics, serializeSectionLyrics, type LyricRowIssue } from './lyricsText';
+import { codePointLength } from './text';
 
 export type SectionKind = components['schemas']['StudioSectionKind'];
 export type Pair = { plan: string | null; lyrics: string | null };
+export type DocumentPair = { plan: PlanDocument | null; lyrics: LyricsDocument | null };
 
 export interface StyleSpec {
   tags: string[];
@@ -151,6 +153,24 @@ export function newDraft(
   return draft;
 }
 
+/** Whether a section's lyrics are left out of the documents. */
+export function isHiddenSection(
+  draft: Pick<SongDraft, 'instrumental'>,
+  item: Pick<SectionDraft, 'kind' | 'instrumental'>,
+): boolean {
+  return draft.instrumental || item.instrumental || item.kind === 'instrumental';
+}
+
+/** Text on screen that the documents do not carry: hidden (instrumental) lyrics, or rows the parser
+ *  could not represent. Such a draft must stay on the device even when the documents equal the base. */
+export function hasUnsentInput(draft: SongDraft, built: BuiltSong): boolean {
+  return draft.sections.some(
+    (section) =>
+      (isHiddenSection(draft, section) && section.lyrics.trim() !== '') ||
+      (built.rowIssues.get(section.id)?.length ?? 0) > 0,
+  );
+}
+
 export function buildSong(draft: SongDraft): BuiltSong {
   const sections: PlanSection[] = draft.sections.map((section) => {
     const duration = section.duration.trim();
@@ -189,9 +209,11 @@ export function buildSong(draft: SongDraft): BuiltSong {
   for (const section of draft.sections) {
     const parsed = parseSectionLyrics(section.lyrics);
     rowIssues.set(section.id, parsed.issues);
-    const hidden = draft.instrumental || section.instrumental || section.kind === 'instrumental';
-    if (hidden) {
-      if (parsed.lines.length) hiddenLines.set(section.id, parsed.lines.length);
+    if (isHiddenSection(draft, section)) {
+      // Rows that form no lyric line, such as a lone delivery row, are hidden text too.
+      const count =
+        parsed.lines.length || section.lyrics.split(/\r?\n/u).filter((row) => row.trim()).length;
+      if (count) hiddenLines.set(section.id, count);
       continue;
     }
     if (!parsed.lines.length) continue;
@@ -260,4 +282,15 @@ export function samePlan(a: PlanDocument | null, b: PlanDocument | null): boolea
 
 export function sameLyrics(a: LyricsDocument | null, b: LyricsDocument | null): boolean {
   return JSON.stringify(canonicalLyrics(a)) === JSON.stringify(canonicalLyrics(b));
+}
+
+export function sameDocs(a: DocumentPair, b: DocumentPair): boolean {
+  return samePlan(a.plan, b.plan) && sameLyrics(a.lyrics, b.lyrics);
+}
+
+/** The characters of all lyric lines, which the whole-song limit counts. */
+export function lyricsLength(lyrics: LyricsDocument | null): number {
+  return (lyrics?.sections ?? [])
+    .flatMap((section) => section.lines)
+    .reduce((sum, line) => sum + codePointLength(line.text), 0);
 }

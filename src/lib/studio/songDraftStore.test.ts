@@ -58,6 +58,19 @@ describe('song draft store', () => {
     ).toEqual(['middle', 'new']);
   });
 
+  it('ignores an empty user id', () => {
+    const storage = new MemoryStorage();
+    const store = createLocalSongDraftStore(storage);
+    expect(store.save('', 't1', record('2026-01-01T00:00:00Z', 'nobody'))).toBe(false);
+    expect(storage.length).toBe(0);
+    storage.setItem(
+      'apex:studio:song-draft:v1::t1',
+      JSON.stringify(record('2026-01-01T00:00:00Z', 'nobody')),
+    );
+    expect(store.load('', 't1')).toBeNull();
+    expect(store.available).toBe(true);
+  });
+
   it('removes corrupt records on load', () => {
     const storage = new MemoryStorage();
     storage.setItem('apex:studio:song-draft:v1:u1:t1', '{broken');

@@ -777,8 +777,7 @@ describe('auth epoch isolation', () => {
 });
 
 describe('logout()', () => {
-  it('calls /v1/auth/logout and clears store', async () => {
-    let logoutCalled = false;
+  it("logout clears the user's song drafts", async () => {
     const profile = makeUserProfile({ id: 'logout-draft-user' });
     setAuth(
       {
@@ -789,11 +788,28 @@ describe('logout()', () => {
       },
       profile,
     );
-    songDraftStore.save(profile.id, 'track-1', {
-      savedAt: new Date().toISOString(),
-      base: { plan: null, lyrics: null },
-      draft: newDraft('blank', 'Untitled', '', () => 'section-1'),
-    });
+    const saveDraft = (trackId: string) =>
+      songDraftStore.save(profile.id, trackId, {
+        savedAt: new Date().toISOString(),
+        base: { plan: null, lyrics: null },
+        draft: newDraft('blank', 'Untitled', '', () => 'section-1'),
+      });
+    saveDraft('track-1');
+    server.use(
+      http.post(`${BASE}/v1/auth/logout`, () => {
+        // An open editor writes again while sign-out is in flight.
+        saveDraft('track-2');
+        return HttpResponse.json({ message: 'Logged out successfully' });
+      }),
+    );
+
+    await logout();
+
+    expect(songDraftStore.list(profile.id)).toEqual([]);
+  });
+
+  it('calls /v1/auth/logout and clears store', async () => {
+    let logoutCalled = false;
 
     localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, 'mock-refresh-token');
 
@@ -809,9 +825,6 @@ describe('logout()', () => {
     expect(logoutCalled).toBe(true);
     expect(getAccessToken()).toBeNull();
     expect(localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN)).toBeNull();
-    expect(
-      localStorage.getItem(`${STORAGE_KEYS.STUDIO_SONG_DRAFT}:${profile.id}:track-1`),
-    ).toBeNull();
   });
 
   it('detaches a confirmed push registration before the access token is cleared', async () => {

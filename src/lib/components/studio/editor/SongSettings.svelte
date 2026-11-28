@@ -1,10 +1,14 @@
 <script lang="ts">
   import TagListInput from '$lib/components/shared/TagListInput.svelte';
   import ToggleSwitch from '$lib/components/shared/ToggleSwitch.svelte';
+  import FieldIssues from './FieldIssues.svelte';
+  import { targetIssues } from '$lib/studio/editorIssues';
+  import { STUDIO_LIMITS } from '$lib/studio/limits';
   import { codePointLength } from '$lib/studio/text';
   import type { DraftIssue } from '$lib/studio/songValidation';
   import type { SongDraft } from '$lib/studio/songDraft';
-  import type { StudioValidationIssue } from '$lib/studio/formErrors';
+  import { describedBy, type StudioValidationIssue } from '$lib/studio/formErrors';
+  import { formatNumber } from '$lib/utils/format';
   import * as m from '$paraglide/messages';
 
   let {
@@ -15,6 +19,10 @@
   let globalTags = $derived(issuesFor('global_style.tags'));
   let globalAvoid = $derived(issuesFor('global_style.avoid'));
   let referencesIssues = $derived(issuesFor('references'));
+  let titleIssues = $derived(targetIssues(issues, 'title'));
+  let tempoIssues = $derived(targetIssues(issues, 'tempo'));
+  let languageIssues = $derived(targetIssues(issues, 'language'));
+  let ideaIssues = $derived(targetIssues(issues, 'idea'));
 
   function issuesFor(path: string): StudioValidationIssue[] {
     return issues.flatMap((item) =>
@@ -40,12 +48,14 @@
         value={draft.title}
         oninput={(event) => (draft.title = event.currentTarget.value)}
         maxlength="240"
-        aria-invalid={issues.some(
-          (issue) => issue.target?.kind === 'song' && issue.target.field === 'title',
-        )}
+        aria-describedby={describedBy('song-title', titleIssues)}
+        aria-invalid={titleIssues.length > 0}
         class="w-full rounded-xl border border-border bg-bg px-3 py-2.5"
       />
-      <p class="mt-1 text-right text-xs text-text-dim">{codePointLength(draft.title)} / 200</p>
+      <p class="mt-1 text-right text-xs text-text-dim">
+        {formatNumber(codePointLength(draft.title))} / {formatNumber(200)}
+      </p>
+      <FieldIssues controlId="song-title" issues={titleIssues} />
     </div>
     <div>
       <label class="mb-1 block text-sm font-medium" for="song-tempo"
@@ -59,11 +69,11 @@
         step="1"
         value={draft.tempo}
         oninput={(event) => (draft.tempo = event.currentTarget.value)}
-        aria-invalid={issues.some(
-          (issue) => issue.target?.kind === 'song' && issue.target.field === 'tempo',
-        )}
+        aria-describedby={describedBy('song-tempo', tempoIssues)}
+        aria-invalid={tempoIssues.length > 0}
         class="w-full rounded-xl border border-border bg-bg px-3 py-2.5"
       />
+      <FieldIssues controlId="song-tempo" issues={tempoIssues} />
     </div>
     <div
       class="flex items-center justify-between gap-3 rounded-xl border border-border px-3 py-2.5"
@@ -107,13 +117,15 @@
         oninput={(event) => (draft.language = event.currentTarget.value)}
         maxlength="35"
         placeholder="en"
-        aria-invalid={issues.some(
-          (issue) => issue.target?.kind === 'song' && issue.target.field === 'language',
-        )}
+        aria-describedby={describedBy('song-language', languageIssues)}
+        aria-invalid={languageIssues.length > 0}
         class="w-full rounded-xl border border-border bg-bg px-3 py-2.5"
       />
+      <FieldIssues controlId="song-language" issues={languageIssues} />
     </div>
-    <p class="self-end text-right text-sm text-text-muted">{lyricsCount} / 20,000</p>
+    <p class="self-end text-right text-sm text-text-muted">
+      {formatNumber(lyricsCount)} / {formatNumber(STUDIO_LIMITS.sunoLyrics)}
+    </p>
   </div>
   <details class="group border-t border-border pt-4">
     <summary class="cursor-pointer font-medium">{m.studio_editor_details()}</summary>
@@ -127,10 +139,13 @@
           rows="3"
           value={draft.idea}
           oninput={(event) => (draft.idea = event.currentTarget.value)}
+          aria-describedby={describedBy('song-idea', ideaIssues)}
+          aria-invalid={ideaIssues.length > 0}
           class="w-full resize-y rounded-xl border border-border bg-bg px-3 py-2.5"></textarea>
         <p class="mt-1 text-right text-xs text-text-dim">
-          {codePointLength(draft.idea)} / 4,000 · {m.studio_editor_not_sent()}
+          {formatNumber(codePointLength(draft.idea))} / {formatNumber(4000)} · {m.studio_editor_not_sent()}
         </p>
+        <FieldIssues controlId="song-idea" issues={ideaIssues} />
       </div>
       <TagListInput
         id="song-references"

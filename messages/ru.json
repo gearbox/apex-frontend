@@ -1262,7 +1262,6 @@
   "studio_editor_blank": "Пустая",
   "studio_editor_verse_chorus": "Куплет–припев",
   "studio_editor_storage_unavailable": "Автосохранение черновика недоступно. Не закрывайте эту страницу во время редактирования.",
-  "studio_editor_leave_confirm": "Автосохранение недоступно. Закрыть страницу и потерять изменения?",
   "studio_editor_restore_banner": "Несохранённый черновик песни",
   "studio_editor_restore_prompt": "Восстановить несохранённые изменения от {time}?",
   "studio_editor_restore": "Восстановить",
@@ -1299,5 +1298,15 @@
   "studio_editor_issue_empty_delivery": "Укажите значение для каждого элемента подачи.",
   "studio_editor_issue_delivery_too_many": "В строке подачи может быть не более 6 элементов.",
   "studio_editor_issue_delivery_too_long": "Длина каждого элемента подачи не должна превышать 40 символов.",
-  "studio_editor_saved_plan_removed": "Сохранено: план v{plan}, текст удалён"
+  "studio_editor_saved_plan_removed": "Сохранено: план v{plan}, текст удалён",
+  "studio_editor_device_only": "Часть текста хранится только на этом устройстве",
+  "studio_editor_nothing_to_save": "Нет изменений для сохранения",
+  "studio_editor_project_error": "Не удалось загрузить проект; язык по умолчанию может быть не подставлен.",
+  "studio_editor_leave_title": "Уйти без сохранения?",
+  "studio_editor_leave_body": "Это устройство не может сохранить ваши изменения.",
+  "studio_editor_stay": "Остаться",
+  "studio_editor_leave": "Уйти",
+  "studio_editor_restore_checking": "Проверяем сохранённый черновик…",
+  "studio_editor_restore_error": "Не удалось проверить сохранённый черновик.",
+  "studio_editor_restore_base_missing": "Версия, на которой он основан, удалена; черновик будет сохранён поверх текущей версии."
 }

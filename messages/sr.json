@@ -1262,7 +1262,6 @@
   "studio_editor_blank": "Prazna",
   "studio_editor_verse_chorus": "Strofa–refren",
   "studio_editor_storage_unavailable": "Automatsko čuvanje nacrta nije dostupno. Ostavi ovu stranicu otvorenu dok uređuješ.",
-  "studio_editor_leave_confirm": "Automatsko čuvanje nije dostupno. Napustiti stranicu i izgubiti ove izmene?",
   "studio_editor_restore_banner": "Nesačuvan nacrt pesme",
   "studio_editor_restore_prompt": "Vratiti nesačuvane izmene od {time}?",
   "studio_editor_restore": "Vrati",
@@ -1299,5 +1298,15 @@
   "studio_editor_issue_empty_delivery": "Svaka oznaka izvođenja mora imati vrednost.",
   "studio_editor_issue_delivery_too_many": "U redu izvođenja koristi najviše 6 oznaka.",
   "studio_editor_issue_delivery_too_long": "Oznaka izvođenja može imati najviše 40 znakova.",
-  "studio_editor_saved_plan_removed": "Sačuvano: plan v{plan}, tekst uklonjen"
+  "studio_editor_saved_plan_removed": "Sačuvano: plan v{plan}, tekst uklonjen",
+  "studio_editor_device_only": "Deo teksta se čuva samo na ovom uređaju",
+  "studio_editor_nothing_to_save": "Nema izmena za čuvanje",
+  "studio_editor_project_error": "Nije moguće učitati projekat; podrazumevani jezik možda nedostaje.",
+  "studio_editor_leave_title": "Napustiti bez čuvanja?",
+  "studio_editor_leave_body": "Ovaj uređaj ne može da sačuva tvoje izmene.",
+  "studio_editor_stay": "Ostani",
+  "studio_editor_leave": "Napusti",
+  "studio_editor_restore_checking": "Proveravamo sačuvani nacrt…",
+  "studio_editor_restore_error": "Nije moguće proveriti sačuvani nacrt.",
+  "studio_editor_restore_base_missing": "Verzija na kojoj je zasnovan je obrisana; nacrt će biti sačuvan preko trenutne verzije."
 }

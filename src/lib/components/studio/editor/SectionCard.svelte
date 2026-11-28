@@ -1,9 +1,12 @@
 <script lang="ts">
   import TagListInput from '$lib/components/shared/TagListInput.svelte';
   import ToggleSwitch from '$lib/components/shared/ToggleSwitch.svelte';
+  import FieldIssues from './FieldIssues.svelte';
   import SectionLyricsField from './SectionLyricsField.svelte';
+  import { targetIssues } from '$lib/studio/editorIssues';
+  import { describedBy } from '$lib/studio/formErrors';
   import { sectionDisplayName } from '$lib/studio/sections';
-  import type { PlanSection } from '$lib/studio/songDraft';
+  import { isHiddenSection, type PlanSection } from '$lib/studio/songDraft';
   import type { SectionDraft, SectionKind, SongDraft } from '$lib/studio/songDraft';
   import type { DraftIssue } from '$lib/studio/songValidation';
   import * as m from '$paraglide/messages';
@@ -68,6 +71,12 @@
       .filter((item) => item.path?.startsWith(`sections[${index}].style.avoid`))
       .flatMap((item) => (item.path ? [{ path: item.path, code: item.code }] : [])),
   );
+  let labelId = $derived(`section-label-${section.id}`);
+  let durationId = $derived(`section-${section.id}-duration`);
+  let notesId = $derived(`section-${section.id}-notes`);
+  let labelIssues = $derived(targetIssues(issues, 'label', section.id));
+  let durationIssues = $derived(targetIssues(issues, 'duration', section.id));
+  let notesIssues = $derived(targetIssues(issues, 'notes', section.id));
   function handleMoveKey(event: KeyboardEvent) {
     if (!event.altKey || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) return;
     event.preventDefault();
@@ -104,8 +113,10 @@
         >{/each}
     </select>
     <input
-      id={`section-label-${section.id}`}
+      id={labelId}
       aria-label={m.studio_editor_section_label()}
+      aria-describedby={describedBy(labelId, labelIssues)}
+      aria-invalid={labelIssues.length > 0}
       value={section.label}
       placeholder={defaultName}
       oninput={(event) => (section.label = event.currentTarget.value)}
@@ -151,9 +162,11 @@
       </div>
     </details>
   </header>
+  <FieldIssues controlId={labelId} issues={labelIssues} />
   <SectionLyricsField
     id={section.id}
     value={section.lyrics}
+    hidden={isHiddenSection(draft, section)}
     {hiddenLines}
     {issues}
     oninput={(value) => (section.lyrics = value)}
@@ -190,31 +203,36 @@
         hint={m.studio_editor_not_sent()}
       />
       <div>
-        <label class="mb-1 block text-sm font-medium" for={`section-${section.id}-duration`}
+        <label class="mb-1 block text-sm font-medium" for={durationId}
           >{m.studio_editor_duration()}</label
         >
         <input
-          id={`section-${section.id}-duration`}
+          id={durationId}
           type="number"
           min="1"
           max="600"
           step="1"
           value={section.duration}
           oninput={(event) => (section.duration = event.currentTarget.value)}
+          aria-describedby={describedBy(durationId, durationIssues)}
+          aria-invalid={durationIssues.length > 0}
           class="w-full rounded-xl border border-border bg-bg px-3 py-2.5"
         />
+        <FieldIssues controlId={durationId} issues={durationIssues} />
         <p class="mt-1 text-xs text-text-dim">{m.studio_editor_not_sent()}</p>
       </div>
       <div class="md:col-span-2">
-        <label class="mb-1 block text-sm font-medium" for={`section-${section.id}-notes`}
-          >{m.studio_editor_notes()}</label
+        <label class="mb-1 block text-sm font-medium" for={notesId}>{m.studio_editor_notes()}</label
         >
         <textarea
-          id={`section-${section.id}-notes`}
+          id={notesId}
           rows="2"
           value={section.notes}
           oninput={(event) => (section.notes = event.currentTarget.value)}
+          aria-describedby={describedBy(notesId, notesIssues)}
+          aria-invalid={notesIssues.length > 0}
           class="w-full resize-y rounded-xl border border-border bg-bg px-3 py-2.5"></textarea>
+        <FieldIssues controlId={notesId} issues={notesIssues} />
         <p class="mt-1 text-xs text-text-dim">{m.studio_editor_not_sent()}</p>
       </div>
     </div>

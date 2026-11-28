@@ -13,7 +13,7 @@ export function issueId(controlId: string, index: number): string {
 
 export function describedBy(
   controlId: string,
-  issues: StudioValidationIssue[],
+  issues: readonly unknown[],
   extraIds: string[] = [],
 ): string | undefined {
   const ids = [...issues.map((_, index) => issueId(controlId, index)), ...extraIds];

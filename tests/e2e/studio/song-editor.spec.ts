@@ -95,11 +95,39 @@ test(
     await page.waitForTimeout(500);
     await page.reload();
     await expect(page.getByText(/Restore unsaved changes from/)).toBeVisible();
+    // The choice comes first: nothing under it can be typed into.
+    await expect(page.locator('[inert] #song-title')).toHaveCount(1);
     await page.getByRole('button', { name: 'Restore' }).click();
+    await expect(page.locator('[inert]')).toHaveCount(0);
     await expect(bridgeCard.getByLabel('Lyrics')).toHaveValue('Saved on this device');
     await page.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(page.getByText('Saved: lyrics v2')).toBeVisible();
     await expectNoSeriousAxeViolations(page);
+  },
+);
+
+test(
+  'desktop save bar is in view after a Verse–Chorus start',
+  { tag: '@cross-browser' },
+  async ({ authenticatedPage: page }) => {
+    await stubStudio(page, true, true);
+    await createTrack(page);
+    await openEditor(page);
+    await expect(page.locator('article[id^="section-"]')).toHaveCount(6);
+    const saveButton = page.getByRole('button', { name: 'Save', exact: true });
+    // Measured where it is: neither this check nor `boundingBox` scrolls the button into view.
+    const expectWithinViewport = async () => {
+      const box = await saveButton.boundingBox();
+      expect(box).not.toBeNull();
+      expect(box!.y).toBeGreaterThanOrEqual(0);
+      expect(box!.y + box!.height).toBeLessThanOrEqual(page.viewportSize()!.height);
+    };
+    await expectWithinViewport();
+    // It stays there at the far end of the song too.
+    await page.locator('.workspace-scroll').evaluate((element) => {
+      element.scrollTop = element.scrollHeight;
+    });
+    await expectWithinViewport();
   },
 );
 

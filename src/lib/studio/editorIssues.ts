@@ -1,4 +1,5 @@
 import { validationIssues } from './formErrors';
+import { lineRange } from './sunoImport';
 import type { BuiltSong } from './songDraft';
 import type { DraftIssue, DraftTarget } from './songValidation';
 
@@ -11,6 +12,26 @@ function sectionField(path: string): string {
   if (path.endsWith('.duration_seconds')) return 'duration';
   if (path.endsWith('.instrumental')) return 'instrumental';
   return 'kind';
+}
+
+/** Issues of one control: a song field, or a section field when `sectionId` is given. */
+export function targetIssues(
+  issues: readonly DraftIssue[],
+  field: string,
+  sectionId?: string,
+): DraftIssue[] {
+  return issues.filter(({ target }) =>
+    sectionId === undefined
+      ? target?.kind === 'song' && target.field === field
+      : target?.kind === 'section' && target.id === sectionId && target.field === field,
+  );
+}
+
+/** Focus a lyrics textarea and select one of its rows (0-based). */
+export function selectLyricsRow(textarea: HTMLTextAreaElement, row: number): void {
+  const range = lineRange(textarea.value, row + 1);
+  textarea.focus();
+  if (range) textarea.setSelectionRange(range.start, range.end);
 }
 
 export function mapServerIssues(error: unknown, snapshot: BuiltSong): DraftIssue[] {

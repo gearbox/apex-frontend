@@ -2,7 +2,7 @@ import { STUDIO_LIMITS } from './limits';
 import { casefold, normalizeText } from './normalize';
 import { isLanguageTag } from './language';
 import { codePointLength } from './text';
-import type { BuiltSong, SongDraft } from './songDraft';
+import { isHiddenSection, lyricsLength, type BuiltSong, type SongDraft } from './songDraft';
 
 export type DraftTarget =
   | { kind: 'song'; field: string }
@@ -38,20 +38,19 @@ function checkList(
   const seen = new Set<string>();
   values.forEach((raw, index) => {
     const value = normalizeText(raw);
-    const itemTarget = target.kind === 'section' ? target : target;
     const itemPath = `${path}[${index}]`;
-    if (!value) result.push(issue(itemTarget, 'empty_after_normalization', { path: itemPath }));
+    if (!value) result.push(issue(target, 'empty_after_normalization', { path: itemPath }));
     else if (codePointLength(value) > maxLength) {
       result.push(
-        issue(itemTarget, 'too_long_after_normalization', { max: maxLength, path: itemPath }),
+        issue(target, 'too_long_after_normalization', { max: maxLength, path: itemPath }),
       );
     }
     if ((options.reserved ?? true) && (value.includes('[') || value.includes(']'))) {
-      result.push(issue(itemTarget, 'reserved_characters', { path: itemPath }));
+      result.push(issue(target, 'reserved_characters', { path: itemPath }));
     }
     if (options.duplicate !== false && value) {
       const key = casefold(value);
-      if (seen.has(key)) result.push(issue(itemTarget, 'duplicate_tag', { path: itemPath }));
+      if (seen.has(key)) result.push(issue(target, 'duplicate_tag', { path: itemPath }));
       seen.add(key);
     }
   });
@@ -145,7 +144,6 @@ export function validateSong(draft: SongDraft, built: BuiltSong): DraftIssue[] {
   });
 
   let totalDuration = 0;
-  let totalLyricsLength = 0;
   const seenIds = new Set<string>();
   for (let index = 0; index < draft.sections.length; index++) {
     const section = draft.sections[index]!;
@@ -218,10 +216,8 @@ export function validateSong(draft: SongDraft, built: BuiltSong): DraftIssue[] {
       if (Number.isInteger(duration) && duration >= 1 && duration <= 600) totalDuration += duration;
     }
 
-    const hidden = draft.instrumental || section.instrumental || section.kind === 'instrumental';
-    if (!hidden) {
-      const parsed = built.rowIssues.get(section.id) ?? [];
-      for (const rowIssue of parsed) {
+    if (!isHiddenSection(draft, section)) {
+      for (const rowIssue of built.rowIssues.get(section.id) ?? []) {
         issues.push(
           issue({ kind: 'lyrics', id: section.id, row: rowIssue.row }, rowIssue.code, {
             max: rowIssue.max,
@@ -229,17 +225,11 @@ export function validateSong(draft: SongDraft, built: BuiltSong): DraftIssue[] {
           }),
         );
       }
-      const parsedLines = section.lyrics.split(/\r?\n/u).flatMap((row) => {
-        const trimmed = row.trim();
-        if (!trimmed || /^\[.*\]$/u.test(trimmed)) return [];
-        return [normalizeText(trimmed)];
-      });
-      totalLyricsLength += parsedLines.reduce((sum, line) => sum + codePointLength(line), 0);
     }
   }
   if (totalDuration > 1800)
     issues.push(issue(song('sections'), 'total_duration_exceeded', { path: 'sections' }));
-  if (totalLyricsLength > STUDIO_LIMITS.sunoLyrics)
+  if (lyricsLength(built.lyrics) > STUDIO_LIMITS.sunoLyrics)
     issues.push(
       issue(song('lyrics'), 'lyrics_too_long', { max: STUDIO_LIMITS.sunoLyrics, path: 'sections' }),
     );

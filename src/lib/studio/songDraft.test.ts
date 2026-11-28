@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { buildSong, draftFromDocuments, newDraft, sameLyrics, samePlan } from './songDraft';
+import {
+  buildSong,
+  draftFromDocuments,
+  hasUnsentInput,
+  newDraft,
+  sameLyrics,
+  samePlan,
+} from './songDraft';
 
 const plan = {
   title: '  Demo  song ',
@@ -64,6 +71,36 @@ describe('song draft document mapping', () => {
     draft.instrumental = true;
     expect(buildSong(draft).lyrics).toBeNull();
     expect(draft.sections[0]!.lyrics).toBe('[soft]\nVerse line');
+  });
+
+  it('hasUnsentInput: pending delivery, header row, hidden text; false for a clean draft', () => {
+    const unsent = (change: (draft: ReturnType<typeof draftFromDocuments>) => void) => {
+      const draft = draftFromDocuments(plan, null, { language: 'en' });
+      draft.sections[0]!.lyrics = '[soft]\nVerse line';
+      change(draft);
+      return hasUnsentInput(draft, buildSong(draft));
+    };
+    expect(unsent(() => {})).toBe(false);
+    expect(unsent((draft) => (draft.sections[0]!.lyrics += '\n[whispered]'))).toBe(true);
+    expect(unsent((draft) => (draft.sections[0]!.lyrics += '\n[Verse 2]'))).toBe(true);
+    expect(unsent((draft) => (draft.sections[0]!.instrumental = true))).toBe(true);
+    expect(unsent((draft) => (draft.sections[0]!.kind = 'instrumental'))).toBe(true);
+    expect(unsent((draft) => (draft.instrumental = true))).toBe(true);
+    // A blank hidden section holds nothing to keep.
+    expect(
+      unsent((draft) => {
+        draft.sections[1]!.instrumental = true;
+        draft.sections[1]!.lyrics = ' \n ';
+      }),
+    ).toBe(false);
+  });
+
+  it('counts the rows of hidden text that form no lyric line', () => {
+    const draft = draftFromDocuments(plan, null, { language: 'en' });
+    draft.instrumental = true;
+    draft.sections[0]!.lyrics = '[soft]\n\n';
+    expect(buildSong(draft).hiddenLines.get('verse')).toBe(1);
+    expect(buildSong(draft).hiddenLines.has('chorus')).toBe(false);
   });
 
   it('creates only the blank or locked Verse–Chorus template', () => {

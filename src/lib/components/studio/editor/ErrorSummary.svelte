@@ -7,9 +7,15 @@
   let {
     issues,
     sections,
+    announce = false,
     onfocus,
-  }: { issues: DraftIssue[]; sections: PlanSection[]; onfocus: (issue: DraftIssue) => void } =
-    $props();
+  }: {
+    issues: DraftIssue[];
+    sections: PlanSection[];
+    /** True only while the summary still answers the save attempt that showed it. */
+    announce?: boolean;
+    onfocus: (issue: DraftIssue) => void;
+  } = $props();
 
   function label(issue: DraftIssue): string {
     const target = issue.target;
@@ -39,8 +45,10 @@
   }
 </script>
 
+<!-- Assertive once, for the attempt. Later edits reach screen readers through the polite status. -->
 <section
   class="rounded-xl border border-danger/50 bg-danger/5 p-4"
+  role={announce ? 'alert' : undefined}
   aria-labelledby="song-error-summary-heading"
 >
   <h2 id="song-error-summary-heading" tabindex="-1" class="font-semibold text-danger">
@@ -58,3 +66,6 @@
     {/each}
   </ul>
 </section>
+<p class="sr-only" role="status">
+  {announce ? '' : m.studio_editor_problems({ count: String(issues.length) })}
+</p>

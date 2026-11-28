@@ -1262,7 +1262,6 @@
   "studio_editor_blank": "Blank",
   "studio_editor_verse_chorus": "Verse–Chorus",
   "studio_editor_storage_unavailable": "Draft autosave is unavailable. Keep this page open while you edit.",
-  "studio_editor_leave_confirm": "Draft autosave is unavailable. Leave this page and lose these changes?",
   "studio_editor_restore_banner": "Unsaved song draft",
   "studio_editor_restore_prompt": "Restore unsaved changes from {time}?",
   "studio_editor_restore": "Restore",
@@ -1299,5 +1298,15 @@
   "studio_editor_issue_empty_delivery": "Every delivery item needs a value.",
   "studio_editor_issue_delivery_too_many": "Use at most 6 delivery items on a row.",
   "studio_editor_issue_delivery_too_long": "Keep each delivery item to 40 characters or fewer.",
-  "studio_editor_saved_plan_removed": "Saved: plan v{plan}, lyrics removed"
+  "studio_editor_saved_plan_removed": "Saved: plan v{plan}, lyrics removed",
+  "studio_editor_device_only": "Some text is kept only on this device",
+  "studio_editor_nothing_to_save": "No changes to save",
+  "studio_editor_project_error": "Couldn't load the project; the language default may be missing.",
+  "studio_editor_leave_title": "Leave without saving?",
+  "studio_editor_leave_body": "This device can't keep your changes.",
+  "studio_editor_stay": "Stay",
+  "studio_editor_leave": "Leave",
+  "studio_editor_restore_checking": "Checking the saved draft…",
+  "studio_editor_restore_error": "Couldn't check the saved draft.",
+  "studio_editor_restore_base_missing": "The version it was based on was deleted; it will be saved on top of the current version."
 }

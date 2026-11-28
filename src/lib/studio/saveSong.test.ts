@@ -92,6 +92,39 @@ describe('saveSong version orchestration', () => {
     ]);
   });
 
+  it('uses only the snapshot even if the draft changes during the save', async () => {
+    const draft = draftFromDocuments(plan1, lyrics1, { language: '' });
+    draft.tempo = '120';
+    draft.sections[0]!.lyrics = 'Changed line';
+    const bodies: unknown[] = [];
+    const { api: client } = api();
+    const typing: SongSaveApi = {
+      ...client,
+      // The user keeps typing at every await of the save.
+      async fetchServerPair() {
+        draft.tempo = '200';
+        draft.sections[0]!.lyrics = 'Typed during the save';
+        draft.sections[0]!.delivery.push('typed');
+        draft.styleTags.push('typed');
+        return client.fetchServerPair();
+      },
+      async createPlan(body) {
+        bodies.push(structuredClone(body.content));
+        return client.createPlan(body);
+      },
+      async createLyrics(body) {
+        bodies.push(structuredClone(body.content));
+        return client.createLyrics(body);
+      },
+    };
+    const snapshotted = buildSong(draft);
+    const expected = structuredClone([snapshotted.plan, snapshotted.lyrics]);
+
+    await saveSong(typing, { snapshot: snapshotted, base });
+
+    expect(bodies).toEqual(expected);
+  });
+
   it('keeps unchanged lyrics when only the plan changes', async () => {
     const { api: client, calls } = api();
     const result = await saveSong(client, { snapshot: snapshot('plan'), base });

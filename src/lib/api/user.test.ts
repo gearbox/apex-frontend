@@ -319,4 +319,34 @@ describe('deleteAccount()', () => {
     );
     await expect(deleteAccount()).rejects.toThrow(ApiRequestError);
   });
+
+  it('a failed account deletion keeps them', async () => {
+    const user = makeUserProfile({ id: 'kept-draft-user' });
+    setAuth(
+      {
+        accessToken: 'user-access',
+        refreshToken: 'user-refresh',
+        expiresAt: 'later',
+        contentCookieExpiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+      },
+      user,
+    );
+    songDraftStore.save(user.id, 'track-1', {
+      savedAt: new Date().toISOString(),
+      base: { plan: null, lyrics: null },
+      draft: newDraft('blank', 'Untitled', '', () => 'section-1'),
+    });
+    server.use(
+      http.delete(`${BASE}/v1/users/me`, () =>
+        HttpResponse.json(
+          { error: 'server_error', message: 'Internal server error', status_code: 500 },
+          { status: 500 },
+        ),
+      ),
+    );
+
+    await expect(deleteAccount()).rejects.toThrow(ApiRequestError);
+
+    expect(songDraftStore.list(user.id)).toHaveLength(1);
+  });
 });
