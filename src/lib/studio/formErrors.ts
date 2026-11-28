@@ -13,7 +13,7 @@ export function issueId(controlId: string, index: number): string {
 
 export function describedBy(
   controlId: string,
-  issues: StudioValidationIssue[],
+  issues: readonly unknown[],
   extraIds: string[] = [],
 ): string | undefined {
   const ids = [...issues.map((_, index) => issueId(controlId, index)), ...extraIds];
@@ -147,6 +147,28 @@ export function issueMessage(issue: StudioValidationIssue): string {
       return m.studio_import_too_many_items();
     case 'document_too_large':
       return m.studio_issue_document_too_large();
+    case 'out_of_range':
+      return m.studio_editor_issue_out_of_range();
+    case 'language_required':
+      return m.studio_editor_issue_language_required();
+    case 'invalid_language':
+      return m.studio_editor_issue_invalid_language();
+    case 'line_too_long':
+      return m.studio_editor_issue_line_too_long();
+    case 'too_many_lines':
+      return m.studio_editor_issue_too_many_lines();
+    case 'looks_like_header':
+      return m.studio_editor_issue_header();
+    case 'delivery_without_line':
+      return m.studio_editor_issue_delivery_without_line();
+    case 'delivery_twice':
+      return m.studio_editor_issue_delivery_twice();
+    case 'empty_delivery':
+      return m.studio_editor_issue_empty_delivery();
+    case 'delivery_too_many':
+      return m.studio_editor_issue_delivery_too_many();
+    case 'delivery_too_long':
+      return m.studio_editor_issue_delivery_too_long();
     case 'unsupported_inline_tag':
       return m.studio_issue_unsupported_inline_tag();
     default:

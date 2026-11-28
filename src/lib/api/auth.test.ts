@@ -39,6 +39,8 @@ import {
 import { getQueryClient } from '$lib/queries/queryClient';
 import { clearRateLimits, getRateLimitState } from '$lib/stores/rateLimit';
 import { STORAGE_KEYS, SESSION_KEYS } from '$lib/utils/constants';
+import { songDraftStore } from '$lib/studio/songDraftStore';
+import { newDraft } from '$lib/studio/songDraft';
 import {
   resetPushNotificationStateForTesting,
   storePushRegistration,
@@ -775,6 +777,37 @@ describe('auth epoch isolation', () => {
 });
 
 describe('logout()', () => {
+  it("logout clears the user's song drafts", async () => {
+    const profile = makeUserProfile({ id: 'logout-draft-user' });
+    setAuth(
+      {
+        accessToken: 'logout-access',
+        refreshToken: 'mock-refresh-token',
+        expiresAt: 'later',
+        contentCookieExpiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+      },
+      profile,
+    );
+    const saveDraft = (trackId: string) =>
+      songDraftStore.save(profile.id, trackId, {
+        savedAt: new Date().toISOString(),
+        base: { plan: null, lyrics: null },
+        draft: newDraft('blank', 'Untitled', '', () => 'section-1'),
+      });
+    saveDraft('track-1');
+    server.use(
+      http.post(`${BASE}/v1/auth/logout`, () => {
+        // An open editor writes again while sign-out is in flight.
+        saveDraft('track-2');
+        return HttpResponse.json({ message: 'Logged out successfully' });
+      }),
+    );
+
+    await logout();
+
+    expect(songDraftStore.list(profile.id)).toEqual([]);
+  });
+
   it('calls /v1/auth/logout and clears store', async () => {
     let logoutCalled = false;
 

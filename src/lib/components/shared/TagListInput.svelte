@@ -14,6 +14,7 @@
     field?: string;
     issues?: StudioValidationIssue[];
     disabled?: boolean;
+    allowReservedCharacters?: boolean;
   }
 
   let {
@@ -27,11 +28,12 @@
     field = '',
     issues = [],
     disabled = false,
+    allowReservedCharacters = false,
   }: Props = $props();
 
   let inputValue = $state('');
   let feedback = $state('');
-  let tagIssues = $derived(field ? fieldIssues(issues, field) : []);
+  let tagIssues = $derived(field === '*' ? issues : field ? fieldIssues(issues, field) : []);
   let describedBy = $derived(
     [
       id + '-count',
@@ -45,7 +47,7 @@
     if (disabled) return;
     const value = inputValue.normalize('NFC').trim();
     if (!value) return;
-    if (value.includes('[') || value.includes(']')) {
+    if (!allowReservedCharacters && (value.includes('[') || value.includes(']'))) {
       feedback = m.studio_tag_brackets();
       return;
     }

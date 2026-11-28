@@ -1,12 +1,12 @@
 <script lang="ts">
-  import { tick } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { createQuery, createMutation, useQueryClient } from '@tanstack/svelte-query';
   import { trackQueryOptions, renameTrackMutationOptions } from '$lib/queries/studioTracks';
   import { codePointLength } from '$lib/studio/text';
   import { STUDIO_LIMITS } from '$lib/studio/limits';
-  import { studioProject, studioTrack } from '$lib/studio/paths';
+  import { studioProject, studioTrack, studioTrackEdit } from '$lib/studio/paths';
   import { ApiRequestError } from '$lib/api/errors';
   import { componentSession } from '$lib/utils/sessionTracker';
   import { addToast } from '$lib/stores/toasts';
@@ -22,8 +22,12 @@
     issueMessage,
   } from '$lib/studio/formErrors';
   import * as m from '$paraglide/messages';
+  import { currentUser } from '$lib/stores/auth';
+  import { songDraftStore } from '$lib/studio/songDraftStore';
+  import { formatRelativeDate } from '$lib/utils/format';
   let id = $derived($page.params.trackId ?? '');
   let projectId = $derived($page.params.projectId ?? '');
+  let userId = $derived($currentUser?.id ?? '');
   const track = createQuery(() => trackQueryOptions(id));
   const qc = useQueryClient();
   const rename = createMutation(() => renameTrackMutationOptions(qc, projectId));
@@ -39,6 +43,20 @@
   let plan = $derived(track.data?.current_plan?.content ?? null);
   let lyrics = $derived(track.data?.current_lyrics?.content ?? null);
   let exportOpen = $state(false);
+  let localDraft = $state<{ savedAt: string } | null>(null);
+  function readLocalDraft(): void {
+    localDraft = userId && id ? songDraftStore.load(userId, id) : null;
+  }
+  $effect(() => {
+    const currentId = id;
+    const currentUserId = userId;
+    if (currentId && currentUserId) readLocalDraft();
+  });
+  onMount(() => {
+    const refresh = () => readLocalDraft();
+    document.addEventListener('visibilitychange', refresh);
+    return () => document.removeEventListener('visibilitychange', refresh);
+  });
   $effect(() => {
     const loaded = track.data;
     if (loaded && loaded.library_project_id !== projectId) {
@@ -147,6 +165,9 @@
       aria-label={m.studio_track_actions({ title: track.data.title })}
       class="mt-5 flex flex-wrap gap-2"
     >
+      <a class="rounded-lg border border-border px-3 py-2" href={studioTrackEdit(projectId, id)}>
+        {plan ? m.studio_editor_edit() : m.studio_editor_write_song()}
+      </a>
       <button
         class="rounded-lg border border-border px-3 py-2 disabled:cursor-not-allowed disabled:opacity-50"
         disabled={!plan}
@@ -160,6 +181,30 @@
         >{m.studio_history()}</a
       >
     </nav>
+    {#if localDraft}
+      <aside
+        class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-warning/40 bg-warning/10 p-4"
+        aria-label={m.studio_editor_restore_banner()}
+      >
+        <p class="text-sm">
+          {m.studio_editor_unsaved_banner({ time: formatRelativeDate(localDraft.savedAt) })}
+        </p>
+        <div class="flex gap-3">
+          <a
+            class="rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-bg"
+            href={studioTrackEdit(projectId, id)}>{m.studio_editor_continue()}</a
+          >
+          <button
+            type="button"
+            class="rounded-lg border border-border px-3 py-2 text-sm"
+            onclick={() => {
+              songDraftStore.remove(userId, id);
+              localDraft = null;
+            }}>{m.studio_editor_discard()}</button
+          >
+        </div>
+      </aside>
+    {/if}
     {#if !plan}
       <p class="mt-8 text-text-muted">
         {m.studio_no_plan()} ·

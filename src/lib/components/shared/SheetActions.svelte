@@ -6,6 +6,7 @@
     primaryVariant?: 'default' | 'danger';
     pending?: boolean;
     primaryDisabled?: boolean;
+    cancelLabel?: string;
     oncancel: () => void;
     onprimary: () => void;
   }
@@ -15,6 +16,7 @@
     primaryVariant = 'default',
     pending = false,
     primaryDisabled = false,
+    cancelLabel = m.common_cancel(),
     oncancel,
     onprimary,
   }: Props = $props();
@@ -25,7 +27,7 @@
     type="button"
     class="rounded-lg border border-border px-4 py-2"
     disabled={pending}
-    onclick={oncancel}>{m.common_cancel()}</button
+    onclick={oncancel}>{cancelLabel}</button
   >
   <button
     type="button"
